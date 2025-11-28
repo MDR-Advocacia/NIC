@@ -1,0 +1,175 @@
+/* src/styles/UserManagement.module.css */
+/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
+
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h1 { 
+    margin: 0; 
+    color: var(--text-primary); /* ADICIONADO */
+}
+.header p {
+    color: var(--text-secondary); /* ADICIONADO */
+}
+
+.headerActions {
+    display: flex;
+    gap: 1rem;
+}
+
+.actionButton, .newUserButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s, transform 0.2s ease-out; /* ADICIONADO */
+}
+/* ADICIONADO */
+.actionButton:hover, .newUserButton:hover {
+    transform: translateY(-2px);
+}
+
+
+.actionButton {
+    background-color: var(--bg-hover); /* MUDADO */
+    border: 1px solid var(--border-color-light); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+}
+
+.newUserButton {
+    background-color: var(--accent-primary); /* MUDADO */
+    color: var(--text-on-accent); /* MUDADO */
+}
+
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+}
+
+.filtersContainer {
+    background-color: var(--bg-card); /* MUDADO */
+    padding: 1.5rem;
+    border-radius: 8px;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+    box-shadow: var(--card-shadow); /* ADICIONADO */
+}
+
+.searchInput {
+    flex-grow: 1;
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark); /* MUDADO */
+    background-color: var(--bg-input); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+}
+
+.filterSelect {
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark); /* MUDADO */
+    background-color: var(--bg-input); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+    min-width: 180px;
+}
+
+.tableContainer {
+    background-color: var(--bg-card); /* MUDADO */
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+    box-shadow: var(--card-shadow); /* ADICIONADO */
+}
+
+.tableContainer h3 {
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--text-primary); /* MUDADO */
+}
+
+.table th, .table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+}
+
+.table th {
+    color: var(--text-secondary); /* MUDADO */
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.userCell {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.userAvatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--bg-hover); /* MUDADO */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1rem;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.userName { 
+    font-weight: bold; 
+    color: var(--text-primary); /* ADICIONADO */
+}
+.userEmail { 
+    font-size: 0.8rem; 
+    color: var(--text-secondary); /* MUDADO */
+}
+
+/* O estilo base da tag, as cores vêm do .jsx */
+.tag {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: inline-block;
+    white-space: nowrap; /* ADICIONADO */
+}
+
+/* REMOVIDO: Classes de cor (statusAtivo, roleAdmin, etc.) */
+
+.actionsCell {
+    display: flex; /* MUDADO: para 'flex' */
+    gap: 1.5rem;
+    font-size: 1.1rem;
+    color: var(--text-secondary); /* MUDADO */
+}
+.actionsCell > * { 
+    cursor: pointer; 
+    transition: color 0.2s, transform 0.2s; /* ADICIONADO */
+}
+.actionsCell > *:hover { 
+    color: var(--accent-primary); /* MUDADO */
+    transform: scale(1.2); /* ADICIONADO */
+}

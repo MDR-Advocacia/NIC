@@ -1,0 +1,62 @@
+/* src/styles/ProcessStageChart.module.css */
+/* REATORADO v2: Cores de TEXTO corrigidas para Light/Dark */
+
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    font-family: system-ui, sans-serif;
+    /* Herda a cor do body */
+}
+
+.stageRow {
+    display: grid;
+    grid-template-columns: 150px 1fr 80px;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    margin: 0 -0.5rem;
+    transition: background-color 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.stageRow:hover {
+    background-color: var(--bg-hover);
+    transform: translateY(-2px);
+}
+
+.stageName {
+    font-size: 0.9rem;
+    color: var(--text-secondary); /* CORRIGIDO */
+    text-align: left;
+}
+
+.barContainer {
+    width: 100%;
+    background-color: var(--bg-input);
+    height: 8px;
+    border-radius: 4px;
+}
+
+.barFill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease-in-out;
+}
+
+.stageData {
+    text-align: right;
+}
+
+.stageCount {
+    font-weight: bold;
+    font-size: 0.9rem;
+    color: var(--text-primary); /* CORRIGIDO */
+}
+
+.stagePercentage {
+    font-size: 0.8rem;
+    color: var(--text-secondary); /* CORRIGIDO */
+    display: block;
+}

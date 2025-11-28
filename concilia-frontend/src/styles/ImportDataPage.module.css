@@ -1,0 +1,265 @@
+/* src/styles/ImportDataPage.module.css */
+/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
+
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.header p {
+    margin: 0;
+    color: var(--text-secondary); /* MUDADO */
+}
+
+.templateButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border-color-dark); /* MUDADO */
+    background-color: var(--bg-hover); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+    transition: background-color 0.2s, transform 0.2s ease-out; /* ADICIONADO */
+}
+
+.templateButton:hover {
+    background-color: var(--border-color-light); /* MUDADO */
+    transform: translateY(-2px); /* ADICIONADO */
+}
+
+/* Stepper */
+.stepper {
+    display: flex;
+    justify-content: space-between;
+    background-color: var(--bg-card); /* MUDADO */
+    padding: 1.5rem 2rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+    box-shadow: var(--card-shadow); /* ADICIONADO */
+}
+
+.step {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: var(--text-secondary); /* MUDADO */
+    position: relative;
+    flex: 1;
+}
+
+.step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    width: calc(100% - 60px);
+    height: 1px;
+    background-color: var(--border-color-light); /* MUDADO */
+    margin-left: 30px;
+    margin-right: 30px;
+}
+
+.stepNumber {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    border: 2px solid var(--border-color-dark); /* MUDADO */
+    background-color: var(--bg-input); /* MUDADO */
+}
+
+.step.active .stepNumber {
+    border-color: var(--accent-primary); /* MUDADO */
+    background-color: var(--accent-primary); /* MUDADO */
+    color: var(--text-on-accent); /* MUDADO */
+}
+
+.step.active .stepTitle {
+    color: var(--text-primary); /* MUDADO */
+}
+
+.stepTitle {
+    font-weight: bold;
+}
+
+.stepSubtitle {
+    font-size: 0.8rem;
+}
+
+/* Card de Conteúdo */
+.contentCard {
+    background-color: var(--bg-card); /* MUDADO */
+    padding: 2rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+    box-shadow: var(--card-shadow); /* ADICIONADO */
+}
+
+.contentCard h2 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.label {
+    font-weight: 500;
+    color: var(--text-secondary); /* MUDADO */
+}
+
+.select {
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark); /* MUDADO */
+    background-color: var(--bg-input); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+}
+
+.nextButton, .prevButton {
+    transition: background-color 0.2s, transform 0.2s ease-out; /* ADICIONADO */
+}
+.nextButton:hover, .prevButton:hover {
+    transform: translateY(-2px); /* ADICIONADO */
+}
+
+.nextButton {
+    background-color: var(--accent-primary); /* MUDADO */
+    color: var(--text-on-accent); /* MUDADO */
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 1.5rem;
+    float: right;
+}
+
+.fileInput {
+    padding: 1rem;
+    border: 2px dashed var(--border-color-dark); /* MUDADO */
+    border-radius: 5px;
+    background-color: var(--bg-input); /* MUDADO */
+    color: var(--text-secondary); /* MUDADO */
+    cursor: pointer;
+}
+
+.stepActions {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+}
+
+.prevButton {
+    background-color: var(--bg-hover); /* MUDADO */
+    color: var(--text-secondary); /* MUDADO */
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+    padding: 0.75rem 1.5rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* Tabela de Preview */
+.previewTableContainer {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color-light); /* MUDADO */
+    border-radius: 5px;
+}
+
+.previewTable {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.previewTable th, .previewTable td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+    white-space: nowrap;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.previewTable th {
+    background-color: var(--bg-hover); /* MUDADO */
+    color: var(--text-secondary); /* ADICIONADO */
+    position: sticky;
+    top: 0;
+}
+
+.errorBox {
+    color: #e53e3e;
+    background-color: rgba(229, 62, 62, 0.1);
+    border: 1px solid #e53e3e;
+    padding: 1rem;
+    border-radius: 5px;
+    text-align: center;
+}
+
+/* Estilos para a tela de resultado */
+.resultSuccess, .resultError {
+    padding: 1.5rem;
+    border-radius: 5px;
+    margin-bottom: 1.5rem;
+}
+
+.resultSuccess {
+    background-color: rgba(22, 163, 74, 0.1);
+    border: 1px solid #16a34a;
+    color: #16a34a;
+}
+
+.resultError {
+    background-color: rgba(229, 62, 62, 0.1);
+    border: 1px solid #e53e3e;
+    color: #e53e3e;
+}
+
+.resultSuccess h3, .resultError h3 {
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.errorList {
+    background-color: var(--bg-input); /* MUDADO */
+    padding: 1rem;
+    border-radius: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+    color: var(--text-primary); /* MUDADO */
+}
+
+.errorList li:not(:last-child) {
+    margin-bottom: 0.5rem;
+}

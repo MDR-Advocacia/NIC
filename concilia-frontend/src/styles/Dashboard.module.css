@@ -1,0 +1,167 @@
+/* src/styles/Dashboard.module.css */
+/* ATUALIZADO v3: Adicionada sombra (var) para destaque dos cards */
+
+.dashboardContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.filters {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    padding: 1rem;
+    background-color: var(--bg-card);
+    border-radius: 8px;
+    /* ADICIONADO: Sombra */
+    box-shadow: var(--card-shadow);
+    /* border: 1px solid var(--border-color-light); REMOVIDO: Sombra é melhor */
+}
+
+.filters label {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.filters input,
+.filters select {
+    padding: 0.5rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+}
+
+.kpiCard {
+    background-color: var(--bg-card);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border-left: 5px solid var(--accent-primary);
+    cursor: pointer;
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+    /* ADICIONADO: Sombra */
+    box-shadow: var(--card-shadow);
+}
+
+.kpiCard:hover {
+    transform: translateY(-4px);
+    /* ATUALIZADO: Sombra mais pronunciada no hover */
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+
+.kpiTitle {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.kpiValue {
+    margin: 0;
+    font-size: 1.75rem; 
+    font-weight: bold;
+    word-break: break-all; 
+    color: var(--text-primary);
+}
+
+.filterButton {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-left: auto;
+    transition: background-color 0.2s, transform 0.2s ease-out;
+}
+
+.filterButton:hover {
+    background-color: var(--accent-primary-hover);
+    transform: translateY(-2px);
+}
+
+.chartsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2rem;
+}
+
+.chartCard {
+    background-color: var(--bg-card);
+    padding: 1.5rem;
+    border-radius: 8px;
+    /* border: 1px solid var(--border-color-light); REMOVIDO */
+    display: flex;
+    flex-direction: column;
+    min-height: 350px;
+    /* ADICIONADO: Sombra */
+    box-shadow: var(--card-shadow);
+}
+
+.chartCard h3 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+}
+
+.dashboardGrid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-template-areas: "main sidebar";
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+.mainContent {
+    grid-area: main;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    background-color: var(--bg-card);
+    padding: 1.5rem;
+    border-radius: 8px;
+    /* border: 1px solid var(--border-color-light); REMOVIDO */
+    /* ADICIONADO: Sombra */
+    box-shadow: var(--card-shadow);
+}
+
+.rightSidebar {
+    grid-area: sidebar;
+    position: sticky;
+    top: 2rem;
+}
+
+/* Overrides para Layout Unificado */
+.mainContent > .chartsGrid > .chartCard,
+.mainContent > .statusDistribution,
+.mainContent > .recentCases {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+    border: none;
+    box-shadow: none; /* REMOVIDO: Sombra dos filhos */
+    min-height: auto;
+}
+
+.mainContent > .chartsGrid > .chartCard h3,
+.mainContent > .statusDistribution h3,
+.mainContent > .recentCases h3 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color-light);
+    padding-bottom: 1rem;
+    color: var(--text-primary);
+}

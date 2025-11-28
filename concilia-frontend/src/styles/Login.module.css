@@ -1,0 +1,79 @@
+/* src/styles/Login.module.css */
+/* REATORADO v2: Adicionado o efeito de "levantar" (mãozinhas) */
+
+.loginPage {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: var(--bg-page);
+}
+
+.loginBox {
+    background-color: var(--bg-card);
+    padding: 2.5rem 2rem;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid var(--border-color-light);
+}
+
+.title {
+    text-align: center;
+    margin-bottom: 2rem;
+    font-size: 2em;
+    color: var(--text-primary);
+}
+
+.formGroup {
+    margin-bottom: 1.5rem;
+}
+
+.label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.input {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+
+.button {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    font-weight: bold;
+    color: var(--text-on-accent);
+    background-color: var(--accent-primary);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    /* ATUALIZADO: Adiciona a transição para o 'transform' */
+    transition: background-color 0.2s, transform 0.2s ease-out;
+}
+
+.button:hover {
+    background-color: var(--accent-primary-hover);
+    /* ATUALIZADO: Adiciona o efeito de "levantar" (mãozinhas) */
+    transform: translateY(-2px);
+}
+
+.button:disabled {
+    background-color: var(--border-color-dark);
+    cursor: not-allowed;
+}
+
+.error {
+    color: #e53e3e;
+    text-align: center;
+    margin-top: 1rem;
+}

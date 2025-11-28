@@ -1,0 +1,181 @@
+/* src/styles/CaseManagement.module.css */
+/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
+
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.header p {
+    margin: 0;
+    color: var(--text-secondary); /* MUDADO */
+}
+
+.headerActions {
+    display: flex;
+    gap: 1rem;
+}
+
+.actionButton, .newCaseButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s, transform 0.2s ease-out; /* ADICIONADO transform */
+}
+.actionButton:hover, .newCaseButton:hover {
+    transform: translateY(-2px); /* ADICIONADO */
+}
+
+
+.actionButton {
+    background-color: var(--bg-hover); /* MUDADO */
+    border: 1px solid var(--border-color-light); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+}
+
+.newCaseButton {
+    background-color: var(--accent-primary); /* MUDADO */
+    color: var(--text-on-accent); /* MUDADO */
+}
+
+/* KPIs */
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+    /* O KpiCard.jsx já está refatorado */
+}
+
+/* Filtros */
+.filtersContainer {
+    background-color: var(--bg-card); /* MUDADO */
+    padding: 1.5rem;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+    box-shadow: var(--card-shadow); /* ADICIONADO */
+}
+
+.filtersContainer h3 {
+    margin: 0;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.filterControls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.searchInput {
+    flex-grow: 1;
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark); /* MUDADO */
+    background-color: var(--bg-input); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+}
+
+.filterSelect {
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark); /* MUDADO */
+    background-color: var(--bg-input); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+    min-width: 180px;
+}
+
+/* Tabela */
+.tableContainer {
+    background-color: var(--bg-card); /* MUDADO */
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+    box-shadow: var(--card-shadow); /* ADICIONADO */
+}
+
+.tableContainer h3 {
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--text-primary); /* MUDADO */
+}
+
+.table th, .table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+}
+
+.table th {
+    color: var(--text-secondary); /* MUDADO */
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.caseLink {
+    color: var(--accent-primary); /* MUDADO */
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.subText {
+    font-size: 0.8rem;
+    color: var(--text-secondary); /* MUDADO */
+}
+
+/* As cores das tags agora vêm do JSX */
+.statusTag, .priorityTag {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: inline-block;
+    white-space: nowrap; /* Impede quebra de linha */
+}
+
+/* REMOVIDO: Todas as classes de cor .status... e .priority... 
+   A lógica agora está no .jsx
+*/
+
+.actionsCell {
+    display: flex; /* MUDADO: para 'flex' para melhor alinhamento */
+    align-items: center;
+    gap: 1.2rem;
+}
+
+.actionIcon {
+    color: var(--text-secondary); /* MUDADO */
+    cursor: pointer;
+    transition: color 0.2s ease-in-out, transform 0.2s ease-out; /* ADICIONADO transform */
+    display: flex; 
+    align-items: center;
+}
+
+.actionIcon:hover {
+    color: var(--accent-primary); /* MUDADO */
+    transform: scale(1.2); /* ADICIONADO: Efeito de zoom no hover */
+}

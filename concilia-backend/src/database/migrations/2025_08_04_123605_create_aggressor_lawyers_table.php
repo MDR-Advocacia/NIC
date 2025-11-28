@@ -1,0 +1,33 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+        public function up(): void
+    {
+        Schema::create('aggressor_lawyers', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('oab')->unique();
+            $table->string('cpf')->nullable()->unique();
+            $table->integer('demands_quantity')->default(0);
+            $table->text('observations')->nullable();
+            $table->enum('status', ['active', 'inactive'])->default('active');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('aggressor_lawyers');
+    }
+};

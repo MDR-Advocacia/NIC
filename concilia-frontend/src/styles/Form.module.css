@@ -1,0 +1,98 @@
+.formModalContent {
+    max-width: 700px; /* Um pouco menor que o modal principal */
+}
+
+.formGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.formGroup label {
+    font-weight: 500;
+    color: #a0aec0;
+}
+
+.formGroup input,
+.formGroup textarea,
+.formGroup select {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid #4a5568;
+    background-color: #2d3748;
+    color: white;
+    box-sizing: border-box;
+    font-size: 1rem;
+}
+
+.checkboxGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background-color: #2d3748;
+    padding: 1rem;
+    border-radius: 6px;
+}
+
+.checkboxItem {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.checkboxItem input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+}
+
+.checkboxItem label {
+    font-weight: normal;
+    color: white;
+}
+
+.formActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #4a5568;
+}
+
+.cancelButton, .saveButton {
+    padding: 0.75rem 1.5rem;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s;
+}
+
+.cancelButton {
+    background-color: #4a5568;
+    color: white;
+}
+
+.saveButton {
+    background-color: #3b82f6;
+    color: white;
+}
+
+/* Adicionar em src/styles/Form.module.css */
+.error {
+    color: #e53e3e;
+    text-align: center;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background-color: rgba(229, 62, 62, 0.1);
+    border: 1px solid #e53e3e;
+    border-radius: 5px;
+}

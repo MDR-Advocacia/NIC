@@ -1,0 +1,170 @@
+/* src/styles/CaseCard.module.css */
+/* ATUALIZADO: Adicionados estilos para casos atrasados (SLA) */
+
+.card {
+    background-color: var(--bg-card); 
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    cursor: pointer; 
+    border-left: 5px solid var(--text-secondary); 
+    transition: border-color 0.3s, transform 0.2s ease-out, box-shadow 0.2s;
+    box-shadow: var(--card-shadow);
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+
+.priorityAlta { border-left-color: #e53e3e; }
+.priorityMedia { border-left-color: #dd6b20; }
+.priorityBaixa { border-left-color: #38a169; }
+
+/* --- NOVO ESTILO DE SLA (ATRASADO) --- */
+/* Sobrescreve a borda se o caso estiver atrasado */
+.cardDelayed {
+    border-left-color: #ef4444 !important; /* Vermelho alerta */
+    border-left-width: 6px; /* Um pouco mais grosso para chamar atenção */
+    position: relative;
+}
+
+/* Tag de Alerta (substitui a prioridade) */
+.delayedTag {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: white;
+    background-color: #ef4444; /* Fundo vermelho */
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    animation: pulse 2s infinite; /* Animação suave para chamar atenção */
+}
+
+/* Texto de data em vermelho se atrasado */
+.textDelayed span, .textDelayed svg {
+    color: #ef4444 !important;
+    font-weight: 500;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.85; }
+    100% { opacity: 1; }
+}
+/* --- FIM SLA --- */
+
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    cursor: grab;
+    background-color: var(--border-color-dark); 
+    padding: 0.5rem 0.75rem;
+    margin: -0.5rem -0.5rem 1rem -0.5rem;
+    border-radius: 6px 6px 0 0;
+    user-select: none;
+    transition: background-color 0.2s ease-out;
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+.header:active {
+    cursor: grabbing;
+    background-color: var(--bg-page); 
+}
+
+.caseNumber { 
+    font-weight: bold; 
+    font-size: 1.1rem; 
+    display: flex;
+    align-items: center;
+    color: var(--text-primary);
+}
+
+.caseNumber::before {
+    content: '⠿';
+    font-size: 1.2rem;
+    margin-right: 0.5rem;
+    line-height: 1;
+    font-weight: bold;
+    opacity: 0.7;
+    color: var(--text-primary);
+}
+
+.priorityTag {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: white; 
+}
+.priorityTagAlta { background-color: #e53e3e; }
+.priorityTagMedia { background-color: #dd6b20; }
+.priorityTagBaixa { background-color: #38a169; }
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.infoRow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary); 
+}
+
+.infoRow svg {
+    color: var(--text-secondary); 
+    min-width: 16px; 
+}
+
+.infoRow span {
+    color: var(--text-primary); 
+}
+
+.valueRow {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--text-primary); 
+}
+
+.economyPercentage {
+    font-size: 0.875rem;
+    font-weight: bold;
+    color: #38a169;
+}
+.economyPercentageNegative {
+    font-size: 0.875rem;
+    font-weight: bold;
+    color: #e53e3e; 
+}
+
+.footer {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color-light); 
+    display: flex;
+    justify-content: flex-end; 
+    align-items: center;
+}
+
+.detailsLink {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #dd6b20; 
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: bold;
+}

@@ -1,0 +1,75 @@
+/* src/index.css */
+/* ATUALIZADO: Fundo da página (Modo Claro) mais escuro para contraste */
+
+:root {
+  /* Fontes (Mantidas) */
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* --- PALETA MODO CLARO (Padrão) --- */
+  color-scheme: light;
+  
+  /* ATUALIZADO: Este cinza é mais escuro e dá mais contraste */
+  --bg-page: #dee2e6; /* Era #e9ecef */
+  
+  --bg-card: #ffffff;
+  --bg-menu: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: #f1f3f5;
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+  
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-on-accent: #ffffff;
+  
+  --accent-primary: #3b82f6;
+  --accent-primary-hover: #2563eb;
+  
+  --border-color-light: #dee2e6;
+  --border-color-dark: #ced4da;
+  
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* --- PALETA MODO NOTURNO --- */
+body.dark {
+  color-scheme: dark;
+
+  --bg-page: #2d3748;
+  --bg-card: #1a202c;
+  --bg-menu: #1a202c;
+  --bg-input: #2d3748;
+  --bg-hover: #2d3748;
+  --bg-overlay: rgba(0, 0, 0, 0.8);
+
+  --text-primary: #e2e8f0;
+  --text-secondary: #a0aec0;
+  --text-on-accent: #ffffff;
+
+  --accent-primary: #3b82f6;
+  --accent-primary-hover: #2563eb;
+  
+  --border-color-light: #4a5568;
+  --border-color-dark: #2d3748;
+  
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* --- ESTILOS GLOBAIS --- */
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+h1 {
+  font-size: 2.5em;
+  line-height: 1.1;
+}

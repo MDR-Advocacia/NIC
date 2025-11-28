@@ -1,0 +1,216 @@
+/* src/styles/CaseDetail.module.css */
+/* REATORADO: Com botão de PDF e Spinner */
+
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start; /* Alinhamento melhor com o botão */
+}
+
+.header p {
+    color: var(--text-secondary);
+}
+
+.backLink {
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-weight: 500;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+.backLink:hover {
+    text-decoration: underline;
+}
+
+.title {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.tags {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.tag {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* --- BOTÃO PDF --- */
+.pdfButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #006eff; /* Azul PDF */
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.pdfButton:hover {
+    background-color: #c53030;
+    transform: translateY(-2px);
+}
+
+.pdfButton:disabled {
+    background-color: #a0aec0;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+/* --- FIM BOTÃO PDF --- */
+
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+}
+
+/* ESTILOS PARA O DetailKpiCard */
+.kpiCard {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03); 
+}
+
+.kpiIcon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+}
+
+.kpiContent label {
+    display: block;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    opacity: 0.7;
+    margin-bottom: 0.25rem;
+}
+
+.kpiContent p {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.kpiExtra {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.mainGrid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+.leftColumn, .rightColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.infoCard {
+    background-color: var(--bg-card);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light);
+    box-shadow: var(--card-shadow);
+}
+
+.infoCard h3 {
+    margin-top: 0;
+    border-bottom: 1px solid var(--border-color-light);
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    color: var(--text-primary);
+}
+
+.infoGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.infoItem label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.infoItem p {
+    margin: 0;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.valueBlock {
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.valueBlock label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    opacity: 0.7;
+}
+
+.valueBlock p {
+    margin: 0.25rem 0 0.5rem 0;
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.valueBlock span {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.blueBlock {
+    background-color: rgba(59, 130, 246, 0.1);
+    border: 1px solid #3b82f6;
+}
+
+.greenBlock {
+    background-color: rgba(22, 163, 74, 0.1);
+    border: 1px solid #16a34a;
+}

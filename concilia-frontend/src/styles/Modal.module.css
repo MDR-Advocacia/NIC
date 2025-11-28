@@ -1,0 +1,21 @@
+.modalOverlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modalContent {
+  background-color: #2d3748; padding: 2rem; border-radius: 8px;
+  width: 90%; max-width: 600px; color: white;
+}
+.searchInput {
+    width: 100%; padding: 0.8rem; margin-bottom: 1rem;
+}
+.resultsList {
+    max-height: 200px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #4a5568;
+}
+.resultItem {
+    padding: 0.8rem; cursor: pointer; display: flex; justify-content: space-between;
+}
+.resultItem:hover { background-color: #4a5568; }
+.resultItem.selected { background-color: #3b82f6; }
+.modalActions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1rem; }

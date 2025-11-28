@@ -1,0 +1,71 @@
+/* src/styles/SystemLogs.module.css */
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    height: 100%;
+}
+
+.header h1 {
+    margin: 0;
+    color: var(--text-primary);
+}
+.header p {
+    color: var(--text-secondary);
+}
+
+.tableContainer {
+    background-color: var(--bg-card);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light);
+    box-shadow: var(--card-shadow);
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.tableWrapper {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--text-primary);
+}
+
+.table th {
+    text-align: left;
+    padding: 1rem;
+    border-bottom: 2px solid var(--border-color-light);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-card);
+}
+
+.table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color-light);
+    font-size: 0.9rem;
+}
+
+.userBadge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background-color: var(--bg-hover);
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.actionTag {
+    font-family: monospace;
+    color: var(--accent-primary);
+    background-color: var(--bg-input);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+}

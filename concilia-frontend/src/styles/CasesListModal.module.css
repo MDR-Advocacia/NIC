@@ -1,0 +1,104 @@
+/* src/styles/CasesListModal.module.css */
+/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
+
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-overlay); /* MUDADO */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1001;
+    backdrop-filter: blur(3px);
+}
+
+.modalContent {
+    background-color: var(--bg-card); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+    padding: 1.5rem 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 900px;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--card-shadow); /* MUDADO */
+}
+
+.modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+}
+
+.modalTitle {
+    margin: 0;
+    font-size: 1.3rem;
+    color: var(--text-primary); /* MUDADO */
+}
+
+.modalTitle span {
+    color: var(--text-secondary); /* MUDADO */
+    font-weight: 400;
+}
+
+.closeButton {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary); /* MUDADO */
+    font-size: 1.75rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.2s, transform 0.2s;
+}
+
+.closeButton:hover {
+    color: var(--text-primary); /* MUDADO */
+    transform: rotate(90deg);
+}
+
+.modalBody {
+    flex-grow: 1;
+    overflow-y: auto;
+    color: var(--text-primary); /* MUDADO */
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.table th,
+.table td {
+    padding: 12px;
+    text-align: left;
+}
+
+.table th {
+    color: var(--text-secondary); /* ADICIONADO */
+}
+
+.table thead tr {
+    border-bottom: 2px solid var(--border-color-light); /* MUDADO */
+}
+
+.table tbody tr {
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+}
+
+.table a {
+    color: var(--accent-primary); /* MUDADO */
+    text-decoration: none;
+    font-weight: 500;
+}
+.table a:hover {
+    text-decoration: underline;
+}

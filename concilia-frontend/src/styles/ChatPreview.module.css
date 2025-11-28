@@ -1,0 +1,139 @@
+/* src/styles/ChatPreview.module.css */
+/* REATORADO v2: Cores de TEXTO e BOLHA DE CHAT corrigidas */
+
+.chatContainer {
+    height: 100%; 
+    display: flex;
+    flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-primary);
+}
+
+.chatHeader {
+    display: none; 
+}
+
+.messagesList {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.incomingMessageContainer, .outgoingMessageContainer {
+    display: flex;
+    width: 100%;
+}
+
+.incomingMessageContainer {
+    justify-content: flex-start;
+}
+
+.outgoingMessageContainer {
+    justify-content: flex-end;
+}
+
+.messageBubble {
+    padding: 10px 16px;
+    border-radius: 20px;
+    max-width: 75%;
+    word-wrap: break-word;
+    line-height: 1.4;
+    font-size: 0.9rem;
+    animation: fadeInUp 0.3s ease-out;
+}
+
+.messageContent {
+    margin: 0;
+}
+
+/* --- Mensagem Recebida (CORRIGIDO) --- */
+.incomingMessageContainer .messageBubble {
+    background-color: var(--bg-page); /* MUDADO: Usa o cinza do fundo da página */
+    color: var(--text-primary);
+    border-bottom-left-radius: 5px;
+}
+
+/* Mensagem Enviada (Correto) */
+.outgoingMessageContainer .messageBubble {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    border-bottom-right-radius: 5px;
+}
+
+.messageTimestamp {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 5px;
+    text-align: right;
+}
+
+.outgoingMessageContainer .messageTimestamp {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.chatInputArea {
+    padding: 16px;
+    border-top: 1px solid var(--border-color-light);
+    display: flex;
+    gap: 10px;
+    background-color: var(--bg-card); /* Fundo branco do card */
+    flex-shrink: 0;
+}
+
+/* --- Input de Texto (CORRIGIDO) --- */
+.chatInput {
+    flex-grow: 1;
+    padding: 12px 18px;
+    border: 1px solid var(--border-color-dark);
+    border-radius: 25px;
+    background-color: var(--bg-input);
+    color: var(--text-primary); /* MUDADO: Garante que o texto seja escuro */
+    font-size: 0.9rem;
+}
+
+.chatInput:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px var(--accent-primary-hover);
+    opacity: 0.6;
+}
+
+.sendButton {
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: background-color 0.2s, transform 0.2s ease-out;
+}
+
+.sendButton:hover {
+    background-color: var(--accent-primary-hover);
+    transform: translateY(-2px);
+}
+
+.sendButton:disabled {
+    background-color: var(--border-color-dark);
+    cursor: not-allowed;
+    transform: translateY(0);
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

@@ -1,0 +1,61 @@
+# =================================================================
+# Arquivos e Pastas da Raiz do Projeto
+# =================================================================
+# Ignorar o arquivo de variáveis de ambiente principal (MUITO IMPORTANTE)
+/.env
+
+# Pastas de configuração de IDEs/Editores
+.idea/
+.vscode/
+
+# Arquivos de Sistema Operacional
+.DS_Store
+Thumbs.db
+
+
+# =================================================================
+# Backend (Laravel) - Caminhos a partir da raiz
+# =================================================================
+# Dependências do Composer
+/concilia-backend/src/vendor/
+
+# Logs
+/concilia-backend/src/storage/logs/
+*.log
+
+# Arquivos de cache do Laravel
+/concilia-backend/src/bootstrap/cache/*.php
+/concilia-backend/src/storage/framework/cache/data/
+/concilia-backend/src/storage/framework/sessions/
+/concilia-backend/src/storage/framework/testing/
+/concilia-backend/src/storage/framework/views/
+
+# Link simbólico do storage
+/concilia-backend/src/public/storage
+
+# Arquivos de teste
+/concilia-backend/src/storage/app/public/phpunit-screenshots/
+
+# Laravel Sail (caso seja usado no futuro)
+/concilia-backend/src/docker-compose.yml
+/concilia-backend/src/.env
+/concilia-backend/src/vendor/bin/sail
+
+
+# =================================================================
+# Frontend (React + Vite) - Caminhos a partir da raiz
+# =================================================================
+# Dependências do NPM
+/concilia-frontend/node_modules/
+
+# Arquivos de build de produção
+/concilia-frontend/dist/
+
+# Arquivos de log e cache
+/concilia-frontend/npm-debug.log*
+/concilia-frontend/yarn-error.log*
+/concilia-frontend/.vite/
+
+# Arquivos .env locais do frontend
+/concilia-frontend/.env.local
+/concilia-frontend/.env.*.local

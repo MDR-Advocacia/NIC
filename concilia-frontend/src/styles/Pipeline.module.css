@@ -1,0 +1,520 @@
+/* src/styles/Pipeline.module.css */
+/* ATUALIZADO: Adicionado estilo para o botão de filtro de atrasos */
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.newCaseButton {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s, transform 0.2s ease-out;
+}
+
+.newCaseButton:hover {
+    background-color: var(--accent-primary-hover);
+    transform: translateY(-2px);
+}
+
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-overlay);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(3px);
+}
+
+.modalContent {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--card-shadow);
+    position: relative;
+}
+
+.modalTitle {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+}
+
+.closeButton {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    color: var(--text-secondary);
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.2s;
+}
+
+.closeButton:hover {
+    color: var(--text-primary);
+    transform: rotate(90deg);
+}
+
+.formSection {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color-light);
+}
+
+.formSectionTitle {
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    margin-bottom: 1.5rem;
+    font-weight: 500;
+}
+
+.formGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+}
+
+.label {
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.input,
+.select,
+.textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    box-sizing: border-box;
+    font-size: 1rem;
+}
+
+.inputDescription {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color-light);
+}
+
+.cancelButton,
+.saveButton {
+    padding: 0.75rem 1.5rem;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s ease-out;
+    border: none;
+}
+
+.cancelButton {
+    background-color: var(--bg-hover);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color-light);
+}
+.cancelButton:hover {
+    transform: translateY(-2px);
+    background-color: var(--border-color-light);
+}
+
+.saveButton {
+    background-color: #38a169; /* Cor semântica (Mantida) */
+    color: white;
+}
+.saveButton:hover {
+    transform: translateY(-2px);
+}
+
+.error {
+    color: #e53e3e;
+    text-align: center;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background-color: rgba(229, 62, 62, 0.1);
+    border: 1px solid #e53e3e;
+    border-radius: 5px;
+}
+
+/* Cores semânticas (Mantidas) */
+.priorityButtons {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+.priorityButton {
+    flex: 1;
+    padding: 0.75rem;
+    border: 2px solid var(--border-color-dark);
+    border-radius: 5px;
+    background-color: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+.priorityButton.alta { border-color: #e53e3e; }
+.priorityButton.media { border-color: #dd6b20; }
+.priorityButton.baixa { border-color: #38a169; }
+.priorityButton.selected {
+    color: white;
+}
+.priorityButton.alta.selected { background-color: #e53e3e; }
+.priorityButton.media.selected { background-color: #dd6b20; }
+.priorityButton.baixa.selected { background-color: #38a169; }
+
+
+.tagCreator {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.tagInput {
+    flex-grow: 1;
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.addButton {
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 5px;
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.colorPicker {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.colorDot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+}
+
+.colorDot.selected {
+    border-color: var(--accent-primary);
+}
+
+.tagList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tagItem {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tagRemoveButton {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.modalContent.large {
+    max-width: 1100px;
+    width: 95%;
+}
+
+.modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+.modalTitle {
+    margin-bottom: 0;
+}
+
+.tabNav {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid var(--bg-input);
+    margin-bottom: 1.5rem;
+}
+
+.tabButton {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    background-color: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 1rem;
+    border-bottom: 2px solid transparent;
+    transform: translateY(2px);
+}
+
+.tabButton.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+    font-weight: bold;
+}
+
+.tabContent {
+    padding: 0.5rem;
+}
+
+.historyAdd {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.historyAdd textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    box-sizing: border-box;
+    font-size: 1rem;
+    resize: vertical;
+}
+
+.historyAdd button {
+    align-self: flex-end;
+    padding: 0.5rem 1.5rem;
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.historyList {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.historyItem {
+    padding: 1rem;
+    background-color: var(--bg-input);
+    border-left: 3px solid var(--accent-primary);
+    border-radius: 4px;
+}
+
+.historyDescription {
+    margin: 0 0 0.75rem 0;
+    white-space: pre-wrap;
+}
+
+.historyMeta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.historyItem.update {
+    background-color: var(--bg-hover);
+    border-left-color: var(--accent-primary);
+}
+
+.historyIcon {
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.historyContent {
+    flex: 1;
+}
+
+.historyChanges {
+    list-style-type: none;
+    padding-left: 1rem;
+    margin-top: 0.5rem;
+    border-left: 2px solid var(--border-color-dark);
+}
+
+.historyChanges li {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+.historyChanges li:not(:last-child) {
+    margin-bottom: 0.5rem;
+}
+
+.historyChanges strong {
+    color: #90cdf4; /* (Cor semântica mantida) */
+}
+
+.historyChanges em {
+    font-style: normal;
+    background-color: var(--border-color-dark);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+}
+
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color-light);
+  box-shadow: var(--card-shadow);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.filterGroup label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.filterSelect {
+  padding: 0.5rem;
+  border-radius: 5px;
+  border: 1px solid var(--border-color-dark);
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  min-width: 150px;
+}
+
+.headerActions {
+    display: flex;
+    gap: 1rem;
+}
+
+.aggressorButton {
+    background-color: transparent;
+    color: #ef4444; 
+    border: 1px solid #ef4444;
+    padding: 0.75rem 1.5rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+.aggressorButton:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* --- BOTÃO DE FILTRO DE ATRASO --- */
+.delayedFilterButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    border: 1px solid #ef4444; /* Borda vermelha */
+    background-color: transparent;
+    color: #ef4444; /* Texto vermelho */
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: auto; /* Empurra para a direita */
+}
+
+.delayedFilterButton.active {
+    background-color: #ef4444; /* Fundo vermelho quando ativo */
+    color: white;
+}
+
+.delayedFilterButton:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+.delayedFilterButton.active:hover {
+    background-color: #dc2626; /* Vermelho mais escuro no hover */
+}
+/* --- FIM DO NOVO ESTILO --- */
+
+
+.modalLarge {
+  max-width: 1200px;
+  width: 90%;
+}
+
+.modalBodyGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 1rem;
+}
+
+.formColumn, .chatColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.chatColumn h4 {
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.chatColumn > div {
+  height: 400px;
+}

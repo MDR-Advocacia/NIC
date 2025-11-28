@@ -1,0 +1,156 @@
+/* src/styles/LinkCaseModal.module.css */
+
+.modalOverlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background-color: #2d3748;
+  padding: 1.5rem 2rem;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  color: white;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+.modalContent h2 {
+  margin-top: 0;
+}
+
+.modalContent p {
+  color: #a0aec0;
+  margin-top: -0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.searchForm {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.searchInput {
+  flex-grow: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 5px;
+  border: 1px solid #4a5568;
+  background-color: #1a202c;
+  color: white;
+  font-size: 1rem;
+}
+
+.searchForm button {
+  padding: 0 1rem;
+  background-color: #3b82f6;
+  border: none;
+  border-radius: 5px;
+  color: white;
+  cursor: pointer;
+}
+
+.resultsContainer {
+  min-height: 200px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #4a5568;
+  border-radius: 5px;
+  background-color: #1a202c;
+  padding: 0.5rem;
+}
+
+.resultsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.resultItem {
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid #2d3748;
+}
+
+.resultItem:last-child {
+  border-bottom: none;
+}
+
+.resultItem:hover {
+  background-color: #4a5568;
+}
+
+.resultItem.selected {
+  background-color: #3b82f6;
+}
+
+.caseNumber {
+  font-weight: bold;
+}
+
+.caseParty {
+  color: #cbd5e0;
+}
+
+.caseClient {
+  grid-column: 1 / -1; /* Ocupa a linha toda */
+  font-size: 0.8rem;
+  color: #a0aec0;
+  margin-top: -0.5rem;
+}
+
+.resultItem.selected .caseParty,
+.resultItem.selected .caseClient {
+  color: white;
+}
+
+.feedbackText {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #a0aec0;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #4a5568;
+}
+
+.cancelButton, .linkButton {
+  padding: 0.6rem 1.2rem;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+}
+
+.cancelButton {
+  background-color: #4a5568;
+  color: white;
+}
+
+.linkButton {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.linkButton:disabled {
+  background-color: #4a5568;
+  cursor: not-allowed;
+  opacity: 0.6;
+}

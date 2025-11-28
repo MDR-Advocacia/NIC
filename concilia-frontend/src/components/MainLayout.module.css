@@ -1,0 +1,135 @@
+/* src/components/MainLayout.module.css */
+/* ATUALIZADO: Adicionada sombra (var) ao menu */
+
+.layoutContainer {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+.sidebar {
+    width: 250px;
+    background-color: var(--bg-menu);
+    color: var(--text-primary);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color-light);
+    
+    /* ADICIONADO: Sombra para "flutuar" */
+    box-shadow: var(--card-shadow);
+    z-index: 10; /* Garante que a sombra fique sobre o conteúdo */
+}
+
+.sidebar h2 {
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.5rem;
+}
+
+.navList {
+    list-style: none;
+    padding: 0;
+}
+
+.navItem {
+    margin-bottom: 1rem;
+}
+
+.navLink {
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    transition: transform 0.2s ease-out, background-color 0.2s ease-out, color 0.2s ease-out;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.navLink:hover {
+    transform: translateY(-3px);
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.navLinkActive {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    font-weight: bold;
+}
+
+.navLinkActive:hover {
+    background-color: var(--accent-primary-hover);
+    color: var(--text-on-accent);
+}
+
+.footer {
+    margin-top: auto;
+    border-top: 1px solid var(--border-color-light);
+    padding-top: 1rem;
+}
+
+.userInfo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0.5rem;
+    margin-bottom: 1rem;
+}
+.userInfo p {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.themeToggleButton {
+    background-color: var(--bg-hover);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color-light);
+    border-radius: 6px;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease-out;
+}
+.themeToggleButton:hover {
+    color: var(--text-primary);
+    border-color: var(--border-color-dark);
+    transform: translateY(-2px);
+}
+
+.logoutButton {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: transparent;
+    color: #c53030;
+    border: 1px solid #c53030;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s ease-out, background-color 0.2s ease-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.logoutButton:hover {
+    background-color: #c53030;
+    color: white;
+    transform: translateY(-2px);
+}
+
+.mainContent {
+    flex: 1;
+    padding: 2rem;
+    overflow-y: auto;
+    background-color: var(--bg-page);
+}

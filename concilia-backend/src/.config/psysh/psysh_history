@@ -1,0 +1,6 @@
+\App\Models\Conversation::all();
+\App\Models\Department::create(['name' => 'Jurídico']);
+\App\Services\AuditService::log('teste_manual', 'Este é um log de teste criado via terminal.');
+docker-compose exec app php artisan tinker
+\App\Services\AuditService::log('teste_sistema', 'Teste de log manual para verificar a tabela.');
+EXIT

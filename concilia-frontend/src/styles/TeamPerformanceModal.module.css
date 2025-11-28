@@ -1,0 +1,116 @@
+/* src/styles/TeamPerformanceModal.module.css */
+/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
+
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-overlay); /* MUDADO */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(3px); /* ADICIONADO */
+}
+
+.modalContent {
+    background-color: var(--bg-card); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+    padding: 1.5rem 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1200px;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--card-shadow); /* MUDADO */
+}
+
+.modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.modalHeader h2 {
+    margin: 0;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.closeButton {
+    background: none;
+    border: none;
+    color: var(--text-secondary); /* MUDADO */
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.2s; /* ADICIONADO */
+}
+
+.closeButton:hover {
+    color: var(--text-primary); /* ADICIONADO */
+    transform: rotate(90deg); /* ADICIONADO */
+}
+
+.filters {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.searchInput {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: var(--bg-input); /* MUDADO */
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color-dark); /* MUDADO */
+    flex-grow: 1;
+}
+
+.searchInput svg {
+    color: var(--text-secondary); /* ADICIONADO */
+}
+
+.searchInput input {
+    background: none;
+    border: none;
+    color: var(--text-primary); /* MUDADO */
+    width: 100%;
+}
+
+.filterSelect {
+    padding: 0.6rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color-dark); /* MUDADO */
+    background-color: var(--bg-input); /* MUDADO */
+    color: var(--text-primary); /* MUDADO */
+}
+
+.compareButton {
+    background-color: var(--accent-primary); /* MUDADO */
+    color: var(--text-on-accent); /* MUDADO */
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s, transform 0.2s ease-out; /* ADICIONADO */
+}
+
+.compareButton:hover {
+    transform: translateY(-2px); /* ADICIONADO */
+    background-color: var(--accent-primary-hover); /* ADICIONADO */
+}
+
+.modalBody {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-right: 1rem; /* Espaço para scrollbar */
+}

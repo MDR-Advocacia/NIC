@@ -1,0 +1,182 @@
+/* src/styles/InboxPage.module.css */
+/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
+
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 4rem); 
+    color: var(--text-primary); /* MUDADO */
+}
+
+.header {
+    flex-shrink: 0; 
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.header p {
+    margin: 0.25rem 0 0 0;
+    color: var(--text-secondary); /* MUDADO */
+}
+
+.inboxLayout {
+    display: grid;
+    grid-template-columns: 350px 1fr; 
+    gap: 1.5rem;
+    flex-grow: 1; 
+    overflow: hidden; 
+    margin-top: 1.5rem;
+}
+
+/* --- PAINEL ESQUERDO --- */
+.conversationListPanel {
+    background-color: var(--bg-card); /* MUDADO */
+    border-radius: 8px;
+    overflow-y: auto; 
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+}
+
+.conversationItem {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    gap: 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+    transition: background-color 0.2s, transform 0.2s ease-out;
+}
+
+.conversationItem:hover {
+    background-color: var(--bg-hover); /* MUDADO */
+    transform: translateY(-3px);
+}
+
+.conversationItem.active {
+    background-color: var(--accent-primary); /* MUDADO */
+}
+
+/* --- ESTILO DO AVATAR MODIFICADO --- */
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #ffffff; /* Cor do texto (iniciais) - Mantido branco */
+    flex-shrink: 0;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+}
+
+.conversationDetails {
+    flex-grow: 1;
+    overflow: hidden; 
+}
+
+.contactHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.contactName {
+    font-weight: 600;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.timestamp {
+    font-size: 0.75rem;
+    color: var(--text-secondary); /* MUDADO */
+}
+
+.lastMessage {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary); /* MUDADO */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; 
+}
+
+/* Cor do texto quando o item está ativo */
+.conversationItem.active .timestamp,
+.conversationItem.active .lastMessage,
+.conversationItem.active .contactName {
+    color: var(--text-on-accent); /* MUDADO */
+}
+
+/* --- PAINEL DIREITO --- */
+.chatViewPanel {
+    background-color: var(--bg-card); /* MUDADO */
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; 
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+}
+
+.chatHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+    flex-shrink: 0;
+}
+
+.chatHeaderInfo h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary); /* ADICIONADO */
+}
+
+.chatHeaderInfo span {
+    font-size: 0.8rem;
+    color: var(--text-secondary); /* MUDADO */
+}
+
+.linkButton {
+    background-color: var(--accent-primary); /* MUDADO */
+    color: var(--text-on-accent); /* MUDADO */
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s, transform 0.2s ease-out;
+}
+
+.linkButton:hover {
+    transform: translateY(-2px);
+    background-color: var(--accent-primary-hover); /* ADICIONADO */
+}
+
+/* Placeholder para quando nenhuma conversa está selecionada */
+.placeholder {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    text-align: center;
+    color: var(--text-secondary); /* MUDADO */
+}
+
+.placeholder h2 {
+    margin-top: 1rem;
+    color: var(--text-primary); /* MUDADO */
+}
+
+.placeholder p {
+    max-width: 300px;
+}

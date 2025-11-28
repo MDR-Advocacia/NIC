@@ -1,0 +1,154 @@
+/* src/styles/LawyerDetailModal.module.css */
+/* ATUALIZADO: Botão "X" padronizado e posicionado */
+
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-overlay);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1001;
+    backdrop-filter: blur(3px);
+}
+
+.modalContent {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    padding: 1.5rem 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1000px;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--card-shadow);
+    position: relative; /* ADICIONADO: Necessário para posicionar o botão "X" */
+}
+
+/* --- ESTILO DO BOTÃO "X" PADRÃO --- */
+.closeButton {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary); /* Cor do "X" */
+    font-size: 1.75rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.2s, transform 0.2s;
+    z-index: 10;
+}
+
+.closeButton:hover {
+    color: var(--text-primary);
+    transform: rotate(90deg);
+}
+/* --- FIM DO ESTILO DO BOTÃO "X" --- */
+
+
+.modalHeader {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color-light);
+    /* ADICIONADO: Espaço para o botão "X" não sobrepor o título */
+    padding-right: 2rem; 
+}
+
+.lawyerName {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.leaderTag {
+    background-color: #f59e0b;
+    color: white;
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: bold;
+}
+
+.modalBody {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-right: 1rem;
+}
+
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.kpiCard {
+    background-color: var(--bg-page);
+    padding: 1rem;
+    border-radius: 8px;
+    border-bottom: 3px solid;
+}
+
+.kpiCard label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.kpiCard .value {
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.kpiCard .subValue {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.section {
+    margin-top: 2rem;
+}
+
+.section h3 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.progressBarContainer {
+    background-color: var(--bg-page);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.progressBar {
+    width: 100%;
+    height: 12px;
+    background-color: var(--border-color-light);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progressFill {
+    height: 100%;
+    background-color: var(--accent-primary);
+    border-radius: 6px;
+}
+
+.progressLabels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    color: var(--text-secondary);
+}
