@@ -59,3 +59,13 @@ Thumbs.db
 # Arquivos .env locais do frontend
 /concilia-frontend/.env.local
 /concilia-frontend/.env.*.local
+
+
+
+/concilia-backend/src/.composer/
+/concilia-backend/src/.config/
+
+/concilia-backend/src/vendor/
+/concilia-backend/src/.bash_history
+/concilia-backend/src/.lesshst
+/concilia-backend/src/.config/
