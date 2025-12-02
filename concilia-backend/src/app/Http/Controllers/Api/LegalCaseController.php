@@ -132,6 +132,8 @@ class LegalCaseController extends Controller
             'agreement_value' => 'nullable|numeric',
             'cause_value' => 'nullable|numeric',
             'tags' => 'nullable|array',
+            'agreement_probability' => 'nullable|numeric|min:0|max:100',
+            'agreement_checklist_data' => 'nullable|array',
         ]);
 
         $case = LegalCase::create($validatedData);
@@ -172,6 +174,8 @@ class LegalCaseController extends Controller
             'opposing_lawyer' => 'nullable|string|max:255',
             'opposing_contact' => 'nullable|string|max:255',
             'tags' => 'nullable|array',
+            'agreement_probability' => 'nullable|numeric|min:0|max:100',
+            'agreement_checklist_data' => 'nullable|array',
         ]);
 
         $originalData = $case->getOriginal();
@@ -296,6 +300,8 @@ class LegalCaseController extends Controller
                     'cause_value' => 'nullable|numeric',
                     'original_value' => 'nullable|numeric',
                     'agreement_value' => 'nullable|numeric',
+                    'agreement_probability' => 'nullable|numeric',
+                    'agreement_checklist_data' => 'nullable|array',
                 ]);
 
                 if ($validator->fails()) {

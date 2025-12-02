@@ -11,6 +11,7 @@ import DetailKpiCard from '../components/DetailKpiCard';
 import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf } from 'react-icons/fa'; 
 import { ImSpinner2 } from 'react-icons/im';
 import ChatPreview from '../components/ChatPreview';
+import AgreementChecklist from '../components/AgreementChecklist';
 
 // --- DICIONÁRIOS (MANTIDOS) ---
 const STATUS_DETAILS = {
@@ -118,6 +119,18 @@ const CaseDetailPage = () => {
             setIsGeneratingPdf(false);
         }
     };
+
+    const handleChecklistUpdate = async (updatedFields) => {
+        // Atualiza estado local (UI instantânea)
+        setLegalCase(prev => ({ ...prev, ...updatedFields }));
+
+        try {
+            // Envia para API (o Model já aceita o JSON graças ao $casts)
+            await api.put(`/legal-cases/${id}`, updatedFields);
+        } catch (error) {
+            console.error("Erro ao salvar checklist", error);
+        }
+    };
     // --- FIM DA FUNÇÃO ---
 
     if (loading) return <p>Carregando detalhes do caso...</p>;
@@ -163,7 +176,12 @@ const CaseDetailPage = () => {
             <div className={styles.kpiGrid}>
                 <DetailKpiCard icon={<FaDollarSign />} title="Valor da Causa" value={formatCurrency(legalCase.cause_value)} color="#3b82f6" />
                 <DetailKpiCard icon={<FaHandshake />} title="Valor Negociado" value={formatCurrency(legalCase.agreement_value)} color="#16a34a" />
-                <DetailKpiCard icon={<FaTasks />} title="Progresso" value="65%" color="#9333ea" />
+                <DetailKpiCard 
+                    icon={<FaTasks />} 
+                    title="Probabilidade de Acordo" 
+                    value={legalCase.agreement_probability ? `${legalCase.agreement_probability}%` : '0%'} 
+                    color="#9333ea" 
+                />
                 <DetailKpiCard icon={<FaExclamationTriangle />} title="Advogado Adverso" value={legalCase.opposing_lawyer || 'Não informado'} color="#dc2626">{legalCase.opposing_contact}</DetailKpiCard>
             </div>
 
