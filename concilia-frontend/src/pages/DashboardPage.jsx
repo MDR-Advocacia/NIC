@@ -208,21 +208,28 @@ const DashboardPage = () => {
                 </div>
 
                 <div className={styles.rightSidebar}>
-                    <div className={styles.chartCard}>
-                        <h3><FaTrophy /> Performance da Equipe</h3>
-                        <TeamPerformancePanel 
-                            onOpenModal={() => setIsPerformanceModalOpen(true)}
-                            onViewDetails={handleOpenDetailModal}
-                        />
-                    </div>
-                </div>
+    <div className={styles.chartCard}>
+        <h3><FaTrophy /> Performance da Equipe</h3>
+        
+        {/* MUDANÇA AQUI: Passamos os dados reais vindo do backend */}
+        <TeamPerformancePanel 
+            data={dashboardData?.team_performance || []} // <--- AQUI
+            onOpenModal={() => setIsPerformanceModalOpen(true)}
+            onViewDetails={handleOpenDetailModal}
+        />
+        
+    </div>
+</div>
             </div>
 
-            {/* Modais de Performance (sem alteração) */}
+            {/* Modais de Performance */}
             <TeamPerformanceModal
                 isOpen={isPerformanceModalOpen}
                 onClose={() => setIsPerformanceModalOpen(false)}
                 onViewDetails={handleOpenDetailModal}
+                
+                // ADICIONE ESTA LINHA:
+                data={dashboardData?.team_performance || []} 
             />
             <LawyerDetailModal
                 isOpen={isDetailModalOpen}

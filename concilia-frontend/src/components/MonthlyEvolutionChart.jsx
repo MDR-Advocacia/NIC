@@ -1,87 +1,92 @@
-// src/components/MonthlyEvolutionChart.jsx
-// ATUALIZADO: Cores dos eixos (grid e texto) agora usam o ThemeContext
-
 import React from 'react';
-import { Bar } from 'react-chartjs-2';
+import { Line } from 'react-chartjs-2';
 import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler // Importante para o efeito de área sombreada
 } from 'chart.js';
-import { useTheme } from '../context/ThemeContext'; // 1. IMPORTA O CÉREBRO DO TEMA
 
 ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
 );
 
 const MonthlyEvolutionChart = ({ data }) => {
-    // 2. USA O TEMA ATIVO
-    const { theme } = useTheme();
+  // Se não houver dados, usa arrays vazios para não quebrar
+  const labels = data?.labels || ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const createdData = data?.created || [0,0,0,0,0,0,0,0,0,0,0,0];
+  const closedData = data?.closed || [0,0,0,0,0,0,0,0,0,0,0,0];
 
-    // 3. DEFINE AS CORES DINÂMICAS
-    const secondaryTextColor = theme === 'light' ? '#6c757d' : '#a0aec0';
-    const gridColor = theme === 'light' ? '#dee2e6' : '#2d3748';
-    const barColor = '#3b82f6'; // A cor de destaque (azul) é a mesma em ambos os temas
+  const chartData = {
+    labels: labels,
+    datasets: [
+      {
+        label: 'Casos Criados',
+        data: createdData,
+        borderColor: '#3b82f6', // Azul
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4, // Curva suave
+        fill: true,
+      },
+      {
+        label: 'Acordos Fechados',
+        data: closedData,
+        borderColor: '#22c55e', // Verde
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        tension: 0.4,
+        fill: true,
+      },
+    ],
+  };
 
-    const chartData = {
-        labels: Object.keys(data), 
-        datasets: [
-            {
-                label: 'Casos Fechados por Mês',
-                data: Object.values(data), 
-                backgroundColor: barColor, // 4. APLICA A COR
-                borderRadius: 5,
-                barThickness: 30,
-            },
-        ],
-    };
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: { color: '#cbd5e1' } // Cor do texto da legenda
+      },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { color: '#94a3b8' },
+        grid: { color: '#334155' } // Linhas de grade mais sutis
+      },
+      x: {
+        ticks: { color: '#94a3b8' },
+        grid: { display: false } // Remove grade vertical
+      }
+    },
+    interaction: {
+      mode: 'nearest',
+      axis: 'x',
+      intersect: false
+    }
+  };
 
-    const chartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false,
-            },
-            title: {
-                display: false,
-            },
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                grid: {
-                    color: gridColor, // 5. APLICA A COR DINÂMICA
-                },
-                ticks: {
-                    color: secondaryTextColor, // 5. APLICA A COR DINÂMICA
-                },
-            },
-            x: {
-                grid: {
-                    display: false,
-                },
-                ticks: {
-                    color: secondaryTextColor, // 5. APLICA A COR DINÂMICA
-                },
-            },
-        },
-    };
-
-    return (
-        <div style={{ height: '300px' }}>
-            <Bar options={chartOptions} data={chartData} />
-        </div>
-    );
+  return (
+    <div style={{ height: '300px', width: '100%' }}>
+      <Line data={chartData} options={options} />
+    </div>
+  );
 };
 
 export default MonthlyEvolutionChart;

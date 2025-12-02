@@ -4,3 +4,119 @@
 docker-compose exec app php artisan tinker
 \App\Services\AuditService::log('teste_sistema', 'Teste de log manual para verificar a tabela.');
 EXIT
+$admin = App\Models\User::where('role', 'admin')->first();
+$cases = App\Models\LegalCase::take(5)->get();
+foreach($cases as $case) {
+    $case->update([
+        'user_id' => $admin->id,
+        'status' => 'closed_deal',
+        'original_value' => 50000,
+        'agreement_value' => 30000
+    ]);
+}
+echo "Sucesso! 5 acordos fechados para: " . $admin->name;
+docker-compose exec app php artisan optimize:clear
+// 1. Pega os advogados
+$lawyers = App\Models\User::whereIn('role', ['admin', 'operador'])->get();
+$clients = App\Models\Client::all();
+// 2. Loop para criar histórico
+foreach($lawyers as $lawyer) {
+    echo "Gerando dados para: " . $lawyer->name . "\n";
+    
+    // Cria casos antigos (Janeiro, Março, Maio...)
+    for ($i = 0; $i < 4; $i++) {
+        App\Models\LegalCase::factory()->create([
+            'user_id' => $lawyer->id,
+            'client_id' => $clients->random()->id,
+            'status' => 'closed_deal', // Já fechado
+            'created_at' => now()->subMonths(rand(1, 10)), // Data antiga
+            'original_value' => 50000,
+            'agreement_value' => 30000
+        ]);
+    }
+    
+    // Cria casos novos abertos
+    for ($i = 0; $i < 3; $i++) {
+        App\Models\LegalCase::factory()->create([
+            'user_id' => $lawyer->id,
+            'client_id' => $clients->random()->id,
+            'status' => 'in_negotiation',
+            'created_at' => now()
+        ]);
+    }
+}
+echo "Dados gerados com sucesso!";
+exit
+// Renomear o Advogado 1 (Líder)
+$adv1 = App\Models\User::where('email', 'advogado1@concilia.app')->first();
+if($adv1) {
+    $adv1->name = 'Dr. Carlos Santos';
+    $adv1->save();
+}
+// Renomear o Advogado 2
+$adv2 = App\Models\User::where('email', 'advogado2@concilia.app')->first();
+if($adv2) {
+    $adv2->name = 'Dra. Ana Costa';
+    $adv2->save();
+}
+// Renomear o Admin (Você)
+$admin = App\Models\User::where('email', 'admin@concilia.app')->first();
+if($admin) {
+    $admin->name = 'Murilo Silva'; // Coloque seu nome aqui se quiser
+    $admin->save();
+}
+echo "Nomes atualizados com sucesso!";
+exit
+// 1. Limpar a mesa (Apaga os casos antigos duplicados)
+// Desativamos verificação de chave estrangeira temporariamente para poder limpar
+DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+App\Models\LegalCase::truncate();
+DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+// 2. Pegar os Advogados
+$carlos = App\Models\User::where('name', 'like', '%Carlos%')->first();
+$ana = App\Models\User::where('name', 'like', '%Ana%')->first();
+$clients = App\Models\Client::all();
+// 3. Cenário para o LÍDER (Dr. Carlos) - Alta Performance
+// Fechou 12 acordos com economias altas
+if($carlos) {
+    echo "Gerando dados do Líder (Carlos)...\n";
+    for ($i = 0; $i < 12; $i++) {
+        App\Models\LegalCase::factory()->create([
+            'user_id' => $carlos->id,
+            'client_id' => $clients->random()->id,
+            'status' => 'closed_deal',
+            'created_at' => now()->subMonths(rand(1, 6)),
+            'original_value' => rand(80000, 150000), // Valores altos
+            'agreement_value' => rand(40000, 60000), // Acordos baixos (Muita economia!)
+        ]);
+    }
+    // Tem poucos casos abertos (Resolve tudo rápido)
+    App\Models\LegalCase::factory()->count(3)->create(['user_id' => $carlos->id, 'status' => 'in_negotiation']);
+}
+// 4. Cenário para o 2º LUGAR (Dra. Ana) - Volume Médio
+// Fechou 7 acordos com valores menores
+if($ana) {
+    echo "Gerando dados da Vice (Ana)...\n";
+    for ($i = 0; $i < 7; $i++) {
+        App\Models\LegalCase::factory()->create([
+            'user_id' => $ana->id,
+            'client_id' => $clients->random()->id,
+            'status' => 'closed_deal',
+            'created_at' => now()->subMonths(rand(1, 5)),
+            'original_value' => rand(30000, 60000), 
+            'agreement_value' => rand(25000, 40000), // Economia menor
+        ]);
+    }
+    // Tem muitos casos travados em análise
+    App\Models\LegalCase::factory()->count(8)->create(['user_id' => $ana->id, 'status' => 'initial_analysis']);
+}
+echo "Dados variados gerados com sucesso! Pode atualizar a tela.";
+exit
+$user = App\Models\User::where('email', 'admin@concilia.app')->first();
+$user->role = 'admin';
+$user->save();
+exit;
+$user = App\Models\User::where('email', 'admin@concilia.app')->first();
+$user->role = 'admin';
+$user->save();
+exit;

@@ -1,6 +1,3 @@
-// src/components/MainLayout.jsx
-// ATUALIZADO: Correção do ícone de Auditoria e estrutura do menu
-
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -15,10 +12,10 @@ import {
     FaFileUpload, 
     FaUsers, 
     FaSignOutAlt,
-    FaHandshake,
+    FaHandshake, // Ícone principal
     FaSun,
     FaMoon,
-    FaShieldAlt // 1. ADICIONADO: Importação que faltava
+    FaShieldAlt 
 } from 'react-icons/fa';
 
 const MainLayout = () => {
@@ -29,14 +26,31 @@ const MainLayout = () => {
         return `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`;
     };
 
-    // Verifica se o usuário tem permissão para ver menus administrativos
-    const canManageUsers = user?.role !== 'operador';
-    const isAdmin = user?.role === 'administrador';
+    const isAdmin = user?.role === 'admin';
+    const isSupervisor = user?.role === 'supervisor';
+    const canManageUsers = isAdmin || isSupervisor;
 
     return (
         <div className={styles.layoutContainer}>
             <aside className={styles.sidebar}>
-                <h2><FaHandshake /> <span>Concil.IA</span></h2>
+                
+                {/* --- NOVO LOGO NIC (Estilo Corporativo) --- */}
+                <div className={styles.brandWrapper}>
+                    {/* Parte 1: O Ícone Grande */}
+                    {/* <FaHandshake className={styles.mainIcon} /> */}
+
+                    {/* Parte 2: O Texto (NIC + Significado) */}
+                    <div className={styles.textGroup}>
+                        <h1 className={styles.nicTitle}>NIC</h1>
+                        <div className={styles.meaningBox}>
+                            <span>NÚCLEO</span>
+                            <span>INTEGRADO DE</span>
+                            <span>CONCILIAÇÕES</span>
+                        </div>
+                    </div>
+                </div>
+                {/* ------------------------------------------ */}
+
                 <nav>
                     <ul className={styles.navList}>
                         <li className={styles.navItem}>
@@ -65,7 +79,6 @@ const MainLayout = () => {
                             </NavLink>
                         </li>
 
-                        {/* Lógica para Gestão de Usuários */}
                         {canManageUsers && (
                             <li className={styles.navItem}>
                                 <NavLink to="/users" className={getNavLinkClass}>
@@ -74,7 +87,6 @@ const MainLayout = () => {
                             </li>
                         )}
 
-                        {/* 2. CORRIGIDO: O link de Auditoria agora está DENTRO da lista <ul> */}
                         {isAdmin && (
                             <li className={styles.navItem}>
                                 <NavLink to="/logs" className={getNavLinkClass}>
@@ -88,6 +100,9 @@ const MainLayout = () => {
                 <div className={styles.footer}>
                     <div className={styles.userInfo}>
                         <p>{user?.name}</p>
+                        <p style={{ fontSize: '10px', color: '#888' }}>
+                            {user?.role?.toUpperCase()}
+                        </p> 
                         <button 
                             className={styles.themeToggleButton} 
                             onClick={toggleTheme}

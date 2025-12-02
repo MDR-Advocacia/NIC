@@ -63,4 +63,9 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Department::class);
     }
+    // Relacionamento: Um usuário (advogado) tem vários casos
+    public function cases()
+    {
+        return $this->hasMany(LegalCase::class, 'user_id');
+    }
 }

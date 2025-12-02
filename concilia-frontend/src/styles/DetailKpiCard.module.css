@@ -1,0 +1,47 @@
+.card {
+    background-color: #1e293b; /* Fundo escuro (Slate 800) */
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border: 1px solid #334155; /* Borda sutil */
+    min-height: 100px;
+}
+
+.title {
+    font-size: 0.85rem;
+    color: #94a3b8; /* Cinza claro */
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.valueContainer {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f8fafc; /* Branco */
+    margin: 0;
+    line-height: 1.2;
+}
+
+.subtext {
+    font-size: 0.75rem;
+    color: #64748b; /* Cinza mais escuro */
+    margin-top: 8px;
+    display: block;
+}
+
+/* Cores opcionais para variações */
+.positive {
+    color: #22c55e;
+}
+
+.negative {
+    color: #ef4444;
+}

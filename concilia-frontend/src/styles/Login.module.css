@@ -1,79 +1,200 @@
-/* src/styles/Login.module.css */
-/* REATORADO v2: Adicionado o efeito de "levantar" (mãozinhas) */
-
+/* Container da Página Inteira (Centraliza tudo) */
 .loginPage {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    background-color: var(--bg-page);
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #0f172a; /* Fundo bem escuro */
+  background-image: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
 }
 
-.loginBox {
-    background-color: var(--bg-card);
-    padding: 2.5rem 2rem;
-    border-radius: 8px;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: var(--card-shadow);
-    border: 1px solid var(--border-color-light);
+/* O Cartão de Login */
+.loginContainer {
+  background-color: #1e293b;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid #334155;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.title {
-    text-align: center;
-    margin-bottom: 2rem;
-    font-size: 2em;
-    color: var(--text-primary);
+/* --- ESTILO DO LOGO NIC --- */
+.brandWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 25px;
 }
 
-.formGroup {
-    margin-bottom: 1.5rem;
+/* --- Efeito LED no Ícone --- */
+.mainIcon {
+  font-size: 4rem;
+  /* Cor base do ícone (um azul claro quase branco para o centro brilhar) */
+  color: #ffffff; 
+  margin-bottom: 15px;
+  
+  /* O SEGREDOS DO LED: Múltiplas camadas de sombra brilhante */
+  filter: 
+    /* Camada 1: Brilho intenso e curto perto da borda */
+    drop-shadow(0 0 5px #ffffff)
+    /* Camada 2: Brilho médio para dar volume */
+    drop-shadow(0 0 15px #3b82f6)
+    /* Camada 3: Halo grande e difuso em volta */
+    drop-shadow(0 0 30px rgba(255, 255, 255, 0.6));
+
+  /* Animação de pulsação suave */
+  animation: ledPulse 3s ease-in-out infinite alternate;
 }
 
-.label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: var(--text-secondary);
-    font-weight: 500;
+
+@keyframes ledPulse {
+  0% {
+    filter: drop-shadow(0 0 5px #ffffff) drop-shadow(0 0 15px #3b82f6) drop-shadow(0 0 30px rgba(59, 130, 246, 0.6));
+    opacity: 1;
+  }
+  100% {
+    /* Aumenta ligeiramente o brilho e a difusão */
+    filter: drop-shadow(0 0 8px #3b82f6) drop-shadow(0 0 25px #3b82f6) drop-shadow(0 0 50px rgba(59, 130, 246, 0.8));
+    opacity: 0.95;
+  }
 }
 
-.input {
-    width: 100%;
-    padding: 0.75rem;
-    border-radius: 5px;
-    border: 1px solid var(--border-color-dark);
-    background-color: var(--bg-input);
-    color: var(--text-primary);
-    box-sizing: border-box;
+
+.textGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nicTitle {
+  font-family: 'Georgia', 'Times New Roman', serif; /* Fonte Serifada */
+  font-size: 3rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.meaningBox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  border-left: 1px solid #64748b; /* Linha divisória */
+  padding-left: 10px;
+}
+
+.meaningBox span {
+  font-family: 'Arial', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  line-height: 1.25;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+/* -------------------------- */
+
+.subtitle {
+  color: #94a3b8;
+  margin-bottom: 30px;
+  font-size: 0.9rem;
+}
+
+.form {
+  width: 100%;
+}
+
+.inputGroup {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.inputGroup input {
+  width: 100%;
+  box-sizing: border-box; /* O SEGREDO: Garante que o input não ultrapasse 100% */
+  padding: 10px 15px 10px 40px; /* Reduzi o padding vertical para 10px (era 12) */
+  background-color: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.95rem; /* Fonte levemente menor para ficar delicado */
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  height: 45px; /* Fixa uma altura padrão elegante */
+}
+
+.inputGroup input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .button {
-    width: 100%;
-    padding: 0.75rem;
-    font-size: 1rem;
-    font-weight: bold;
-    color: var(--text-on-accent);
-    background-color: var(--accent-primary);
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    /* ATUALIZADO: Adiciona a transição para o 'transform' */
-    transition: background-color 0.2s, transform 0.2s ease-out;
+  width: 100%;
+  padding: 12px;
+  background-color: #3b82f6; /* Azul NIC */
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
 }
 
 .button:hover {
-    background-color: var(--accent-primary-hover);
-    /* ATUALIZADO: Adiciona o efeito de "levantar" (mãozinhas) */
-    transform: translateY(-2px);
+  background-color: #2563eb;
 }
 
 .button:disabled {
-    background-color: var(--border-color-dark);
-    cursor: not-allowed;
+  background-color: #64748b;
+  cursor: not-allowed;
 }
 
 .error {
-    color: #e53e3e;
-    text-align: center;
-    margin-top: 1rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  text-align: center;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.footer {
+  margin-top: 30px;
+}
+
+.footer p {
+  color: #475569;
+  font-size: 0.75rem;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

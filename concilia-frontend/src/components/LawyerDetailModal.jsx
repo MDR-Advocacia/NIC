@@ -1,88 +1,100 @@
-// src/components/LawyerDetailModal.jsx
-// ATUALIZADO: Fecha ao clicar fora e usa o botão "X"
-
 import React from 'react';
 import styles from '../styles/LawyerDetailModal.module.css';
-import { FaTimes } from 'react-icons/fa'; // ATUALIZADO: Importa o "X"
-
-// Dados fictícios (mantidos)
-const mockLawyerDetails = {
-    name: 'Dr. Carlos Santos',
-    isLeader: true,
-    kpis: [
-        { label: 'Economia Gerada', value: 'R$ 485.200', subValue: 'Meta: R$ 500.000', color: '#38a169' },
-        { label: 'Taxa de Conversão', value: '78.3%', subValue: 'Acordos fechados', color: '#3b82f6' },
-        { label: 'Casos Ativos', value: '8', subValue: 'Em andamento', color: '#f59e0b' },
-        { label: 'Acordos Fechados', value: '15', subValue: 'Esse mês', color: '#8b5cf6' }
-    ],
-    goal: {
-        achieved: 485200,
-        total: 500000,
-        percentage: 97,
-        avgDiscount: '41.2%',
-        totalCases: 23,
-        successRate: '65%'
-    },
-    history: [
-        { id: '#001234', client: 'Banco do Brasil', author: 'João Silva', value: 'R$ 45.000', economy: 'R$ 18.500', status: 'Finalizada', priority: 'Alta' }
-    ]
-};
+import DetailKpiCard from './DetailKpiCard';
+import { FaTimes } from 'react-icons/fa';
 
 const LawyerDetailModal = ({ isOpen, onClose, lawyer }) => {
-    if (!isOpen) return null;
+    // 1. BLINDAGEM: Se não estiver aberto ou não tiver dados, não renderiza nada.
+    if (!isOpen || !lawyer) return null;
 
-    const details = mockLawyerDetails;
+    console.log("Dados recebidos no Modal:", lawyer); // Para depuração no console (F12)
+
+    // 2. FUNÇÃO SEGURA: Converte qualquer coisa para número ou devolve 0
+    const parseCurrency = (value) => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+            // Remove tudo que não é dígito, ponto ou traço
+            const cleanStr = value.replace(/[^\d,-]/g, "").replace(',', '.');
+            const num = parseFloat(cleanStr);
+            return isNaN(num) ? 0 : num;
+        }
+        return 0;
+    };
+
+    // 3. EXTRAÇÃO SEGURA: Usa '?.' para evitar erro se 'performance' não existir
+    const economyStr = lawyer.performance?.economy || 'R$ 0,00';
+    const conversionStr = lawyer.performance?.conversion || 0;
+    const dealsCount = lawyer.performance?.deals || 0;
+    
+    // Tenta pegar do total_cases, se não tiver, tenta estimar somando (segurança)
+    const totalCases = lawyer.total_cases || (dealsCount + 5); 
+    
+    // Cálculo seguro
+    const economyNum = parseCurrency(economyStr);
+    const metaValue = 500000;
+    
+    // Evita divisão por zero
+    const progressPercent = metaValue > 0 
+        ? Math.min((economyNum / metaValue) * 100, 100).toFixed(1) 
+        : 0;
+
+    // Evita número negativo
+    const activeCases = Math.max(0, totalCases - dealsCount);
 
     return (
-        // ATUALIZADO: Adicionado onClick={onClose} ao overlay
-        <div className={styles.modalOverlay} onClick={onClose}>
-            {/* ATUALIZADO: Adicionado stopPropagation ao conteúdo */}
-            <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-                
-                {/* ATUALIZADO: Botão "X" agora está no topo e separado */}
-                <button onClick={onClose} className={styles.closeButton}>
+        <div className={styles.modalOverlay}>
+            <div className={styles.modalContent}>
+                <button className={styles.closeButton} onClick={onClose}>
                     <FaTimes />
                 </button>
-                
-                <header className={styles.modalHeader}>
-                    {/* O botão de seta foi removido daqui */}
-                    <h2 className={styles.lawyerName}>{details.name}</h2>
-                    {details.isLeader && <span className={styles.leaderTag}>Líder do Mês</span>}
-                </header>
 
-                <main className={styles.modalBody}>
-                    <section>
-                        <h3>Métricas de Performance</h3>
-                        <div className={styles.kpiGrid}>
-                            {details.kpis.map(kpi => (
-                                <div key={kpi.label} className={styles.kpiCard} style={{ borderBottomColor: kpi.color }}>
-                                    <label>{kpi.label}</label>
-                                    <p className={styles.value}>{kpi.value}</p>
-                                    <p className={styles.subValue}>{kpi.subValue}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
+                <div className={styles.header}>
+                    <h2>{lawyer.name || 'Advogado'}</h2>
+                    {lawyer.isLeader && <span className={styles.leaderBadge}>Líder do Mês</span>}
+                </div>
 
-                    <section className={styles.section}>
-                        <h3>Progresso da Meta Mensal</h3>
-                        <div className={styles.progressBarContainer}>
-                            <div className={styles.progressLabels}>
-                                <span>Economia vs Meta</span>
-                                <span>{details.goal.percentage}% da meta atingida</span>
-                            </div>
-                            <div className={styles.progressBar}>
-                                <div className={styles.progressFill} style={{ width: `${details.goal.percentage}%` }}></div>
-                            </div>
-                               <div className={styles.progressLabels}>
-                                <span>Alcançado: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.goal.achieved)}</span>
-                                <span>Meta: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.goal.total)}</span>
-                            </div>
+                <div className={styles.metricsGrid}>
+                    <DetailKpiCard 
+                        title="Economia Gerada" 
+                        value={economyStr} 
+                        subtext={`Meta: R$ ${metaValue.toLocaleString('pt-BR')}`} 
+                    />
+                    <DetailKpiCard 
+                        title="Taxa de Conversão" 
+                        value={`${conversionStr}%`} 
+                        subtext={`${dealsCount} acordos fechados`} 
+                    />
+                    <DetailKpiCard 
+                        title="Casos Ativos" 
+                        value={activeCases} 
+                        subtext="Em andamento" 
+                    />
+                    <DetailKpiCard 
+                        title="Acordos Fechados" 
+                        value={dealsCount} 
+                        subtext="Total acumulado" 
+                    />
+                </div>
+
+                <div className={styles.progressSection}>
+                    <h3>Progresso da Meta Mensal</h3>
+                    <div className={styles.progressBarContainer}>
+                        <div className={styles.progressLabels}>
+                            <span>Economia vs Meta</span>
+                            <span>{progressPercent}% da meta atingida</span>
                         </div>
-                    </section>
-                    
-                    {/* A tabela de histórico será implementada no futuro */}
-                </main>
+                        <div className={styles.progressBar}>
+                            <div 
+                                className={styles.progressFill} 
+                                style={{ width: `${progressPercent}%` }}
+                            ></div>
+                        </div>
+                        <div className={styles.progressValues}>
+                            <span>Alcançado: {economyStr}</span>
+                            <span>Meta: R$ {metaValue.toLocaleString('pt-BR')}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

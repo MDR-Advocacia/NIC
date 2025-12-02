@@ -1,68 +1,118 @@
-// src/components/StatusDistributionChart.jsx
-// ATUALIZADO: Gráfico de pizza agora é clicável
+import React, { useMemo } from 'react';
+import { Doughnut } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 
-import React from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+ChartJS.register(ArcElement, Tooltip, Legend);
 
-const STATUS_DETAILS = {
-    'initial_analysis': { name: 'Análise Inicial', color: '#4299E1' },
-    'proposal_sent': { name: 'Proposta Enviada', color: '#48BB78' },
-    'in_negotiation': { name: 'Em Negociação', color: '#ECC94B' },
-    'awaiting_draft': { name: 'Aguardando Minuta', color: '#ED8936' },
-    'closed_deal': { name: 'Acordo Fechado', color: '#38B2AC' },
-    'failed_deal': { name: 'Acordo Frustrado', color: '#E53E3E' },
-};
-
-// ATUALIZADO: Aceita a nova propriedade 'onStageClick'
-const StatusDistributionChart = ({ data, onStageClick }) => {
+const StatusDistributionChartJS = ({ data, onStageClick }) => {
     
-    const chartData = Object.keys(data).map(key => ({
-        key: key, // ADICIONADO: Guarda a chave original (ex: 'proposal_sent')
-        name: STATUS_DETAILS[key]?.name || key,
-        value: data[key],
-        color: STATUS_DETAILS[key]?.color || '#A0AEC0',
-    }));
+    const totalCases = useMemo(() => {
+        if (!data) return 0;
+        return Object.values(data).reduce((acc, curr) => acc + curr, 0);
+    }, [data]);
 
-    if (!chartData || chartData.length === 0) {
-        return <p>Não há dados de distribuição para exibir.</p>;
-    }
+    const labels = [
+        'Análise Inicial', 'Proposta Enviada', 'Em Negociação', 
+        'Aguardando Minuta', 'Acordo Fechado', 'Acordo Frustrado'
+    ];
+    
+    const colors = [
+        '#64748b', '#3b82f6', '#eab308', 
+        '#f97316', '#22c55e', '#ef4444'
+    ];
 
-    // ATUALIZADO: Função de clique que chama o 'onStageClick'
-    const handlePieClick = (data) => {
-        if (onStageClick && data.key) {
-            onStageClick(data.key);
-        }
+    const dataValues = [
+        data?.initial_analysis || 0,
+        data?.proposal_sent || 0,
+        data?.in_negotiation || 0,
+        data?.awaiting_draft || 0,
+        data?.closed_deal || 0,
+        data?.failed_deal || 0,
+    ];
+
+    const chartData = {
+        labels: labels,
+        datasets: [{
+            data: dataValues,
+            backgroundColor: colors,
+            borderWidth: 0,
+            cutout: '75%', 
+        }],
+    };
+
+    const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: 0 },
+        plugins: {
+            legend: { display: false },
+            tooltip: { enabled: true }
+        },
+        onClick: (event, elements) => {
+            if (!elements.length) return;
+            const index = elements[0].index;
+            const keys = ['initial_analysis', 'proposal_sent', 'in_negotiation', 'awaiting_draft', 'closed_deal', 'failed_deal'];
+            if (onStageClick) onStageClick(keys[index], labels[index]);
+        },
     };
 
     return (
-        <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-                <Tooltip
-                    contentStyle={{
-                        backgroundColor: '#2d3748',
-                        borderColor: '#4a5568',
-                    }}
-                />
-                <Legend />
-                <Pie
-                    data={chartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    fill="#8884d8"
-                    // ATUALIZADO: Adiciona o cursor de clique e a função onClick
-                    cursor="pointer"
-                    onClick={handlePieClick}
-                >
-                    {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                </Pie>
-            </PieChart>
-        </ResponsiveContainer>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '260px', width: '100%' }}>
+            
+            {/* CONTAINER DO GRÁFICO */}
+            <div style={{ 
+                position: 'relative', 
+                width: '220px', 
+                height: '220px', 
+                flexShrink: 0 
+            }}>
+                <Doughnut data={chartData} options={options} />
+                
+                {/* TEXTO CENTRAL - APLICANDO O SEU AJUSTE DE 40% */}
+                <div style={{ 
+                    position: 'absolute',
+                    top: '50%',
+                    
+                    // AQUI ESTÁ O AJUSTE QUE VOCÊ PEDIU:
+                    left: '40%', // <--- Mudado de 50% para 40% conforme seu teste
+                    
+                    transform: 'translate(-50%, -50%)', // Centraliza baseado no ponto definido acima
+                    textAlign: 'center',
+                    pointerEvents: 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <span style={{ fontSize: '36px', fontWeight: 'bold', color: '#fff', lineHeight: '1' }}>
+                        {totalCases}
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                        Total de Casos
+                    </span>
+                </div>
+            </div>
+
+            {/* LEGENDA */}
+            <div style={{ marginLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {labels.map((label, index) => (
+                    <div key={index} style={{ display: 'flex', alignItems: 'center' }}>
+                        <div style={{ 
+                            width: '10px', 
+                            height: '10px', 
+                            backgroundColor: colors[index], 
+                            borderRadius: '50%', 
+                            marginRight: '8px',
+                            flexShrink: 0
+                        }} />
+                        <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
+                            {label}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 };
 
-export default StatusDistributionChart;
+export default StatusDistributionChartJS;

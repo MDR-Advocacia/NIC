@@ -1,53 +1,62 @@
 import React from 'react';
-import styles from '../styles/TeamPerformanceModal.module.css';
-import { FaSearch, FaTimes } from 'react-icons/fa';
+import styles from '../styles/TeamPerformanceModal.module.css'; // ou o caminho do seu CSS
 import LawyerPerformanceCard from './LawyerPerformanceCard';
+import { FaTimes } from 'react-icons/fa';
 
-// Usaremos os mesmos dados fictícios por enquanto
-const mockPerformanceData = [
-    { id: 1, name: 'Dr. Carlos Santos', isLeader: true, score: 98.2, ranking: 1, performance: { economy: 'R$ 519.700', conversion: '78.3', deals: 23 }, products: { used: 8, value: 'R$ 68.000', economy: 'R$ 25.500' } },
-    { id: 2, name: 'Dra. Ana Costa', isLeader: false, score: 88.7, ranking: 2, performance: { economy: 'R$ 453.200', conversion: '72.1', deals: 19 }, products: { used: 6, value: 'R$ 35.000', economy: 'R$ 20.400' } },
-    { id: 3, name: 'Dr. Roberto Lima', isLeader: false, score: 82.1, ranking: 3, performance: { economy: 'R$ 398.000', conversion: '65.5', deals: 15 }, products: { used: 5, value: 'R$ 31.000', economy: 'R$ 18.200' } }
-];
+const TeamPerformanceModal = ({ isOpen, onClose, onViewDetails, data }) => {
+    if (!isOpen) return null;
 
-// 1. Receba a prop 'onViewDetails' aqui
-const TeamPerformanceModal = ({ isOpen, onClose, onViewDetails }) => {
-    if (!isOpen) {
-        return null;
-    }
+    // Função auxiliar para formatar dinheiro
+    const formatCurrency = (val) => {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+    };
 
     return (
         <div className={styles.modalOverlay}>
             <div className={styles.modalContent}>
-                <div className={styles.modalHeader}>
-                    <h2>Performance da Equipe</h2>
-                    <button onClick={onClose} className={styles.closeButton}><FaTimes /></button>
-                </div>
+                <button className={styles.closeButton} onClick={onClose}>
+                    <FaTimes />
+                </button>
+                
+                <h2>Ranking Completo da Equipe</h2>
+                
+                <div className={styles.lawyersList}>
+                    {data && data.length > 0 ? (
+                        data.map((lawyerBackend, index) => {
+                             // Mapeamento dos dados reais para o visual
+                             const mappedLawyer = {
+                                id: lawyerBackend.id,
+                                name: lawyerBackend.name,
+                                isLeader: index === 0,
+                                score: lawyerBackend.score,
+                                ranking: index + 1,
+                                performance: { 
+                                    economy: formatCurrency(lawyerBackend.economy), 
+                                    conversion: lawyerBackend.conversion_rate, 
+                                    deals: lawyerBackend.closed_deals 
+                                },
+                                products: { 
+        used: lawyerBackend.products_count, 
+        value: formatCurrency(lawyerBackend.products_proposed_value), 
+        economy: formatCurrency(lawyerBackend.products_economy) 
+    }
+};
 
-                <div className={styles.filters}>
-                    <div className={styles.searchInput}>
-                        <FaSearch color="#a0aec0" />
-                        <input type="text" placeholder="Buscar advogado..." />
-                    </div>
-                    <select className={styles.filterSelect}>
-                        <option>Todos</option>
-                    </select>
-                    <select className={styles.filterSelect}>
-                        <option>Posição</option>
-                    </select>
-                    <button className={styles.compareButton}>Comparar</button>
-                </div>
-
-                <div className={styles.modalBody}>
-                    {mockPerformanceData.map((lawyer, index) => (
-                        // 2. Passe a prop 'onViewDetails' para cada card
-                        <LawyerPerformanceCard 
-                            key={lawyer.id} 
-                            lawyer={lawyer} 
-                            rank={index + 1} 
-                            onViewDetails={onViewDetails} 
-                        />
-                    ))}
+                            return (
+                                <LawyerPerformanceCard
+                                    key={mappedLawyer.id}
+                                    lawyer={mappedLawyer}
+                                    rank={index + 1}
+                                    onViewDetails={() => {
+                                        onViewDetails(mappedLawyer);
+                                        onClose();
+                                    }}
+                                />
+                            );
+                        })
+                    ) : (
+                        <p style={{ textAlign: 'center', padding: '20px' }}>Nenhum dado de performance disponível.</p>
+                    )}
                 </div>
             </div>
         </div>
