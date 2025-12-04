@@ -1,94 +1,77 @@
-// src/pages/UserManagementPage.jsx
-// ATUALIZADO: Lógica de cores das tags movida para o JSX
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import styles from '../styles/UserManagement.module.css';
-import { FaUserPlus, FaSync, FaFileExport, FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import { FaUserPlus, FaSync, FaEdit, FaTrash, FaPlus, FaTimes, FaSave } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
-import AddEditUserModal from '../components/AddEditUserModal';
 import AddDepartmentModal from '../components/AddDepartmentModal';
 
-// --- COMPONENTES AUXILIARES (LÓGICA DE COR ATUALIZADA) ---
+// --- LISTA DE ÁREAS ---
+const AREAS_LIST = [
+    "Recuperação de Crédito",
+    "Contencioso Passivo",
+    "Atendente"
+];
 
-// Mapa de Status
+// --- COMPONENTES VISUAIS (TAGS) ---
 const STATUS_DETAILS = {
     'ativo': { name: 'Ativo', color: '#38a169', textColor: '#FFFFFF' },
     'inativo': { name: 'Inativo', color: '#718096', textColor: '#FFFFFF' },
 };
-// Mapa de Funções (Role)
 const ROLE_DETAILS = {
     'administrador': { name: 'Administrador', color: '#9f7aea', textColor: '#FFFFFF' },
     'supervisor': { name: 'Supervisor', color: '#ed8936', textColor: '#FFFFFF' },
     'operador': { name: 'Operador', color: '#4299e1', textColor: '#FFFFFF' },
+    'admin': { name: 'Administrador', color: '#9f7aea', textColor: '#FFFFFF' },
 };
 
 const StatusTag = ({ status }) => {
-    const currentStatus = STATUS_DETAILS[status] || { 
-        name: status, 
-        color: '#A0AEC0', // Cinza padrão
-        textColor: '#1A202C'
-    };
-    return (
-        <span 
-            className={styles.tag} 
-            style={{ 
-                backgroundColor: currentStatus.color, 
-                color: currentStatus.textColor 
-            }}
-        >
-            {currentStatus.name}
-        </span>
-    );
-};
-const RoleTag = ({ role }) => {
-    const currentRole = ROLE_DETAILS[role] || { 
-        name: role, 
-        color: '#A0AEC0',
-        textColor: '#1A202C'
-    };
-    return (
-        <span 
-            className={styles.tag} 
-            style={{ 
-                backgroundColor: currentRole.color, 
-                color: currentRole.textColor 
-            }}
-        >
-            {currentRole.name}
-        </span>
-    );
+    const s = STATUS_DETAILS[status] || { name: status, color: '#CBD5E0', textColor: '#1A202C' };
+    return <span className={styles.tag} style={{ backgroundColor: s.color, color: s.textColor }}>{s.name}</span>;
 };
 
+const RoleTag = ({ role }) => {
+    const r = ROLE_DETAILS[role] || { name: role, color: '#CBD5E0', textColor: '#1A202C' };
+    return <span className={styles.tag} style={{ backgroundColor: r.color, color: r.textColor }}>{r.name}</span>;
+};
 
 const UserManagementPage = () => {
     const { token } = useAuth();
     const [users, setUsers] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [isUserFormModalOpen, setIsUserFormModalOpen] = useState(false);
-    const [isDepartmentModalOpen, setIsDepartmentModalOpen] = useState(false);
-    const [editingUser, setEditingUser] = useState(null);
+    
+    // Filtros Backend
+    const [filters, setFilters] = useState({ search: '', status: '', role: '', department_id: '' });
+    // Filtro Frontend (Área)
+    const [filterArea, setFilterArea] = useState('');
 
-    const [filters, setFilters] = useState({
-        search: '', status: '', role: '', department_id: '',
+    const [isDepartmentModalOpen, setIsDepartmentModalOpen] = useState(false);
+    const [isUserFormModalOpen, setIsUserFormModalOpen] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState(null);
+
+    // Lógica LocalStorage (Áreas)
+    const [userAreas, setUserAreas] = useState(() => {
+        const saved = localStorage.getItem('nic_user_areas');
+        return saved ? JSON.parse(saved) : {};
+    });
+
+    const [formData, setFormData] = useState({
+        name: '', email: '', password: '', role: 'operador', department_id: '', status: 'ativo', area: ''
     });
 
     const fetchData = useCallback(async () => {
         setLoading(true);
-        setError('');
         try {
             const userParams = new URLSearchParams(filters);
-            const [usersResponse, departmentsResponse] = await Promise.all([
+            const [usersRes, deptsRes] = await Promise.all([
                 apiClient.get(`/users?${userParams.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
                 apiClient.get('/departments', { headers: { Authorization: `Bearer ${token}` } })
             ]);
-            setUsers(usersResponse.data.data || []);
-            setDepartments(departmentsResponse.data || []);
+            setUsers(usersRes.data.data || []);
+            setDepartments(deptsRes.data || []);
         } catch (err) {
-            setError('Não foi possível carregar os dados.');
             console.error(err);
         } finally {
             setLoading(false);
@@ -100,142 +83,185 @@ const UserManagementPage = () => {
         return () => clearTimeout(timer);
     }, [fetchData]);
 
+    // --- LÓGICA DE FILTRAGEM FINAL (Mistura Backend + Frontend) ---
+    const displayedUsers = useMemo(() => {
+        if (!filterArea) return users; // Se não tem filtro de área, mostra o que veio do back
+        return users.filter(user => {
+            const areaDoUsuario = userAreas[user.email] || '';
+            return areaDoUsuario === filterArea;
+        });
+    }, [users, filterArea, userAreas]);
+
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
-        setFilters(prev => ({ ...prev, [name]: value }));
-    };
-
-    const getInitials = (name) => {
-        if (!name) return '';
-        const names = name.split(' ');
-        const firstInitial = names[0]?.[0] || '';
-        const lastInitial = names.length > 1 ? names[names.length - 1][0] : '';
-        return `${firstInitial}${lastInitial}`.toUpperCase();
-    };
-    
-    const handleSaveSuccess = () => {
-        setIsUserFormModalOpen(false);
-        setIsDepartmentModalOpen(false);
-        setEditingUser(null);
-        fetchData();
-    };
-    
-    const handleDelete = async (userId) => {
-        if (!window.confirm('Tem certeza que deseja excluir este usuário?')) {
-            return;
-        }
-        try {
-            await apiClient.delete(`/users/${userId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            fetchData();
-        } catch (err) {
-            alert('Não foi possível excluir o usuário.');
-            console.error(err);
+        if (name === 'area') {
+            setFilterArea(value); // Filtro local
+        } else {
+            setFilters(prev => ({ ...prev, [name]: value })); // Filtro backend
         }
     };
 
+    // --- MANIPULAÇÃO DO USUÁRIO ---
     const handleOpenAddModal = () => {
-        setEditingUser(null);
+        setIsEditing(false);
+        setCurrentUserId(null);
+        setFormData({ name: '', email: '', password: '', role: 'operador', department_id: '', status: 'ativo', area: '' });
         setIsUserFormModalOpen(true);
     };
 
     const handleOpenEditModal = (user) => {
-        setEditingUser(user);
+        setIsEditing(true);
+        setCurrentUserId(user.id);
+        const savedArea = userAreas[user.email] || '';
+        setFormData({
+            name: user.name,
+            email: user.email,
+            password: '', role: user.role,
+            department_id: user.department_id || '',
+            status: user.status || 'ativo',
+            area: savedArea
+        });
         setIsUserFormModalOpen(true);
     };
+
+    const handleSaveUser = async (e) => {
+        e.preventDefault();
+        try {
+            const payload = {
+                name: formData.name, email: formData.email, role: formData.role,
+                department_id: formData.department_id, status: formData.status
+            };
+            if (formData.password) payload.password = formData.password;
+            else if (!isEditing) payload.password = '123456';
+
+            if (isEditing) {
+                await apiClient.put(`/users/${currentUserId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+            } else {
+                await apiClient.post('/users', payload, { headers: { Authorization: `Bearer ${token}` } });
+            }
+
+            if (formData.area) {
+                const newAreas = { ...userAreas, [formData.email]: formData.area };
+                setUserAreas(newAreas);
+                localStorage.setItem('nic_user_areas', JSON.stringify(newAreas));
+            }
+
+            setIsUserFormModalOpen(false);
+            fetchData();
+            alert(isEditing ? 'Atualizado!' : 'Criado!');
+        } catch (err) {
+            alert('Erro ao salvar.');
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm('Excluir usuário?')) {
+            await apiClient.delete(`/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+            fetchData();
+        }
+    };
+
+    const getInitials = (n) => {
+        if(!n) return ''; 
+        const p = n.split(' '); 
+        return (p[0][0] + (p.length>1?p[p.length-1][0]:'')).toUpperCase();
+    };
+
+    const handleSaveSuccess = () => { setIsDepartmentModalOpen(false); fetchData(); };
 
     return (
         <div className={styles.pageContainer}>
             <header className={styles.header}>
-                <div>
-                    <h1>Gestão de Usuários</h1>
-                    <p>Gerencie usuários, permissões e controle de acesso</p>
-                </div>
+                <div><h1>Gestão de Usuários</h1><p>Controle de acesso e áreas</p></div>
                 <div className={styles.headerActions}>
-                    <button className={styles.actionButton}><FaFileExport /> Exportar</button>
                     <button className={styles.actionButton} onClick={fetchData}><FaSync /> Atualizar</button>
-                    <button className={styles.actionButton} onClick={() => setIsDepartmentModalOpen(true)}>
-                        <FaPlus/> Novo Departamento
-                    </button>
-                    <button className={styles.newUserButton} onClick={handleOpenAddModal}>
-                        <FaUserPlus /> Novo Usuário
-                    </button>
+                    <button className={styles.actionButton} onClick={() => setIsDepartmentModalOpen(true)}><FaPlus/> Depto</button>
+                    <button className={styles.newUserButton} onClick={handleOpenAddModal}><FaUserPlus /> Usuário</button>
                 </div>
             </header>
 
             <section className={styles.kpiGrid}>
-                {/* O KpiCard já foi refatorado e usará as variáveis CSS */}
-                <KpiCard title="Total de Usuários" value={users.length.toString()} />
-                <KpiCard title="Usuários Ativos" value={users.filter(u => u.status === 'ativo').length.toString()} />
-                <KpiCard title="Primeiro Login" value={"-"} /> 
-                <KpiCard title="Departamentos" value={departments.length.toString()} />
+                <KpiCard title="Total" value={users.length} />
+                <KpiCard title="Ativos" value={users.filter(u => u.status === 'ativo').length} />
+                <KpiCard title="Áreas Definidas" value={Object.keys(userAreas).length} />
             </section>
 
+            {/* --- BARRA DE FILTROS COM A NOVA ÁREA --- */}
             <section className={styles.filtersContainer}>
-                <input 
-                    type="text" 
-                    name="search"
-                    placeholder="Buscar usuários..." 
-                    className={styles.searchInput}
-                    value={filters.search}
-                    onChange={handleFilterChange}
-                />
+                <input type="text" name="search" placeholder="Buscar..." className={styles.searchInput} value={filters.search} onChange={handleFilterChange} />
+                
                 <select name="status" className={styles.filterSelect} value={filters.status} onChange={handleFilterChange}>
-                    <option value="">Todos os status</option>
+                    <option value="">Status: Todos</option>
                     <option value="ativo">Ativo</option>
                     <option value="inativo">Inativo</option>
                 </select>
+                
                 <select name="role" className={styles.filterSelect} value={filters.role} onChange={handleFilterChange}>
-                    <option value="">Todas as funções</option>
-                    <option value="administrador">Administrador</option>
+                    <option value="">Função: Todas</option>
+                    <option value="administrador">Admin</option>
                     <option value="supervisor">Supervisor</option>
                     <option value="operador">Operador</option>
                 </select>
+
                 <select name="department_id" className={styles.filterSelect} value={filters.department_id} onChange={handleFilterChange}>
-                    <option value="">Todos os departamentos</option>
-                    {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
+                    <option value="">Depto: Todos</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+
+                {/* NOVO FILTRO DE ÁREA */}
+                <select name="area" className={styles.filterSelect} value={filterArea} onChange={handleFilterChange}>
+                    <option value="">Área: Todas</option>
+                    {AREAS_LIST.map(area => (
+                        <option key={area} value={area}>{area}</option>
+                    ))}
                 </select>
             </section>
-            
+
             <section className={styles.tableContainer}>
-                <h3>Lista de Usuários ({users.length})</h3>
-                {loading ? <p>Carregando...</p> : error ? <p style={{color: 'red'}}>{error}</p> : (
+                {loading ? <p>Carregando...</p> : (
                     <table className={styles.table}>
                         <thead>
                             <tr>
-                                <th>Usuário</th>
-                                <th>Contato</th>
-                                <th>Função</th>
-                                <th>Departamento</th>
-                                <th>Último Login</th>
-                                <th>Status</th>
-                                <th>Ações</th>
+                                <th>Usuário</th><th>Função</th><th>Área / Setor</th><th>Depto</th><th>Status</th>
+                                {/* --- CABEÇALHO FORÇADO AQUI --- */}
+                                <th style={{ minWidth: '100px', whiteSpace: 'nowrap' }}>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {users.map(user => (
+                            {displayedUsers.map(user => (
                                 <tr key={user.id}>
                                     <td>
                                         <div className={styles.userCell}>
                                             <div className={styles.userAvatar}>{getInitials(user.name)}</div>
-                                            <div>
-                                                <div className={styles.userName}>{user.name}</div>
-                                                <div className={styles.userEmail}>{user.email}</div>
-                                            </div>
+                                            <div><div className={styles.userName}>{user.name}</div><div className={styles.userEmail}>{user.email}</div></div>
                                         </div>
                                     </td>
-                                    <td>{user.phone || '-'}</td>
-                                    {/* ATUALIZADO: Usa o novo componente RoleTag */}
                                     <td><RoleTag role={user.role} /></td>
-                                    <td>{user.department?.name || '-'}</td>
-                                    <td>{user.last_login_at ? new Date(user.last_login_at).toLocaleString('pt-BR') : 'Nunca'}</td>
-                                    {/* ATUALIZADO: Usa o novo componente StatusTag */}
-                                    <td><StatusTag status={user.status} /></td>
-                                    <td className={styles.actionsCell}>
-                                        <FaEdit title="Editar" onClick={() => handleOpenEditModal(user)} />
-                                        <FaTrash title="Excluir" onClick={() => handleDelete(user.id)} />
+                                    <td>
+                                        {userAreas[user.email] ? 
+                                            <span className={styles.tagArea}>{userAreas[user.email]}</span> : 
+                                            <span style={{color:'#cbd5e1'}}>-</span>
+                                        }
                                     </td>
+                                    <td>{user.department?.name || '-'}</td>
+                                    <td><StatusTag status={user.status} /></td>
+                                    
+                                    {/* --- CORREÇÃO DA LINHA QUEBRADA: ESTILOS INLINE (FORÇA BRUTA) --- */}
+                                    <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                            <FaEdit 
+                                                title="Editar" 
+                                                className={styles.iconBtn} 
+                                                onClick={() => handleOpenEditModal(user)} 
+                                            />
+                                            <FaTrash 
+                                                title="Excluir" 
+                                                className={`${styles.iconBtn} ${styles.iconDelete}`} 
+                                                onClick={() => handleDelete(user.id)} 
+                                            />
+                                        </div>
+                                    </td>
+                                    {/* ---------------------------------------------------------------- */}
                                 </tr>
                             ))}
                         </tbody>
@@ -243,24 +269,76 @@ const UserManagementPage = () => {
                 )}
             </section>
 
-            <AddEditUserModal
-                isOpen={isUserFormModalOpen}
-                onClose={() => {
-                    setIsUserFormModalOpen(false);
-                    setEditingUser(null);
-                }}
-                onSave={handleSaveSuccess}
-                departments={departments}
-                existingUser={editingUser}
-            />
+            {/* MODAL DE EDIÇÃO */}
+            {isUserFormModalOpen && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.modalContent}>
+                        <div className={styles.modalHeader}>
+                            <h2>{isEditing ? 'Editar Usuário' : 'Novo Usuário'}</h2>
+                            <button className={styles.closeButton} onClick={() => setIsUserFormModalOpen(false)}><FaTimes /></button>
+                        </div>
+                        <form onSubmit={handleSaveUser} className={styles.formGrid}>
+                            <div className={styles.formGroup}>
+                                <label>Nome</label>
+                                <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                            </div>
+                            <div className={styles.formGroup}>
+                                <label>E-mail</label>
+                                <input required type="email" disabled={isEditing} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                            </div>
+                            
+                            {!isEditing && (
+                                <div className={styles.formGroup}>
+                                    <label>Senha</label>
+                                    <input type="password" placeholder="Padrão: 123456" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                                </div>
+                            )}
 
-            <AddDepartmentModal
-                isOpen={isDepartmentModalOpen}
-                onClose={() => setIsDepartmentModalOpen(false)}
-                onSave={handleSaveSuccess}
-            />
+                            <div className={styles.formRow}>
+                                <div className={styles.formGroup}>
+                                    <label>Função</label>
+                                    <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
+                                        <option value="operador">Operador</option>
+                                        <option value="supervisor">Supervisor</option>
+                                        <option value="administrador">Admin</option>
+                                    </select>
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label>Área</label>
+                                    <select required value={formData.area} onChange={e => setFormData({...formData, area: e.target.value})}>
+                                        <option value="">Selecione...</option>
+                                        {AREAS_LIST.map(a => <option key={a} value={a}>{a}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className={styles.formRow}>
+                                <div className={styles.formGroup}>
+                                    <label>Departamento</label>
+                                    <select value={formData.department_id} onChange={e => setFormData({...formData, department_id: e.target.value})}>
+                                        <option value="">Nenhum</option>
+                                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label>Status</label>
+                                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                                        <option value="ativo">Ativo</option>
+                                        <option value="inativo">Inativo</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className={styles.modalActions}>
+                                <button type="button" className={styles.cancelButton} onClick={() => setIsUserFormModalOpen(false)}>Cancelar</button>
+                                <button type="submit" className={styles.saveButton}><FaSave /> Salvar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            <AddDepartmentModal isOpen={isDepartmentModalOpen} onClose={() => setIsDepartmentModalOpen(false)} onSave={handleSaveSuccess} />
         </div>
     );
 };
-
 export default UserManagementPage;
