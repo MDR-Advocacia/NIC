@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule; // Importante para validação de update
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -15,13 +15,15 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::with('department'); // Carrega o departamento junto
+        $query = User::with('department');
 
         // Filtros
         if ($request->has('search') && $request->input('search') != '') {
             $searchTerm = $request->input('search');
-            $query->where('name', 'like', "%{$searchTerm}%")
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('name', 'like', "%{$searchTerm}%")
                   ->orWhere('email', 'like', "%{$searchTerm}%");
+            });
         }
         if ($request->has('status') && $request->input('status') != '') {
             $query->where('status', $request->input('status'));
@@ -32,8 +34,11 @@ class UserController extends Controller
         if ($request->has('department_id') && $request->input('department_id') != '') {
             $query->where('department_id', $request->input('department_id'));
         }
+        // --- FILTRO DE ÁREA (NOVO) ---
+        if ($request->has('area') && $request->input('area') != '') {
+            $query->where('area', $request->input('area'));
+        }
 
-        // Retorna todos os usuários (ou paginado, se preferir)
         return response()->json(['data' => $query->get()]);
     }
 
@@ -42,17 +47,18 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
+        // Adicionei 'area' na validação abaixo
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
-            'role' => 'required|string|in:administrador,supervisor,operador', // Valida as funções permitidas
-            'department_id' => 'required|exists:departments,id', // Garante que o departamento existe
+            'role' => 'required|string|in:administrador,supervisor,operador',
+            'department_id' => 'required|exists:departments,id',
             'phone' => 'nullable|string',
             'status' => 'required|string|in:ativo,inativo',
+            'area'   => 'nullable|string', // <--- AGORA O LARAVEL ACEITA A ÁREA
         ]);
 
-        // Criptografa a senha antes de salvar
         $validatedData['password'] = Hash::make($validatedData['password']);
 
         $user = User::create($validatedData);
@@ -65,21 +71,22 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user)
     {
+        // Adicionei 'area' na validação abaixo também
         $validatedData = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'email' => ['sometimes', 'required', 'email', Rule::unique('users')->ignore($user->id)], // Permite manter o mesmo email
-            'password' => 'nullable|string|min:8', // Senha é opcional na edição
+            'email' => ['sometimes', 'required', 'email', Rule::unique('users')->ignore($user->id)],
+            'password' => 'nullable|string|min:8',
             'role' => 'sometimes|required|string|in:administrador,supervisor,operador',
             'department_id' => 'sometimes|required|exists:departments,id',
             'phone' => 'nullable|string',
             'status' => 'sometimes|required|string|in:ativo,inativo',
+            'area'   => 'nullable|string', // <--- AGORA ACEITA NA EDIÇÃO TAMBÉM
         ]);
 
-        // Só atualiza a senha se ela for enviada
         if (isset($validatedData['password']) && !empty($validatedData['password'])) {
             $validatedData['password'] = Hash::make($validatedData['password']);
         } else {
-            unset($validatedData['password']); // Remove do array para não sobrescrever com vazio
+            unset($validatedData['password']);
         }
 
         $user->update($validatedData);

@@ -51,12 +51,6 @@ const UserManagementPage = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [currentUserId, setCurrentUserId] = useState(null);
 
-    // Lógica LocalStorage (Áreas)
-    const [userAreas, setUserAreas] = useState(() => {
-        const saved = localStorage.getItem('nic_user_areas');
-        return saved ? JSON.parse(saved) : {};
-    });
-
     const [formData, setFormData] = useState({
         name: '', email: '', password: '', role: 'operador', department_id: '', status: 'ativo', area: ''
     });
@@ -83,21 +77,21 @@ const UserManagementPage = () => {
         return () => clearTimeout(timer);
     }, [fetchData]);
 
-    // --- LÓGICA DE FILTRAGEM FINAL (Mistura Backend + Frontend) ---
+    // --- LÓGICA DE FILTRAGEM FINAL (Apenas Dados Reais) ---
     const displayedUsers = useMemo(() => {
-        if (!filterArea) return users; // Se não tem filtro de área, mostra o que veio do back
+        if (!filterArea) return users; 
         return users.filter(user => {
-            const areaDoUsuario = userAreas[user.email] || '';
-            return areaDoUsuario === filterArea;
+            // Agora olha SOMENTE para o dado real do banco
+            return user.area === filterArea;
         });
-    }, [users, filterArea, userAreas]);
+    }, [users, filterArea]);
 
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
         if (name === 'area') {
-            setFilterArea(value); // Filtro local
+            setFilterArea(value); 
         } else {
-            setFilters(prev => ({ ...prev, [name]: value })); // Filtro backend
+            setFilters(prev => ({ ...prev, [name]: value })); 
         }
     };
 
@@ -112,14 +106,15 @@ const UserManagementPage = () => {
     const handleOpenEditModal = (user) => {
         setIsEditing(true);
         setCurrentUserId(user.id);
-        const savedArea = userAreas[user.email] || '';
+        // Pega a área direto do objeto do usuário (Backend)
         setFormData({
             name: user.name,
             email: user.email,
-            password: '', role: user.role,
+            password: '', 
+            role: user.role,
             department_id: user.department_id || '',
             status: user.status || 'ativo',
-            area: savedArea
+            area: user.area || '' 
         });
         setIsUserFormModalOpen(true);
     };
@@ -129,8 +124,10 @@ const UserManagementPage = () => {
         try {
             const payload = {
                 name: formData.name, email: formData.email, role: formData.role,
-                department_id: formData.department_id, status: formData.status
+                department_id: formData.department_id, status: formData.status,
+                area: formData.area // Envia para o banco
             };
+            
             if (formData.password) payload.password = formData.password;
             else if (!isEditing) payload.password = '123456';
 
@@ -140,17 +137,13 @@ const UserManagementPage = () => {
                 await apiClient.post('/users', payload, { headers: { Authorization: `Bearer ${token}` } });
             }
 
-            if (formData.area) {
-                const newAreas = { ...userAreas, [formData.email]: formData.area };
-                setUserAreas(newAreas);
-                localStorage.setItem('nic_user_areas', JSON.stringify(newAreas));
-            }
+            // REMOVIDO: Código de localStorage (não precisamos mais)
 
             setIsUserFormModalOpen(false);
             fetchData();
-            alert(isEditing ? 'Atualizado!' : 'Criado!');
+            alert(isEditing ? 'Atualizado com sucesso!' : 'Criado com sucesso!');
         } catch (err) {
-            alert('Erro ao salvar.');
+            alert('Erro ao salvar. Verifique os dados.');
         }
     };
 
@@ -183,10 +176,10 @@ const UserManagementPage = () => {
             <section className={styles.kpiGrid}>
                 <KpiCard title="Total" value={users.length} />
                 <KpiCard title="Ativos" value={users.filter(u => u.status === 'ativo').length} />
-                <KpiCard title="Áreas Definidas" value={Object.keys(userAreas).length} />
+                {/* Contagem dinâmica baseada nos dados reais */}
+                <KpiCard title="Áreas Preenchidas" value={users.filter(u => u.area).length} />
             </section>
 
-            {/* --- BARRA DE FILTROS COM A NOVA ÁREA --- */}
             <section className={styles.filtersContainer}>
                 <input type="text" name="search" placeholder="Buscar..." className={styles.searchInput} value={filters.search} onChange={handleFilterChange} />
                 
@@ -208,7 +201,6 @@ const UserManagementPage = () => {
                     {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
 
-                {/* NOVO FILTRO DE ÁREA */}
                 <select name="area" className={styles.filterSelect} value={filterArea} onChange={handleFilterChange}>
                     <option value="">Área: Todas</option>
                     {AREAS_LIST.map(area => (
@@ -223,7 +215,6 @@ const UserManagementPage = () => {
                         <thead>
                             <tr>
                                 <th>Usuário</th><th>Função</th><th>Área / Setor</th><th>Depto</th><th>Status</th>
-                                {/* --- CABEÇALHO FORÇADO AQUI --- */}
                                 <th style={{ minWidth: '100px', whiteSpace: 'nowrap' }}>Ações</th>
                             </tr>
                         </thead>
@@ -238,30 +229,28 @@ const UserManagementPage = () => {
                                     </td>
                                     <td><RoleTag role={user.role} /></td>
                                     <td>
-                                        {userAreas[user.email] ? 
-                                            <span className={styles.tagArea}>{userAreas[user.email]}</span> : 
+                                        {/* AGORA LÊ APENAS DO BANCO */}
+                                        {user.area ? 
+                                            <span className={styles.tagArea}>{user.area}</span> : 
                                             <span style={{color:'#cbd5e1'}}>-</span>
                                         }
                                     </td>
                                     <td>{user.department?.name || '-'}</td>
                                     <td><StatusTag status={user.status} /></td>
                                     
-                                    {/* --- CORREÇÃO DA LINHA QUEBRADA: ESTILOS INLINE (FORÇA BRUTA) --- */}
+                                    {/* Ações com Estilo Inline para não quebrar linha */}
                                     <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                                             <FaEdit 
-                                                title="Editar" 
-                                                className={styles.iconBtn} 
+                                                title="Editar" size={18} style={{ cursor: 'pointer', color: '#718096' }} 
                                                 onClick={() => handleOpenEditModal(user)} 
                                             />
                                             <FaTrash 
-                                                title="Excluir" 
-                                                className={`${styles.iconBtn} ${styles.iconDelete}`} 
+                                                title="Excluir" size={18} style={{ cursor: 'pointer', color: '#718096' }} 
                                                 onClick={() => handleDelete(user.id)} 
                                             />
                                         </div>
                                     </td>
-                                    {/* ---------------------------------------------------------------- */}
                                 </tr>
                             ))}
                         </tbody>
@@ -269,7 +258,6 @@ const UserManagementPage = () => {
                 )}
             </section>
 
-            {/* MODAL DE EDIÇÃO */}
             {isUserFormModalOpen && (
                 <div className={styles.modalOverlay}>
                     <div className={styles.modalContent}>
@@ -307,7 +295,9 @@ const UserManagementPage = () => {
                                     <label>Área</label>
                                     <select required value={formData.area} onChange={e => setFormData({...formData, area: e.target.value})}>
                                         <option value="">Selecione...</option>
-                                        {AREAS_LIST.map(a => <option key={a} value={a}>{a}</option>)}
+                                        {AREAS_LIST.map(area => (
+                                            <option key={area} value={area}>{area}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
