@@ -24,6 +24,7 @@ class User extends Authenticatable
         'password',
         'role',
         // --- NOVOS CAMPOS ADICIONADOS ---
+        'area',
         'status',
         'phone',
         'last_login_at',
