@@ -1,5 +1,5 @@
 // src/components/EditCaseModal.jsx
-// ATUALIZADO: Modal agora fecha ao clicar no fundo (overlay)
+// ATUALIZADO: Com Checklist de Acordo integrado
 
 import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api';
@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
 import { FaPencilAlt, FaRegCommentDots, FaTimes } from 'react-icons/fa';
 import ChatPreview from './ChatPreview';
+import AgreementChecklist from './AgreementChecklist'; // <--- 1. IMPORT ADICIONADO
 
 // --- Sub-componente HistoryItem (Sem alterações) ---
 const HistoryItem = ({ entry }) => {
@@ -131,8 +132,9 @@ const HistoryTab = ({ caseId }) => {
 };
 
 
-// --- Sub-componente DetailsTab (Sem alterações) ---
-const DetailsTab = ({ formData, handleChange, handlePriorityChange, handleAddTag, handleRemoveTag, newTagText, setNewTagText, newTagColor, setNewTagColor, clients, lawyers }) => {
+// --- Sub-componente DetailsTab (ATUALIZADO) ---
+// Adicionamos 'handleChecklistChange' nas props recebidas
+const DetailsTab = ({ formData, handleChange, handlePriorityChange, handleAddTag, handleRemoveTag, newTagText, setNewTagText, newTagColor, setNewTagColor, clients, lawyers, handleChecklistChange }) => {
     const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
     const actionObjects = ["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada"];
     const availableColors = ['#EF4444', '#F97316', '#FBBF24', ' #84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
@@ -255,6 +257,19 @@ const DetailsTab = ({ formData, handleChange, handlePriorityChange, handleAddTag
                     ))}
                 </div>
             </div>
+
+            {/* --- 2. SEÇÃO CHECKLIST ADICIONADA AQUI --- */}
+            <div className={styles.formSection}>
+                <h3 className={styles.formSectionTitle}>Análise de Acordo</h3>
+                <div style={{ marginTop: '10px' }}>
+                    <AgreementChecklist 
+                        checklistData={formData.agreement_checklist_data} 
+                        onUpdate={handleChecklistChange} 
+                    />
+                </div>
+            </div>
+            {/* ------------------------------------------ */}
+
             <div className={styles.formSection}>
                 <h3 className={styles.formSectionTitle}>Observações</h3>
                 <div className={styles.formGroup}>
@@ -266,7 +281,7 @@ const DetailsTab = ({ formData, handleChange, handlePriorityChange, handleAddTag
 };
 
 
-// --- COMPONENTE PRINCIPAL: EditCaseModal (COM AS ALTERAÇÕES) ---
+// --- COMPONENTE PRINCIPAL: EditCaseModal ---
 const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) => {
     const { token } = useAuth();
     const [formData, setFormData] = useState({});
@@ -335,19 +350,43 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     };
     
     const handleChange = (e) => { const { name, value } = e.target; setFormData(prevState => ({ ...prevState, [name]: value })); };
+    
+    // --- 3. FUNÇÃO DE ATUALIZAÇÃO DO CHECKLIST ---
+    const handleChecklistChange = (checklistData) => {
+        setFormData(prev => ({
+            ...prev,
+            ...checklistData 
+        }));
+    };
+    // ---------------------------------------------
+
     const handlePriorityChange = (priority) => { setFormData(prevState => ({ ...prevState, priority: priority })); };
     const handleAddTag = () => { if (newTagText.trim() === '') return; const newTag = { text: newTagText, color: newTagColor }; setFormData(prevState => ({ ...prevState, tags: [...(prevState.tags || []), newTag] })); setNewTagText(''); };
     const handleRemoveTag = (indexToRemove) => { setFormData(prevState => ({ ...prevState, tags: prevState.tags.filter((_, index) => index !== indexToRemove) })); };
-    const handleSubmit = async (e) => { e.preventDefault(); setIsSubmitting(true); setError(''); try { await apiClient.put(`/cases/${legalCase.id}`, formData, { headers: { Authorization: `Bearer ${token}` } }); alert('Caso atualizado com sucesso!'); if (onCaseUpdated) { onCaseUpdated(); } onClose(); } catch (err) { console.error("Erro ao atualizar o caso:", err.response?.data); setError('Erro ao atualizar o caso. Verifique os campos.'); } finally { setIsSubmitting(false); } };
+    
+    const handleSubmit = async (e) => { 
+        e.preventDefault(); 
+        setIsSubmitting(true); 
+        setError(''); 
+        try { 
+            await apiClient.put(`/cases/${legalCase.id}`, formData, { headers: { Authorization: `Bearer ${token}` } }); 
+            alert('Caso atualizado com sucesso!'); 
+            if (onCaseUpdated) { onCaseUpdated(); } 
+            onClose(); 
+        } catch (err) { 
+            console.error("Erro ao atualizar o caso:", err.response?.data); 
+            setError('Erro ao atualizar o caso. Verifique os campos.'); 
+        } finally { 
+            setIsSubmitting(false); 
+        } 
+    };
 
     if (!legalCase) {
         return null;
     }
 
     return (
-        // ATUALIZADO: Adicionado onClick={onClose} ao overlay
         <div className={styles.modalOverlay} onClick={onClose}>
-            {/* ATUALIZADO: Adicionado onClick com stopPropagation ao conteúdo */}
             <div 
                 className={`${styles.modalContent} ${styles.large}`} 
                 onClick={(e) => e.stopPropagation()}
@@ -366,9 +405,26 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 <div className={styles.tabContent}>
                     {activeTab === 'details' && (
                         <form onSubmit={handleSubmit}>
-                            <DetailsTab formData={formData} handleChange={handleChange} handlePriorityChange={handlePriorityChange} handleAddTag={handleAddTag} handleRemoveTag={handleRemoveTag} newTagText={newTagText} setNewTagText={setNewTagText} newTagColor={newTagColor} setNewTagColor={setNewTagColor} clients={clients} lawyers={lawyers} />
+                            {/* Passamos o handleChecklistChange para o subcomponente */}
+                            <DetailsTab 
+                                formData={formData} 
+                                handleChange={handleChange} 
+                                handlePriorityChange={handlePriorityChange} 
+                                handleAddTag={handleAddTag} 
+                                handleRemoveTag={handleRemoveTag} 
+                                newTagText={newTagText} 
+                                setNewTagText={setNewTagText} 
+                                newTagColor={newTagColor} 
+                                setNewTagColor={setNewTagColor} 
+                                clients={clients} 
+                                lawyers={lawyers}
+                                handleChecklistChange={handleChecklistChange} 
+                            />
                             {error && <p className={styles.error}>{error}</p>}
-                            <div className={styles.actions}> <button type="button" className={styles.cancelButton} onClick={onClose}>Cancelar</button> <button type="submit" className={styles.saveButton} disabled={isSubmitting}> {isSubmitting ? 'Salvando...' : 'Salvar Alterações'} </button> </div>
+                            <div className={styles.actions}> 
+                                <button type="button" className={styles.cancelButton} onClick={onClose}>Cancelar</button> 
+                                <button type="submit" className={styles.saveButton} disabled={isSubmitting}> {isSubmitting ? 'Salvando...' : 'Salvar Alterações'} </button> 
+                            </div>
                         </form>
                     )}
 
