@@ -37,11 +37,13 @@ class LegalCase extends Model
         'special_court',
         'opposing_lawyer', 
         'opposing_contact', 
-        'tags', 
+        'tags',
+        'agreement_probability',
+        'agreement_checklist_data', 
         'start_date'
     ];
 
-    protected $casts = ['tags' => 'array'];
+    protected $casts = ['tags' => 'array', 'agreement_checklist_data' => 'array'];
 
     public function client() { return $this->belongsTo(Client::class); }
 

@@ -13,9 +13,10 @@
     padding: 20px;
     border-right: 1px solid var(--border-color-dark);
     flex-shrink: 0;
+    transition: background-color 0.3s;
 }
 
-/* --- ESTILO DO LOGO NIC (CORPORATIVO) --- */
+/* --- ESTILO DO LOGO NIC (CORPORATIVO + LED) --- */
 .brandWrapper {
     display: flex;
     flex-direction: column;
@@ -24,27 +25,36 @@
     margin-top: 10px;
 }
 
+/* 1. MODO ESCURO (PADRÃO) - LED BRANCO */
 .mainIcon {
     font-size: 3.5rem; /* Ícone bem grande */
-    color: #fff; /* Branco para destacar no fundo escuro */
+    color: #ffffff; /* Branco Puro */
     margin-bottom: 10px;
-    /* Se quiser a cor azul da imagem, troque #fff por #3b82f6 */
+    
+    /* EFEITO DE LUZ (NEON BRANCO) */
+    filter: 
+        drop-shadow(0 0 2px #ffffff)
+        drop-shadow(0 0 8px #ffffff)
+        drop-shadow(0 0 20px #3b82f6); /* Aura azulada leve */
+    
+    /* Animação de pulsação */
+    animation: ledPulse 3s ease-in-out infinite alternate;
+}
+
+.nicTitle {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #fff; /* Branco */
+    line-height: 1;
+    margin: 0;
+    letter-spacing: 1px;
 }
 
 .textGroup {
     display: flex;
-    align-items: center; /* Centraliza verticalmente NIC e Texto */
-    gap: 8px; /* Espaço entre NIC e o Texto Lateral */
-}
-
-.nicTitle {
-    font-family: 'Georgia', 'Times New Roman', serif; /* Fonte Clássica Serifada */
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: #fff;
-    line-height: 1;
-    margin: 0;
-    letter-spacing: 1px;
+    align-items: center;
+    gap: 8px;
 }
 
 .meaningBox {
@@ -52,20 +62,53 @@
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
-    border-left: 1px solid #475569; /* Linha vertical fina separando */
+    border-left: 1px solid #475569;
     padding-left: 8px;
 }
 
 .meaningBox span {
-    font-family: 'Arial', sans-serif; /* Fonte simples e limpa */
-    font-size: 0.55rem; /* Letra miúda estilo cartão de visita */
+    font-family: 'Arial', sans-serif;
+    font-size: 0.55rem;
     font-weight: 600;
-    color: #cbd5e1; /* Cinza claro */
+    color: #cbd5e1;
     line-height: 1.2;
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
-/* ---------------------------------------- */
+
+/* ANIMAÇÃO DO LED */
+@keyframes ledPulse {
+  0% {
+    filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 20px #3b82f6);
+  }
+  100% {
+    filter: drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 15px #ffffff) drop-shadow(0 0 35px #3b82f6);
+  }
+}
+
+/* --- 2. MODO CLARO (QUANDO O TEMA É LIGHT) --- */
+/* Essas regras só aplicam quando a classe .brandLight é ativada no JSX */
+
+.brandLight .mainIcon {
+    color: #0f172a; /* AZUL ESCURO (COR DO SISTEMA) */
+    
+    /* Remove o brilho de LED para ficar nítido no fundo branco */
+    filter: none; 
+    animation: none;
+}
+
+.brandLight .nicTitle {
+    color: #0f172a; /* Texto Escuro */
+}
+
+.brandLight .meaningBox {
+    border-left-color: #94a3b8; /* Linha divisória cinza */
+}
+
+.brandLight .meaningBox span {
+    color: #475569; /* Texto pequeno cinza escuro */
+}
+/* ------------------------------------------------ */
 
 .navList {
     list-style: none;
@@ -90,7 +133,7 @@
 }
 
 .navLink:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--bg-hover); /* Usa variável para adaptar ao tema */
     color: var(--text-primary);
     transform: translateX(5px);
 }
