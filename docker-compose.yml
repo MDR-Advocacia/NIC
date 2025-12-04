@@ -30,25 +30,6 @@ services:
     networks:
       - concilia_network
 
-  db:
-    image: mysql:8.0
-    container_name: concilia_db
-    restart: unless-stopped
-    ports:
-      - "3306:3306"
-    environment:
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_USER: ${DB_USERNAME}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - db_data:/var/lib/mysql
-    networks:
-      - concilia_network
-
 networks:
   concilia_network:
     driver: bridge
-
-volumes:
-  db_data:

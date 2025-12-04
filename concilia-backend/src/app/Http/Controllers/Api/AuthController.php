@@ -52,9 +52,10 @@ class AuthController extends Controller
 
         $user = User::where('email', $request['email'])->firstOrFail();
 
-        // Revoga tokens antigos e cria um novo
+        // Limpa tokens antigos
         $user->tokens()->delete();
 
+        // Retorna o JSON correto que o React espera
         return response()->json([
             'user' => $user,
             'token' => $user->createToken('auth_token')->plainTextToken
