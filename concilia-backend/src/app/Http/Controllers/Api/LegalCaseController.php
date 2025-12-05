@@ -18,35 +18,22 @@ class LegalCaseController extends Controller
 {
     use AuthorizesRequests;
 
-    /**
-     * Display a listing of the resource.
-     * ATUALIZADO COM LÓGICA DE PERMISSÃO (RBAC) E FILTROS
-     */
     public function index(Request $request): JsonResponse
     {
         AuditService::log('view_pipeline', 'O usuário acessou o pipeline de acordos.');
         $user = Auth::user();
         
-        // Começa a query base, sempre com os relacionamentos
-        // Mantemos 'lawyer' no with() pois é o nome da função no Model
         $query = LegalCase::with(['client', 'lawyer']);
 
-        // --- LÓGICA DE PERMISSÃO (RBAC) ---
-        // Se for OPERADOR, força a ver apenas seus casos (usando user_id)
         if ($user->role === 'operador') {
-            $query->where('user_id', $user->id); // <--- CORRIGIDO: lawyer_id para user_id
+            $query->where('user_id', $user->id); 
         } 
-        // Se for ADMIN ou SUPERVISOR, vê tudo (e pode usar filtro se quiser)
         else {
-            // Só aplica filtro de advogado se foi solicitado na busca
-            // (O front ainda pode mandar 'lawyer_id' como filtro, mas buscamos na coluna 'user_id')
             if ($request->has('lawyer_id') && $request->input('lawyer_id') != '') {
-                $query->where('user_id', $request->input('lawyer_id')); // <--- CORRIGIDO
+                $query->where('user_id', $request->input('lawyer_id'));
             }
         }
-        // --- FIM DA LÓGICA DE PERMISSÃO ---
 
-        // Filtro de busca por termo (case_number ou opposing_party)
         if ($request->has('search') && $request->input('search') != '') {
             $searchTerm = $request->input('search');
             $query->where(function ($q) use ($searchTerm) {
@@ -55,44 +42,33 @@ class LegalCaseController extends Controller
             });
         }
 
-        // Filtro por Status
         if ($request->has('status') && $request->input('status') != '') {
             $query->where('status', $request->input('status'));
         }
 
-        // Filtro por Prioridade
         if ($request->has('priority') && $request->input('priority') != '') {
             $query->where('priority', $request->input('priority'));
         }
 
-        // Retorna os resultados ordenados pelos mais recentes
         return response()->json($query->latest()->get());
     }
 
-    /**
-     * Gera a minuta de acordo em PDF.
-     */
     public function generateAgreement($id)
     {
         $case = LegalCase::with('client')->findOrFail($id);
 
-        // 1. Detectar se é OUROCAP (Banco do Brasil)
         $isOurocap = false;
         if (str_contains(mb_strtolower($case->description ?? ''), 'ourocap')) {
             $isOurocap = true;
         }
 
-        // 2. Detectar se é LIVELO
         $isLivelo = false;
         if ($case->client && str_contains(mb_strtolower($case->client->name), 'livelo')) {
             $isLivelo = true;
         }
 
-        // 3. Detectar se tem OBRIGAÇÃO DE FAZER
         $hasObligation = !empty($case->obligation_description); 
 
-        // --- SELEÇÃO DO ARQUIVO BLADE CORRETO ---
-        
         if ($isOurocap) {
             $viewName = 'documents.minuta_ourocap';
         } elseif ($isLivelo) {
@@ -103,25 +79,42 @@ class LegalCaseController extends Controller
             $viewName = 'documents.minuta_padrao_sem_obrigacao'; 
         }
 
-        // Gera o PDF
         $pdf = Pdf::loadView($viewName, ['case' => $case]);
 
-        // Baixa o arquivo
         return $pdf->download('minuta_acordo_' . $case->case_number . '.pdf');
     }
 
     public function store(Request $request): JsonResponse
     {
-        // Se o frontend enviar 'lawyer_id', nós o convertemos para 'user_id' antes de validar
         if ($request->has('lawyer_id')) {
             $request->merge(['user_id' => $request->input('lawyer_id')]);
         }
 
+        // --- MENSAGENS PERSONALIZADAS ---
+        $messages = [
+            'case_number.required' => 'O número do processo é obrigatório.',
+            'case_number.unique' => 'Este número de processo já está cadastrado.',
+            'case_number.regex' => 'O formato deve ser NNNNNNN-DD.AAAA.J.TR.OOOO (Padrão CNJ).',
+            'client_id.required' => 'O campo Cliente é obrigatório.',
+            'client_id.exists' => 'O cliente selecionado é inválido.',
+            'user_id.exists' => 'O advogado selecionado é inválido.',
+            'opposing_party.required' => 'O nome do Autor é obrigatório.',
+            'defendant.required' => 'O nome do Réu é obrigatório.',
+            'original_value.required' => 'O valor de alçada é obrigatório.'
+        ];
+
+        // --- VALIDAÇÃO COM REGEX E UNIQUE ---
         $validatedData = $request->validate([
-            'case_number' => 'required|string|max:255',
+            'case_number' => [
+                'required',
+                'string',
+                'max:255',
+                'unique:legal_cases,case_number', // Garante unicidade
+                'regex:/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/' // Garante formato CNJ
+            ],
             'start_date' => 'nullable|date',
             'client_id' => 'required|exists:clients,id',
-            'user_id' => 'required|exists:users,id', // <--- CORRIGIDO: Valida user_id
+            'user_id' => 'nullable|exists:users,id', 
             'opposing_party' => 'required|string|max:255',
             'defendant' => 'required|string|max:255',
             'action_object' => 'required|string|max:255',
@@ -131,8 +124,13 @@ class LegalCaseController extends Controller
             'original_value' => 'required|numeric',
             'agreement_value' => 'nullable|numeric',
             'cause_value' => 'nullable|numeric',
+            'comarca' => 'nullable|string|max:255',
+            'state' => 'nullable|string|max:2',
+            'special_court' => 'nullable|string|in:Sim,Não',
+            'opposing_lawyer' => 'nullable|string|max:255',
+            'opposing_contact' => 'nullable|string|max:255',
             'tags' => 'nullable|array',
-        ]);
+        ], $messages);
 
         $case = LegalCase::create($validatedData);
         return response()->json($case, 201);
@@ -148,16 +146,27 @@ class LegalCaseController extends Controller
     {
         $this->authorize('update', $case);
 
-        // Compatibilidade com frontend antigo
         if ($request->has('lawyer_id')) {
             $request->merge(['user_id' => $request->input('lawyer_id')]);
         }
 
+        $messages = [
+            'case_number.regex' => 'O formato deve ser NNNNNNN-DD.AAAA.J.TR.OOOO (Padrão CNJ).',
+            'case_number.unique' => 'Este número de processo já pertence a outro caso.'
+        ];
+
         $validatedData = $request->validate([
-            'case_number' => 'sometimes|required|string|max:255',
+            'case_number' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:255',
+                'unique:legal_cases,case_number,' . $case->id, // Ignora o próprio ID na verificação de único
+                'regex:/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/'
+            ],
             'start_date' => 'nullable|date',
             'client_id' => 'sometimes|required|exists:clients,id',
-            'user_id' => 'sometimes|required|exists:users,id', // <--- CORRIGIDO
+            'user_id' => 'sometimes|required|exists:users,id', 
             'opposing_party' => 'sometimes|required|string|max:255',
             'defendant' => 'sometimes|required|string|max:255',
             'action_object' => 'sometimes|required|string|max:255',
@@ -169,10 +178,11 @@ class LegalCaseController extends Controller
             'cause_value' => 'nullable|numeric',
             'comarca' => 'nullable|string|max:255',
             'state' => 'nullable|string|max:2',
+            'special_court' => 'nullable|string|in:Sim,Não',
             'opposing_lawyer' => 'nullable|string|max:255',
             'opposing_contact' => 'nullable|string|max:255',
             'tags' => 'nullable|array',
-        ]);
+        ], $messages);
 
         $originalData = $case->getOriginal();
         $case->update($validatedData);
@@ -209,12 +219,11 @@ class LegalCaseController extends Controller
         $user = Auth::user();
         $query = LegalCase::with(['client', 'lawyer']);
 
-        // --- LÓGICA DE PERMISSÃO ---
         if ($user->role === 'operador') {
-            $query->where('user_id', $user->id); // <--- CORRIGIDO
+            $query->where('user_id', $user->id);
         } 
         elseif ($request->has('lawyer_id') && $request->input('lawyer_id') != '') {
-            $query->where('user_id', $request->input('lawyer_id')); // <--- CORRIGIDO
+            $query->where('user_id', $request->input('lawyer_id'));
         }
 
         if ($request->has('search') && $request->input('search') != '') {
@@ -280,7 +289,6 @@ class LegalCaseController extends Controller
         try {
             foreach ($casesToImport as $index => $caseData) {
                 
-                // Mapeamento manual para corrigir importação
                 if (isset($caseData['lawyer_id'])) {
                     $caseData['user_id'] = $caseData['lawyer_id'];
                     unset($caseData['lawyer_id']);
@@ -290,7 +298,7 @@ class LegalCaseController extends Controller
                     'case_number' => 'required|string|max:255',
                     'opposing_party' => 'required|string|max:255',
                     'defendant' => 'required|string|max:255',
-                    'user_id' => 'required|exists:users,id', // <--- CORRIGIDO
+                    'user_id' => 'required|exists:users,id', 
                     'action_object' => 'required|string|max:255',
                     'priority' => 'required|string|in:baixa,media,alta',
                     'cause_value' => 'nullable|numeric',

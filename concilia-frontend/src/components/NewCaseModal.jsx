@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
+import { maskProcessNumber } from '../utils/masks';
 
 const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const actionObjects = ["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada"];
@@ -39,7 +40,14 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prevState => ({ ...prevState, [name]: value }));
+
+    let newValue = value;
+
+    if (name === 'case_number') {
+      newValue = maskProcessNumber(value);
+    }
+
+    setFormData(prev => ({ ...prev, [name]: newValue }));
   };
 
   const handlePriorityChange = (priority) => {
@@ -115,124 +123,124 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
           </div>
 
           {/* ... (o restante do formulário continua igual) ... */}
-          
+
           <div className={styles.formSection}>
-             <h3 className={styles.formSectionTitle}>Partes Envolvidas</h3>
-             <div className={styles.formGrid}>
-               <div className={styles.formGroup}>
-                 <label className={styles.label} htmlFor="opposing_party">Autor</label>
-                 <input className={styles.input} type="text" id="opposing_party" name="opposing_party" value={formData.opposing_party} onChange={handleChange} required placeholder="Digite o nome do autor" />
-               </div>
-               <div className={styles.formGroup}>
-                 <label className={styles.label} htmlFor="defendant">Réu</label>
-                 <input className={styles.input} type="text" id="defendant" name="defendant" value={formData.defendant} onChange={handleChange} required placeholder="Digite o nome do réu" />
-               </div>
-             </div>
-           </div>
+            <h3 className={styles.formSectionTitle}>Partes Envolvidas</h3>
+            <div className={styles.formGrid}>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="opposing_party">Autor</label>
+                <input className={styles.input} type="text" id="opposing_party" name="opposing_party" value={formData.opposing_party} onChange={handleChange} required placeholder="Digite o nome do autor" />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="defendant">Réu</label>
+                <input className={styles.input} type="text" id="defendant" name="defendant" value={formData.defendant} onChange={handleChange} required placeholder="Digite o nome do réu" />
+              </div>
+            </div>
+          </div>
 
-           <div className={styles.formSection}>
-             <h3 className={styles.formSectionTitle}>Informações Institucionais</h3>
-             <div className={styles.formGrid}>
-               <div className={styles.formGroup}>
-                 <label className={styles.label} htmlFor="client_id">Banco</label>
-                 <select className={styles.select} id="client_id" name="client_id" value={formData.client_id} onChange={handleChange} required>
-                   <option value="">Selecione o banco</option>
-                   {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
-                 </select>
-               </div>
-               <div className={styles.formGroup}>
-                 <label className={styles.label} htmlFor="lawyer_id">Colaborador Responsável</label>
-                 <select className={styles.select} id="lawyer_id" name="lawyer_id" value={formData.lawyer_id} onChange={handleChange} required>
-                   <option value="">Selecione o colaborador</option>
-                   {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
-                 </select>
-               </div>
-             </div>
-           </div>
+          <div className={styles.formSection}>
+            <h3 className={styles.formSectionTitle}>Informações Institucionais</h3>
+            <div className={styles.formGrid}>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="client_id">Banco</label>
+                <select className={styles.select} id="client_id" name="client_id" value={formData.client_id} onChange={handleChange} required>
+                  <option value="">Selecione o banco</option>
+                  {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                </select>
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="lawyer_id">Colaborador Responsável</label>
+                <select className={styles.select} id="lawyer_id" name="lawyer_id" value={formData.lawyer_id} onChange={handleChange} required>
+                  <option value="">Selecione o colaborador</option>
+                  {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
 
-           <div className={styles.formSection}>
-             <h3 className={styles.formSectionTitle}>Localização e Contato</h3>
-             <div className={styles.formGrid}>
-               <div className={styles.formGroup}>
-                 <label className={styles.label} htmlFor="comarca">Comarca</label>
-                 <input className={styles.input} type="text" id="comarca" name="comarca" value={formData.comarca} onChange={handleChange} />
-               </div>
-               <div className={styles.formGroup}>
-                 <label className={styles.label} htmlFor="state">Estado</label>
-                 <select className={styles.select} id="state" name="state" value={formData.state} onChange={handleChange}>
-                   <option value="">Selecione o estado</option>
-                   {brazilianStates.map(state => <option key={state} value={state}>{state}</option>)}
-                 </select>
-               </div>
-               <div className={styles.formGroup}>
-                 <label className={styles.label} htmlFor="special_court">Juizado Especial</label>
-                 <select className={styles.select} id="special_court" name="special_court" value={formData.special_court} onChange={handleChange}>
-                   <option value="Não">Não</option>
-                   <option value="Sim">Sim</option>
-                 </select>
-               </div>
-               <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                 <label className={styles.label} htmlFor="opposing_lawyer">Nome do Advogado da Parte Adversa</label>
-                 <input className={styles.input} type="text" id="opposing_lawyer" name="opposing_lawyer" value={formData.opposing_lawyer} onChange={handleChange} />
-               </div>
-               <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                 <label className={styles.label} htmlFor="opposing_contact">Contato da Parte Adversa</label>
-                 <input className={styles.input} type="text" id="opposing_contact" name="opposing_contact" value={formData.opposing_contact} onChange={handleChange} placeholder="Ex: +5511999998888 ou email@exemplo.com" />
-               </div>
-             </div>
-           </div>
+          <div className={styles.formSection}>
+            <h3 className={styles.formSectionTitle}>Localização e Contato</h3>
+            <div className={styles.formGrid}>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="comarca">Comarca</label>
+                <input className={styles.input} type="text" id="comarca" name="comarca" value={formData.comarca} onChange={handleChange} />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="state">Estado</label>
+                <select className={styles.select} id="state" name="state" value={formData.state} onChange={handleChange}>
+                  <option value="">Selecione o estado</option>
+                  {brazilianStates.map(state => <option key={state} value={state}>{state}</option>)}
+                </select>
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="special_court">Juizado Especial</label>
+                <select className={styles.select} id="special_court" name="special_court" value={formData.special_court} onChange={handleChange}>
+                  <option value="Não">Não</option>
+                  <option value="Sim">Sim</option>
+                </select>
+              </div>
+              <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+                <label className={styles.label} htmlFor="opposing_lawyer">Nome do Advogado da Parte Adversa</label>
+                <input className={styles.input} type="text" id="opposing_lawyer" name="opposing_lawyer" value={formData.opposing_lawyer} onChange={handleChange} />
+              </div>
+              <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+                <label className={styles.label} htmlFor="opposing_contact">Contato da Parte Adversa</label>
+                <input className={styles.input} type="text" id="opposing_contact" name="opposing_contact" value={formData.opposing_contact} onChange={handleChange} placeholder="Ex: +5511999998888 ou email@exemplo.com" />
+              </div>
+            </div>
+          </div>
 
-           <div className={styles.formSection}>
-             <h3 className={styles.formSectionTitle}>Valores</h3>
-             <div className={styles.formGrid}>
-               <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                 <label className={styles.label} htmlFor="cause_value">Valor da Causa</label>
-                 <input className={styles.input} type="number" step="0.01" id="cause_value" name="cause_value" value={formData.cause_value} onChange={handleChange} />
-               </div>
-               <div className={styles.formGroup}>
-                 <label className={styles.label} htmlFor="original_value">Valor da Alçada</label>
-                 <input className={styles.input} type="number" step="0.01" id="original_value" name="original_value" value={formData.original_value} onChange={handleChange} required />
-               </div>
-               <div className={styles.formGroup}>
-                 <label className={styles.label} htmlFor="agreement_value">Valor da Proposta de Acordo</label>
-                 <input className={styles.input} type="number" step="0.01" id="agreement_value" name="agreement_value" value={formData.agreement_value} onChange={handleChange} />
-               </div>
-             </div>
-           </div>
+          <div className={styles.formSection}>
+            <h3 className={styles.formSectionTitle}>Valores</h3>
+            <div className={styles.formGrid}>
+              <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+                <label className={styles.label} htmlFor="cause_value">Valor da Causa</label>
+                <input className={styles.input} type="number" step="0.01" id="cause_value" name="cause_value" value={formData.cause_value} onChange={handleChange} />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="original_value">Valor da Alçada</label>
+                <input className={styles.input} type="number" step="0.01" id="original_value" name="original_value" value={formData.original_value} onChange={handleChange} required />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="agreement_value">Valor da Proposta de Acordo</label>
+                <input className={styles.input} type="number" step="0.01" id="agreement_value" name="agreement_value" value={formData.agreement_value} onChange={handleChange} />
+              </div>
+            </div>
+          </div>
 
-           <div className={styles.formSection}>
-             <h3 className={styles.formSectionTitle}>Prioridade e Etiquetas</h3>
-             <div className={styles.priorityButtons}>
-               <button type="button" className={`${styles.priorityButton} ${styles.alta} ${formData.priority === 'alta' ? styles.selected : ''}`} onClick={() => handlePriorityChange('alta')}>Alta</button>
-               <button type="button" className={`${styles.priorityButton} ${styles.media} ${formData.priority === 'media' ? styles.selected : ''}`} onClick={() => handlePriorityChange('media')}>Média</button>
-               <button type="button" className={`${styles.priorityButton} ${styles.baixa} ${formData.priority === 'baixa' ? styles.selected : ''}`} onClick={() => handlePriorityChange('baixa')}>Baixa</button>
-             </div>
-             <label className={styles.label}>Adicionar Etiqueta Personalizada</label>
-             <div className={styles.tagCreator}>
-               <input type="text" className={styles.tagInput} value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nome da nova etiqueta..." />
-               <button type="button" className={styles.addButton} onClick={handleAddTag}>+ Adicionar</button>
-             </div>
-             <div className={styles.colorPicker}>
-               {availableColors.map(color => (
-                 <div key={color} className={`${styles.colorDot} ${newTagColor === color ? styles.selected : ''}`} style={{ backgroundColor: color }} onClick={() => setNewTagColor(color)} />
-               ))}
-             </div>
-             <div className={styles.tagList} style={{ marginTop: '1rem' }}>
-               {(formData.tags || []).map((tag, index) => (
-                 <div key={index} className={styles.tagItem} style={{ backgroundColor: tag.color }}>
-                   <span>{tag.text}</span>
-                   <button type="button" className={styles.tagRemoveButton} onClick={() => handleRemoveTag(index)}>&times;</button>
-                 </div>
-               ))}
-             </div>
-           </div>
+          <div className={styles.formSection}>
+            <h3 className={styles.formSectionTitle}>Prioridade e Etiquetas</h3>
+            <div className={styles.priorityButtons}>
+              <button type="button" className={`${styles.priorityButton} ${styles.alta} ${formData.priority === 'alta' ? styles.selected : ''}`} onClick={() => handlePriorityChange('alta')}>Alta</button>
+              <button type="button" className={`${styles.priorityButton} ${styles.media} ${formData.priority === 'media' ? styles.selected : ''}`} onClick={() => handlePriorityChange('media')}>Média</button>
+              <button type="button" className={`${styles.priorityButton} ${styles.baixa} ${formData.priority === 'baixa' ? styles.selected : ''}`} onClick={() => handlePriorityChange('baixa')}>Baixa</button>
+            </div>
+            <label className={styles.label}>Adicionar Etiqueta Personalizada</label>
+            <div className={styles.tagCreator}>
+              <input type="text" className={styles.tagInput} value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nome da nova etiqueta..." />
+              <button type="button" className={styles.addButton} onClick={handleAddTag}>+ Adicionar</button>
+            </div>
+            <div className={styles.colorPicker}>
+              {availableColors.map(color => (
+                <div key={color} className={`${styles.colorDot} ${newTagColor === color ? styles.selected : ''}`} style={{ backgroundColor: color }} onClick={() => setNewTagColor(color)} />
+              ))}
+            </div>
+            <div className={styles.tagList} style={{ marginTop: '1rem' }}>
+              {(formData.tags || []).map((tag, index) => (
+                <div key={index} className={styles.tagItem} style={{ backgroundColor: tag.color }}>
+                  <span>{tag.text}</span>
+                  <button type="button" className={styles.tagRemoveButton} onClick={() => handleRemoveTag(index)}>&times;</button>
+                </div>
+              ))}
+            </div>
+          </div>
 
-           <div className={styles.formSection}>
-             <h3 className={styles.formSectionTitle}>Observações</h3>
-             <div className={styles.formGroup}>
-               <textarea className={styles.input} name="description" value={formData.description} onChange={handleChange} rows="4" placeholder="Adicione observações relevantes sobre o caso..."></textarea>
-             </div>
-           </div>
+          <div className={styles.formSection}>
+            <h3 className={styles.formSectionTitle}>Observações</h3>
+            <div className={styles.formGroup}>
+              <textarea className={styles.input} name="description" value={formData.description} onChange={handleChange} rows="4" placeholder="Adicione observações relevantes sobre o caso..."></textarea>
+            </div>
+          </div>
 
           {error && <p className={styles.error}>{error}</p>}
           <div className={styles.actions}>

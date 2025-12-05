@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
 import { FaPencilAlt, FaRegCommentDots, FaTimes } from 'react-icons/fa';
 import ChatPreview from './ChatPreview';
+import { maskProcessNumber } from '../utils/masks';
 
 // --- Sub-componente HistoryItem (Sem alterações) ---
 const HistoryItem = ({ entry }) => {
@@ -136,7 +137,7 @@ const DetailsTab = ({ formData, handleChange, handlePriorityChange, handleAddTag
     const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
     const actionObjects = ["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada"];
     const availableColors = ['#EF4444', '#F97316', '#FBBF24', ' #84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
-    
+
     return (
         <>
             <div className={styles.formSection} style={{ borderTop: 'none', paddingTop: 0 }}>
@@ -275,7 +276,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     const [activeTab, setActiveTab] = useState('details');
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState('#EF4444');
-    
+
     const [conversation, setConversation] = useState(null);
     const [messages, setMessages] = useState([]);
     const [chatLoading, setChatLoading] = useState(false);
@@ -299,7 +300,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         setChatLoading(true);
         try {
             const response = await apiClient.get(`/cases/${legalCase.id}/conversation`, {
-                 headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` }
             });
             setConversation(response.data.conversation);
             setMessages(response.data.messages || []);
@@ -323,7 +324,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         setIsSending(true);
         try {
             await apiClient.post(`/chat/conversations/${conversation.id}/messages`, { content }, {
-                 headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` }
             });
             fetchConversation();
         } catch (err) {
@@ -333,8 +334,17 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
             setIsSending(false);
         }
     };
-    
-    const handleChange = (e) => { const { name, value } = e.target; setFormData(prevState => ({ ...prevState, [name]: value })); };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+
+        let newValue = value;
+
+        if (name === 'case_number') {
+            newValue = maskProcessNumber(value);
+        }
+        setFormData(prev => ({ ...prev, [name]: newValue }));
+    };
     const handlePriorityChange = (priority) => { setFormData(prevState => ({ ...prevState, priority: priority })); };
     const handleAddTag = () => { if (newTagText.trim() === '') return; const newTag = { text: newTagText, color: newTagColor }; setFormData(prevState => ({ ...prevState, tags: [...(prevState.tags || []), newTag] })); setNewTagText(''); };
     const handleRemoveTag = (indexToRemove) => { setFormData(prevState => ({ ...prevState, tags: prevState.tags.filter((_, index) => index !== indexToRemove) })); };
@@ -348,8 +358,8 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         // ATUALIZADO: Adicionado onClick={onClose} ao overlay
         <div className={styles.modalOverlay} onClick={onClose}>
             {/* ATUALIZADO: Adicionado onClick com stopPropagation ao conteúdo */}
-            <div 
-                className={`${styles.modalContent} ${styles.large}`} 
+            <div
+                className={`${styles.modalContent} ${styles.large}`}
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className={styles.modalHeader}>

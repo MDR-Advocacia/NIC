@@ -3,26 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/CaseCreatePage.module.css';
+// Importação correta da máscara
+import { maskProcessNumber } from '../utils/masks';
 
 // --- Ícones SVG Inline ---
-const IconArrowLeft = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
-const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
-const IconUsers = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
-const IconDollar = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
-const IconMap = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>;
-const IconSave = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
-const IconAlert = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+const IconArrowLeft = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>;
+const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>;
+const IconUsers = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
+const IconDollar = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>;
+const IconMap = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" /><line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" /></svg>;
+const IconSave = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>;
+const IconAlert = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>;
 
 // --- Constantes ---
 const BRAZILIAN_STATES = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const ACTION_OBJECTS = [
-    "Contrato de Empréstimo - Juros Abusivos", 
-    "Cartão de Crédito - Cobrança Indevida", 
-    "Financiamento Imobiliário - Revisional", 
-    "Conta Corrente - Tarifas Abusivas", 
-    "Consignado - Desconto Indevido", 
-    "Cheque Especial - Juros Excessivos", 
-    "Seguro - Cobrança Indevida", 
+    "Contrato de Empréstimo - Juros Abusivos",
+    "Cartão de Crédito - Cobrança Indevida",
+    "Financiamento Imobiliário - Revisional",
+    "Conta Corrente - Tarifas Abusivas",
+    "Consignado - Desconto Indevido",
+    "Cheque Especial - Juros Excessivos",
+    "Seguro - Cobrança Indevida",
     "CDC - Venda Casada",
     "Outros"
 ];
@@ -35,8 +37,10 @@ const CaseCreatePage = () => {
     const [lawyers, setLawyers] = useState([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [errors, setErrors] = useState({});
-    const [generalError, setGeneralError] = useState('');
+    
+    // Estados para erros
+    const [errors, setErrors] = useState({}); // Erros específicos de campo
+    const [generalError, setGeneralError] = useState(''); // Erro genérico no topo
 
     const [formData, setFormData] = useState({
         case_number: '',
@@ -80,29 +84,20 @@ const CaseCreatePage = () => {
     }, [token]);
 
     const handleChange = (e) => {
-        let { name, value } = e.target;
+        const { name, value } = e.target;
+        let finalValue = value;
 
-        // --- MÁSCARA CNJ (Formato 0000000-00.0000.0.00.0000) ---
+        // --- APLICAÇÃO DA MÁSCARA CORRIGIDA ---
         if (name === 'case_number') {
-            let raw = value.replace(/\D/g, ''); 
-            if (raw.length > 20) raw = raw.slice(0, 20);
-
-            let masked = raw;
-            if (raw.length > 7) masked = raw.replace(/^(\d{7})(\d)/, '$1-$2');
-            if (raw.length > 9) masked = masked.replace(/-(\d{2})(\d)/, '-$1.$2');
-            if (raw.length > 13) masked = masked.replace(/\.(\d{4})(\d)/, '.$1.$2');
-            if (raw.length > 14) masked = masked.replace(/\.(\d{4})\.(\d{1})(\d)/, '.$1.$2.$3');
-            if (raw.length > 16) masked = masked.replace(/\.(\d{1})\.(\d{2})(\d)/, '.$1.$2.$3');
-            
-            // Força a atualização manual da máscara para garantir consistência
-            if (raw.length >= 20) {
-                 masked = raw.replace(/^(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{4})/, '$1-$2.$3.$4.$5.$6');
-            }
-            
-            value = masked;
+            finalValue = maskProcessNumber(value);
         }
 
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData(prev => ({
+            ...prev,
+            [name]: finalValue
+        }));
+
+        // Limpa o erro do campo assim que o usuário digita algo
         if (errors[name]) {
             setErrors(prev => {
                 const newErrors = { ...prev };
@@ -116,15 +111,16 @@ const CaseCreatePage = () => {
         setFormData(prev => ({ ...prev, priority: value }));
     };
 
+    // Validação básica no Frontend antes de enviar
     const validateForm = () => {
         const newErrors = {};
         if (!formData.case_number.trim()) newErrors.case_number = "O número do processo é obrigatório.";
-        if (formData.case_number.length < 20) newErrors.case_number = "Número incompleto (CNJ).";
+        if (formData.case_number.length < 25) newErrors.case_number = "Número incompleto (Formato CNJ obrigatório).";
         if (!formData.action_object) newErrors.action_object = "Selecione o objeto.";
         if (!formData.opposing_party.trim()) newErrors.opposing_party = "Nome do Autor obrigatório.";
         if (!formData.defendant.trim()) newErrors.defendant = "Nome do Réu obrigatório.";
         if (!formData.client_id) newErrors.client_id = "Selecione o Cliente.";
-        
+
         if (!formData.original_value) {
             newErrors.original_value = "Valor de Alçada obrigatório.";
         } else if (parseFloat(formData.original_value) < 0) {
@@ -138,7 +134,8 @@ const CaseCreatePage = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setGeneralError('');
-
+        
+        // Executa validação local primeiro
         if (!validateForm()) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
             return;
@@ -147,6 +144,7 @@ const CaseCreatePage = () => {
         setIsSubmitting(true);
 
         try {
+            // Prepara os dados (converte números)
             const payload = {
                 ...formData,
                 original_value: parseFloat(formData.original_value),
@@ -158,28 +156,42 @@ const CaseCreatePage = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            navigate('/pipeline');
+            // Sucesso!
+            navigate('/pipeline'); 
 
         } catch (error) {
             console.error("Erro ao salvar:", error);
+            
+            // TRATAMENTO DE ERROS DO BACKEND (422)
             if (error.response?.status === 422 && error.response?.data?.errors) {
+                // Mapeia os erros retornados pelo Laravel (ex: 'case_number': ['Mensagem de erro'])
                 const backendErrors = {};
                 Object.keys(error.response.data.errors).forEach(key => {
                     backendErrors[key] = error.response.data.errors[key][0];
                 });
                 setErrors(backendErrors);
-                setGeneralError("Verifique os erros no formulário.");
+                setGeneralError("Não foi possível salvar. Verifique os campos destacados abaixo.");
             } else {
-                setGeneralError(error.response?.data?.message || "Erro ao criar caso.");
+                setGeneralError(error.response?.data?.message || "Erro ao criar caso. Tente novamente.");
             }
+            
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    // Função auxiliar para renderizar a mensagem de erro embaixo do input
+    const renderError = (fieldName) => {
+        return errors[fieldName] ? (
+            <span style={{ color: '#e53e3e', fontSize: '0.85rem', marginTop: '4px', display: 'block', fontWeight: '500' }}>
+                {errors[fieldName]}
+            </span>
+        ) : null;
+    };
+
     if (isLoadingData) {
-        return <div className={styles.container} style={{display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
+        return <div className={styles.container} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <p>Carregando...</p>
         </div>;
     }
@@ -212,7 +224,7 @@ const CaseCreatePage = () => {
                     <div className={styles.grid}>
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Número do Processo <span className={styles.required}>*</span></label>
-                            <input 
+                            <input
                                 className={`${styles.input} ${errors.case_number ? styles.errorInput : ''}`}
                                 type="text"
                                 name="case_number"
@@ -220,8 +232,9 @@ const CaseCreatePage = () => {
                                 onChange={handleChange}
                                 placeholder="0000000-00.0000.0.00.0000"
                                 maxLength={25}
+                                required
                             />
-                            {errors.case_number && <span className={styles.errorMessage}>{errors.case_number}</span>}
+                            {renderError('case_number')}
                         </div>
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Objeto da Ação <span className={styles.required}>*</span></label>
@@ -229,7 +242,7 @@ const CaseCreatePage = () => {
                                 <option value="">Selecione...</option>
                                 {ACTION_OBJECTS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
-                            {errors.action_object && <span className={styles.errorMessage}>{errors.action_object}</span>}
+                            {renderError('action_object')}
                         </div>
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Data de Distribuição</label>
@@ -247,12 +260,12 @@ const CaseCreatePage = () => {
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Autor (Parte Adversa) <span className={styles.required}>*</span></label>
                             <input className={`${styles.input} ${errors.opposing_party ? styles.errorInput : ''}`} type="text" name="opposing_party" value={formData.opposing_party} onChange={handleChange} />
-                            {errors.opposing_party && <span className={styles.errorMessage}>{errors.opposing_party}</span>}
+                            {renderError('opposing_party')}
                         </div>
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Réu (Empresa) <span className={styles.required}>*</span></label>
                             <input className={`${styles.input} ${errors.defendant ? styles.errorInput : ''}`} type="text" name="defendant" value={formData.defendant} onChange={handleChange} />
-                            {errors.defendant && <span className={styles.errorMessage}>{errors.defendant}</span>}
+                            {renderError('defendant')}
                         </div>
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Cliente (Banco) <span className={styles.required}>*</span></label>
@@ -260,7 +273,7 @@ const CaseCreatePage = () => {
                                 <option value="">Selecione...</option>
                                 {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
                             </select>
-                            {errors.client_id && <span className={styles.errorMessage}>{errors.client_id}</span>}
+                            {renderError('client_id')}
                         </div>
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Advogado Responsável</label>
@@ -268,6 +281,7 @@ const CaseCreatePage = () => {
                                 <option value="">Selecione...</option>
                                 {lawyers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
                             </select>
+                            {renderError('user_id')}
                         </div>
                     </div>
                 </section>
@@ -320,6 +334,7 @@ const CaseCreatePage = () => {
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Valor de Alçada (R$) <span className={styles.required}>*</span></label>
                             <input className={`${styles.input} ${errors.original_value ? styles.errorInput : ''}`} type="number" step="0.01" name="original_value" value={formData.original_value} onChange={handleChange} />
+                            {renderError('original_value')}
                         </div>
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Proposta Inicial (R$)</label>
