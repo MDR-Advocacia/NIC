@@ -130,7 +130,9 @@ class LegalCaseController extends Controller
             'opposing_lawyer' => 'nullable|string|max:255',
             'opposing_contact' => 'nullable|string|max:255',
             'tags' => 'nullable|array',
-        ], $messages);
+            'agreement_probability' => 'nullable|numeric|min:0|max:100',
+            'agreement_checklist_data' => 'nullable|array',
+        ], $messages); // Mantém os novos campos E as mensagens personalizadas
 
         $case = LegalCase::create($validatedData);
         return response()->json($case, 201);
@@ -182,7 +184,13 @@ class LegalCaseController extends Controller
             'opposing_lawyer' => 'nullable|string|max:255',
             'opposing_contact' => 'nullable|string|max:255',
             'tags' => 'nullable|array',
+<<<<<<< HEAD
         ], $messages);
+=======
+            'agreement_probability' => 'nullable|numeric|min:0|max:100',
+            'agreement_checklist_data' => 'nullable|array',
+        ]);
+>>>>>>> 2d3c27688b877b671b1ff039ef8c9808c58a03ce
 
         $originalData = $case->getOriginal();
         $case->update($validatedData);
@@ -304,6 +312,8 @@ class LegalCaseController extends Controller
                     'cause_value' => 'nullable|numeric',
                     'original_value' => 'nullable|numeric',
                     'agreement_value' => 'nullable|numeric',
+                    'agreement_probability' => 'nullable|numeric',
+                    'agreement_checklist_data' => 'nullable|array',
                 ]);
 
                 if ($validator->fails()) {

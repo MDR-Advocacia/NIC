@@ -4,6 +4,7 @@ import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
 import { maskProcessNumber } from '../utils/masks';
+import AgreementChecklist from './AgreementChecklist'; 
 
 const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const actionObjects = ["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada"];
@@ -11,6 +12,7 @@ const availableColors = ['#EF4444', '#F97316', '#FBBF24', ' #84CC16', '#22C55E',
 
 const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
   const { token } = useAuth();
+  
   const [formData, setFormData] = useState({
     case_number: '',
     action_object: '',
@@ -20,7 +22,7 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     lawyer_id: '',
     comarca: '',
     state: '',
-    start_date: '', // 1. CAMPO ADICIONADO AO ESTADO
+    start_date: '',
     special_court: 'Não',
     opposing_lawyer: '',
     opposing_contact: '',
@@ -31,6 +33,9 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     priority: 'media',
     description: '',
     tags: [],
+    // --- CAMPOS DO CHECKLIST ADICIONADOS ---
+    agreement_checklist_data: null,
+    agreement_probability: 0
   });
 
   const [newTagText, setNewTagText] = useState('');
@@ -52,6 +57,14 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
 
   const handlePriorityChange = (priority) => {
     setFormData(prevState => ({ ...prevState, priority: priority }));
+  };
+
+  // --- FUNÇÃO PARA ATUALIZAR O CHECKLIST ---
+  const handleChecklistChange = (checklistData) => {
+    setFormData(prev => ({
+        ...prev,
+        ...checklistData 
+    }));
   };
 
   const handleAddTag = () => {
@@ -114,15 +127,12 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
                   {actionObjects.map(obj => <option key={obj} value={obj}>{obj}</option>)}
                 </select>
               </div>
-              {/* 2. CAMPO DE DATA ADICIONADO AO FORMULÁRIO */}
               <div className={styles.formGroup}>
                 <label className={styles.label} htmlFor="start_date">Data de Distribuição</label>
                 <input className={styles.input} type="date" id="start_date" name="start_date" value={formData.start_date} onChange={handleChange} />
               </div>
             </div>
           </div>
-
-          {/* ... (o restante do formulário continua igual) ... */}
 
           <div className={styles.formSection}>
             <h3 className={styles.formSectionTitle}>Partes Envolvidas</h3>
@@ -234,6 +244,18 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
               ))}
             </div>
           </div>
+
+          {/* --- SEÇÃO DO CHECKLIST INSERIDA E RESOLVIDA --- */}
+          <div className={styles.formSection}>
+            <h3 className={styles.formSectionTitle}>Análise Inicial de Acordo</h3>
+            <div style={{ marginTop: '10px' }}>
+              <AgreementChecklist 
+                  checklistData={formData.agreement_checklist_data} 
+                  onUpdate={handleChecklistChange} 
+              />
+            </div>
+          </div>
+          {/* ----------------------------------------------- */}
 
           <div className={styles.formSection}>
             <h3 className={styles.formSectionTitle}>Observações</h3>
