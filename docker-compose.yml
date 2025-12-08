@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # --- SERVIÇOS DO BACKEND (Laravel) ---
+  # --- APLICAÇÃO (LARAVEL) ---
   app:
     build:
       context: ./concilia-backend
@@ -16,6 +16,7 @@ services:
     networks:
       - concilia_network
 
+  # --- SERVIDOR WEB (NGINX) ---
   nginx:
     image: nginx:1.19-alpine
     container_name: concilia_nginx
@@ -30,6 +31,26 @@ services:
     networks:
       - concilia_network
 
+  # --- BANCO DE DADOS (MYSQL) - ESTAVA FALTANDO ISSO ---
+  db:
+    image: mysql:8.0
+    container_name: concilia_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: concilia_db
+      MYSQL_USER: conciliauser
+      MYSQL_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - concilia_network
+
 networks:
   concilia_network:
     driver: bridge
+
+volumes:
+  db_data:

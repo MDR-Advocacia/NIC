@@ -9,19 +9,17 @@ class AuditLog extends Model
 {
     use HasFactory;
 
+    protected $table = 'audit_logs';
+
     protected $fillable = [
         'user_id',
+        'user_name',
         'action',
-        'description',
         'details',
         'ip_address',
     ];
 
-    protected $casts = [
-        'details' => 'array', // Converte JSON para Array automaticamente
-    ];
-
-    // Relação: Um log pertence a um usuário
+    // Relacionamento opcional com User (se quiser usar depois)
     public function user()
     {
         return $this->belongsTo(User::class);
