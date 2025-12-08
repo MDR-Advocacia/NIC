@@ -24,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::apiResource('clients', ClientController::class);
     Route::apiResource('users', UserController::class); 
+    
 
     Route::apiResource('cases', LegalCaseController::class);
     Route::apiResource('aggressor-lawyers', AggressorLawyerController::class);
@@ -50,4 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Rota de Logs (Mantida)
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
+
+
+    Route::apiResource('opposing-lawyers', \App\Http\Controllers\Api\OpposingLawyerController::class);
 });

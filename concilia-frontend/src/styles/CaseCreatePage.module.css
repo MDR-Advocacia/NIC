@@ -293,3 +293,57 @@
     justify-content: center;
   }
 }
+
+/* ... mantenha o código anterior e adicione isto no final ... */
+
+/* Estilos do Dropdown no Tema Escuro */
+.dropdownList {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: #2d3748; /* Fundo Escuro */
+    border: 1px solid #4a5568; /* Borda Cinza Médio */
+    z-index: 50;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    border-radius: 0 0 6px 6px;
+}
+
+.dropdownItem {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #4a5568;
+    color: #f7fafc; /* Texto Claro */
+    transition: background-color 0.2s;
+}
+
+.dropdownItem:last-child {
+    border-bottom: none;
+}
+
+.dropdownItem:hover {
+    background-color: #4a5568; /* Realce ao passar o mouse */
+}
+
+/* Item especial "Cadastrar Novo" */
+.dropdownItemNew {
+    padding: 10px 12px;
+    cursor: pointer;
+    background-color: #2a4365; /* Azul Escuro */
+    color: #90cdf4; /* Azul Claro texto */
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-top: 1px solid #4a5568;
+}
+
+.dropdownItemNew:hover {
+    background-color: #2b6cb0; /* Azul mais vivo no hover */
+    color: white;
+}

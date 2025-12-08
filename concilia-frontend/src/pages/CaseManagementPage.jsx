@@ -1,17 +1,17 @@
 // src/pages/CaseManagementPage.jsx
-// ATUALIZADO: Corrigido o bug no 'PriorityTag' que escondia o texto
+// ATUALIZADO: Botão Novo Caso redireciona para página de criação (não abre modal)
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { FaFileExport, FaPlus, FaSearch, FaEye, FaEdit, FaTrash } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
-import NewCaseModal from '../components/NewCaseModal';
+// Removido import de NewCaseModal pois agora usamos a página dedicada
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 
-// --- COMPONENTES AUXILIARES (COM CORREÇÃO) ---
+// --- COMPONENTES AUXILIARES ---
 
 // Mapa de Status
 const STATUS_DETAILS = {
@@ -30,9 +30,8 @@ const PRIORITY_DETAILS = {
 };
 
 const StatusTag = ({ status }) => {
-    // CORREÇÃO: Fallback agora usa a propriedade 'name'
     const currentStatus = STATUS_DETAILS[status] || { 
-        name: status.replace('_', ' '), // CORRIGIDO
+        name: status.replace('_', ' '), 
         color: '#A0AEC0',
         textColor: '#1A202C'
     };
@@ -48,10 +47,10 @@ const StatusTag = ({ status }) => {
         </span>
     );
 };
+
 const PriorityTag = ({ priority }) => {
-    // CORREÇÃO: Fallback agora usa a propriedade 'name'
     const currentPriority = PRIORITY_DETAILS[priority] || { 
-        name: priority, // CORRIGIDO
+        name: priority, 
         color: '#A0AEC0',
         textColor: '#1A202C'
     };
@@ -63,7 +62,7 @@ const PriorityTag = ({ priority }) => {
                 color: currentPriority.textColor 
             }}
         >
-            {currentPriority.name} {/* CORRIGIDO: de .text para .name */}
+            {currentPriority.name}
         </span>
     );
 };
@@ -78,7 +77,7 @@ const CaseManagementPage = () => {
     const [error, setError] = useState('');
     
     const [editingCase, setEditingCase] = useState(null); 
-    const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false);
+    // Removido estado isNewCaseModalOpen
 
     const [filters, setFilters] = useState({
         search: '', status: '', priority: '', lawyer_id: '',
@@ -192,9 +191,10 @@ const CaseManagementPage = () => {
                     <p>Gerencie todos os casos direcionados para o escritório</p>
                 </div>
                 <div className={styles.headerActions}>
-                    <button className={styles.newCaseButton} onClick={() => setIsNewCaseModalOpen(true)}>
+                    {/* Botão alterado para Link para a nova página de criação */}
+                    <Link to="/cases/create" className={styles.newCaseButton}>
                         <FaPlus /> Novo Caso
-                    </button>
+                    </Link>
                 </div>
             </header>
             
@@ -287,14 +287,6 @@ const CaseManagementPage = () => {
                     legalCase={editingCase}
                     onClose={handleCloseEditModal}
                     onCaseUpdated={handleDataUpdate}
-                    clients={clients}
-                    lawyers={lawyers}
-                />
-            )}
-            {isNewCaseModalOpen && (
-                <NewCaseModal 
-                    onClose={() => setIsNewCaseModalOpen(false)}
-                    onCaseCreated={handleDataUpdate}
                     clients={clients}
                     lawyers={lawyers}
                 />
