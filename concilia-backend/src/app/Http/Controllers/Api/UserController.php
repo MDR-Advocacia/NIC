@@ -25,7 +25,6 @@ class UserController extends Controller
 
         // 2. FILTRO DE SEGURANÇA:
         // Se for operador, forçamos a query a retornar APENAS ele mesmo.
-        // Isso impede que ele veja outros usuários, mas evita o erro 403 na Pipeline/Dashboard.
         if ($currentUser->role === 'operador') {
             $query->where('id', $currentUser->id);
         }
@@ -51,7 +50,10 @@ class UserController extends Controller
             $query->where('area', $request->input('area'));
         }
 
-        return response()->json(['data' => $query->get()]);
+        // --- ALTERAÇÃO DA TASK #22 ---
+        // Alterado de get() para paginate(15)
+        // O Laravel estrutura automaticamente o JSON com 'data', 'current_page', etc.
+        return response()->json($query->paginate(15));
     }
 
     public function store(Request $request)
