@@ -13,12 +13,21 @@ return new class extends Migration
     {
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->nullable()->constrained()->onDelete('set null'); // Quem fez? (Pode ser nulo se for sistema)
-            $table->string('action'); // O que fez? (ex: "create_case", "login", "delete_user")
-            $table->text('description')->nullable(); // Detalhes legíveis (ex: "Criou o caso #123")
-            $table->json('details')->nullable(); // Dados técnicos (ex: antigo vs novo)
-            $table->string('ip_address')->nullable(); // De onde?
-            $table->timestamps(); // Quando? (created_at)
+            
+            // ID do usuário (pode ser nulo se o usuário for deletado depois)
+            $table->unsignedBigInteger('user_id')->nullable();
+            
+            // --- A COLUNA QUE FALTAVA ---
+            $table->string('user_name')->nullable(); 
+            
+            // O que foi feito
+            $table->string('action'); 
+            
+            // Detalhes em texto (mudamos de JSON para TEXT para aceitar a string do Controller)
+            $table->text('details')->nullable(); 
+            
+            $table->string('ip_address')->nullable();
+            $table->timestamps();
         });
     }
 
