@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Services\AuditService;
 use App\Http\Controllers\Controller;
 use App\Models\LegalCase;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -279,39 +280,124 @@ class LegalCaseController extends Controller
         $successCount = 0;
         $errors = [];
 
+        // Mensagens de erro personalizadas em Português
+        $messages = [
+            'required' => 'O campo :attribute é obrigatório.',
+            'exists' => 'O :attribute informado não foi encontrado no sistema.',
+            'date' => 'O campo :attribute deve ser uma data válida.',
+            'numeric' => 'O campo :attribute deve ser um número válido.',
+            'string' => 'O campo :attribute deve ser um texto.',
+            'max' => 'O campo :attribute é muito longo.',
+            'in' => 'O valor informado para :attribute é inválido.',
+        ];
+
+        // Nomes amigáveis para os campos (para não aparecer "case_number" no erro)
+        $customAttributes = [
+            'case_number' => 'Número do Processo',
+            'internal_number' => 'Número Interno',
+            'action_object' => 'Objeto da Ação',
+            'start_date' => 'Data de Distribuição',
+            'opposing_party' => 'Autor',
+            'defendant' => 'Réu',
+            'user_id' => 'Advogado Responsável',
+            'comarca' => 'Comarca',
+            'city' => 'Cidade',
+            'state' => 'UF',
+            'special_court' => 'Juizado Especial',
+            'cause_value' => 'Valor da Causa',
+            'original_value' => 'Valor de Alçada',
+            'agreement_value' => 'Proposta Inicial',
+            'updated_condemnation_value' => 'Condenação Atualizada',
+            'pcond_probability' => 'Probabilidade de Condenação',
+            'priority' => 'Prioridade',
+            'description' => 'Observações',
+        ];
+
         DB::beginTransaction();
 
         try {
             foreach ($casesToImport as $index => $caseData) {
                 
-                // Mapeamento manual para corrigir importação
-                if (isset($caseData['lawyer_id'])) {
+                // 1. Buscar Advogado Responsável pelo NOME
+                if (isset($caseData['lawyer_name']) && !empty($caseData['lawyer_name'])) {
+                    // Busca por nome exato ou aproximado
+                    $lawyer = \App\Models\User::where('name', 'LIKE', '%' . trim($caseData['lawyer_name']) . '%')->first();
+                    if ($lawyer) {
+                        $caseData['user_id'] = $lawyer->id;
+                    }
+                }
+                
+                // Fallback: Se não achou por nome, mas veio ID (caso raro)
+                if (!isset($caseData['user_id']) && isset($caseData['lawyer_id'])) {
                     $caseData['user_id'] = $caseData['lawyer_id'];
-                    unset($caseData['lawyer_id']);
                 }
 
+                // Limpeza de campos vazios (string vazia "" vira null)
+                foreach ($caseData as $key => $value) {
+                    if ($value === '' || $value === null) {
+                        $caseData[$key] = null;
+                    }
+                }
+
+                // 2. Validação Rigorosa conforme pedido (Campos com *)
                 $validator = Validator::make($caseData, [
+                    // Obrigatórios (*)
                     'case_number' => 'required|string|max:255',
-                    'opposing_party' => 'required|string|max:255',
-                    'defendant' => 'required|string|max:255',
-                    'user_id' => 'required|exists:users,id', // <--- CORRIGIDO
                     'action_object' => 'required|string|max:255',
-                    'priority' => 'required|string|in:baixa,media,alta',
+                    'opposing_party' => 'required|string|max:255', // Autor
+                    'defendant' => 'required|string|max:255',      // Réu
+                    'user_id' => 'required|exists:users,id',       // Advogado Responsável
+
+                    // Opcionais
+                    'internal_number' => 'nullable|numeric', // "precisa ser número"
+                    'start_date' => 'nullable', 
+                    
+                    'comarca' => 'nullable|string|max:255',
+                    'city' => 'nullable|string|max:255',
+                    'state' => 'nullable|string|max:2',
+                    'special_court' => 'nullable|string',
+                    
                     'cause_value' => 'nullable|numeric',
                     'original_value' => 'nullable|numeric',
                     'agreement_value' => 'nullable|numeric',
-                    'agreement_probability' => 'nullable|numeric',
-                    'agreement_checklist_data' => 'nullable|array',
-                ]);
+                    'updated_condemnation_value' => 'nullable|numeric',
+                    'pcond_probability' => 'nullable|numeric',
+                    
+                    'priority' => 'nullable|string',
+                    'description' => 'nullable|string',
+                    // Outros campos visuais que não validamos no backend mas podem vir
+                    'opposing_lawyer' => 'nullable|string',
+                    'opposing_contact' => 'nullable|string',
+                ], $messages, $customAttributes);
 
                 if ($validator->fails()) {
+                    // Erro formatado: "Registro 3: O campo Número do Processo é obrigatório."
                     $errors[] = [
-                        'line' => $index + 2,
+                        'line' => "Registro " . ($index + 1), 
                         'errors' => $validator->errors()->all()
                     ];
                 } else {
                     $caseData['client_id'] = $clientId;
+                    // Defaults
                     $caseData['status'] = 'initial_analysis';
+                    $caseData['priority'] = !empty($caseData['priority']) ? strtolower($caseData['priority']) : 'media';
+                    
+                    // Tratamento especial para Juizado Especial (S/N -> Sim/Não)
+                    if (isset($caseData['special_court'])) {
+                        $sc = strtolower($caseData['special_court']);
+                        $caseData['special_court'] = ($sc == 's' || $sc == 'sim' || $sc == 'yes') ? 'Sim' : 'Não';
+                    } else {
+                        $caseData['special_court'] = 'Não';
+                    }
+
+                    // Tratamento de Data (se vier d/m/Y converter para Y-m-d)
+                    if (!empty($caseData['start_date'])) {
+                        try {
+                            $date = \Carbon\Carbon::createFromFormat('d/m/Y', $caseData['start_date']);
+                            $caseData['start_date'] = $date ? $date->format('Y-m-d') : null;
+                        } catch (\Exception $e) { }
+                    }
+
                     LegalCase::create($caseData);
                     $successCount++;
                 }
@@ -327,16 +413,15 @@ class LegalCaseController extends Controller
             }
 
             DB::commit();
-
             return response()->json([
-                'message' => "Importação concluída com sucesso!",
+                'message' => "Importação concluída! $successCount casos criados.",
                 'success_count' => $successCount,
                 'errors' => [],
             ], 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Um erro inesperado ocorreu no servidor.', 'error' => $e->getMessage()], 500);
+            return response()->json(['message' => 'Erro interno.', 'error' => $e->getMessage()], 500);
         }
     }
 }

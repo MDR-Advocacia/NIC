@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import styles from '../styles/CaseCreatePage.module.css';
 import AgreementChecklist from '../components/AgreementChecklist';
 import AddEditOpposingLawyerModal from '../components/AddEditOpposingLawyerModal';
+import OpposingLawyerListModal from '../components/OpposingLawyerListModal';
+import { FaExclamationTriangle } from 'react-icons/fa';
 
 // --- Ícones SVG Inline ---
 const IconArrowLeft = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
@@ -15,7 +17,8 @@ const IconMap = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none
 const IconChecklist = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
 const IconSave = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
 const IconAlert = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
-const IconPlus = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+const IconPlus = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+const IconSearch = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
 
 // --- Constantes ---
 const BRAZILIAN_STATES = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
@@ -31,6 +34,8 @@ const ACTION_OBJECTS = [
     "Outros"
 ];
 
+const availableColors = ['#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
+
 const CaseCreatePage = () => {
     const { token } = useAuth();
     const navigate = useNavigate();
@@ -39,8 +44,9 @@ const CaseCreatePage = () => {
     const [lawyers, setLawyers] = useState([]);
     const [opposingLawyersList, setOpposingLawyersList] = useState([]); 
     
-    // Controle do Modal de Advogado Adverso e Dropdown
-    const [isLawyerModalOpen, setIsLawyerModalOpen] = useState(false);
+    // Controle dos Modais
+    const [isLawyerModalOpen, setIsLawyerModalOpen] = useState(false); // Modal de CRIAÇÃO
+    const [isListModalOpen, setIsListModalOpen] = useState(false);     // Modal de LISTAGEM/BUSCA
     const [lawyerSearchTerm, setLawyerSearchTerm] = useState('');
     const [showLawyerDropdown, setShowLawyerDropdown] = useState(false);
 
@@ -48,6 +54,10 @@ const CaseCreatePage = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
     const [generalError, setGeneralError] = useState('');
+
+    // Tags
+    const [newTagText, setNewTagText] = useState('');
+    const [newTagColor, setNewTagColor] = useState(availableColors[0]);
 
     // Estado do Formulário
     const [formData, setFormData] = useState({
@@ -75,7 +85,8 @@ const CaseCreatePage = () => {
         pcond_probability: '',
         updated_condemnation_value: '',
         agreement_probability: 0,
-        agreement_checklist_data: null
+        agreement_checklist_data: null,
+        tags: []
     });
 
     useEffect(() => {
@@ -156,6 +167,10 @@ const CaseCreatePage = () => {
         setShowLawyerDropdown(false);
     };
 
+    const handleOpenListModal = () => {
+        setIsListModalOpen(true);
+    };
+
     const handleLawyerCreated = (newLawyer) => {
         setOpposingLawyersList(prev => [...prev, newLawyer]);
         handleSelectLawyer(newLawyer);
@@ -173,6 +188,23 @@ const CaseCreatePage = () => {
         }));
     };
 
+    const handleAddTag = () => {
+        if (newTagText.trim() === '') return;
+        const newTag = { text: newTagText, color: newTagColor };
+        setFormData(prevState => ({
+          ...prevState,
+          tags: [...(prevState.tags || []), newTag]
+        }));
+        setNewTagText('');
+    };
+
+    const handleRemoveTag = (indexToRemove) => {
+        setFormData(prevState => ({
+          ...prevState,
+          tags: prevState.tags.filter((_, index) => index !== indexToRemove)
+        }));
+    };
+
     const validateForm = () => {
         const newErrors = {};
         if (!formData.case_number.trim()) newErrors.case_number = "Obrigatório.";
@@ -186,7 +218,6 @@ const CaseCreatePage = () => {
         if (!formData.state) newErrors.state = "Obrigatório.";
         if (!formData.city.trim()) newErrors.city = "Obrigatório.";
         if (!formData.cause_value) newErrors.cause_value = "Obrigatório.";
-        if (!formData.original_value) newErrors.original_value = "Obrigatório.";
         
         const hasMateria = formData.agreement_checklist_data?.objective?.materia;
         if (!hasMateria) {
@@ -212,7 +243,7 @@ const CaseCreatePage = () => {
             const payload = {
                 ...formData,
                 opposing_lawyer: formData.opposing_lawyer_name,
-                original_value: parseFloat(formData.original_value),
+                original_value: formData.original_value ? parseFloat(formData.original_value) : null,
                 cause_value: parseFloat(formData.cause_value),
                 agreement_value: formData.agreement_value ? parseFloat(formData.agreement_value) : null,
                 pcond_probability: formData.pcond_probability ? parseFloat(formData.pcond_probability) : null,
@@ -342,11 +373,12 @@ const CaseCreatePage = () => {
                             </select>
                         </div>
 
-                        {/* --- CAMPO DE ADVOGADO ADVERSO + BOTÃO + --- */}
+                        {/* --- CAMPO DE ADVOGADO ADVERSO + BOTÕES (CORRIGIDO) --- */}
                         <div className={styles.formGroup}>
-                            <label className={styles.label}>Advogado Adverso (Pesquisar ou Criar)</label>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                                <div style={{ position: 'relative', flex: 1 }}>
+                            <label className={styles.label}>Advogado Adverso</label>
+                            
+                            <div className={styles.inputGroupWithButtons}>
+                                <div className={styles.inputWrapper}>
                                     <input 
                                         className={styles.input} 
                                         type="text" 
@@ -356,9 +388,9 @@ const CaseCreatePage = () => {
                                         onFocus={() => setShowLawyerDropdown(true)}
                                         placeholder="Nome ou OAB..."
                                         autoComplete="off"
+                                        style={formData.opposing_lawyer_id && opposingLawyersList.find(l => l.id === formData.opposing_lawyer_id)?.is_abusive ? { borderColor: '#e53e3e', color: '#e53e3e' } : {}}
                                     />
                                     
-                                    {/* DROPDOWN AGORA USA CLASSES CSS (DARK MODE) */}
                                     {showLawyerDropdown && lawyerSearchTerm && (
                                         <ul className={styles.dropdownList}>
                                             {filteredLawyers.map(l => (
@@ -366,7 +398,11 @@ const CaseCreatePage = () => {
                                                     className={styles.dropdownItem}
                                                     onClick={() => handleSelectLawyer(l)}
                                                 >
-                                                    <strong>{l.name}</strong> <small style={{color: '#a0aec0'}}>({l.oab || 'S/ OAB'})</small>
+                                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                                        {l.is_abusive && <FaExclamationTriangle color="#e53e3e" title="Litigante Abusivo" />}
+                                                        <strong>{l.name}</strong> 
+                                                        <small style={{color: '#a0aec0'}}>({l.oab || 'S/ OAB'})</small>
+                                                    </div>
                                                 </li>
                                             ))}
                                             <li 
@@ -377,23 +413,31 @@ const CaseCreatePage = () => {
                                             </li>
                                         </ul>
                                     )}
-                                    
+                                    {/* Overlay invisível para fechar o dropdown ao clicar fora */}
                                     {showLawyerDropdown && (
                                         <div 
-                                            style={{position: 'fixed', inset:0, zIndex: 40}} 
+                                            style={{position: 'fixed', inset:0, zIndex: 90}} 
                                             onClick={() => setShowLawyerDropdown(false)} 
                                         />
                                     )}
                                 </div>
+                                
+                                {/* BOTÃO DE LUPA (LISTA) */}
+                                <button 
+                                    type="button" 
+                                    onClick={handleOpenListModal}
+                                    className={`${styles.iconButton} ${styles.searchButton}`}
+                                    title="Buscar e Gerenciar Litigantes"
+                                >
+                                    <IconSearch />
+                                </button>
+
+                                {/* BOTÃO DE ADICIONAR (+) */}
                                 <button 
                                     type="button" 
                                     onClick={handleCreateLawyer}
+                                    className={`${styles.iconButton} ${styles.addButtonIcon}`}
                                     title="Cadastrar Novo Advogado"
-                                    style={{
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        background: '#3182ce', color: 'white', border: 'none',
-                                        borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
-                                    }}
                                 >
                                     <IconPlus />
                                 </button>
@@ -455,7 +499,7 @@ const CaseCreatePage = () => {
                             {errors.cause_value && <span className={styles.errorMessage}>{errors.cause_value}</span>}
                         </div>
                         <div className={styles.formGroup}>
-                            <label className={styles.label}>Valor de Alçada (R$) <span className={styles.required}>*</span></label>
+                            <label className={styles.label}>Valor de Alçada (R$)</label>
                             <input className={`${styles.input} ${errors.original_value ? styles.errorInput : ''}`} type="number" step="0.01" name="original_value" value={formData.original_value} onChange={handleChange} />
                             {errors.original_value && <span className={styles.errorMessage}>{errors.original_value}</span>}
                         </div>
@@ -498,13 +542,38 @@ const CaseCreatePage = () => {
                     
                     {errors.checklist && <div className={styles.errorBanner} style={{marginBottom: '1rem'}}>{errors.checklist}</div>}
 
-                    {/* Usamos o componente existente AgreementChecklist */}
                     <div style={{ marginTop: '1rem' }}>
                         <AgreementChecklist 
                             checklistData={formData.agreement_checklist_data} 
                             onUpdate={handleChecklistUpdate}
                         />
                     </div>
+                </section>
+                
+                {/* 6. ETIQUETAS (Tags) */}
+                <section className={styles.section}>
+                     <div className={styles.sectionHeader}>
+                        <div className={styles.sectionIcon}><IconChecklist /></div>
+                        <h2>Etiquetas</h2>
+                    </div>
+                    
+                    <div className={styles.tagCreator}>
+                       <input type="text" className={styles.tagInput} value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nova etiqueta..." />
+                       <button type="button" className={styles.addButton} onClick={handleAddTag}>+ Adicionar</button>
+                     </div>
+                     <div className={styles.colorPicker}>
+                       {availableColors.map(color => (
+                         <div key={color} className={`${styles.colorDot} ${newTagColor === color ? styles.selected : ''}`} style={{ backgroundColor: color }} onClick={() => setNewTagColor(color)} />
+                       ))}
+                     </div>
+                     <div className={styles.tagList} style={{ marginTop: '1rem' }}>
+                       {(formData.tags || []).map((tag, index) => (
+                         <div key={index} className={styles.tagItem} style={{ backgroundColor: tag.color }}>
+                           <span>{tag.text}</span>
+                           <button type="button" className={styles.tagRemoveButton} onClick={() => handleRemoveTag(index)}>&times;</button>
+                         </div>
+                       ))}
+                     </div>
                 </section>
 
                 <div className={styles.footer}>
@@ -515,12 +584,20 @@ const CaseCreatePage = () => {
                 </div>
             </form>
 
-            {/* Modal de Criação de Advogado */}
+            {/* Modal de Criação */}
             {isLawyerModalOpen && (
                 <AddEditOpposingLawyerModal 
                     onClose={() => setIsLawyerModalOpen(false)}
                     onSuccess={handleLawyerCreated}
                     initialName={lawyerSearchTerm}
+                />
+            )}
+
+            {/* Modal de Listagem/Busca */}
+            {isListModalOpen && (
+                <OpposingLawyerListModal
+                    onClose={() => setIsListModalOpen(false)}
+                    onSelect={handleSelectLawyer}
                 />
             )}
         </div>

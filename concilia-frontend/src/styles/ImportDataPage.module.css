@@ -263,3 +263,29 @@
 .errorList li:not(:last-child) {
     margin-bottom: 0.5rem;
 }
+
+
+.summaryBox {
+    background-color: #2d3748; /* Fundo Escuro (Slate 800) */
+    padding: 1.5rem;
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #3182ce; /* Borda Azul */
+    color: #e2e8f0; /* Texto Claro */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.summaryBox strong {
+    color: #ffffff; /* Destaque em Branco puro */
+}
+
+/* Opcional: Ajuste também para o aviso laranja do Passo 2 se quiser */
+.warningBox {
+    background-color: #2d3748; /* Fundo Escuro */
+    padding: 1rem;
+    border-left: 4px solid #dd6b20; /* Borda Laranja */
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #fbd38d; /* Texto Laranja Claro */
+    border-radius: 4px;
+}

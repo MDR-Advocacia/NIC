@@ -164,3 +164,63 @@
     font-size: 0.9rem;
     border: 1px solid #9b2c2c;
 }
+
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  margin-right: 8px;
+}
+
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #4a5568; /* Cinza desligado */
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+/* Quando marcado (Ligado - Abusivo = Vermelho) */
+.switch input:checked + .slider {
+  background-color: #e53e3e; 
+}
+
+/* Movimento da bolinha */
+.switch input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+/* Texto ao lado do switch */
+.switchLabel {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #cbd5e0;
+}
+
+.switchLabel.active {
+    color: #fc8181; /* Texto avermelhado quando ativo */
+}

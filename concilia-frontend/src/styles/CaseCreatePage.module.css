@@ -4,7 +4,7 @@
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
-  background-color: var(--background-default, #111827); /* Fallback para Gray 900 */
+  background-color: var(--background-default, #111827);
   min-height: 100vh;
   color: #f3f4f6;
 }
@@ -62,7 +62,7 @@
 
 /* Seções (Cards) */
 .section {
-  background: #1f2937; /* Gray 800 */
+  background: #1f2937;
   padding: 1.5rem;
   border-radius: 8px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
@@ -86,7 +86,7 @@
 }
 
 .sectionIcon {
-  color: #60a5fa; /* Azul claro */
+  color: #60a5fa;
 }
 
 /* Grid de Campos */
@@ -126,8 +126,10 @@
   font-size: 0.95rem;
   transition: border-color 0.2s, box-shadow 0.2s;
   width: 100%;
-  background-color: #111827; /* Input escuro */
+  background-color: #111827;
   color: #f9fafb;
+  /* Importante: box-sizing garante que o padding não aumente a largura total além dos 100% */
+  box-sizing: border-box; 
 }
 
 .input::placeholder,
@@ -271,71 +273,87 @@
   opacity: 0.6;
 }
 
-/* Responsividade */
-@media (max-width: 768px) {
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-  
-  .backButton {
-    width: 100%;
-    justify-content: center;
-  }
+/* --- SOLUÇÃO VISUAL PARA O CAMPO DE BUSCA --- */
 
-  .footer {
-    flex-direction: column;
-  }
-
-  .saveButton, .cancelButton {
-    width: 100%;
-    justify-content: center;
-  }
+/* 1. Container Flexível: Garante que botões e input tenham a mesma altura */
+.inputGroupWithButtons {
+    display: flex;
+    gap: 8px;
+    align-items: stretch; /* O SEGREDO: Estica os itens para a mesma altura */
+    position: relative;
 }
 
-/* ... mantenha o código anterior e adicione isto no final ... */
+/* 2. Wrapper do Input: Ocupa o espaço restante */
+.inputWrapper {
+    position: relative;
+    flex: 1; 
+}
 
-/* Estilos do Dropdown no Tema Escuro */
+/* 3. Botões Quadrados Fixos */
+.iconButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px; /* Largura fixa igual à altura aproximada do input */
+    padding: 0;  /* Remove padding interno para centralizar ícone */
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: filter 0.2s, transform 0.2s;
+}
+
+.searchButton {
+    background-color: #4a5568; /* Gray 600 */
+    color: white;
+}
+
+.addButtonIcon {
+    background-color: #3b82f6; /* Blue 500 */
+    color: white;
+}
+
+.iconButton:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}
+
+/* 4. Dropdown Flutuante */
 .dropdownList {
     position: absolute;
     top: 100%;
     left: 0;
     right: 0;
-    background-color: #2d3748; /* Fundo Escuro */
-    border: 1px solid #4a5568; /* Borda Cinza Médio */
-    z-index: 50;
+    background-color: #2d3748;
+    border: 1px solid #4a5568;
+    z-index: 100;
     list-style: none;
     padding: 0;
-    margin: 0;
-    max-height: 200px;
+    margin: 4px 0 0 0;
+    max-height: 250px;
     overflow-y: auto;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-    border-radius: 0 0 6px 6px;
+    border-radius: 6px;
 }
 
 .dropdownItem {
     padding: 10px 12px;
     cursor: pointer;
     border-bottom: 1px solid #4a5568;
-    color: #f7fafc; /* Texto Claro */
+    color: #f7fafc;
     transition: background-color 0.2s;
-}
-
-.dropdownItem:last-child {
-    border-bottom: none;
+    font-size: 0.95rem;
 }
 
 .dropdownItem:hover {
-    background-color: #4a5568; /* Realce ao passar o mouse */
+    background-color: #4a5568;
 }
 
-/* Item especial "Cadastrar Novo" */
 .dropdownItemNew {
     padding: 10px 12px;
     cursor: pointer;
-    background-color: #2a4365; /* Azul Escuro */
-    color: #90cdf4; /* Azul Claro texto */
+    background-color: #2a4365;
+    color: #90cdf4;
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -344,6 +362,89 @@
 }
 
 .dropdownItemNew:hover {
-    background-color: #2b6cb0; /* Azul mais vivo no hover */
+    background-color: #2b6cb0;
     color: white;
+}
+
+/* Tags Extras */
+.tagCreator {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.tagInput {
+    flex-grow: 1;
+    padding: 0.75rem;
+    border-radius: 5px;
+    border: 1px solid #4b5563;
+    background-color: #111827;
+    color: #f9fafb;
+}
+
+.addButton {
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 5px;
+    background-color: #3b82f6;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.colorPicker {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.colorDot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+}
+
+.colorDot.selected {
+    border-color: #3b82f6;
+}
+
+.tagList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tagItem {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tagRemoveButton {
+    background: none;
+    border: none;
+    color: #f9fafb;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  .backButton { width: 100%; justify-content: center; }
+  .footer { flex-direction: column; }
+  .saveButton, .cancelButton { width: 100%; justify-content: center; }
 }

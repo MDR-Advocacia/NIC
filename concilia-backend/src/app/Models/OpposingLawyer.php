@@ -14,6 +14,11 @@ class OpposingLawyer extends Model
         'cpf',
         'oab',
         'phone',
-        'email'
+        'email',
+        'is_abusive' 
+    ];
+
+    protected $casts = [
+        'is_abusive' => 'boolean',
     ];
 }
