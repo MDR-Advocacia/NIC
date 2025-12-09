@@ -9,11 +9,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log; // Adicionado para debug
 use Illuminate\Validation\Rule;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests; // <--- NOVO: Necessário para usar o authorize
 
 class UserController extends Controller
 {
+    // <--- NOVO: Habilita o sistema de autorização neste controller
+    use AuthorizesRequests;
+
     public function index(Request $request)
     {
+        // --- SEGURANÇA: Verifica se pode ver a lista (Admin ou Supervisor) ---
+        $this->authorize('viewAny', User::class);
+        // --------------------------------------------------------------------
+
         $query = User::with('department');
 
         if ($request->has('search') && $request->input('search') != '') {
@@ -41,6 +49,10 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        // --- SEGURANÇA: Verifica se pode criar (Admin ou Supervisor) ---
+        $this->authorize('create', User::class);
+        // --------------------------------------------------------------
+
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -56,7 +68,7 @@ class UserController extends Controller
 
         $user = User::create($validatedData);
 
-        // --- CÓDIGO BLINDADO (Com proteção Try/Catch) ---
+        // --- CÓDIGO BLINDADO (Mantido) ---
         try {
             AuditLog::create([
                 'user_id' => auth()->id(),
@@ -66,16 +78,19 @@ class UserController extends Controller
                 'ip_address' => $request->ip(),
             ]);
         } catch (\Exception $e) {
-            // Se der erro, NÃO trava a tela. Grava no arquivo de erro do sistema.
             Log::error("ERRO AO SALVAR LOG (Criação): " . $e->getMessage());
         }
-        // ------------------------------------------------
+        // ---------------------------------
 
         return response()->json($user, 201);
     }
 
     public function update(Request $request, User $user)
     {
+        // --- SEGURANÇA: Verifica se pode editar ---
+        $this->authorize('update', $user);
+        // ------------------------------------------
+
         $validatedData = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'email' => ['sometimes', 'required', 'email', Rule::unique('users')->ignore($user->id)],
@@ -95,7 +110,7 @@ class UserController extends Controller
 
         $user->update($validatedData);
 
-        // --- LOG DE EDIÇÃO BLINDADO ---
+        // --- LOG DE EDIÇÃO BLINDADO (Mantido) ---
         try {
             AuditLog::create([
                 'user_id' => auth()->id(),
@@ -107,17 +122,21 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error("ERRO AO SALVAR LOG (Edição): " . $e->getMessage());
         }
-        // ------------------------------
+        // ----------------------------------------
 
         return response()->json($user);
     }
 
     public function destroy(User $user)
     {
+        // --- SEGURANÇA: Verifica se pode excluir (Apenas Admin e não a si mesmo) ---
+        $this->authorize('delete', $user);
+        // ---------------------------------------------------------------------------
+
         $deletedInfo = "{$user->name} ({$user->email})"; 
         $user->delete();
 
-        // --- LOG DE EXCLUSÃO BLINDADO ---
+        // --- LOG DE EXCLUSÃO BLINDADO (Mantido) ---
         try {
             AuditLog::create([
                 'user_id' => auth()->id(),
@@ -129,7 +148,7 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error("ERRO AO SALVAR LOG (Exclusão): " . $e->getMessage());
         }
-        // --------------------------------
+        // ------------------------------------------
 
         return response()->json(null, 204);
     }
