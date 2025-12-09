@@ -6,14 +6,14 @@ import { FaUserPlus, FaSync, FaEdit, FaTrash, FaPlus, FaTimes, FaSave } from 're
 import KpiCard from '../components/KpiCard';
 import AddDepartmentModal from '../components/AddDepartmentModal';
 
-// --- LISTA DE ÁREAS ---
+// --- LISTA DE ÁREAS (MANTIDA) ---
 const AREAS_LIST = [
     "Recuperação de Crédito",
     "Contencioso Passivo",
     "Atendente"
 ];
 
-// --- COMPONENTES VISUAIS (TAGS) ---
+// --- COMPONENTES VISUAIS (TAGS) (MANTIDOS) ---
 const STATUS_DETAILS = {
     'ativo': { name: 'Ativo', color: '#38a169', textColor: '#FFFFFF' },
     'inativo': { name: 'Inativo', color: '#718096', textColor: '#FFFFFF' },
@@ -36,7 +36,13 @@ const RoleTag = ({ role }) => {
 };
 
 const UserManagementPage = () => {
-    const { token } = useAuth();
+    // 1. Pegamos 'user' para verificar permissão
+    const { token, user } = useAuth();
+
+    // 2. Lógica de Segurança Visual
+    // Se não estiver nesta lista, os botões somem
+    const canManage = ['administrador', 'admin', 'supervisor'].includes(user?.role);
+
     const [users, setUsers] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -63,10 +69,12 @@ const UserManagementPage = () => {
                 apiClient.get(`/users?${userParams.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
                 apiClient.get('/departments', { headers: { Authorization: `Bearer ${token}` } })
             ]);
-            setUsers(usersRes.data.data || []);
+            // Tratamento para garantir array mesmo se backend mudar estrutura
+            setUsers(Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data.data || []));
             setDepartments(deptsRes.data || []);
         } catch (err) {
             console.error(err);
+            // Não mostramos alert de erro aqui para não assustar o operador caso dê 403 silencioso
         } finally {
             setLoading(false);
         }
@@ -77,11 +85,10 @@ const UserManagementPage = () => {
         return () => clearTimeout(timer);
     }, [fetchData]);
 
-    // --- LÓGICA DE FILTRAGEM FINAL (Apenas Dados Reais) ---
+    // --- LÓGICA DE FILTRAGEM FINAL (Mantida) ---
     const displayedUsers = useMemo(() => {
         if (!filterArea) return users; 
         return users.filter(user => {
-            // Agora olha SOMENTE para o dado real do banco
             return user.area === filterArea;
         });
     }, [users, filterArea]);
@@ -106,7 +113,6 @@ const UserManagementPage = () => {
     const handleOpenEditModal = (user) => {
         setIsEditing(true);
         setCurrentUserId(user.id);
-        // Pega a área direto do objeto do usuário (Backend)
         setFormData({
             name: user.name,
             email: user.email,
@@ -125,7 +131,7 @@ const UserManagementPage = () => {
             const payload = {
                 name: formData.name, email: formData.email, role: formData.role,
                 department_id: formData.department_id, status: formData.status,
-                area: formData.area // Envia para o banco
+                area: formData.area 
             };
             
             if (formData.password) payload.password = formData.password;
@@ -137,20 +143,22 @@ const UserManagementPage = () => {
                 await apiClient.post('/users', payload, { headers: { Authorization: `Bearer ${token}` } });
             }
 
-            // REMOVIDO: Código de localStorage (não precisamos mais)
-
             setIsUserFormModalOpen(false);
             fetchData();
             alert(isEditing ? 'Atualizado com sucesso!' : 'Criado com sucesso!');
         } catch (err) {
-            alert('Erro ao salvar. Verifique os dados.');
+            alert('Erro ao salvar. Verifique os dados ou permissões.');
         }
     };
 
     const handleDelete = async (id) => {
         if (window.confirm('Excluir usuário?')) {
-            await apiClient.delete(`/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-            fetchData();
+            try {
+                await apiClient.delete(`/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+                fetchData();
+            } catch (err) {
+                alert("Erro ao excluir. Verifique permissões.");
+            }
         }
     };
 
@@ -167,16 +175,22 @@ const UserManagementPage = () => {
             <header className={styles.header}>
                 <div><h1>Gestão de Usuários</h1><p>Controle de acesso e áreas</p></div>
                 <div className={styles.headerActions}>
+                    {/* Botão de Atualizar é livre para todos (Read Only) */}
                     <button className={styles.actionButton} onClick={fetchData}><FaSync /> Atualizar</button>
-                    <button className={styles.actionButton} onClick={() => setIsDepartmentModalOpen(true)}><FaPlus/> Depto</button>
-                    <button className={styles.newUserButton} onClick={handleOpenAddModal}><FaUserPlus /> Usuário</button>
+                    
+                    {/* 3. BOTÕES DE CRIAÇÃO SÓ PARA QUEM PODE GERENCIAR */}
+                    {canManage && (
+                        <>
+                            <button className={styles.actionButton} onClick={() => setIsDepartmentModalOpen(true)}><FaPlus/> Depto</button>
+                            <button className={styles.newUserButton} onClick={handleOpenAddModal}><FaUserPlus /> Usuário</button>
+                        </>
+                    )}
                 </div>
             </header>
 
             <section className={styles.kpiGrid}>
                 <KpiCard title="Total" value={users.length} />
                 <KpiCard title="Ativos" value={users.filter(u => u.status === 'ativo').length} />
-                {/* Contagem dinâmica baseada nos dados reais */}
                 <KpiCard title="Áreas Preenchidas" value={users.filter(u => u.area).length} />
             </section>
 
@@ -215,7 +229,8 @@ const UserManagementPage = () => {
                         <thead>
                             <tr>
                                 <th>Usuário</th><th>Função</th><th>Área / Setor</th><th>Depto</th><th>Status</th>
-                                <th style={{ minWidth: '100px', whiteSpace: 'nowrap' }}>Ações</th>
+                                {/* 4. COLUNA AÇÕES SÓ SE PUDER GERENCIAR */}
+                                {canManage && <th style={{ minWidth: '100px', whiteSpace: 'nowrap' }}>Ações</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -229,7 +244,6 @@ const UserManagementPage = () => {
                                     </td>
                                     <td><RoleTag role={user.role} /></td>
                                     <td>
-                                        {/* AGORA LÊ APENAS DO BANCO */}
                                         {user.area ? 
                                             <span className={styles.tagArea}>{user.area}</span> : 
                                             <span style={{color:'#cbd5e1'}}>-</span>
@@ -238,19 +252,21 @@ const UserManagementPage = () => {
                                     <td>{user.department?.name || '-'}</td>
                                     <td><StatusTag status={user.status} /></td>
                                     
-                                    {/* Ações com Estilo Inline para não quebrar linha */}
-                                    <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                            <FaEdit 
-                                                title="Editar" size={18} style={{ cursor: 'pointer', color: '#718096' }} 
-                                                onClick={() => handleOpenEditModal(user)} 
-                                            />
-                                            <FaTrash 
-                                                title="Excluir" size={18} style={{ cursor: 'pointer', color: '#718096' }} 
-                                                onClick={() => handleDelete(user.id)} 
-                                            />
-                                        </div>
-                                    </td>
+                                    {/* 5. ÍCONES DE AÇÃO SÓ SE PUDER GERENCIAR */}
+                                    {canManage && (
+                                        <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                                <FaEdit 
+                                                    title="Editar" size={18} style={{ cursor: 'pointer', color: '#718096' }} 
+                                                    onClick={() => handleOpenEditModal(user)} 
+                                                />
+                                                <FaTrash 
+                                                    title="Excluir" size={18} style={{ cursor: 'pointer', color: '#718096' }} 
+                                                    onClick={() => handleDelete(user.id)} 
+                                                />
+                                            </div>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
