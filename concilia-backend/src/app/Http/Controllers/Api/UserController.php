@@ -7,23 +7,30 @@ use App\Models\User;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log; // Adicionado para debug
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests; // <--- NOVO: Necessário para usar o authorize
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class UserController extends Controller
 {
-    // <--- NOVO: Habilita o sistema de autorização neste controller
     use AuthorizesRequests;
 
     public function index(Request $request)
     {
-        // --- SEGURANÇA: Verifica se pode ver a lista (Admin ou Supervisor) ---
+        // 1. Policy permite a entrada (agora inclui operador)
         $this->authorize('viewAny', User::class);
-        // --------------------------------------------------------------------
 
         $query = User::with('department');
+        $currentUser = auth()->user();
 
+        // 2. FILTRO DE SEGURANÇA:
+        // Se for operador, forçamos a query a retornar APENAS ele mesmo.
+        // Isso impede que ele veja outros usuários, mas evita o erro 403 na Pipeline/Dashboard.
+        if ($currentUser->role === 'operador') {
+            $query->where('id', $currentUser->id);
+        }
+
+        // Filtros normais (search, status, etc)
         if ($request->has('search') && $request->input('search') != '') {
             $searchTerm = $request->input('search');
             $query->where(function($q) use ($searchTerm) {
@@ -49,9 +56,7 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        // --- SEGURANÇA: Verifica se pode criar (Admin ou Supervisor) ---
         $this->authorize('create', User::class);
-        // --------------------------------------------------------------
 
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
@@ -68,7 +73,6 @@ class UserController extends Controller
 
         $user = User::create($validatedData);
 
-        // --- CÓDIGO BLINDADO (Mantido) ---
         try {
             AuditLog::create([
                 'user_id' => auth()->id(),
@@ -80,16 +84,13 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error("ERRO AO SALVAR LOG (Criação): " . $e->getMessage());
         }
-        // ---------------------------------
 
         return response()->json($user, 201);
     }
 
     public function update(Request $request, User $user)
     {
-        // --- SEGURANÇA: Verifica se pode editar ---
         $this->authorize('update', $user);
-        // ------------------------------------------
 
         $validatedData = $request->validate([
             'name' => 'sometimes|required|string|max:255',
@@ -110,7 +111,6 @@ class UserController extends Controller
 
         $user->update($validatedData);
 
-        // --- LOG DE EDIÇÃO BLINDADO (Mantido) ---
         try {
             AuditLog::create([
                 'user_id' => auth()->id(),
@@ -122,21 +122,17 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error("ERRO AO SALVAR LOG (Edição): " . $e->getMessage());
         }
-        // ----------------------------------------
 
         return response()->json($user);
     }
 
     public function destroy(User $user)
     {
-        // --- SEGURANÇA: Verifica se pode excluir (Apenas Admin e não a si mesmo) ---
         $this->authorize('delete', $user);
-        // ---------------------------------------------------------------------------
 
         $deletedInfo = "{$user->name} ({$user->email})"; 
         $user->delete();
 
-        // --- LOG DE EXCLUSÃO BLINDADO (Mantido) ---
         try {
             AuditLog::create([
                 'user_id' => auth()->id(),
@@ -148,7 +144,6 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error("ERRO AO SALVAR LOG (Exclusão): " . $e->getMessage());
         }
-        // ------------------------------------------
 
         return response()->json(null, 204);
     }
