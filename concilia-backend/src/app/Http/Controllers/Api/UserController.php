@@ -7,15 +7,29 @@ use App\Models\User;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log; // Adicionado para debug
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class UserController extends Controller
 {
+    use AuthorizesRequests;
+
     public function index(Request $request)
     {
-        $query = User::with('department');
+        // 1. Policy permite a entrada (agora inclui operador)
+        $this->authorize('viewAny', User::class);
 
+        $query = User::with('department');
+        $currentUser = auth()->user();
+
+        // 2. FILTRO DE SEGURANÇA:
+        // Se for operador, forçamos a query a retornar APENAS ele mesmo.
+        if ($currentUser->role === 'operador') {
+            $query->where('id', $currentUser->id);
+        }
+
+        // Filtros normais (search, status, etc)
         if ($request->has('search') && $request->input('search') != '') {
             $searchTerm = $request->input('search');
             $query->where(function($q) use ($searchTerm) {
@@ -36,11 +50,16 @@ class UserController extends Controller
             $query->where('area', $request->input('area'));
         }
 
-        return response()->json(['data' => $query->get()]);
+        // --- ALTERAÇÃO DA TASK #22 ---
+        // Alterado de get() para paginate(15)
+        // O Laravel estrutura automaticamente o JSON com 'data', 'current_page', etc.
+        return response()->json($query->paginate(15));
     }
 
     public function store(Request $request)
     {
+        $this->authorize('create', User::class);
+
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -56,7 +75,6 @@ class UserController extends Controller
 
         $user = User::create($validatedData);
 
-        // --- CÓDIGO BLINDADO (Com proteção Try/Catch) ---
         try {
             AuditLog::create([
                 'user_id' => auth()->id(),
@@ -66,16 +84,16 @@ class UserController extends Controller
                 'ip_address' => $request->ip(),
             ]);
         } catch (\Exception $e) {
-            // Se der erro, NÃO trava a tela. Grava no arquivo de erro do sistema.
             Log::error("ERRO AO SALVAR LOG (Criação): " . $e->getMessage());
         }
-        // ------------------------------------------------
 
         return response()->json($user, 201);
     }
 
     public function update(Request $request, User $user)
     {
+        $this->authorize('update', $user);
+
         $validatedData = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'email' => ['sometimes', 'required', 'email', Rule::unique('users')->ignore($user->id)],
@@ -95,7 +113,6 @@ class UserController extends Controller
 
         $user->update($validatedData);
 
-        // --- LOG DE EDIÇÃO BLINDADO ---
         try {
             AuditLog::create([
                 'user_id' => auth()->id(),
@@ -107,17 +124,17 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error("ERRO AO SALVAR LOG (Edição): " . $e->getMessage());
         }
-        // ------------------------------
 
         return response()->json($user);
     }
 
     public function destroy(User $user)
     {
+        $this->authorize('delete', $user);
+
         $deletedInfo = "{$user->name} ({$user->email})"; 
         $user->delete();
 
-        // --- LOG DE EXCLUSÃO BLINDADO ---
         try {
             AuditLog::create([
                 'user_id' => auth()->id(),
@@ -129,7 +146,6 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error("ERRO AO SALVAR LOG (Exclusão): " . $e->getMessage());
         }
-        // --------------------------------
 
         return response()->json(null, 204);
     }
