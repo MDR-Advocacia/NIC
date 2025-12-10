@@ -1,12 +1,13 @@
 // src/pages/PipelinePage.jsx
-// ATUALIZADO: Com filtro de "Casos Atrasados"
+// ATUALIZADO: Botão Novo Caso redireciona para página dedicada
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom'; // <--- Import Adicionado
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
-import NewCaseModal from '../components/NewCaseModal';
 import EditCaseModal from '../components/EditCaseModal';
+// Removido import NewCaseModal pois agora usamos a página dedicada
 import { 
     DndContext, 
     PointerSensor, 
@@ -17,7 +18,6 @@ import {
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
 import AggressorLawyersModal from '../components/AggressorLawyersModal';
-// ADICIONADO: Ícone para o filtro
 import { FaExclamationTriangle } from 'react-icons/fa';
 
 const PipelinePage = () => {
@@ -28,13 +28,13 @@ const PipelinePage = () => {
     const [error, setError] = useState('');
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
-    const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false);
+    
+    // Removido estado isNewCaseModalOpen
+    
     const [editingCase, setEditingCase] = useState(null);
     const [isAggressorModalOpen, setIsAggressorModalOpen] = useState(false);
 
     const [filters, setFilters] = useState({});
-    
-    // ADICIONADO: Estado para o filtro de atrasos
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
 
     const handleOpenEditModal = (caseToEdit) => setEditingCase(caseToEdit);
@@ -80,7 +80,6 @@ const PipelinePage = () => {
                     const lastUpdate = new Date(c.updated_at);
                     const diffTime = Math.abs(today - lastUpdate);
                     const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-                    // A mesma lógica do Card: > 5 dias é atrasado
                     return days > 5;
                 });
             }
@@ -95,7 +94,6 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    // ADICIONADO: 'showDelayedOnly' como dependência para recarregar quando clicar
     }, [token, groupCasesByStatus, filters, showDelayedOnly]);
 
     useEffect(() => {
@@ -180,9 +178,11 @@ const PipelinePage = () => {
                     >
                         Advogados Agressores
                     </button>
-                    <button className={styles.newCaseButton} onClick={() => setIsNewCaseModalOpen(true)}>
+                    
+                    {/* BOTÃO CORRIGIDO: Usa Link para a nova página */}
+                    <Link to="/cases/create" className={styles.newCaseButton}>
                         + Novo Caso
-                    </button>
+                    </Link>
                 </div>
             </div>
 
@@ -227,7 +227,6 @@ const PipelinePage = () => {
                     </select>
                 </div>
 
-                {/* ADICIONADO: Botão de Filtro de Atraso */}
                 <button 
                     className={`${styles.delayedFilterButton} ${showDelayedOnly ? styles.active : ''}`}
                     onClick={() => setShowDelayedOnly(!showDelayedOnly)}
@@ -235,17 +234,10 @@ const PipelinePage = () => {
                 >
                     <FaExclamationTriangle /> {showDelayedOnly ? 'Mostrando Atrasados' : 'Ver Atrasados'}
                 </button>
-                {/* FIM ADIÇÃO */}
 
             </div>
 
-            {isNewCaseModalOpen &&
-                <NewCaseModal
-                    onClose={() => setIsNewCaseModalOpen(false)}
-                    clients={clients}
-                    lawyers={lawyers}
-                    onCaseCreated={fetchAllData}
-                />}
+            {/* Modal de Novo Caso removido */}
 
             {editingCase && <EditCaseModal legalCase={editingCase} onClose={handleCloseEditModal} onCaseUpdated={handleCaseUpdated} clients={clients} lawyers={lawyers} />}
             
@@ -272,4 +264,3 @@ const PipelinePage = () => {
 };
 
 export default PipelinePage;
-

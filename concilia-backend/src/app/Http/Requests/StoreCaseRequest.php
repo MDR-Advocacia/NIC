@@ -24,26 +24,41 @@ class StoreCaseRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Dados do Processo
             'case_number' => ['required', 'string', 'max:255', 'unique:legal_cases,case_number'],
             'action_object' => ['required', 'string', 'max:255'],
+            'start_date' => ['required', 'date'],
+            'internal_number' => ['nullable', 'string', 'max:255'],
+
+            // Partes
             'opposing_party' => ['required', 'string', 'max:255'],
             'defendant' => ['required', 'string', 'max:255'],
             'client_id' => ['required', 'integer', 'exists:clients,id'],
-            'lawyer_id' => ['required', 'integer', 'exists:users,id'],
-            'comarca' => ['nullable', 'string', 'max:255'],
-            'state' => ['nullable', 'string', 'size:2'],
-            'special_court' => ['required', 'string', Rule::in(['Sim', 'Não'])],
+            'lawyer_id' => ['nullable', 'integer', 'exists:users,id'], // Removido 'required' conforme solicitado (sem *)
             'opposing_lawyer' => ['nullable', 'string', 'max:255'],
             'opposing_contact' => ['nullable', 'string', 'max:255'],
-            'original_value' => ['required', 'numeric', 'min:0'],
-            'agreement_value' => ['nullable', 'numeric', 'min:0'],
-            'cause_value' => ['nullable', 'numeric', 'min:0'],
-            'status' => ['required', 'string', Rule::in(['initial_analysis', 'proposal_sent', 'in_negotiation', 'awaiting_draft', 'closed_deal', 'failed_deal'])],
+
+            // Localização
+            'comarca' => ['required', 'string', 'max:255'], // Agora Required*
+            'state' => ['required', 'string', 'size:2'],    // Agora Required*
+            'city' => ['required', 'string', 'max:255'],    // Agora Required*
+            'special_court' => ['required', 'string', Rule::in(['Sim', 'Não'])],
+
+            // Financeiro
+            'cause_value' => ['required', 'numeric', 'min:0'],      // Agora Required*
+            'original_value' => ['required', 'numeric', 'min:0'],   // Alçada Required*
+            'agreement_value' => ['nullable', 'numeric', 'min:0'],  // Proposta Inicial
+            'updated_condemnation_value' => ['nullable', 'numeric', 'min:0'],
+            'pcond_probability' => ['nullable', 'numeric', 'min:0', 'max:100'],
+
+            // Outros
+            'status' => ['required', 'string'],
             'priority' => ['required', 'string', Rule::in(['alta', 'media', 'baixa'])],
             'description' => ['nullable', 'string'],
-            'tags' => ['nullable', 'array'],
-            'tags.*.text' => ['required_with:tags', 'string'], 
-            'tags.*.color' => ['required_with:tags', 'string'], 
+
+            // Checklist JSON e Probabilidade
+            'agreement_checklist_data' => ['nullable', 'array'],
+            'agreement_probability' => ['nullable', 'integer', 'min:0', 'max:100'],
         ];
     }
 }
