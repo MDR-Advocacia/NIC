@@ -49,7 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/cases/{legal_case}/conversation', [ChatController::class, 'getConversationByCase']);
 
-    // Rota de Logs (Mantida)
+    // Rota de Logs 
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
 
 

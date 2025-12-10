@@ -6,6 +6,7 @@ use App\Services\AuditService;
 use App\Http\Controllers\Controller;
 use App\Models\LegalCase;
 use App\Models\User;
+use App\Models\AuditLog; 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -13,6 +14,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log; 
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class LegalCaseController extends Controller
@@ -25,29 +27,25 @@ class LegalCaseController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // Log antigo do seu serviço (mantido)
         AuditService::log('view_pipeline', 'O usuário acessou o pipeline de acordos.');
+        
         $user = Auth::user();
         
         // Começa a query base, sempre com os relacionamentos
-        // Mantemos 'lawyer' no with() pois é o nome da função no Model
         $query = LegalCase::with(['client', 'lawyer']);
 
         // --- LÓGICA DE PERMISSÃO (RBAC) ---
-        // Se for OPERADOR, força a ver apenas seus casos (usando user_id)
         if ($user->role === 'operador') {
-            $query->where('user_id', $user->id); // <--- CORRIGIDO: lawyer_id para user_id
+            $query->where('user_id', $user->id);
         } 
-        // Se for ADMIN ou SUPERVISOR, vê tudo (e pode usar filtro se quiser)
         else {
-            // Só aplica filtro de advogado se foi solicitado na busca
-            // (O front ainda pode mandar 'lawyer_id' como filtro, mas buscamos na coluna 'user_id')
             if ($request->has('lawyer_id') && $request->input('lawyer_id') != '') {
-                $query->where('user_id', $request->input('lawyer_id')); // <--- CORRIGIDO
+                $query->where('user_id', $request->input('lawyer_id'));
             }
         }
-        // --- FIM DA LÓGICA DE PERMISSÃO ---
 
-        // Filtro de busca por termo (case_number ou opposing_party)
+        // Filtro de busca por termo
         if ($request->has('search') && $request->input('search') != '') {
             $searchTerm = $request->input('search');
             $query->where(function ($q) use ($searchTerm) {
@@ -93,7 +91,6 @@ class LegalCaseController extends Controller
         $hasObligation = !empty($case->obligation_description); 
 
         // --- SELEÇÃO DO ARQUIVO BLADE CORRETO ---
-        
         if ($isOurocap) {
             $viewName = 'documents.minuta_ourocap';
         } elseif ($isLivelo) {
@@ -113,7 +110,7 @@ class LegalCaseController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        // Se o frontend enviar 'lawyer_id', nós o convertemos para 'user_id' antes de validar
+        // Conversão de lawyer_id para user_id (Lógica Original Mantida)
         if ($request->has('lawyer_id')) {
             $request->merge(['user_id' => $request->input('lawyer_id')]);
         }
@@ -122,7 +119,7 @@ class LegalCaseController extends Controller
             'case_number' => 'required|string|max:255',
             'start_date' => 'nullable|date',
             'client_id' => 'required|exists:clients,id',
-            'user_id' => 'required|exists:users,id', // <--- CORRIGIDO: Valida user_id
+            'user_id' => 'required|exists:users,id',
             'opposing_party' => 'required|string|max:255',
             'defendant' => 'required|string|max:255',
             'action_object' => 'required|string|max:255',
@@ -138,6 +135,21 @@ class LegalCaseController extends Controller
         ]);
 
         $case = LegalCase::create($validatedData);
+
+        // --- NOVO: LOG DE AUDITORIA (BLINDADO) ---
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Criação de Caso',
+                'details' => "Criou o caso nº {$case->case_number} em '{$case->status}'",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Erro AuditLog store case: " . $e->getMessage());
+        }
+        // -----------------------------------------
+
         return response()->json($case, 201);
     }
 
@@ -156,11 +168,14 @@ class LegalCaseController extends Controller
             $request->merge(['user_id' => $request->input('lawyer_id')]);
         }
 
+        // Salva o status ANTIGO para o log de auditoria
+        $oldStatus = $case->status;
+
         $validatedData = $request->validate([
             'case_number' => 'sometimes|required|string|max:255',
             'start_date' => 'nullable|date',
             'client_id' => 'sometimes|required|exists:clients,id',
-            'user_id' => 'sometimes|required|exists:users,id', // <--- CORRIGIDO
+            'user_id' => 'sometimes|required|exists:users,id',
             'opposing_party' => 'sometimes|required|string|max:255',
             'defendant' => 'sometimes|required|string|max:255',
             'action_object' => 'sometimes|required|string|max:255',
@@ -183,6 +198,7 @@ class LegalCaseController extends Controller
         $case->update($validatedData);
         $changes = $case->getChanges();
 
+        // --- SISTEMA DE HISTÓRICO INTERNO DO CASO (Lógica Original Mantida) ---
         if (!empty($changes)) {
             unset($changes['updated_at']);
             if (!empty($changes)) {
@@ -197,13 +213,60 @@ class LegalCaseController extends Controller
                 ]);
             }
         }
+
+        // --- NOVO: LOG DE AUDITORIA GERAL (KANBAN) ---
+        // Verifica se houve mudança especificamente no status
+        if (isset($validatedData['status']) && $oldStatus !== $case->status) {
+            try {
+                AuditLog::create([
+                    'user_id' => auth()->id(),
+                    'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                    'action' => 'Movimentação de Caso',
+                    'details' => "Moveu o caso #{$case->case_number} de '{$oldStatus}' para '{$case->status}'",
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Erro AuditLog update status: " . $e->getMessage());
+            }
+        } 
+        else {
+             // Log de edição genérica (sem mudança de status)
+             try {
+                AuditLog::create([
+                    'user_id' => auth()->id(),
+                    'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                    'action' => 'Edição de Caso',
+                    'details' => "Editou detalhes do caso #{$case->case_number}",
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {}
+        }
+        // ----------------------------------------------------
+
         return response()->json($case->fresh(['client', 'lawyer']));
     }
 
     public function destroy(LegalCase $case): JsonResponse
     {
         $this->authorize('delete', $case);
+        
+        $numeroProcesso = $case->case_number; // Salva o número antes de apagar
         $case->delete();
+
+        // --- NOVO: LOG DE AUDITORIA (EXCLUSÃO) ---
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Exclusão de Caso',
+                'details' => "Excluiu o caso nº {$numeroProcesso}",
+                'ip_address' => request()->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Erro AuditLog destroy case: " . $e->getMessage());
+        }
+        // ------------------------------------------
+
         return response()->json(null, 204);
     }
 
@@ -214,12 +277,12 @@ class LegalCaseController extends Controller
         $user = Auth::user();
         $query = LegalCase::with(['client', 'lawyer']);
 
-        // --- LÓGICA DE PERMISSÃO ---
+        // --- LÓGICA DE PERMISSÃO (Mantida) ---
         if ($user->role === 'operador') {
-            $query->where('user_id', $user->id); // <--- CORRIGIDO
+            $query->where('user_id', $user->id); 
         } 
         elseif ($request->has('lawyer_id') && $request->input('lawyer_id') != '') {
-            $query->where('user_id', $request->input('lawyer_id')); // <--- CORRIGIDO
+            $query->where('user_id', $request->input('lawyer_id')); 
         }
 
         if ($request->has('search') && $request->input('search') != '') {
@@ -343,6 +406,9 @@ class LegalCaseController extends Controller
                 $validator = Validator::make($caseData, [
                     // Obrigatórios (*)
                     'case_number' => 'required|string|max:255',
+                    'opposing_party' => 'required|string|max:255',
+                    'defendant' => 'required|string|max:255',
+                    'user_id' => 'required|exists:users,id',
                     'action_object' => 'required|string|max:255',
                     'opposing_party' => 'required|string|max:255', // Autor
                     'defendant' => 'required|string|max:255',      // Réu
