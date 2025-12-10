@@ -17,7 +17,6 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
-import AggressorLawyersModal from '../components/AggressorLawyersModal';
 import { FaExclamationTriangle } from 'react-icons/fa';
 
 const PipelinePage = () => {
@@ -32,7 +31,7 @@ const PipelinePage = () => {
     // Removido estado isNewCaseModalOpen
     
     const [editingCase, setEditingCase] = useState(null);
-    const [isAggressorModalOpen, setIsAggressorModalOpen] = useState(false);
+    
 
     const [filters, setFilters] = useState({});
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
@@ -172,12 +171,6 @@ const PipelinePage = () => {
             <div className={styles.header}>
                 <h1>Pipeline de Acordos</h1>
                 <div className={styles.headerActions}>
-                    <button
-                        className={styles.aggressorButton}
-                        onClick={() => setIsAggressorModalOpen(true)}
-                    >
-                        Advogados Agressores
-                    </button>
                     
                     {/* BOTÃO CORRIGIDO: Usa Link para a nova página */}
                     <Link to="/cases/create" className={styles.newCaseButton}>
@@ -241,10 +234,7 @@ const PipelinePage = () => {
 
             {editingCase && <EditCaseModal legalCase={editingCase} onClose={handleCloseEditModal} onCaseUpdated={handleCaseUpdated} clients={clients} lawyers={lawyers} />}
             
-            <AggressorLawyersModal
-                isOpen={isAggressorModalOpen}
-                onClose={() => setIsAggressorModalOpen(false)}
-            />
+            
 
             <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCorners}>
                 <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', padding: '1rem' }}>
