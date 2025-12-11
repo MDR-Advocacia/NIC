@@ -16,7 +16,7 @@ const ROLE_DETAILS = {
     'administrador': { name: 'Administrador', color: '#9f7aea', textColor: '#FFFFFF' },
     'supervisor': { name: 'Supervisor', color: '#ed8936', textColor: '#FFFFFF' },
     'operador': { name: 'Operador', color: '#4299e1', textColor: '#FFFFFF' },
-    'admin': { name: 'Administrador', color: '#9f7aea', textColor: '#FFFFFF' },
+    
 };
 
 const StatusTag = ({ status }) => {
@@ -31,7 +31,7 @@ const RoleTag = ({ role }) => {
 
 const UserManagementPage = () => {
     const { token, user } = useAuth();
-    const canManage = ['administrador', 'admin', 'supervisor'].includes(user?.role);
+    const canManage = ['administrador', 'supervisor'].includes(user?.role);
 
     const [users, setUsers] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -210,7 +210,7 @@ const UserManagementPage = () => {
                 </select>
                 <select name="role" className={styles.filterSelect} value={filters.role} onChange={handleFilterChange}>
                     <option value="">Função: Todas</option>
-                    <option value="administrador">Admin</option>
+                    <option value="administrador">Administrador</option>
                     <option value="supervisor">Supervisor</option>
                     <option value="operador">Operador</option>
                 </select>
@@ -317,7 +317,7 @@ const UserManagementPage = () => {
                                     <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
                                         <option value="operador">Operador</option>
                                         <option value="supervisor">Supervisor</option>
-                                        <option value="administrador">Admin</option>
+                                        <option value="administrador">Administrador</option>
                                     </select>
                                 </div>
                                 <div className={styles.formGroup}>
