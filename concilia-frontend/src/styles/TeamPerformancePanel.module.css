@@ -1,62 +1,95 @@
-/* src/styles/ProcessStageChart.module.css */
-/* REATORADO v2: Cores de TEXTO corrigidas para Light/Dark */
-
-.container {
+.panelContainer {
+    /* Fundo escuro levemente diferente do fundo principal para destacar o card */
+    background-color: #1f2733; 
+    border-radius: 12px;
+    padding: 20px;
+    color: white;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    font-family: system-ui, sans-serif;
-    /* Herda a cor do body */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid #2d3748; /* Borda sutil */
 }
 
-.stageRow {
-    display: grid;
-    grid-template-columns: 150px 1fr 80px;
+.header {
+    display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #2d3748;
+}
+
+.header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: 0.5px;
+}
+
+.subHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.subHeader h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #a0aec0;
+    font-weight: 500;
+}
+
+/* --- ESTILO DO NOVO BOTÃO --- */
+.viewAllBtn {
+    background: transparent;
+    border: none;
     cursor: pointer;
-    border-radius: 4px;
-    padding: 0.25rem 0.5rem;
-    margin: 0 -0.5rem;
-    transition: background-color 0.2s ease-out, transform 0.2s ease-out;
-}
-
-.stageRow:hover {
-    background-color: var(--bg-hover);
-    transform: translateY(-2px);
-}
-
-.stageName {
-    font-size: 0.9rem;
-    color: var(--text-secondary); /* CORRIGIDO */
-    text-align: left;
-}
-
-.barContainer {
-    width: 100%;
-    background-color: var(--bg-input); /* MUDADO */
-    height: 8px;
-    border-radius: 4px;
-}
-
-.barFill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.5s ease-in-out;
-}
-
-.stageData {
-    text-align: right;
-}
-
-.stageCount {
-    font-weight: bold;
-    font-size: 0.9rem;
-    color: var(--text-primary); /* CORRIGIDO */
-}
-
-.stagePercentage {
     font-size: 0.8rem;
-    color: var(--text-secondary); /* CORRIGIDO */
-    display: block;
+    font-weight: 600;
+    color: #63b3ed; /* Azul neon suave */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+}
+
+.viewAllBtn:hover {
+    color: #90cdf4; /* Azul mais claro */
+    background-color: rgba(99, 179, 237, 0.1); /* Fundo sutil */
+    transform: translateX(4px); /* Animação de movimento */
+}
+
+/* Lista de Advogados (Container com Scroll) */
+.listContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1; 
+    overflow-y: auto;
+    padding-right: 4px;
+    min-height: 0; /* Importante para o flexbox scrollar */
+}
+
+/* Estilização da Barra de Rolagem (Scrollbar) */
+.listContainer::-webkit-scrollbar {
+    width: 6px;
+}
+
+.listContainer::-webkit-scrollbar-track {
+    background: transparent; 
+}
+
+.listContainer::-webkit-scrollbar-thumb {
+    background: #4a5568; 
+    border-radius: 10px;
+}
+
+.listContainer::-webkit-scrollbar-thumb:hover {
+    background: #718096; 
 }

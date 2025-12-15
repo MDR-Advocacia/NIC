@@ -16,7 +16,7 @@ class UserSeeder extends Seeder
                 'name' => 'Admin Sistema',
                 'email' => 'admin@concilia.app',
                 'password' => Hash::make('password'),
-                'role' => 'admin', 
+                'role' => 'administrador', 
                 'status' => 'ativo',
                 'created_at' => now(),
                 'updated_at' => now(),

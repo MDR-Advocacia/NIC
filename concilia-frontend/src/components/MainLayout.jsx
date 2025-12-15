@@ -18,8 +18,8 @@ const MainLayout = () => {
         return `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`;
     };
 
-    const isAdmin = user?.role === 'admin';
-    const canManageUsers = user?.role === 'admin' || user?.role === 'supervisor';
+    const isAdmin = user?.role === 'administrador';
+    const canManageUsers = user?.role === 'administrador' || user?.role === 'supervisor';
 
     return (
         <div className={styles.layoutContainer}>

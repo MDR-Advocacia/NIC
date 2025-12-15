@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from '../styles/TeamPerformanceModal.module.css'; // ou o caminho do seu CSS
+import styles from '../styles/TeamPerformanceModal.module.css';
 import LawyerPerformanceCard from './LawyerPerformanceCard';
 import { FaTimes } from 'react-icons/fa';
 
@@ -13,14 +13,30 @@ const TeamPerformanceModal = ({ isOpen, onClose, onViewDetails, data }) => {
 
     return (
         <div className={styles.modalOverlay}>
-            <div className={styles.modalContent}>
+            {/* Adicionado maxHeight para garantir que o modal não estoure a tela em monitores pequenos */}
+            <div className={styles.modalContent} style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
                 <button className={styles.closeButton} onClick={onClose}>
                     <FaTimes />
                 </button>
                 
-                <h2>Ranking Completo da Equipe</h2>
+                {/* Título fixo no topo */}
+                <h2 style={{ flexShrink: 0 }}>Ranking Completo da Equipe</h2>
                 
-                <div className={styles.lawyersList}>
+                {/* CORREÇÃO DO BUG DE CORTE:
+                   1. flex: 1 -> Ocupa o espaço restante
+                   2. overflowY: 'auto' -> Cria barra de rolagem se precisar
+                   3. minHeight: 0 -> Importante para o Flexbox não travar
+                   4. paddingRight: '10px' -> Para a barra de rolagem não colar no card
+                */}
+                <div 
+                    className={styles.lawyersList} 
+                    style={{ 
+                        flex: 1, 
+                        overflowY: 'auto', 
+                        minHeight: 0,
+                        paddingRight: '5px' 
+                    }}
+                >
                     {data && data.length > 0 ? (
                         data.map((lawyerBackend, index) => {
                              // Mapeamento dos dados reais para o visual
@@ -36,11 +52,11 @@ const TeamPerformanceModal = ({ isOpen, onClose, onViewDetails, data }) => {
                                     deals: lawyerBackend.closed_deals 
                                 },
                                 products: { 
-        used: lawyerBackend.products_count, 
-        value: formatCurrency(lawyerBackend.products_proposed_value), 
-        economy: formatCurrency(lawyerBackend.products_economy) 
-    }
-};
+                                    used: lawyerBackend.products_count, 
+                                    value: formatCurrency(lawyerBackend.products_proposed_value), 
+                                    economy: formatCurrency(lawyerBackend.products_economy) 
+                                }
+                            };
 
                             return (
                                 <LawyerPerformanceCard

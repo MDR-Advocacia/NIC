@@ -58,7 +58,7 @@ class DashboardController extends Controller
             $lawyersQuery->where('id', $user->id);
         } else {
             // Admin vê todos os operadores/admins
-            $lawyersQuery->whereIn('role', ['operador', 'admin', 'supervisor']);
+            $lawyersQuery->whereIn('role', ['operador', 'administrador', 'supervisor']);
         }
         
         $lawyers = $lawyersQuery->get();

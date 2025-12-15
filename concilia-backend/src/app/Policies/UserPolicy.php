@@ -14,7 +14,7 @@ class UserPolicy
      */
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, ['administrador', 'admin', 'supervisor', 'operador']);
+        return in_array($user->role, ['administrador', 'supervisor', 'operador']);
     }
 
     /**
@@ -23,7 +23,7 @@ class UserPolicy
      */
     public function view(User $user, User $model): bool
     {
-        if (in_array($user->role, ['administrador', 'admin', 'supervisor'])) {
+        if (in_array($user->role, ['administrador', 'supervisor'])) {
             return true;
         }
         // Operador só vê a si mesmo
@@ -36,7 +36,7 @@ class UserPolicy
      */
     public function create(User $user): bool
     {
-        return in_array($user->role, ['administrador', 'admin', 'supervisor']);
+        return in_array($user->role, ['administrador', 'supervisor']);
     }
 
     /**
@@ -45,7 +45,7 @@ class UserPolicy
      */
     public function update(User $user, User $model): bool
     {
-        return in_array($user->role, ['administrador', 'admin', 'supervisor']);
+        return in_array($user->role, ['administrador', 'supervisor']);
     }
 
     /**
@@ -55,7 +55,7 @@ class UserPolicy
     public function delete(User $user, User $model): bool
     {
         // 1. Apenas Admin pode excluir
-        if (!in_array($user->role, ['administrador', 'admin'])) {
+        if (!in_array($user->role, ['administrador'])) {
             return false;
         }
 
