@@ -24,8 +24,10 @@ class LegalCase extends Model
         'internal_number', 
         'client_id',
         'user_id',
-        'opposing_party',
-        'defendant',
+        'opposing_party', // Campo de texto legado (Autor)
+        'plaintiff_id',   // NOVO: ID da tabela Litigants (Autor)
+        'defendant',      // Campo de texto legado (Réu)
+        'defendant_id',   // NOVO: ID da tabela Litigants (Réu)
         'action_object',
         'description',
         'status',
@@ -61,8 +63,21 @@ class LegalCase extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+    
     public function opposingLawyer()
     {
         return $this->belongsTo(OpposingLawyer::class, 'opposing_lawyer_id');
+    }
+
+    // NOVO: Relacionamento para o Autor (tabelado)
+    public function plaintiffLitigant()
+    {
+        return $this->belongsTo(Litigant::class, 'plaintiff_id');
+    }
+
+    // NOVO: Relacionamento para o Réu (tabelado)
+    public function defendantLitigant()
+    {
+        return $this->belongsTo(Litigant::class, 'defendant_id');
     }
 }

@@ -12,6 +12,9 @@ use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\CaseHistoryController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AuditLogController;
+// Adicionando o Import do novo Controller
+use App\Http\Controllers\Api\LitigantController;
+use App\Http\Controllers\Api\OpposingLawyerController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -33,8 +36,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/cases/export', [LegalCaseController::class, 'export']);
     Route::post('/cases/import', [LegalCaseController::class, 'bulkStore']);
     
-    // --- (Geração de PDF) ---890034
-    
+    // --- (Geração de PDF) ---
     Route::get('/cases/{id}/agreement', [LegalCaseController::class, 'generateAgreement']);
     // ----------------------------------------
 
@@ -52,6 +54,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Rota de Logs 
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
 
-
-    Route::apiResource('opposing-lawyers', \App\Http\Controllers\Api\OpposingLawyerController::class);
+    // Rotas de Tabelas Auxiliares
+    Route::apiResource('opposing-lawyers', OpposingLawyerController::class);
+    
+    // NOVA ROTA PARA LITIGANTES (Autores e Réus)
+    Route::apiResource('litigants', LitigantController::class);
 });

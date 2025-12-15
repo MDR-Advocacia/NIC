@@ -1,5 +1,5 @@
 // src/components/EditCaseModal.jsx
-// ATUALIZADO: Com busca de Litigantes Abusivos (Lupa) e novos campos
+// ATUALIZADO: Com busca de Litigantes (Autores/Réus) E Advogados Abusivos
 
 import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api';
@@ -9,7 +9,7 @@ import { FaPencilAlt, FaRegCommentDots, FaTimes, FaExclamationTriangle } from 'r
 import ChatPreview from './ChatPreview';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditOpposingLawyerModal from './AddEditOpposingLawyerModal';
-import OpposingLawyerListModal from './OpposingLawyerListModal'; // <--- IMPORT NOVO
+import OpposingLawyerListModal from './OpposingLawyerListModal';
 
 // --- Ícones SVG Inline ---
 const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#4299e1'}}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
@@ -28,7 +28,8 @@ const HistoryItem = ({ entry }) => {
         case_number: 'Nº do Processo', status: 'Status', priority: 'Prioridade',
         description: 'Descrição', opposing_party: 'Autor', defendant: 'Réu',
         original_value: 'Valor de Alçada', agreement_value: 'Valor do Acordo', cause_value: 'Valor da Causa',
-        internal_number: 'Nº Interno', city: 'Cidade', pcond_probability: 'PCOND', updated_condemnation_value: 'Condenação Atualizada'
+        internal_number: 'Nº Interno', city: 'Cidade', pcond_probability: 'PCOND', updated_condemnation_value: 'Condenação Atualizada',
+        plaintiff_id: 'ID Autor', defendant_id: 'ID Réu'
     };
 
     const renderChanges = () => {
@@ -157,6 +158,10 @@ const DetailsTab = ({
     clients, 
     lawyers, 
     handleChecklistChange,
+    
+    // Props para Litigantes (Novo)
+    litigants,
+
     // Props para o Advogado Adverso
     opposingLawyersList,
     lawyerSearchTerm,
@@ -165,13 +170,13 @@ const DetailsTab = ({
     setShowLawyerDropdown,
     handleSelectLawyer,
     handleCreateLawyer,
-    handleOpenListModal // Nova prop
+    handleOpenListModal 
 }) => {
     const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
     const actionObjects = ["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada", "Outros"];
     const availableColors = ['#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
     
-    // Filtro local para o dropdown
+    // Filtro local para o dropdown de advogados
     const filteredLawyers = opposingLawyersList.filter(l => 
         l.name.toLowerCase().includes(lawyerSearchTerm.toLowerCase()) || 
         (l.oab && l.oab.toLowerCase().includes(lawyerSearchTerm.toLowerCase()))
@@ -229,16 +234,38 @@ const DetailsTab = ({
                     <IconUsers /> Partes Envolvidas
                 </h3>
                 <div className={styles.formGrid}>
+                    {/* CAMPO AUTOR COM SELECT */}
                     <div className={styles.formGroup}>
-                        <label className={styles.label}>Autor</label>
+                         <label className={styles.label}>Autor (Buscar Banco de Dados)</label>
+                         <select className={styles.select} name="plaintiff_id" value={formData.plaintiff_id || ''} onChange={handleChange}>
+                             <option value="">-- Selecionar ou Texto Livre --</option>
+                             {litigants.map(l => (
+                                 <option key={l.id} value={l.id}>{l.name} ({l.doc_number || 'S/Doc'})</option>
+                             ))}
+                         </select>
+                    </div>
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Nome do Autor (Texto)</label>
                         <input className={styles.input} type="text" name="opposing_party" value={formData.opposing_party || ''} onChange={handleChange} required />
                     </div>
+
+                    {/* CAMPO RÉU COM SELECT */}
                     <div className={styles.formGroup}>
-                        <label className={styles.label}>Réu</label>
-                        <input className={styles.input} type="text" name="defendant" value={formData.defendant || ''} onChange={handleChange} required />
+                         <label className={styles.label}>Réu (Buscar Banco de Dados)</label>
+                         <select className={styles.select} name="defendant_id" value={formData.defendant_id || ''} onChange={handleChange}>
+                             <option value="">-- Selecionar ou Texto Livre --</option>
+                             {litigants.map(l => (
+                                 <option key={l.id} value={l.id}>{l.name} ({l.doc_number || 'S/Doc'})</option>
+                             ))}
+                         </select>
                     </div>
                     <div className={styles.formGroup}>
-                        <label className={styles.label}>Banco</label>
+                        <label className={styles.label}>Nome do Réu (Texto)</label>
+                        <input className={styles.input} type="text" name="defendant" value={formData.defendant || ''} onChange={handleChange} required />
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Banco (Cliente)</label>
                         <select className={styles.select} name="client_id" value={formData.client_id || ''} onChange={handleChange} required>
                             <option value="">Selecione...</option>
                             {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
@@ -474,27 +501,35 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     const [lawyerSearchTerm, setLawyerSearchTerm] = useState('');
     const [showLawyerDropdown, setShowLawyerDropdown] = useState(false);
     
+    // Estado para as Partes (Litigantes) - NOVO
+    const [litigants, setLitigants] = useState([]);
+
     // Controle dos Modais
     const [isLawyerModalOpen, setIsLawyerModalOpen] = useState(false);
-    const [isListModalOpen, setIsListModalOpen] = useState(false); // <--- Estado para a Lupa
+    const [isListModalOpen, setIsListModalOpen] = useState(false); 
 
     const [conversation, setConversation] = useState(null);
     const [messages, setMessages] = useState([]);
     const [chatLoading, setChatLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
-    // Carregar Advogados Adversos
+    // Carregar Advogados Adversos e Litigantes
     useEffect(() => {
-        const fetchOpposingLawyers = async () => {
+        const fetchData = async () => {
             if (!token) return;
             try {
-                const response = await apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } });
-                setOpposingLawyersList(Array.isArray(response.data) ? response.data : []);
+                const [lawyersRes, litigantsRes] = await Promise.all([
+                     apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
+                     apiClient.get('/litigants', { headers: { Authorization: `Bearer ${token}` } })
+                ]);
+
+                setOpposingLawyersList(Array.isArray(lawyersRes.data) ? lawyersRes.data : []);
+                setLitigants(Array.isArray(litigantsRes.data) ? litigantsRes.data : []);
             } catch (err) {
-                console.error("Erro ao carregar advogados adversos:", err);
+                console.error("Erro ao carregar dados auxiliares:", err);
             }
         };
-        fetchOpposingLawyers();
+        fetchData();
     }, [token]);
 
     useEffect(() => {
@@ -513,6 +548,10 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 opposing_lawyer_id: legalCase.opposing_lawyer_id || '',
                 opposing_lawyer: legalCase.opposing_lawyer || '',
                 opposing_contact: legalCase.opposing_contact || '',
+                
+                // Novos campos Litigantes (Ids)
+                plaintiff_id: legalCase.plaintiff_id || '',
+                defendant_id: legalCase.defendant_id || '',
             });
             
             // Inicializar a busca com o nome atual do advogado
@@ -587,8 +626,32 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         }
     };
     
+    // ATUALIZADO: handleChange com lógica para Litigantes
     const handleChange = (e) => { 
-        const { name, value } = e.target; 
+        const { name, value } = e.target;
+        
+        // Lógica: Se selecionar ID do Autor, preenche nome do autor
+        if (name === 'plaintiff_id') {
+           const selected = litigants.find(l => String(l.id) === String(value));
+           setFormData(prev => ({
+               ...prev,
+               plaintiff_id: value,
+               opposing_party: selected ? selected.name : prev.opposing_party
+           }));
+           return;
+        }
+        
+        // Lógica: Se selecionar ID do Réu, preenche nome do réu
+        if (name === 'defendant_id') {
+            const selected = litigants.find(l => String(l.id) === String(value));
+            setFormData(prev => ({
+                ...prev,
+                defendant_id: value,
+                defendant: selected ? selected.name : prev.defendant
+            }));
+            return;
+        }
+
         setFormData(prevState => ({ ...prevState, [name]: value })); 
     };
     
@@ -661,6 +724,9 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     lawyers={lawyers}
                                     handleChecklistChange={handleChecklistChange}
                                     
+                                    // Passando a lista de litigantes
+                                    litigants={litigants}
+
                                     // Props do Advogado Adverso (Lupa + Create)
                                     opposingLawyersList={opposingLawyersList}
                                     lawyerSearchTerm={lawyerSearchTerm}
@@ -669,7 +735,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     setShowLawyerDropdown={setShowLawyerDropdown}
                                     handleSelectLawyer={handleSelectLawyer}
                                     handleCreateLawyer={handleCreateLawyer}
-                                    handleOpenListModal={handleOpenListModal} // <--- Passando a função
+                                    handleOpenListModal={handleOpenListModal}
                                 />
                                 {error && <p className={styles.error}>{error}</p>}
                                 <div className={styles.actions}> 
@@ -708,7 +774,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 />
             )}
 
-            {/* Modal de Listagem/Busca e Marcação de Abusivo */}
+            {/* Modal de Listagem/Busca de Advogado */}
             {isListModalOpen && (
                 <OpposingLawyerListModal
                     onClose={() => setIsListModalOpen(false)}

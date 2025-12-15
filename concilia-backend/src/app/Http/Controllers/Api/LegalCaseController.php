@@ -32,8 +32,8 @@ class LegalCaseController extends Controller
         
         $user = Auth::user();
         
-        // Começa a query base, sempre com os relacionamentos
-        $query = LegalCase::with(['client', 'lawyer']);
+        // Começa a query base, carregando também os novos relacionamentos de Litigantes
+        $query = LegalCase::with(['client', 'lawyer', 'plaintiffLitigant', 'defendantLitigant', 'opposingLawyer']);
 
         // --- LÓGICA DE PERMISSÃO (RBAC) ---
         if ($user->role === 'operador') {
@@ -120,8 +120,10 @@ class LegalCaseController extends Controller
             'start_date' => 'nullable|date',
             'client_id' => 'required|exists:clients,id',
             'user_id' => 'required|exists:users,id',
-            'opposing_party' => 'required|string|max:255',
-            'defendant' => 'required|string|max:255',
+            'opposing_party' => 'required|string|max:255', // Mantém obrigatório string por compatibilidade
+            'defendant' => 'required|string|max:255',      // Mantém obrigatório string por compatibilidade
+            'plaintiff_id' => 'nullable|exists:litigants,id', // NOVO: ID do Autor
+            'defendant_id' => 'nullable|exists:litigants,id', // NOVO: ID do Réu
             'action_object' => 'required|string|max:255',
             'description' => 'nullable|string',
             'status' => 'required|string',
@@ -132,6 +134,7 @@ class LegalCaseController extends Controller
             'tags' => 'nullable|array',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
             'agreement_checklist_data' => 'nullable|array',
+            'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
         ]);
 
         $case = LegalCase::create($validatedData);
@@ -156,7 +159,7 @@ class LegalCaseController extends Controller
     public function show(LegalCase $case): JsonResponse
     {
         $this->authorize('view', $case);
-        return response()->json($case->load('client', 'lawyer', 'histories', 'histories.user'));
+        return response()->json($case->load('client', 'lawyer', 'histories', 'histories.user', 'opposingLawyer', 'plaintiffLitigant', 'defendantLitigant'));
     }
 
     public function update(Request $request, LegalCase $case): JsonResponse
@@ -178,6 +181,8 @@ class LegalCaseController extends Controller
             'user_id' => 'sometimes|required|exists:users,id',
             'opposing_party' => 'sometimes|required|string|max:255',
             'defendant' => 'sometimes|required|string|max:255',
+            'plaintiff_id' => 'nullable|exists:litigants,id', // NOVO
+            'defendant_id' => 'nullable|exists:litigants,id', // NOVO
             'action_object' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
             'status' => 'sometimes|required|string|in:initial_analysis,proposal_sent,in_negotiation,awaiting_draft,closed_deal,failed_deal',
@@ -189,6 +194,7 @@ class LegalCaseController extends Controller
             'state' => 'nullable|string|max:2',
             'opposing_lawyer' => 'nullable|string|max:255',
             'opposing_contact' => 'nullable|string|max:255',
+            'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
             'tags' => 'nullable|array',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
             'agreement_checklist_data' => 'nullable|array',
@@ -243,7 +249,7 @@ class LegalCaseController extends Controller
         }
         // ----------------------------------------------------
 
-        return response()->json($case->fresh(['client', 'lawyer']));
+        return response()->json($case->fresh(['client', 'lawyer', 'plaintiffLitigant', 'defendantLitigant']));
     }
 
     public function destroy(LegalCase $case): JsonResponse
@@ -275,7 +281,7 @@ class LegalCaseController extends Controller
         $fileName = 'casos_concilia_' . date('Y-m-d') . '.csv';
 
         $user = Auth::user();
-        $query = LegalCase::with(['client', 'lawyer']);
+        $query = LegalCase::with(['client', 'lawyer', 'plaintiffLitigant', 'defendantLitigant']);
 
         // --- LÓGICA DE PERMISSÃO (Mantida) ---
         if ($user->role === 'operador') {
@@ -316,8 +322,9 @@ class LegalCaseController extends Controller
                 $row['ID'] = $case->id;
                 $row['Numero Processo'] = $case->case_number;
                 $row['Cliente'] = $case->client->name ?? 'N/A';
-                $row['Autor'] = $case->opposing_party;
-                $row['Reu'] = $case->defendant;
+                // Usa o nome da tabela Litigant se existir, senão usa o texto antigo
+                $row['Autor'] = $case->plaintiffLitigant->name ?? $case->opposing_party;
+                $row['Reu'] = $case->defendantLitigant->name ?? $case->defendant;
                 $row['Status'] = $case->status;
                 $row['Prioridade'] = $case->priority;
                 $row['Advogado Responsavel'] = $case->lawyer->name ?? 'N/A';
