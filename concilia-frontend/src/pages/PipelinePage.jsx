@@ -1,11 +1,9 @@
-// src/pages/PipelinePage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; 
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
 import EditCaseModal from '../components/EditCaseModal';
-import LitigantListModal from '../components/LitigantListModal'; // <--- IMPORT NOVO
 import { 
     DndContext, 
     PointerSensor, 
@@ -15,7 +13,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
-import { FaExclamationTriangle, FaUsers } from 'react-icons/fa'; // <--- Import Icone
+import { FaExclamationTriangle } from 'react-icons/fa';
 
 const PipelinePage = () => {
     const { token, user } = useAuth();
@@ -28,9 +26,6 @@ const PipelinePage = () => {
     
     const [editingCase, setEditingCase] = useState(null);
     
-    // --- NOVO ESTADO PARA O MODAL DE PARTES ---
-    const [isLitigantModalOpen, setIsLitigantModalOpen] = useState(false); 
-
     const [filters, setFilters] = useState({});
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
 
@@ -70,6 +65,7 @@ const PipelinePage = () => {
 
             let fetchedCases = casesResponse.data;
 
+            // --- LÓGICA DE FILTRO DE ATRASO (Frontend) ---
             if (showDelayedOnly) {
                 const today = new Date();
                 fetchedCases = fetchedCases.filter(c => {
@@ -79,6 +75,7 @@ const PipelinePage = () => {
                     return days > 5;
                 });
             }
+            // -------------------------------------------
 
             const groupedCases = groupCasesByStatus(fetchedCases);
             setPipelineData(groupedCases);
@@ -167,20 +164,6 @@ const PipelinePage = () => {
             <div className={styles.header}>
                 <h1>Pipeline de Acordos</h1>
                 <div className={styles.headerActions}>
-                    
-                    {/* BOTÃO NOVO: GERENCIAR PARTES */}
-                    <button 
-                        onClick={() => setIsLitigantModalOpen(true)}
-                        className={styles.secondaryButton} // Crie esse estilo ou use inline
-                        style={{ 
-                            backgroundColor: '#6366F1', color: 'white', border: 'none', 
-                            padding: '10px 16px', borderRadius: '6px', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', gap: '8px', marginRight: '10px'
-                        }}
-                    >
-                        <FaUsers /> Partes/Litigantes
-                    </button>
-
                     <Link to="/cases/create" className={styles.newCaseButton}>
                         + Novo Caso
                     </Link>
@@ -238,15 +221,17 @@ const PipelinePage = () => {
 
             </div>
 
-            {editingCase && <EditCaseModal legalCase={editingCase} onClose={handleCloseEditModal} onCaseUpdated={handleCaseUpdated} clients={clients} lawyers={lawyers} />}
+            {/* Modal de Edição (Único modal usado nesta página diretamente) */}
+            {editingCase && (
+                <EditCaseModal 
+                    legalCase={editingCase} 
+                    onClose={handleCloseEditModal} 
+                    onCaseUpdated={handleCaseUpdated} 
+                    clients={clients} 
+                    lawyers={lawyers} 
+                />
+            )}
             
-            {/* --- MODAL DE LISTA DE PARTES --- */}
-            <LitigantListModal 
-                isOpen={isLitigantModalOpen}
-                onClose={() => setIsLitigantModalOpen(false)}
-            />
-            {/* -------------------------------- */}
-
             <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCorners}>
                 <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', padding: '1rem' }}>
                     {pipelineData?.titles && Object.entries(pipelineData.titles).map(([statusKey, statusTitle]) => (

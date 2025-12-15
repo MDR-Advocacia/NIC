@@ -12,8 +12,6 @@ use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\CaseHistoryController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AuditLogController;
-// Adicionando o Import do novo Controller
-use App\Http\Controllers\Api\LitigantController;
 use App\Http\Controllers\Api\OpposingLawyerController;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -24,10 +22,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn(Request $request) => $request->user());
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
-    
+
     Route::apiResource('clients', ClientController::class);
-    Route::apiResource('users', UserController::class); 
-    
+    Route::apiResource('users', UserController::class);
+
 
     Route::apiResource('cases', LegalCaseController::class);
     Route::apiResource('aggressor-lawyers', AggressorLawyerController::class);
@@ -35,7 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/cases/export', [LegalCaseController::class, 'export']);
     Route::post('/cases/import', [LegalCaseController::class, 'bulkStore']);
-    
+
     // --- (Geração de PDF) ---
     Route::get('/cases/{id}/agreement', [LegalCaseController::class, 'generateAgreement']);
     // ----------------------------------------
@@ -48,7 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/chat/conversations/{conversationId}', [ChatController::class, 'getConversationMessages']);
     Route::post('/chat/conversations/{conversationId}/messages', [ChatController::class, 'sendMessage']);
-    
+
     Route::get('/cases/{legal_case}/conversation', [ChatController::class, 'getConversationByCase']);
 
     // Rota de Logs 
@@ -56,7 +54,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Rotas de Tabelas Auxiliares
     Route::apiResource('opposing-lawyers', OpposingLawyerController::class);
+
     
-    // NOVA ROTA PARA LITIGANTES (Autores e Réus)
-    Route::apiResource('litigants', LitigantController::class);
+    Route::get('/plaintiffs', [App\Http\Controllers\Api\PlaintiffController::class, 'index']);
+    Route::post('/plaintiffs', [App\Http\Controllers\Api\PlaintiffController::class, 'store']);
+
+    Route::get('/defendants', [App\Http\Controllers\Api\DefendantController::class, 'index']);
+    Route::post('/defendants', [App\Http\Controllers\Api\DefendantController::class, 'store']);
+    
 });

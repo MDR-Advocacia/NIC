@@ -24,10 +24,10 @@ class LegalCase extends Model
         'internal_number', 
         'client_id',
         'user_id',
-        'opposing_party', // Campo de texto legado (Autor)
-        'plaintiff_id',   // NOVO: ID da tabela Litigants (Autor)
-        'defendant',      // Campo de texto legado (Réu)
-        'defendant_id',   // NOVO: ID da tabela Litigants (Réu)
+        'opposing_party', // Mantemos string para compatibilidade ou texto livre
+        'plaintiff_id',   // NOVO: ID do Autor
+        'defendant',      // Mantemos string
+        'defendant_id',   // NOVO: ID do Réu
         'action_object',
         'description',
         'status',
@@ -57,8 +57,6 @@ class LegalCase extends Model
         return $this->belongsTo(Client::class);
     }
 
-    // MUDANÇA 2: Mantemos o nome da função 'lawyer' para o frontend não quebrar,
-    // mas avisamos que no banco de dados a coluna se chama 'user_id'
     public function lawyer()
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -69,15 +67,14 @@ class LegalCase extends Model
         return $this->belongsTo(OpposingLawyer::class, 'opposing_lawyer_id');
     }
 
-    // NOVO: Relacionamento para o Autor (tabelado)
-    public function plaintiffLitigant()
+    // NOVOS RELACIONAMENTOS
+    public function plaintiff()
     {
-        return $this->belongsTo(Litigant::class, 'plaintiff_id');
+        return $this->belongsTo(Plaintiff::class, 'plaintiff_id');
     }
 
-    // NOVO: Relacionamento para o Réu (tabelado)
-    public function defendantLitigant()
+    public function defendantRel()
     {
-        return $this->belongsTo(Litigant::class, 'defendant_id');
+        return $this->belongsTo(Defendant::class, 'defendant_id');
     }
 }

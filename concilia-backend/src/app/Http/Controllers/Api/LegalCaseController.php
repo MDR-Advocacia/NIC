@@ -27,13 +27,13 @@ class LegalCaseController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        // Log antigo do seu serviço (mantido)
+        // Log de auditoria simples
         AuditService::log('view_pipeline', 'O usuário acessou o pipeline de acordos.');
         
         $user = Auth::user();
         
-        // Começa a query base, carregando também os novos relacionamentos de Litigantes
-        $query = LegalCase::with(['client', 'lawyer', 'plaintiffLitigant', 'defendantLitigant', 'opposingLawyer']);
+        // Começa a query base, carregando todos os relacionamentos importantes
+        $query = LegalCase::with(['client', 'lawyer', 'opposingLawyer', 'plaintiff', 'defendantRel']);
 
         // --- LÓGICA DE PERMISSÃO (RBAC) ---
         if ($user->role === 'operador') {
@@ -50,7 +50,13 @@ class LegalCaseController extends Controller
             $searchTerm = $request->input('search');
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('case_number', 'like', "%{$searchTerm}%")
-                    ->orWhere('opposing_party', 'like', "%{$searchTerm}%");
+                    ->orWhere('opposing_party', 'like', "%{$searchTerm}%") // Busca legado (texto)
+                    ->orWhereHas('plaintiff', function($q2) use ($searchTerm) { // Busca na tabela de Autores
+                        $q2->where('name', 'like', "%{$searchTerm}%");
+                    })
+                    ->orWhereHas('defendantRel', function($q3) use ($searchTerm) { // Busca na tabela de Réus
+                        $q3->where('name', 'like', "%{$searchTerm}%");
+                    });
             });
         }
 
@@ -73,7 +79,7 @@ class LegalCaseController extends Controller
      */
     public function generateAgreement($id)
     {
-        $case = LegalCase::with('client')->findOrFail($id);
+        $case = LegalCase::with(['client', 'plaintiff', 'defendantRel', 'opposingLawyer'])->findOrFail($id);
 
         // 1. Detectar se é OUROCAP (Banco do Brasil)
         $isOurocap = false;
@@ -120,10 +126,16 @@ class LegalCaseController extends Controller
             'start_date' => 'nullable|date',
             'client_id' => 'required|exists:clients,id',
             'user_id' => 'required|exists:users,id',
-            'opposing_party' => 'required|string|max:255', // Mantém obrigatório string por compatibilidade
-            'defendant' => 'required|string|max:255',      // Mantém obrigatório string por compatibilidade
-            'plaintiff_id' => 'nullable|exists:litigants,id', // NOVO: ID do Autor
-            'defendant_id' => 'nullable|exists:litigants,id', // NOVO: ID do Réu
+            
+            // Dados legados (Texto)
+            'opposing_party' => 'required|string|max:255',
+            'defendant' => 'required|string|max:255',
+
+            // NOVOS IDs (Relacionamentos)
+            'plaintiff_id' => 'nullable|exists:plaintiffs,id',
+            'defendant_id' => 'nullable|exists:defendants,id',
+            'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
+
             'action_object' => 'required|string|max:255',
             'description' => 'nullable|string',
             'status' => 'required|string',
@@ -131,10 +143,20 @@ class LegalCaseController extends Controller
             'original_value' => 'required|numeric',
             'agreement_value' => 'nullable|numeric',
             'cause_value' => 'nullable|numeric',
+            
+            'opposing_lawyer' => 'nullable|string', // Nome visual
+            'opposing_contact' => 'nullable|string',
+            
+            'comarca' => 'nullable|string',
+            'state' => 'nullable|string',
+            'city' => 'nullable|string',
+            'special_court' => 'nullable|string',
+            
             'tags' => 'nullable|array',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
+            'pcond_probability' => 'nullable|numeric',
+            'updated_condemnation_value' => 'nullable|numeric',
             'agreement_checklist_data' => 'nullable|array',
-            'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
         ]);
 
         $case = LegalCase::create($validatedData);
@@ -159,7 +181,16 @@ class LegalCaseController extends Controller
     public function show(LegalCase $case): JsonResponse
     {
         $this->authorize('view', $case);
-        return response()->json($case->load('client', 'lawyer', 'histories', 'histories.user', 'opposingLawyer', 'plaintiffLitigant', 'defendantLitigant'));
+        // Carrega todos os relacionamentos para exibição completa
+        return response()->json($case->load([
+            'client', 
+            'lawyer', 
+            'opposingLawyer', 
+            'plaintiff', 
+            'defendantRel', 
+            'histories', 
+            'histories.user'
+        ]));
     }
 
     public function update(Request $request, LegalCase $case): JsonResponse
@@ -179,24 +210,35 @@ class LegalCaseController extends Controller
             'start_date' => 'nullable|date',
             'client_id' => 'sometimes|required|exists:clients,id',
             'user_id' => 'sometimes|required|exists:users,id',
+            
             'opposing_party' => 'sometimes|required|string|max:255',
             'defendant' => 'sometimes|required|string|max:255',
-            'plaintiff_id' => 'nullable|exists:litigants,id', // NOVO
-            'defendant_id' => 'nullable|exists:litigants,id', // NOVO
+            
+            // Validação dos novos campos
+            'plaintiff_id' => 'nullable|exists:plaintiffs,id',
+            'defendant_id' => 'nullable|exists:defendants,id',
+            'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
+
             'action_object' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
-            'status' => 'sometimes|required|string|in:initial_analysis,proposal_sent,in_negotiation,awaiting_draft,closed_deal,failed_deal',
-            'priority' => 'sometimes|required|string|in:baixa,media,alta',
+            'status' => 'sometimes|required|string',
+            'priority' => 'sometimes|required|string',
             'original_value' => 'sometimes|required|numeric',
             'agreement_value' => 'nullable|numeric',
             'cause_value' => 'nullable|numeric',
+            
             'comarca' => 'nullable|string|max:255',
             'state' => 'nullable|string|max:2',
+            'city' => 'nullable|string|max:255',
+            'special_court' => 'nullable|string',
+            
             'opposing_lawyer' => 'nullable|string|max:255',
             'opposing_contact' => 'nullable|string|max:255',
-            'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
+            
             'tags' => 'nullable|array',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
+            'pcond_probability' => 'nullable|numeric',
+            'updated_condemnation_value' => 'nullable|numeric',
             'agreement_checklist_data' => 'nullable|array',
         ]);
 
@@ -249,7 +291,7 @@ class LegalCaseController extends Controller
         }
         // ----------------------------------------------------
 
-        return response()->json($case->fresh(['client', 'lawyer', 'plaintiffLitigant', 'defendantLitigant']));
+        return response()->json($case->fresh(['client', 'lawyer', 'opposingLawyer', 'plaintiff', 'defendantRel']));
     }
 
     public function destroy(LegalCase $case): JsonResponse
@@ -281,7 +323,7 @@ class LegalCaseController extends Controller
         $fileName = 'casos_concilia_' . date('Y-m-d') . '.csv';
 
         $user = Auth::user();
-        $query = LegalCase::with(['client', 'lawyer', 'plaintiffLitigant', 'defendantLitigant']);
+        $query = LegalCase::with(['client', 'lawyer']);
 
         // --- LÓGICA DE PERMISSÃO (Mantida) ---
         if ($user->role === 'operador') {
@@ -322,9 +364,8 @@ class LegalCaseController extends Controller
                 $row['ID'] = $case->id;
                 $row['Numero Processo'] = $case->case_number;
                 $row['Cliente'] = $case->client->name ?? 'N/A';
-                // Usa o nome da tabela Litigant se existir, senão usa o texto antigo
-                $row['Autor'] = $case->plaintiffLitigant->name ?? $case->opposing_party;
-                $row['Reu'] = $case->defendantLitigant->name ?? $case->defendant;
+                $row['Autor'] = $case->opposing_party;
+                $row['Reu'] = $case->defendant;
                 $row['Status'] = $case->status;
                 $row['Prioridade'] = $case->priority;
                 $row['Advogado Responsavel'] = $case->lawyer->name ?? 'N/A';
@@ -417,12 +458,9 @@ class LegalCaseController extends Controller
                     'defendant' => 'required|string|max:255',
                     'user_id' => 'required|exists:users,id',
                     'action_object' => 'required|string|max:255',
-                    'opposing_party' => 'required|string|max:255', // Autor
-                    'defendant' => 'required|string|max:255',      // Réu
-                    'user_id' => 'required|exists:users,id',       // Advogado Responsável
-
+                    
                     // Opcionais
-                    'internal_number' => 'nullable|numeric', // "precisa ser número"
+                    'internal_number' => 'nullable|numeric', 
                     'start_date' => 'nullable', 
                     
                     'comarca' => 'nullable|string|max:255',
@@ -438,6 +476,7 @@ class LegalCaseController extends Controller
                     
                     'priority' => 'nullable|string',
                     'description' => 'nullable|string',
+                    
                     // Outros campos visuais que não validamos no backend mas podem vir
                     'opposing_lawyer' => 'nullable|string',
                     'opposing_contact' => 'nullable|string',
