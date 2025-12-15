@@ -1,12 +1,10 @@
 // src/pages/CaseManagementPage.jsx
-// ATUALIZADO: Botão Novo Caso redireciona para página de criação (não abre modal)
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { FaFileExport, FaPlus, FaSearch, FaEye, FaEdit, FaTrash } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
-// Removido import de NewCaseModal pois agora usamos a página dedicada
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -270,11 +268,37 @@ const CaseManagementPage = () => {
                                     <td>
                                         <div>{legalCase.lawyer?.name || 'N/A'}</div>
                                     </td>
-                                    <td className={styles.actionsCell}>
-                                        <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
-                                        <span className={styles.actionIcon} onClick={() => handleOpenEditModal(legalCase)}><FaEdit /></span>
-                                        <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase.id)}><FaTrash /></span>
+                                    
+                                    {/* --- COLUNA DE AÇÕES CORRIGIDA --- */}
+                                    <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <Link 
+                                                to={`/cases/${legalCase.id}`} 
+                                                className={styles.actionIcon} 
+                                                title="Ver Detalhes"
+                                            >
+                                                <FaEye />
+                                            </Link>
+                                            <span 
+                                                className={styles.actionIcon} 
+                                                onClick={() => handleOpenEditModal(legalCase)} 
+                                                title="Editar"
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                <FaEdit />
+                                            </span>
+                                            <span 
+                                                className={styles.actionIcon} 
+                                                onClick={() => handleDeleteCase(legalCase.id)} 
+                                                title="Excluir"
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                <FaTrash />
+                                            </span>
+                                        </div>
                                     </td>
+                                    {/* --- FIM DA CORREÇÃO --- */}
+
                                 </tr>
                             ))}
                         </tbody>
