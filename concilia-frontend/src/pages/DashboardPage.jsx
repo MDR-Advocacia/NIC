@@ -12,16 +12,15 @@ import TeamPerformancePanel from '../components/TeamPerformancePanel';
 import TeamPerformanceModal from '../components/TeamPerformanceModal';
 import LawyerDetailModal from '../components/LawyerDetailModal';
 import CasesListModal from '../components/CasesListModal';
-import { FaTrophy } from 'react-icons/fa';
+import { FaTrophy, FaArrowRight, FaBriefcase } from 'react-icons/fa'; 
 import styles from '../styles/Dashboard.module.css';
+import { Link } from 'react-router-dom';
 
 const DashboardPage = () => {
     
     const { token, user } = useAuth();
     
-    // LÓGICA DE PERMISSÃO ROBUSTA:
-    // 1. Converte para minúsculo para evitar erro (Admin vs admin)
-    // 2. Verifica se o cargo CONTÉM "admin", "supervisor" ou "gerente"
+    // LÓGICA DE PERMISSÃO
     const role = user?.role ? user.role.toLowerCase() : '';
     const isManager = role.includes('admin') || role.includes('supervisor') || role.includes('gerente');
 
@@ -57,7 +56,6 @@ const DashboardPage = () => {
         setLoading(true);
         setError('');
         try {
-            // Otimização: Só busca listas completas se for Gestor
             if (isManager) {
                 const [clientsResponse, lawyersResponse] = await Promise.all([
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
@@ -71,7 +69,6 @@ const DashboardPage = () => {
             if (startDate) params.append('start_date', startDate);
             if (endDate) params.append('end_date', endDate);
             
-            // Filtros exclusivos de Gestor
             if (isManager) {
                 if (selectedClient) params.append('client_id', selectedClient);
                 if (selectedLawyer) params.append('lawyer_id', selectedLawyer);
@@ -134,7 +131,7 @@ const DashboardPage = () => {
     return (
         <div className={styles.dashboardContainer}>
             
-            {/* 1. ÁREA DE FILTROS: Visível APENAS para Gestores */}
+            {/* 1. FILTROS (Gestor) */}
             {isManager && (
                 <div className={styles.filters}>
                     <label>Data Início:</label>
@@ -167,7 +164,7 @@ const DashboardPage = () => {
                 </div>
             )}
 
-            {/* 2. KPIs SUPERIORES: Visível APENAS para Gestores */}
+            {/* 2. KPIs (Gestor) */}
             {isManager && (
                 <div className={styles.kpiGrid}>
                     {dashboardData && dashboardData.kpis ? (
@@ -182,7 +179,7 @@ const DashboardPage = () => {
                 </div>
             )}
 
-            {/* LAYOUT FLUIDO: Se for Operador, centraliza. Se for Admin, layout padrão. */}
+            {/* LAYOUT FLUIDO */}
             <div 
                 className={styles.dashboardGrid}
                 style={!isManager ? { display: 'flex', justifyContent: 'center' } : {}}
@@ -223,13 +220,60 @@ const DashboardPage = () => {
                         ) : <p>Não há dados de distribuição para exibir.</p>}
                     </div>
 
+                    {/* --- AQUI ESTÁ A MUDANÇA FORÇADA DO BOTÃO --- */}
                     <div className={styles.recentCases}>
-                        <h3>Casos Recentes</h3>
+                        {/* Header flexível */}
+                        <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            marginBottom: '15px',
+                            borderBottom: '1px solid #2d3748',
+                            paddingBottom: '10px'
+                        }}>
+                            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <FaBriefcase color="#A0AEC0" size={18} /> Casos Recentes
+                            </h3>
+                            
+                            {/* ESTRATÉGIA NOVA: Botão dentro do Link */}
+                            <Link to="/cases" style={{ textDecoration: 'none' }}>
+                                <button 
+                                    style={{
+                                        background: 'transparent',
+                                        border: '1px solid transparent', // Borda transparente para manter tamanho
+                                        cursor: 'pointer',
+                                        fontSize: '0.85rem',
+                                        fontWeight: '600',
+                                        color: '#63b3ed',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        transition: 'all 0.2s ease-in-out'
+                                    }}
+                                    // Hover via JS direto no elemento button
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'rgba(99, 179, 237, 0.1)';
+                                        e.currentTarget.style.color = '#ffffff';
+                                        e.currentTarget.style.transform = 'translateX(2px)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                        e.currentTarget.style.color = '#63b3ed';
+                                        e.currentTarget.style.transform = 'translateX(0)';
+                                    }}
+                                >
+                                    Ver Todos <FaArrowRight size={12} />
+                                </button>
+                            </Link>
+                        </div>
+
                         <CasesTable cases={cases} />
                     </div>
                 </div>
 
-                {/* 3. PERFORMANCE DE EQUIPE: Visível APENAS para Gestores */}
+                {/* 3. PERFORMANCE DE EQUIPE (Gestor) */}
                 {isManager && (
                     <div className={styles.rightSidebar}>
                         <div className={styles.chartCard}>

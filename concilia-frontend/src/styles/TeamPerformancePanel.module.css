@@ -1,95 +1,99 @@
-.panelContainer {
-    /* Fundo escuro levemente diferente do fundo principal para destacar o card */
-    background-color: #1f2733; 
-    border-radius: 12px;
-    padding: 20px;
-    color: white;
+/* --- CONTAINER PRINCIPAL --- */
+.panel {
+    /* Usa a variável do card do tema. Se não existir, usa cinza escuro como fallback */
+    background-color: var(--bg-card, #1f2733); 
+    color: var(--text-primary, #ffffff);
+    border-radius: 16px; /* Mais arredondado para um look moderno */
+    padding: 24px; /* Mais respiro interno */
     height: 100%;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    border: 1px solid #2d3748; /* Borda sutil */
+    /* Sombra mais profunda e suave */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    /* Borda sutil para definição */
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.05));
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.header {
+.panel:hover {
+    /* Efeito sutil de "levantar" ao passar o mouse no card inteiro */
+    transform: translateY(-2px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    border-color: var(--border-color-hover, rgba(99, 179, 237, 0.3));
+}
+
+/* --- CABEÇALHO --- */
+.panelHeader {
     display: flex;
+    justify-content: space-between; 
     align-items: center;
-    gap: 12px;
     margin-bottom: 20px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #2d3748;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
 }
 
-.header h3 {
+.panelHeader h4 {
     margin: 0;
     font-size: 1.1rem;
     font-weight: 700;
-    color: #e2e8f0;
     letter-spacing: 0.5px;
+    /* Título agora segue a cor do texto principal do tema */
+    color: var(--text-primary, #e2e8f0); 
 }
 
-.subHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.subHeader h4 {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #a0aec0;
-    font-weight: 500;
-}
-
-/* --- ESTILO DO NOVO BOTÃO --- */
-.viewAllBtn {
-    background: transparent;
-    border: none;
+/* --- BOTÃO VER TODOS (Estilo "Pill" Moderno) --- */
+.viewAllLink {
+    background-color: rgba(99, 179, 237, 0.08); /* Fundo sutil fixo */
+    border: 1px solid transparent;
     cursor: pointer;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #63b3ed; /* Azul neon suave */
-    display: flex;
+    /* Mantém o azul pois é cor de ação */
+    color: var(--accent-primary, #63b3ed); 
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 6px;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    text-decoration: none;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 9999px; /* Formato de pílula completa */
+    text-decoration: none; 
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.viewAllBtn:hover {
-    color: #90cdf4; /* Azul mais claro */
-    background-color: rgba(99, 179, 237, 0.1); /* Fundo sutil */
-    transform: translateX(4px); /* Animação de movimento */
+.viewAllLink:hover {
+    color: #ffffff; /* Texto branco */
+    background-color: var(--accent-primary, #3182ce); /* Preenche com a cor principal */
+    transform: translateY(-1px); /* Leve subida */
+    box-shadow: 0 4px 12px rgba(99, 179, 237, 0.3); /* Glow effect */
 }
 
-/* Lista de Advogados (Container com Scroll) */
-.listContainer {
+.viewAllLink:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* --- CORPO DA LISTA --- */
+.panelBody {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px; /* Mais espaço entre os itens */
     flex: 1; 
     overflow-y: auto;
-    padding-right: 4px;
-    min-height: 0; /* Importante para o flexbox scrollar */
+    padding-right: 8px; /* Espaço para a scrollbar não colar */
+    min-height: 0;
 }
 
-/* Estilização da Barra de Rolagem (Scrollbar) */
-.listContainer::-webkit-scrollbar {
+/* --- SCROLLBAR DINÂMICA (Minimalista) --- */
+.panelBody::-webkit-scrollbar {
     width: 6px;
 }
-
-.listContainer::-webkit-scrollbar-track {
+.panelBody::-webkit-scrollbar-track {
     background: transparent; 
 }
-
-.listContainer::-webkit-scrollbar-thumb {
-    background: #4a5568; 
+.panelBody::-webkit-scrollbar-thumb {
+    /* Cor da barra mais discreta */
+    background-color: var(--border-color, rgba(160, 174, 192, 0.3)); 
     border-radius: 10px;
 }
-
-.listContainer::-webkit-scrollbar-thumb:hover {
-    background: #718096; 
+.panelBody::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-secondary, rgba(160, 174, 192, 0.5)); 
 }
