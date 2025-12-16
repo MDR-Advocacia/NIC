@@ -165,3 +165,32 @@
     padding-bottom: 1rem;
     color: var(--text-primary);
 }
+
+
+/* Alinha o Título à esquerda e o Botão à direita */
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+/* Estilo do Botão Moderno (Igual ao de Performance) */
+.viewAllBtn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #63b3ed; /* Azul claro */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.viewAllBtn:hover {
+    color: #fff;
+    transform: translateX(4px); /* Animação da setinha */
+}

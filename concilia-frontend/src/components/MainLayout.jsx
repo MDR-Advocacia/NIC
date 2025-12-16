@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import styles from './MainLayout.module.css';
+import styles from '../styles/MainLayout.module.css';
 
 import { 
     FaTachometerAlt, FaInbox, FaStream, FaSuitcase, 
