@@ -1,28 +1,25 @@
 // src/pages/InboxPage.jsx
-// ATUALIZADO COM AVATARES DE INICIAIS
+// ATUALIZADO: Correção de Autenticação (Token) e Avatares
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext'; // IMPORTANTE: Importar o contexto de auth
 import apiClient from '../api';
 import styles from '../styles/InboxPage.module.css';
 import LinkCaseModal from '../components/LinkCaseModal';
 import ChatPreview from '../components/ChatPreview';
-import { FaInbox } from 'react-icons/fa'; // FaUserCircle não é mais necessário
+import { FaInbox } from 'react-icons/fa';
 
 // --- FUNÇÕES AUXILIARES PARA O AVATAR ---
-
-// Pega as iniciais de um nome
 const getInitials = (name) => {
     if (!name) return '?';
     const names = name.split(' ');
     let initials = names[0][0];
-
     if (names.length > 1) {
         initials += names[names.length - 1][0];
     }
     return initials.toUpperCase();
 };
 
-// Gera uma cor de fundo com base no nome
 const getAvatarColor = (name) => {
     const colors = [
         '#e57373', '#81c784', '#64b5f6', '#ffb74d', 
@@ -38,10 +35,10 @@ const getAvatarColor = (name) => {
     return colors[index];
 };
 
-// --- FIM DAS FUNÇÕES AUXILIARES ---
-
-
 const InboxPage = () => {
+    // 1. PEGA O TOKEN DO CONTEXTO
+    const { token } = useAuth();
+
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedConversation, setSelectedConversation] = useState(null);
@@ -50,28 +47,51 @@ const InboxPage = () => {
     const [messages, setMessages] = useState([]);
     const [chatLoading, setChatLoading] = useState(false);
 
+    // 2. BUSCA CONVERSAS COM TOKEN
     const fetchUnassignedConversations = useCallback(async () => {
+        if (!token) return; // Não busca sem token
         setLoading(true);
         try {
-            const response = await apiClient.get('/chat/unassigned');
-            setConversations(response.data);
+            const response = await apiClient.get('/chat/unassigned', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            // Suporte a envelopamento de dados (data.data ou data direto)
+            const lista = Array.isArray(response.data) ? response.data : (response.data.data || []);
+            setConversations(lista);
         } catch (error) {
             console.error("Erro ao buscar conversas:", error);
+            // Opcional: tratar erro 401 aqui se quiser redirecionar
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [token]);
 
     useEffect(() => {
-        fetchUnassignedConversations();
-    }, [fetchUnassignedConversations]);
+        if (token) {
+            fetchUnassignedConversations();
+        }
+    }, [fetchUnassignedConversations, token]);
 
+    // 3. BUSCA MENSAGENS COM TOKEN
     const fetchMessages = async (conversationId) => {
-        if (!conversationId) return;
+        if (!conversationId || !token) return;
         setChatLoading(true);
         try {
-            const response = await apiClient.get(`/chat/conversations/${conversationId}`);
-            setMessages(response.data);
+            const response = await apiClient.get(`/chat/conversations/${conversationId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            // Tratamento robusto da resposta
+            let msgs = [];
+            if (Array.isArray(response.data)) {
+                msgs = response.data;
+            } else if (response.data.messages) {
+                msgs = response.data.messages;
+            } else if (response.data.data && response.data.data.messages) {
+                msgs = response.data.data.messages;
+            }
+
+            setMessages(msgs);
         } catch (error) {
             console.error("Erro ao buscar mensagens:", error);
             setMessages([]);
@@ -86,8 +106,7 @@ const InboxPage = () => {
         } else {
             setMessages([]);
         }
-    }, [selectedConversation]);
-
+    }, [selectedConversation]); // token já está implícito na função fetchMessages mas idealmente estaria nas deps se fosse useCallback
 
     const handleLinkCase = (conversationId) => {
         setLinkingConversationId(conversationId);
@@ -108,6 +127,18 @@ const InboxPage = () => {
         const date = new Date(unix * 1000);
         return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     };
+    
+    // Função de enviar mensagem (caso precise implementar no futuro)
+    const handleSendMessage = async (content) => {
+        if (!selectedConversation || !token) return;
+        try {
+            // Exemplo de POST com token
+            // await apiClient.post(..., { content }, { headers: { Authorization: `Bearer ${token}` } })
+            console.log("Enviar:", content);
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
     return (
         <>
@@ -119,27 +150,29 @@ const InboxPage = () => {
 
                 <div className={styles.inboxLayout}>
                     <aside className={styles.conversationListPanel}>
-                        {loading ? <p style={{ padding: '1rem' }}>Carregando...</p> : conversations.map(convo => (
+                        {loading ? <p style={{ padding: '1rem' }}>Carregando conversas...</p> : 
+                         conversations.length === 0 ? <p style={{ padding: '1rem', color:'#a0aec0' }}>Nenhuma conversa pendente.</p> :
+                         conversations.map(convo => (
                             <div
                                 key={convo.id}
                                 className={`${styles.conversationItem} ${selectedConversation?.id === convo.id ? styles.active : ''}`}
                                 onClick={() => setSelectedConversation(convo)}
                             >
-                                {/* --- AVATAR MODIFICADO --- */}
                                 <div 
                                     className={styles.avatar} 
                                     style={{ backgroundColor: getAvatarColor(convo.contact_name) }}
                                 >
                                     {getInitials(convo.contact_name)}
                                 </div>
-                                {/* --- FIM DA MODIFICAÇÃO --- */}
 
                                 <div className={styles.conversationDetails}>
                                     <div className={styles.contactHeader}>
-                                        <span className={styles.contactName}>{convo.contact_name}</span>
+                                        <span className={styles.contactName}>{convo.contact_name || 'Desconhecido'}</span>
                                         <span className={styles.timestamp}>{formatTimestamp(convo.timestamp)}</span>
                                     </div>
-                                    <p className={styles.lastMessage}>{convo.last_message}</p>
+                                    <p className={styles.lastMessage}>
+                                        {convo.last_message || '...'}
+                                    </p>
                                 </div>
                             </div>
                         ))}
@@ -161,7 +194,9 @@ const InboxPage = () => {
                                     <ChatPreview
                                         messages={messages}
                                         isInteractive={true}
-                                        onSendMessage={(msg) => console.log("Enviar mensagem:", msg)}
+                                        onSendMessage={handleSendMessage}
+                                        contactName={selectedConversation.contact_name}
+                                        contactNumber={selectedConversation.contact_phone}
                                     />
                                 )}
                             </>
