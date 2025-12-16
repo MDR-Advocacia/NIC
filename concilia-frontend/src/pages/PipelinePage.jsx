@@ -1,13 +1,9 @@
-// src/pages/PipelinePage.jsx
-// ATUALIZADO: Botão Novo Caso redireciona para página dedicada
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom'; // <--- Import Adicionado
+import { Link } from 'react-router-dom'; 
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
 import EditCaseModal from '../components/EditCaseModal';
-// Removido import NewCaseModal pois agora usamos a página dedicada
 import { 
     DndContext, 
     PointerSensor, 
@@ -28,11 +24,8 @@ const PipelinePage = () => {
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
     
-    // Removido estado isNewCaseModalOpen
-    
     const [editingCase, setEditingCase] = useState(null);
     
-
     const [filters, setFilters] = useState({});
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
 
@@ -171,8 +164,6 @@ const PipelinePage = () => {
             <div className={styles.header}>
                 <h1>Pipeline de Acordos</h1>
                 <div className={styles.headerActions}>
-                    
-                    {/* BOTÃO CORRIGIDO: Usa Link para a nova página */}
                     <Link to="/cases/create" className={styles.newCaseButton}>
                         + Novo Caso
                     </Link>
@@ -230,12 +221,17 @@ const PipelinePage = () => {
 
             </div>
 
-            {/* Modal de Novo Caso removido */}
-
-            {editingCase && <EditCaseModal legalCase={editingCase} onClose={handleCloseEditModal} onCaseUpdated={handleCaseUpdated} clients={clients} lawyers={lawyers} />}
+            {/* Modal de Edição (Único modal usado nesta página diretamente) */}
+            {editingCase && (
+                <EditCaseModal 
+                    legalCase={editingCase} 
+                    onClose={handleCloseEditModal} 
+                    onCaseUpdated={handleCaseUpdated} 
+                    clients={clients} 
+                    lawyers={lawyers} 
+                />
+            )}
             
-            
-
             <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCorners}>
                 <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', padding: '1rem' }}>
                     {pipelineData?.titles && Object.entries(pipelineData.titles).map(([statusKey, statusTitle]) => (

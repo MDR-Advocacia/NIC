@@ -1,5 +1,5 @@
 // src/components/EditCaseModal.jsx
-// ATUALIZADO: Com busca de Litigantes Abusivos (Lupa) e novos campos
+// ATUALIZADO: Com busca inteligente para Autor, Réu e Advogado Adverso
 
 import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api';
@@ -9,7 +9,9 @@ import { FaPencilAlt, FaRegCommentDots, FaTimes, FaExclamationTriangle } from 'r
 import ChatPreview from './ChatPreview';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditOpposingLawyerModal from './AddEditOpposingLawyerModal';
-import OpposingLawyerListModal from './OpposingLawyerListModal'; // <--- IMPORT NOVO
+import OpposingLawyerListModal from './OpposingLawyerListModal';
+import AddEditPlaintiffModal from './AddEditPlaintiffModal'; // NOVO
+import AddEditDefendantModal from './AddEditDefendantModal'; // NOVO
 
 // --- Ícones SVG Inline ---
 const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#4299e1'}}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
@@ -157,7 +159,8 @@ const DetailsTab = ({
     clients, 
     lawyers, 
     handleChecklistChange,
-    // Props para o Advogado Adverso
+    
+    // Props Advogado
     opposingLawyersList,
     lawyerSearchTerm,
     setLawyerSearchTerm,
@@ -165,24 +168,48 @@ const DetailsTab = ({
     setShowLawyerDropdown,
     handleSelectLawyer,
     handleCreateLawyer,
-    handleOpenListModal // Nova prop
+    handleOpenListModal,
+
+    // Props Autor
+    plaintiffsList,
+    plaintiffSearchTerm,
+    setPlaintiffSearchTerm,
+    showPlaintiffDropdown,
+    setShowPlaintiffDropdown,
+    handleSelectPlaintiff,
+    handleCreatePlaintiff,
+
+    // Props Réu
+    defendantsList,
+    defendantSearchTerm,
+    setDefendantSearchTerm,
+    showDefendantDropdown,
+    setShowDefendantDropdown,
+    handleSelectDefendant,
+    handleCreateDefendant
 }) => {
     const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
     const actionObjects = ["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada", "Outros"];
     const availableColors = ['#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
     
-    // Filtro local para o dropdown
+    // Filtros locais
     const filteredLawyers = opposingLawyersList.filter(l => 
         l.name.toLowerCase().includes(lawyerSearchTerm.toLowerCase()) || 
         (l.oab && l.oab.toLowerCase().includes(lawyerSearchTerm.toLowerCase()))
     );
+    const filteredPlaintiffs = plaintiffsList.filter(p => 
+        p.name.toLowerCase().includes(plaintiffSearchTerm.toLowerCase()) || 
+        (p.cpf_cnpj && p.cpf_cnpj.includes(plaintiffSearchTerm))
+    );
+    const filteredDefendants = defendantsList.filter(d => 
+        d.name.toLowerCase().includes(defendantSearchTerm.toLowerCase()) || 
+        (d.cnpj && d.cnpj.includes(defendantSearchTerm))
+    );
 
     const headerStyle = { display: 'flex', alignItems: 'center', gap: '10px' };
-
-    // Verifica se é abusivo para mudar cor
     const isAbusive = formData.opposing_lawyer_id && opposingLawyersList.find(l => l.id === formData.opposing_lawyer_id)?.is_abusive;
 
-    // Estilos inline para o dropdown (Dark Mode)
+    // Estilos Dropdown
     const dropdownStyle = {
         position: 'absolute', top: '100%', left: 0, right: 0, 
         backgroundColor: '#2d3748', border: '1px solid #4a5568', 
@@ -190,10 +217,7 @@ const DetailsTab = ({
         maxHeight: '200px', overflowY: 'auto', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
         borderRadius: '0 0 6px 6px'
     };
-    
-    const itemStyle = {
-        padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #4a5568', color: '#f7fafc'
-    };
+    const itemStyle = { padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #4a5568', color: '#f7fafc' };
 
     return (
         <>
@@ -229,14 +253,105 @@ const DetailsTab = ({
                     <IconUsers /> Partes Envolvidas
                 </h3>
                 <div className={styles.formGrid}>
+                    
+                    {/* CAMPO AUTOR COM BUSCA */}
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Autor</label>
-                        <input className={styles.input} type="text" name="opposing_party" value={formData.opposing_party || ''} onChange={handleChange} required />
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                            <div style={{ position: 'relative', flex: 1 }}>
+                                <input 
+                                    className={styles.input} 
+                                    type="text" 
+                                    name="opposing_party" 
+                                    value={formData.opposing_party || ''} 
+                                    onChange={(e) => {
+                                        setPlaintiffSearchTerm(e.target.value);
+                                        setShowPlaintiffDropdown(true);
+                                        if (e.target.value === '') handleChange({ target: { name: 'plaintiff_id', value: '' }});
+                                        handleChange(e); 
+                                    }}
+                                    onFocus={() => setShowPlaintiffDropdown(true)}
+                                    placeholder="Pesquisar Autor..."
+                                    autoComplete="off"
+                                />
+                                {showPlaintiffDropdown && plaintiffSearchTerm && (
+                                    <ul style={dropdownStyle}>
+                                        {filteredPlaintiffs.map(p => (
+                                            <li key={p.id} style={itemStyle} onClick={() => handleSelectPlaintiff(p)}
+                                                onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
+                                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}>
+                                                <strong>{p.name}</strong> <small>({p.cpf_cnpj || 'S/ CPF'})</small>
+                                            </li>
+                                        ))}
+                                        <li style={{ ...itemStyle, backgroundColor: '#2a4365', color: '#90cdf4', fontWeight: 'bold' }}
+                                            onClick={handleCreatePlaintiff}>
+                                            <IconPlus /> Cadastrar Novo: "{plaintiffSearchTerm}"
+                                        </li>
+                                    </ul>
+                                )}
+                                {showPlaintiffDropdown && <div style={{position: 'fixed', inset:0, zIndex: 40}} onClick={() => setShowPlaintiffDropdown(false)} />}
+                            </div>
+                            <button type="button" onClick={handleCreatePlaintiff} title="Cadastrar Autor"
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: '#3182ce', color: 'white', border: 'none',
+                                    borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
+                                }}
+                            >
+                                <IconPlus />
+                            </button>
+                        </div>
                     </div>
+
+                    {/* CAMPO RÉU COM BUSCA */}
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Réu</label>
-                        <input className={styles.input} type="text" name="defendant" value={formData.defendant || ''} onChange={handleChange} required />
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                            <div style={{ position: 'relative', flex: 1 }}>
+                                <input 
+                                    className={styles.input} 
+                                    type="text" 
+                                    name="defendant" 
+                                    value={formData.defendant || ''} 
+                                    onChange={(e) => {
+                                        setDefendantSearchTerm(e.target.value);
+                                        setShowDefendantDropdown(true);
+                                        if (e.target.value === '') handleChange({ target: { name: 'defendant_id', value: '' }});
+                                        handleChange(e); 
+                                    }}
+                                    onFocus={() => setShowDefendantDropdown(true)}
+                                    placeholder="Pesquisar Réu..."
+                                    autoComplete="off"
+                                />
+                                {showDefendantDropdown && defendantSearchTerm && (
+                                    <ul style={dropdownStyle}>
+                                        {filteredDefendants.map(d => (
+                                            <li key={d.id} style={itemStyle} onClick={() => handleSelectDefendant(d)}
+                                                onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
+                                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}>
+                                                <strong>{d.name}</strong> <small>({d.cnpj || 'S/ CNPJ'})</small>
+                                            </li>
+                                        ))}
+                                        <li style={{ ...itemStyle, backgroundColor: '#2a4365', color: '#90cdf4', fontWeight: 'bold' }}
+                                            onClick={handleCreateDefendant}>
+                                            <IconPlus /> Cadastrar Novo: "{defendantSearchTerm}"
+                                        </li>
+                                    </ul>
+                                )}
+                                {showDefendantDropdown && <div style={{position: 'fixed', inset:0, zIndex: 40}} onClick={() => setShowDefendantDropdown(false)} />}
+                            </div>
+                            <button type="button" onClick={handleCreateDefendant} title="Cadastrar Réu"
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: '#3182ce', color: 'white', border: 'none',
+                                    borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
+                                }}
+                            >
+                                <IconPlus />
+                            </button>
+                        </div>
                     </div>
+
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Banco</label>
                         <select className={styles.select} name="client_id" value={formData.client_id || ''} onChange={handleChange} required>
@@ -311,62 +426,41 @@ const DetailsTab = ({
                                     autoComplete="off"
                                     style={isAbusive ? { borderColor: '#e53e3e', color: '#e53e3e', fontWeight: 'bold' } : {}}
                                 />
-                                
                                 {showLawyerDropdown && lawyerSearchTerm && (
                                     <ul style={dropdownStyle}>
                                         {filteredLawyers.map(l => (
-                                            <li key={l.id} 
-                                                style={itemStyle}
+                                            <li key={l.id} style={itemStyle} onClick={() => handleSelectLawyer(l)}
                                                 onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
-                                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                                                onClick={() => handleSelectLawyer(l)}
-                                            >
+                                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}>
                                                 <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
                                                     {l.is_abusive && <FaExclamationTriangle color="#e53e3e" />}
                                                     <strong>{l.name}</strong> <small style={{color: '#a0aec0'}}>({l.oab || 'S/ OAB'})</small>
                                                 </div>
                                             </li>
                                         ))}
-                                        <li 
-                                            style={{ ...itemStyle, backgroundColor: '#2a4365', color: '#90cdf4', fontWeight: 'bold' }}
-                                            onMouseEnter={(e) => { e.target.style.backgroundColor = '#2b6cb0'; e.target.style.color = 'white'; }}
-                                            onMouseLeave={(e) => { e.target.style.backgroundColor = '#2a4365'; e.target.style.color = '#90cdf4'; }}
-                                            onClick={handleCreateLawyer}
-                                        >
+                                        <li style={{ ...itemStyle, backgroundColor: '#2a4365', color: '#90cdf4', fontWeight: 'bold' }}
+                                            onClick={handleCreateLawyer}>
                                             <IconPlus /> Cadastrar Novo: "{lawyerSearchTerm}"
                                         </li>
                                     </ul>
                                 )}
-                                {showLawyerDropdown && (
-                                    <div style={{position: 'fixed', inset:0, zIndex: 40}} onClick={() => setShowLawyerDropdown(false)} />
-                                )}
+                                {showLawyerDropdown && <div style={{position: 'fixed', inset:0, zIndex: 40}} onClick={() => setShowLawyerDropdown(false)} />}
                             </div>
                             
-                            {/* BOTÃO LUPA (LISTA) */}
-                            <button 
-                                type="button" 
-                                onClick={handleOpenListModal}
-                                title="Buscar e Gerenciar Litigantes"
+                            <button type="button" onClick={handleOpenListModal} title="Buscar e Gerenciar Litigantes"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: '#4a5568', color: 'white', border: 'none',
                                     borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
-                                }}
-                            >
+                                }}>
                                 <IconSearch />
                             </button>
-
-                            {/* BOTÃO ADICIONAR (+) */}
-                            <button 
-                                type="button" 
-                                onClick={handleCreateLawyer}
-                                title="Cadastrar Novo Advogado"
+                            <button type="button" onClick={handleCreateLawyer} title="Cadastrar Novo Advogado"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: '#3182ce', color: 'white', border: 'none',
                                     borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
-                                }}
-                            >
+                                }}>
                                 <IconPlus />
                             </button>
                         </div>
@@ -469,32 +563,50 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState('#EF4444');
     
-    // Estados para o Advogado Adverso
+    // Listas de Dados
     const [opposingLawyersList, setOpposingLawyersList] = useState([]);
+    const [plaintiffsList, setPlaintiffsList] = useState([]);
+    const [defendantsList, setDefendantsList] = useState([]);
+    
+    // Estados de Busca e Dropdown
     const [lawyerSearchTerm, setLawyerSearchTerm] = useState('');
     const [showLawyerDropdown, setShowLawyerDropdown] = useState(false);
+
+    const [plaintiffSearchTerm, setPlaintiffSearchTerm] = useState('');
+    const [showPlaintiffDropdown, setShowPlaintiffDropdown] = useState(false);
+
+    const [defendantSearchTerm, setDefendantSearchTerm] = useState('');
+    const [showDefendantDropdown, setShowDefendantDropdown] = useState(false);
     
     // Controle dos Modais
     const [isLawyerModalOpen, setIsLawyerModalOpen] = useState(false);
-    const [isListModalOpen, setIsListModalOpen] = useState(false); // <--- Estado para a Lupa
+    const [isListModalOpen, setIsListModalOpen] = useState(false);
+    const [isPlaintiffModalOpen, setIsPlaintiffModalOpen] = useState(false);
+    const [isDefendantModalOpen, setIsDefendantModalOpen] = useState(false);
 
     const [conversation, setConversation] = useState(null);
     const [messages, setMessages] = useState([]);
     const [chatLoading, setChatLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
-    // Carregar Advogados Adversos
+    // Carregar Listas (Advogados, Autores, Réus)
     useEffect(() => {
-        const fetchOpposingLawyers = async () => {
+        const fetchData = async () => {
             if (!token) return;
             try {
-                const response = await apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } });
-                setOpposingLawyersList(Array.isArray(response.data) ? response.data : []);
+                const [lawyersRes, plaintiffsRes, defendantsRes] = await Promise.all([
+                    apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/plaintiffs', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } })
+                ]);
+                setOpposingLawyersList(Array.isArray(lawyersRes.data) ? lawyersRes.data : []);
+                setPlaintiffsList(Array.isArray(plaintiffsRes.data) ? plaintiffsRes.data : []);
+                setDefendantsList(Array.isArray(defendantsRes.data) ? defendantsRes.data : []);
             } catch (err) {
-                console.error("Erro ao carregar advogados adversos:", err);
+                console.error("Erro ao carregar listas de dados:", err);
             }
         };
-        fetchOpposingLawyers();
+        fetchData();
     }, [token]);
 
     useEffect(() => {
@@ -504,19 +616,29 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 client_id: legalCase.client?.id || '',
                 lawyer_id: legalCase.lawyer?.id || '',
                 
-                // Mapear campos novos e existentes
                 internal_number: legalCase.internal_number || '',
                 city: legalCase.city || '',
                 special_court: legalCase.special_court || 'Não',
                 updated_condemnation_value: legalCase.updated_condemnation_value || '',
                 pcond_probability: legalCase.pcond_probability || '',
+                
+                // Mapeamento IDs
                 opposing_lawyer_id: legalCase.opposing_lawyer_id || '',
-                opposing_lawyer: legalCase.opposing_lawyer || '',
+                plaintiff_id: legalCase.plaintiff_id || '',
+                defendant_id: legalCase.defendant_id || '',
+                
+                // Mapeamento Nomes Visuais
+                opposing_lawyer: legalCase.opposing_lawyer || (legalCase.opposingLawyer ? legalCase.opposingLawyer.name : ''),
+                opposing_party: legalCase.opposing_party || (legalCase.plaintiff ? legalCase.plaintiff.name : ''),
+                defendant: legalCase.defendant || (legalCase.defendantRel ? legalCase.defendantRel.name : ''),
+                
                 opposing_contact: legalCase.opposing_contact || '',
             });
             
-            // Inicializar a busca com o nome atual do advogado
-            setLawyerSearchTerm(legalCase.opposing_lawyer || '');
+            // Inicializar buscas
+            setLawyerSearchTerm(legalCase.opposing_lawyer || (legalCase.opposingLawyer ? legalCase.opposingLawyer.name : '') || '');
+            setPlaintiffSearchTerm(legalCase.opposing_party || (legalCase.plaintiff ? legalCase.plaintiff.name : '') || '');
+            setDefendantSearchTerm(legalCase.defendant || (legalCase.defendantRel ? legalCase.defendantRel.name : '') || '');
             
             setConversation(null);
             setMessages([]);
@@ -524,7 +646,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         }
     }, [legalCase]);
 
-    // Handlers para o Advogado Adverso
+    // --- HANDLERS ADVOGADO ---
     const handleSelectLawyer = (lawyer) => {
         setFormData(prev => ({
             ...prev,
@@ -536,20 +658,38 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         setShowLawyerDropdown(false);
     };
 
-    const handleCreateLawyer = () => {
-        setIsLawyerModalOpen(true);
-        setShowLawyerDropdown(false);
-    };
-
-    const handleOpenListModal = () => {
-        setIsListModalOpen(true);
-    };
-
+    const handleCreateLawyer = () => { setIsLawyerModalOpen(true); setShowLawyerDropdown(false); };
+    const handleOpenListModal = () => { setIsListModalOpen(true); };
     const handleLawyerCreated = (newLawyer) => {
         setOpposingLawyersList(prev => [...prev, newLawyer]);
         handleSelectLawyer(newLawyer);
     };
 
+    // --- HANDLERS AUTOR ---
+    const handleSelectPlaintiff = (plaintiff) => {
+        setFormData(prev => ({ ...prev, plaintiff_id: plaintiff.id, opposing_party: plaintiff.name }));
+        setPlaintiffSearchTerm(plaintiff.name);
+        setShowPlaintiffDropdown(false);
+    };
+    const handleCreatePlaintiff = () => { setIsPlaintiffModalOpen(true); setShowPlaintiffDropdown(false); };
+    const handlePlaintiffCreated = (newPlaintiff) => {
+        setPlaintiffsList(prev => [...prev, newPlaintiff]);
+        handleSelectPlaintiff(newPlaintiff);
+    };
+
+    // --- HANDLERS RÉU ---
+    const handleSelectDefendant = (defendant) => {
+        setFormData(prev => ({ ...prev, defendant_id: defendant.id, defendant: defendant.name }));
+        setDefendantSearchTerm(defendant.name);
+        setShowDefendantDropdown(false);
+    };
+    const handleCreateDefendant = () => { setIsDefendantModalOpen(true); setShowDefendantDropdown(false); };
+    const handleDefendantCreated = (newDefendant) => {
+        setDefendantsList(prev => [...prev, newDefendant]);
+        handleSelectDefendant(newDefendant);
+    };
+
+    // --- CHAT ---
     const fetchConversation = useCallback(async () => {
         if (!legalCase?.id) return;
         setChatLoading(true);
@@ -605,7 +745,6 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         setIsSubmitting(true); 
         setError(''); 
         try { 
-            // Converter campos numéricos
             const payload = {
                 ...formData,
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,
@@ -661,7 +800,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     lawyers={lawyers}
                                     handleChecklistChange={handleChecklistChange}
                                     
-                                    // Props do Advogado Adverso (Lupa + Create)
+                                    // Props Advogado
                                     opposingLawyersList={opposingLawyersList}
                                     lawyerSearchTerm={lawyerSearchTerm}
                                     setLawyerSearchTerm={setLawyerSearchTerm}
@@ -669,7 +808,25 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     setShowLawyerDropdown={setShowLawyerDropdown}
                                     handleSelectLawyer={handleSelectLawyer}
                                     handleCreateLawyer={handleCreateLawyer}
-                                    handleOpenListModal={handleOpenListModal} // <--- Passando a função
+                                    handleOpenListModal={handleOpenListModal}
+
+                                    // Props Autor
+                                    plaintiffsList={plaintiffsList}
+                                    plaintiffSearchTerm={plaintiffSearchTerm}
+                                    setPlaintiffSearchTerm={setPlaintiffSearchTerm}
+                                    showPlaintiffDropdown={showPlaintiffDropdown}
+                                    setShowPlaintiffDropdown={setShowPlaintiffDropdown}
+                                    handleSelectPlaintiff={handleSelectPlaintiff}
+                                    handleCreatePlaintiff={handleCreatePlaintiff}
+
+                                    // Props Réu
+                                    defendantsList={defendantsList}
+                                    defendantSearchTerm={defendantSearchTerm}
+                                    setDefendantSearchTerm={setDefendantSearchTerm}
+                                    showDefendantDropdown={showDefendantDropdown}
+                                    setShowDefendantDropdown={setShowDefendantDropdown}
+                                    handleSelectDefendant={handleSelectDefendant}
+                                    handleCreateDefendant={handleCreateDefendant}
                                 />
                                 {error && <p className={styles.error}>{error}</p>}
                                 <div className={styles.actions}> 
@@ -699,7 +856,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 </div>
             </div>
 
-            {/* Modal de Criação de Advogado */}
+            {/* Modais de Criação */}
             {isLawyerModalOpen && (
                 <AddEditOpposingLawyerModal 
                     onClose={() => setIsLawyerModalOpen(false)}
@@ -707,8 +864,22 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                     initialName={lawyerSearchTerm}
                 />
             )}
+            {isPlaintiffModalOpen && (
+                <AddEditPlaintiffModal 
+                    onClose={() => setIsPlaintiffModalOpen(false)}
+                    onSuccess={handlePlaintiffCreated}
+                    initialName={plaintiffSearchTerm}
+                />
+            )}
+            {isDefendantModalOpen && (
+                <AddEditDefendantModal 
+                    onClose={() => setIsDefendantModalOpen(false)}
+                    onSuccess={handleDefendantCreated}
+                    initialName={defendantSearchTerm}
+                />
+            )}
 
-            {/* Modal de Listagem/Busca e Marcação de Abusivo */}
+            {/* Modal de Listagem Advogado */}
             {isListModalOpen && (
                 <OpposingLawyerListModal
                     onClose={() => setIsListModalOpen(false)}
