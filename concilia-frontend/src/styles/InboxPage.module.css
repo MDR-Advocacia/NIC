@@ -1,25 +1,19 @@
 /* src/styles/InboxPage.module.css */
-
-/* --- CORES FORÇADAS (MODO CLARO) --- */
-/* O uso de !important garante que o estilo global não sobrescreva */
+/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
 
 .pageContainer {
     display: flex;
     flex-direction: column;
     height: calc(100vh - 4rem); 
+    color: var(--text-primary); /* MUDADO */
     font-family: 'Inter', system-ui, sans-serif;
     padding: 24px;
-    
-    /* FORÇA BRUTA: Fundo e Cor */
-    background-color: #F7FAFC !important; /* Cinza muito claro */
-    color: #2D3748 !important; /* Cinza chumbo */
 }
 
-/* HEADER */
 .header {
     flex-shrink: 0; 
     padding-bottom: 1rem;
-    border-bottom: 1px solid #E2E8F0 !important;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
     margin-bottom: 24px;
 }
 
@@ -27,17 +21,16 @@
     margin: 0;
     font-size: 1.8rem;
     font-weight: 700;
-    color: #1A202C !important; /* Preto Suave */
+    color: var(--text-primary); /* ADICIONADO */
     margin-bottom: 8px;
 }
 
 .header p {
     margin: 0.25rem 0 0 0;
-    color: #718096 !important; /* Cinza médio */
+    color: var(--text-secondary); /* MUDADO */
     font-size: 1rem;
 }
 
-/* LAYOUT */
 .inboxLayout {
     display: grid;
     grid-template-columns: 350px 1fr; 
@@ -47,15 +40,15 @@
     margin-top: 1.5rem;
 }
 
-/* --- PAINEL LATERAL (LISTA) --- */
+/* --- PAINEL ESQUERDO --- */
 .conversationListPanel {
-    background-color: #FFFFFF !important;
-    border-radius: 12px;
+    background-color: var(--bg-card); /* MUDADO */
+    border-radius: 8px;
     overflow-y: auto; 
     display: flex;
     flex-direction: column;
-    border: 1px solid #E2E8F0 !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .conversationItem {
@@ -64,41 +57,35 @@
     padding: 1rem;
     gap: 1rem;
     cursor: pointer;
-    border-bottom: 1px solid #E2E8F0 !important;
-    transition: all 0.2s ease;
-    background-color: #FFFFFF !important; /* Força branco */
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+    transition: background-color 0.2s, transform 0.2s ease-out;
 }
 
 .conversationItem:hover {
-    background-color: #EDF2F7 !important; /* Cinza no hover */
-    transform: translateY(-2px);
-    z-index: 1;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    background-color: var(--bg-hover); /* MUDADO */
+    transform: translateY(-3px);
 }
 
 .conversationItem.active {
-    background-color: #EBF8FF !important; /* Azul claro ativo */
-    border-left: 4px solid #3182CE !important;
+    background-color: var(--accent-primary); /* MUDADO */
 }
 
-/* AVATAR */
+/* --- ESTILO DO AVATAR MODIFICADO --- */
 .avatar {
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    color: #ffffff !important; 
+    font-weight: 600;
+    color: #ffffff; /* Cor do texto (iniciais) - Mantido branco */
     flex-shrink: 0;
     font-size: 0.9rem;
     text-transform: uppercase;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    border: 2px solid #fff;
 }
 
-/* DETALHES */
 .conversationDetails {
     flex-grow: 1;
     overflow: hidden; 
@@ -116,43 +103,43 @@
 
 .contactName {
     font-weight: 600;
-    color: #2D3748 !important;
+    color: var(--text-primary); /* ADICIONADO */
     font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .timestamp {
     font-size: 0.75rem;
-    color: #A0AEC0 !important;
+    color: var(--text-secondary); /* MUDADO */
 }
 
 .lastMessage {
-    margin: 0;
-    font-size: 0.85rem;
-    color: #718096 !important;
+    margin: 0.25rem 0 0 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary); /* MUDADO */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis; 
 }
 
-/* COR NO ATIVO */
-/* Precisamos de especificidade alta aqui */
-.conversationItem.active .contactName {
-    color: #2B6CB0 !important; /* Azul escuro */
-}
+/* Cor do texto quando o item está ativo */
+.conversationItem.active .timestamp,
 .conversationItem.active .lastMessage,
-.conversationItem.active .timestamp {
-    color: #4299E1 !important; /* Azul médio */
+.conversationItem.active .contactName {
+    color: var(--text-on-accent); /* MUDADO */
 }
 
-/* --- PAINEL DIREITO (CHAT) --- */
+/* --- PAINEL DIREITO --- */
 .chatViewPanel {
-    background-color: #FFFFFF !important;
-    border-radius: 12px;
+    background-color: var(--bg-card); /* MUDADO */
+    border-radius: 8px;
     display: flex;
     flex-direction: column;
     overflow: hidden; 
-    border: 1px solid #E2E8F0 !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color-light); /* ADICIONADO */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .chatHeader {
@@ -160,42 +147,39 @@
     justify-content: space-between;
     align-items: center;
     padding: 1rem 1.5rem;
-    border-bottom: 1px solid #E2E8F0 !important;
+    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
     flex-shrink: 0;
-    background-color: #F8FAFC !important;
+    background-color: var(--bg-header, var(--bg-card));
 }
 
 .chatHeaderInfo h3 {
     margin: 0;
     font-size: 1.1rem;
-    font-weight: 700;
-    color: #2D3748 !important;
+    color: var(--text-primary); /* ADICIONADO */
 }
 
 .chatHeaderInfo span {
-    font-size: 0.85rem;
-    color: #718096 !important;
+    font-size: 0.8rem;
+    color: var(--text-secondary); /* MUDADO */
 }
 
 .linkButton {
-    background-color: #3182CE !important;
-    color: white !important;
+    background-color: var(--accent-primary); /* MUDADO */
+    color: var(--text-on-accent); /* MUDADO */
     border: none;
     padding: 0.6rem 1.2rem;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
-    font-weight: 600;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(49, 130, 206, 0.3);
+    font-weight: bold;
+    transition: background-color 0.2s, transform 0.2s ease-out;
 }
 
 .linkButton:hover {
     transform: translateY(-2px);
-    background-color: #2B6CB0 !important;
-    box-shadow: 0 4px 6px rgba(49, 130, 206, 0.4);
+    background-color: var(--accent-primary-hover); /* ADICIONADO */
 }
 
-/* Placeholder */
+/* Placeholder para quando nenhuma conversa está selecionada */
 .placeholder {
     display: flex;
     flex-direction: column;
@@ -203,80 +187,23 @@
     align-items: center;
     height: 100%;
     text-align: center;
-    color: #A0AEC0 !important;
+    color: var(--text-secondary); /* MUDADO */
     padding: 2rem;
-    background-color: #F7FAFC !important;
 }
 
 .placeholder svg {
-    margin-bottom: 1.5rem;
-    color: #CBD5E0 !important;
+    margin-bottom: 1rem;
+    color: var(--border-color-light);
 }
 
 .placeholder h2 {
-    margin-top: 0;
-    color: #4A5568 !important;
+    margin-top: 1rem;
+    color: var(--text-primary); /* MUDADO */
     margin-bottom: 0.5rem;
-    font-size: 1.25rem;
 }
 
-/* ========================================= */
-/* --- MODO ESCURO (FORÇADO VIA MEDIA) --- */
-/* ========================================= */
-@media (prefers-color-scheme: dark) {
-    .pageContainer {
-        background-color: #171923 !important; /* Fundo bem escuro */
-        color: #EDF2F7 !important;
-    }
-
-    .header { border-bottom-color: #2D3748 !important; }
-    .header h1 { color: #F7FAFC !important; }
-    .header p { color: #A0AEC0 !important; }
-
-    .conversationListPanel, 
-    .chatViewPanel {
-        background-color: #1A202C !important;
-        border-color: #2D3748 !important;
-        box-shadow: none;
-    }
-
-    .conversationItem {
-        background-color: #1A202C !important;
-        border-bottom-color: #2D3748 !important;
-    }
-
-    .conversationItem:hover {
-        background-color: #2D3748 !important;
-    }
-
-    .conversationItem.active {
-        background-color: #2C5282 !important;
-        border-left-color: #63B3ED !important;
-    }
-
-    .contactName { color: #E2E8F0 !important; }
-    .timestamp { color: #718096 !important; }
-    .lastMessage { color: #A0AEC0 !important; }
-    
-    .conversationItem.active .contactName { color: #fff !important; }
-    .conversationItem.active .lastMessage { color: #90CDF4 !important; }
-
-    .chatHeader {
-        background-color: #1A202C !important;
-        border-bottom-color: #2D3748 !important;
-    }
-
-    .chatHeaderInfo h3 { color: #EDF2F7 !important; }
-    .chatHeaderInfo span { color: #A0AEC0 !important; }
-
-    .placeholder {
-        background-color: #171923 !important;
-        color: #718096 !important;
-    }
-    .placeholder svg { color: #2D3748 !important; }
-    .placeholder h2 { color: #E2E8F0 !important; }
-    
-    .avatar { border-color: #1A202C !important; }
+.placeholder p {
+    max-width: 300px;
 }
 
 /* RESPONSIVIDADE */
@@ -284,18 +211,24 @@
     .inboxLayout {
         grid-template-columns: 1fr;
     }
-    .conversationListPanel { height: 300px; }
-    .chatViewPanel { height: 500px; }
+
+    .conversationListPanel {
+        height: 300px;
+    }
+    
+    .chatViewPanel {
+        height: 500px;
+    }
 }
 
-/* SCROLLBAR */
-.conversationListPanel::-webkit-scrollbar { width: 6px; }
+/* --- SCROLLBAR BONITA --- */
+.conversationListPanel::-webkit-scrollbar {
+    width: 6px;
+}
 .conversationListPanel::-webkit-scrollbar-thumb {
-    background-color: #CBD5E0;
+    background-color: var(--border-color-light);
     border-radius: 10px;
 }
-.conversationListPanel::-webkit-scrollbar-track { background: transparent; }
-
-@media (prefers-color-scheme: dark) {
-    .conversationListPanel::-webkit-scrollbar-thumb { background-color: #4A5568; }
+.conversationListPanel::-webkit-scrollbar-track {
+    background: transparent;
 }
