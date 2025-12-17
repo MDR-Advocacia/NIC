@@ -1,5 +1,5 @@
 // src/pages/CaseDetailPage.jsx
-// ATUALIZADO: Exibe todos os novos campos e alerta de Litigante Abusivo
+
 
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -33,6 +33,7 @@ const CaseDetailPage = () => {
     const [legalCase, setLegalCase] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [debugInfo, setDebugInfo] = useState(null); // Para mostrar o erro real na tela
 
     const [conversation, setConversation] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -40,7 +41,6 @@ const CaseDetailPage = () => {
     const [isSending, setIsSending] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     
-    // Estado para verificar se o advogado é abusivo
     const [isAbusiveLawyer, setIsAbusiveLawyer] = useState(false);
 
     useEffect(() => {
@@ -48,37 +48,81 @@ const CaseDetailPage = () => {
             if (!token || !caseId) return;
             setLoading(true);
             setError('');
+            
+            // CONFIGURAÇÃO DE AUTENTICAÇÃO
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+
             try {
-                const caseResponse = await apiClient.get(`/cases/${caseId}`);
-                const caseData = caseResponse.data;
+                // CORREÇÃO: Adicionado 'config' na chamada
+                const caseResponse = await apiClient.get(`/cases/${caseId}`, config);
+                console.log("DADOS BRUTOS DO CASO:", caseResponse.data); 
+
+                // 1. TRATAMENTO DE FORMATO DE RESPOSTA
+                let caseData = caseResponse.data;
+                if (caseData && caseData.data && !caseData.id) {
+                    caseData = caseData.data;
+                }
+
+                if (!caseData || !caseData.id) {
+                    throw new Error("Formato de dados inválido recebido do servidor.");
+                }
+
                 setLegalCase(caseData);
 
-                // Verifica se o advogado vinculado é abusivo
+                // 2. LÓGICA DE ADVOGADO ADVERSO (Blindada)
+                let opposingLawyerId = null;
+                
                 if (caseData.opposing_lawyer_id) {
-                    try {
-                        // Busca dados do advogado específico para checar flag 'is_abusive'
-                        // Nota: O ideal seria o endpoint /cases/{id} já trazer o relacionamento 'opposingLawyer'
-                        // Mas faremos um fetch seguro aqui caso o backend ainda não traga.
-                        if (caseData.opposing_lawyer_id) {
-                             const advResponse = await apiClient.get('/opposing-lawyers'); // Traz lista
-                             const found = advResponse.data.find(a => a.id === caseData.opposing_lawyer_id);
-                             if (found && found.is_abusive) setIsAbusiveLawyer(true);
-                        }
-                    } catch (e) { console.error("Erro ao verificar advogado abusivo", e); }
+                    opposingLawyerId = caseData.opposing_lawyer_id;
+                } else if (caseData.opposing_lawyer && typeof caseData.opposing_lawyer === 'object') {
+                    opposingLawyerId = caseData.opposing_lawyer.id;
+                    if (caseData.opposing_lawyer.is_abusive) setIsAbusiveLawyer(true);
                 }
 
+                if (opposingLawyerId && !isAbusiveLawyer) {
+                    try {
+                        // CORREÇÃO: Adicionado 'config' na chamada
+                        const advResponse = await apiClient.get('/opposing-lawyers', config);
+                        const listaAdvogados = Array.isArray(advResponse.data) ? advResponse.data : (advResponse.data.data || []);
+                        
+                        if (Array.isArray(listaAdvogados)) {
+                            const found = listaAdvogados.find(a => a.id === opposingLawyerId);
+                            if (found && found.is_abusive) setIsAbusiveLawyer(true);
+                        }
+                    } catch (e) { 
+                        console.warn("Não foi possível verificar status abusivo do advogado:", e); 
+                    }
+                }
+
+                // 3. CARREGA CHAT
                 setIsLoadingMessages(true);
                 try {
-                    const chatResponse = await apiClient.get(`/cases/${caseId}/conversation`);
-                    if (chatResponse.data && chatResponse.data.conversation) {
-                        setConversation(chatResponse.data.conversation);
-                        setMessages(chatResponse.data.messages || []);
+                    // CORREÇÃO: Adicionado 'config' na chamada
+                    const chatResponse = await apiClient.get(`/cases/${caseId}/conversation`, config);
+                    const chatData = chatResponse.data;
+                    
+                    if (chatData && chatData.conversation) {
+                        setConversation(chatData.conversation);
+                        setMessages(chatData.messages || []);
+                    } else if (chatData && chatData.data && chatData.data.conversation) {
+                        setConversation(chatData.data.conversation);
+                        setMessages(chatData.data.messages || []);
                     }
                 } catch (chatError) {
-                    console.error("Nenhuma conversa encontrada.");
+                    console.warn("Nenhuma conversa encontrada ou erro ao carregar chat.");
                 }
+
             } catch (err) {
-                setError('Não foi possível carregar os dados do caso.');
+                console.error("Erro crítico ao carregar caso:", err);
+                const msg = err.response?.data?.message || err.message || "Erro desconhecido";
+                const status = err.response?.status ? `Status: ${err.response.status}` : "";
+                
+                if (err.response?.status === 401) {
+                    setError('Sessão expirada. Por favor, faça login novamente.');
+                } else {
+                    setError('Não foi possível carregar os dados.');
+                }
+                setDebugInfo(`${msg} ${status}`);
             } finally {
                 setLoading(false);
                 setIsLoadingMessages(false);
@@ -95,7 +139,12 @@ const CaseDetailPage = () => {
         }
         setIsSending(true);
         try {
-            const response = await apiClient.post(`/chat/conversations/${conversation.id}/messages`, { content });
+            // CORREÇÃO: Adicionado Authorization header
+            const response = await apiClient.post(
+                `/chat/conversations/${conversation.id}/messages`, 
+                { content },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
             setMessages(currentMessages => [...currentMessages, response.data]);
         } catch (err) {
             alert('Erro ao enviar mensagem.');
@@ -105,7 +154,7 @@ const CaseDetailPage = () => {
     };
 
     const handleGenerateAgreement = async () => {
-        if (!legalCase.agreement_value) {
+        if (!legalCase?.agreement_value) {
             alert("Defina um Valor Negociado para gerar a minuta.");
             return;
         }
@@ -129,8 +178,22 @@ const CaseDetailPage = () => {
         }
     };
 
-    if (loading) return <p>Carregando detalhes...</p>;
-    if (error) return <p style={{ color: 'red' }}>{error}</p>;
+    if (loading) return <p style={{padding:'20px'}}>Carregando detalhes do processo...</p>;
+    
+    // EXIBIÇÃO DE ERRO COM DEBUG
+    if (error) return (
+        <div style={{padding:'20px', color: '#e53e3e'}}>
+            <h3>{error}</h3>
+            {debugInfo && (
+                <div style={{background: '#fff5f5', padding: '10px', borderRadius: '5px', marginTop: '10px', border: '1px solid #feb2b2'}}>
+                    <strong>Detalhes técnicos:</strong>
+                    <pre style={{whiteSpace: 'pre-wrap', fontSize: '0.85rem'}}>{debugInfo}</pre>
+                </div>
+            )}
+            <Link to="/pipeline" style={{display:'inline-block', marginTop:'15px', color:'#3182ce'}}>Voltar para a Lista</Link>
+        </div>
+    );
+
     if (!legalCase) return <p>Caso não encontrado.</p>;
 
     const formatCurrency = (value) => {
@@ -141,6 +204,19 @@ const CaseDetailPage = () => {
     const currentStatus = STATUS_DETAILS[legalCase.status] || { name: legalCase.status, color: '#A0AEC0', textColor: '#1A202C' };
     const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority, color: '#A0AEC0', textColor: '#1A202C' };
     
+    // --- HELPERS PARA EXIBIR DADOS COMPLEXOS ---
+    const getPartyName = (party) => {
+        if (!party) return '-';
+        if (typeof party === 'string') return party;
+        return party.name || party.nome || '-';
+    };
+
+    const getLawyerName = (lawyer) => {
+        if (!lawyer) return 'Não inf.';
+        if (typeof lawyer === 'string') return lawyer;
+        return lawyer.name || lawyer.nome || 'Não inf.';
+    };
+
     return (
         <div className={styles.pageContainer}>
             {/* CABEÇALHO */}
@@ -155,7 +231,8 @@ const CaseDetailPage = () => {
                             </span>
                         )}
                     </div>
-                    <p>{legalCase.action_object} - {legalCase.opposing_party} x {legalCase.defendant}</p>
+                    {/* TRATAMENTO AQUI: Usa helper function para extrair nome se for objeto */}
+                    <p>{legalCase.action_object} - {getPartyName(legalCase.opposing_party)} x {getPartyName(legalCase.defendant)}</p>
                 </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1rem' }}>
@@ -188,7 +265,8 @@ const CaseDetailPage = () => {
                 <DetailKpiCard icon={<FaTasks />} title="PCOND (Risco)" value={legalCase.pcond_probability ? `${legalCase.pcond_probability}%` : '-'} color="#9333ea">
                     {legalCase.updated_condemnation_value ? `Cond. Atual: ${formatCurrency(legalCase.updated_condemnation_value)}` : 'Sem estimativa'}
                 </DetailKpiCard>
-                <DetailKpiCard icon={<FaUserTie />} title="Advogado Adverso" value={legalCase.opposing_lawyer || 'Não inf.'} color={isAbusiveLawyer ? "#dc2626" : "#4a5568"}>
+                {/* TRATAMENTO AQUI: Usa helper function */}
+                <DetailKpiCard icon={<FaUserTie />} title="Advogado Adverso" value={getLawyerName(legalCase.opposing_lawyer)} color={isAbusiveLawyer ? "#dc2626" : "#4a5568"}>
                     {legalCase.opposing_contact || 'Sem contato'}
                 </DetailKpiCard>
             </div>
@@ -224,9 +302,6 @@ const CaseDetailPage = () => {
                     {legalCase.agreement_checklist_data && (
                         <div className={styles.infoCard}>
                             <h3>Checklist de Análise</h3>
-                            {/* Reutilizamos o componente, passando apenas leitura se desejado, 
-                                mas aqui deixamos editável apenas se quiser salvar, ou visual. 
-                                Vamos apenas exibir o componente preenchido. */}
                             <AgreementChecklist 
                                 checklistData={legalCase.agreement_checklist_data} 
                                 onUpdate={() => {}} // Read-only visual effect
