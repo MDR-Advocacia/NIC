@@ -26,6 +26,7 @@ const ImportDataPage = () => {
         'Autor': 'opposing_party',
         'Réu': 'defendant',
         'Nome do Advogado Responsável': 'lawyer_name',
+        'Advogado Adverso': 'opposing_lawyer', // NOVO CAMPO
         'Comarca': 'comarca',
         'Cidade': 'city',
         'UF': 'state',
@@ -74,6 +75,7 @@ const ImportDataPage = () => {
             'Autor *',
             'Réu *',
             'Nome do Advogado Responsável *',
+            'Advogado Adverso', // NOVO
             'Comarca',
             'Cidade',
             'UF',
@@ -94,7 +96,8 @@ const ImportDataPage = () => {
             '01/01/2024',                
             'João da Silva',             
             'Banco do Brasil S.A.',      
-            'Marcos Délli',       
+            'Marcos Délli',
+            'Dr. Estranho', // Exemplo Advogado Adverso    
             'São Paulo',                 
             'São Paulo',                 
             'SP',                        
