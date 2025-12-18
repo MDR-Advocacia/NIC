@@ -2,7 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import styles from '../styles/UserManagement.module.css';
-import { FaUserPlus, FaSync, FaEdit, FaTrash, FaPlus, FaTimes, FaSave, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import { 
+    FaUserPlus, FaSync, FaEdit, FaTrash, FaPlus, FaTimes, FaSave, 
+    FaChevronLeft, FaChevronRight, FaCheckSquare, FaBan, FaTrashAlt, FaUserTag 
+} from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import AddDepartmentModal from '../components/AddDepartmentModal';
 
@@ -16,7 +19,6 @@ const ROLE_DETAILS = {
     'administrador': { name: 'Administrador', color: '#9f7aea', textColor: '#FFFFFF' },
     'supervisor': { name: 'Supervisor', color: '#ed8936', textColor: '#FFFFFF' },
     'operador': { name: 'Operador', color: '#4299e1', textColor: '#FFFFFF' },
-    
 };
 
 const StatusTag = ({ status }) => {
@@ -37,7 +39,7 @@ const UserManagementPage = () => {
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
     
-    // --- ESTADO DE PAGINAÇÃO (NOVO) ---
+    // --- PAGINAÇÃO ---
     const [pagination, setPagination] = useState({
         current_page: 1,
         last_page: 1,
@@ -52,13 +54,20 @@ const UserManagementPage = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [currentUserId, setCurrentUserId] = useState(null);
 
+    // --- ESTADOS PARA AÇÕES EM LOTE ---
+    const [selectedUsers, setSelectedUsers] = useState([]); // Array de IDs
+    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+    const [showBatchRoleSelect, setShowBatchRoleSelect] = useState(false); // Para mostrar select de cargo na barra
+
     const [formData, setFormData] = useState({
         name: '', email: '', password: '', role: 'operador', department_id: '', status: 'ativo', area: ''
     });
 
-    // Função de busca atualizada para aceitar paginação
+    // Função de busca
     const fetchData = useCallback(async (page = 1) => {
         setLoading(true);
+        // Limpa seleção ao mudar de página ou recarregar para evitar erros
+        setSelectedUsers([]); 
         try {
             const userParams = new URLSearchParams({ ...filters, page: page });
             
@@ -67,13 +76,11 @@ const UserManagementPage = () => {
                 apiClient.get('/departments', { headers: { Authorization: `Bearer ${token}` } })
             ]);
 
-            // Backend agora retorna { data: [...], current_page: 1, ... }
             const responseData = usersRes.data;
             
             setUsers(responseData.data || []);
             setDepartments(deptsRes.data || []);
 
-            // Atualiza paginação
             setPagination({
                 current_page: responseData.current_page || 1,
                 last_page: responseData.last_page || 1,
@@ -87,13 +94,12 @@ const UserManagementPage = () => {
         }
     }, [token, filters]);
 
-    // Recarrega quando filtros mudam (volta pra pág 1)
     useEffect(() => {
         const timer = setTimeout(() => { fetchData(1); }, 300);
         return () => clearTimeout(timer);
-    }, [filters, fetchData]); // Removemos fetchData do deps se ele não mudar, mas useCallback garante
+    }, [filters, fetchData]);
 
-    // Filtragem Frontend (Apenas para Área, já que Area não está no filtro backend ainda)
+    // Filtragem Frontend (Área)
     const displayedUsers = useMemo(() => {
         if (!filterArea) return users; 
         return users.filter(user => user.area === filterArea);
@@ -114,7 +120,52 @@ const UserManagementPage = () => {
         }
     };
 
-    // --- MANIPULAÇÃO DE DADOS ---
+    // --- LÓGICA DE SELEÇÃO (CHECKBOXES) ---
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            // Seleciona todos os visíveis na tela
+            const allIds = displayedUsers.map(u => u.id);
+            setSelectedUsers(allIds);
+        } else {
+            setSelectedUsers([]);
+        }
+    };
+
+    const handleSelectUser = (id) => {
+        setSelectedUsers(prev => {
+            if (prev.includes(id)) {
+                return prev.filter(userId => userId !== id);
+            } else {
+                return [...prev, id];
+            }
+        });
+    };
+
+    // --- LÓGICA DE AÇÕES EM LOTE (API) ---
+    const handleBatchAction = async (action, value = null) => {
+        if (!window.confirm(`Tem a certeza que deseja aplicar esta ação para ${selectedUsers.length} utilizadores?`)) return;
+
+        setIsBatchProcessing(true);
+        try {
+            await apiClient.post('/users/batch-update', {
+                user_ids: selectedUsers,
+                action: action,
+                value: value
+            }, { headers: { Authorization: `Bearer ${token}` } });
+
+            alert('Ação em lote realizada com sucesso!');
+            fetchData(pagination.current_page); // Recarrega dados
+            setSelectedUsers([]); // Limpa seleção
+            setShowBatchRoleSelect(false);
+        } catch (error) {
+            console.error(error);
+            alert('Erro ao processar ação em lote. Verifique se tem permissão.');
+        } finally {
+            setIsBatchProcessing(false);
+        }
+    };
+
+    // --- CRUD INDIVIDUAL ---
     const handleOpenAddModal = () => {
         setIsEditing(false);
         setCurrentUserId(null);
@@ -153,7 +204,7 @@ const UserManagementPage = () => {
                 await apiClient.post('/users', payload, { headers: { Authorization: `Bearer ${token}` } });
             }
             setIsUserFormModalOpen(false);
-            fetchData(pagination.current_page); // Recarrega página atual
+            fetchData(pagination.current_page);
             alert(isEditing ? 'Atualizado!' : 'Criado!');
         } catch (err) {
             alert('Erro ao salvar.');
@@ -179,6 +230,9 @@ const UserManagementPage = () => {
 
     const handleSaveSuccess = () => { setIsDepartmentModalOpen(false); fetchData(pagination.current_page); };
 
+    // Verifica se todos da página atual estão selecionados
+    const isAllSelected = displayedUsers.length > 0 && displayedUsers.every(u => selectedUsers.includes(u.id));
+
     return (
         <div className={styles.pageContainer}>
             <header className={styles.header}>
@@ -195,9 +249,8 @@ const UserManagementPage = () => {
             </header>
 
             <section className={styles.kpiGrid}>
-                {/* Agora usamos o TOTAL real do banco, não só os 15 da tela */}
                 <KpiCard title="Total" value={pagination.total} />
-                <KpiCard title="Na Tela" value={users.length} />
+                <KpiCard title="Selecionados" value={selectedUsers.length} />
                 <KpiCard title="Página" value={`${pagination.current_page}/${pagination.last_page}`} />
             </section>
 
@@ -225,18 +278,36 @@ const UserManagementPage = () => {
             </section>
 
             <section className={styles.tableContainer}>
-                {loading ? <p>Carregando...</p> : (
+                {loading ? <p style={{padding:'20px'}}>Carregando...</p> : (
                     <>
                         <table className={styles.table}>
                             <thead>
                                 <tr>
+                                    {/* CHECKBOX HEADER */}
+                                    <th style={{ width: '40px', textAlign: 'center' }}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isAllSelected} 
+                                            onChange={handleSelectAll}
+                                            className={styles.checkboxInput}
+                                        />
+                                    </th>
                                     <th>Usuário</th><th>Função</th><th>Área</th><th>Depto</th><th>Status</th>
                                     {canManage && <th style={{ minWidth: '100px', whiteSpace: 'nowrap' }}>Ações</th>}
                                 </tr>
                             </thead>
                             <tbody>
                                 {displayedUsers.map(user => (
-                                    <tr key={user.id}>
+                                    <tr key={user.id} className={selectedUsers.includes(user.id) ? styles.rowSelected : ''}>
+                                        {/* CHECKBOX ROW */}
+                                        <td style={{ textAlign: 'center' }}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedUsers.includes(user.id)}
+                                                onChange={() => handleSelectUser(user.id)}
+                                                className={styles.checkboxInput}
+                                            />
+                                        </td>
                                         <td>
                                             <div className={styles.userCell}>
                                                 <div className={styles.userAvatar}>{getInitials(user.name)}</div>
@@ -260,7 +331,7 @@ const UserManagementPage = () => {
                             </tbody>
                         </table>
                         
-                        {/* --- CONTROLE DE PAGINAÇÃO --- */}
+                        {/* PAGINAÇÃO */}
                         {pagination.last_page > 1 && (
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', padding: '20px' }}>
                                 <button 
@@ -270,11 +341,9 @@ const UserManagementPage = () => {
                                 >
                                     <FaChevronLeft /> Anterior
                                 </button>
-                                
                                 <span style={{ color: '#64748b' }}>
                                     Página <strong>{pagination.current_page}</strong> de <strong>{pagination.last_page}</strong>
                                 </span>
-
                                 <button 
                                     onClick={() => handlePageChange(pagination.current_page + 1)}
                                     disabled={pagination.current_page === pagination.last_page}
@@ -288,9 +357,70 @@ const UserManagementPage = () => {
                 )}
             </section>
 
+            {/* --- BARRA FLUTUANTE DE AÇÕES EM LOTE --- */}
+            {selectedUsers.length > 0 && (
+                <div className={styles.batchActionBar}>
+                    <div className={styles.batchInfo}>
+                        <strong>{selectedUsers.length}</strong> selecionado(s)
+                    </div>
+                    
+                    <div className={styles.batchActions}>
+                        {/* Ação: Ativar */}
+                        <button 
+                            className={`${styles.batchBtn} ${styles.btnSuccess}`} 
+                            onClick={() => handleBatchAction('update_status', 1)} // 1 ou true para ativo
+                            disabled={isBatchProcessing}
+                        >
+                            <FaCheckSquare /> Ativar
+                        </button>
+
+                        {/* Ação: Desativar */}
+                        <button 
+                            className={`${styles.batchBtn} ${styles.btnWarning}`} 
+                            onClick={() => handleBatchAction('update_status', 0)} // 0 ou false para inativo
+                            disabled={isBatchProcessing}
+                        >
+                            <FaBan /> Desativar
+                        </button>
+                        
+                        {/* Ação: Mudar Cargo (Toggle Select) */}
+                        {!showBatchRoleSelect ? (
+                            <button 
+                                className={`${styles.batchBtn} ${styles.btnInfo}`} 
+                                onClick={() => setShowBatchRoleSelect(true)}
+                                disabled={isBatchProcessing}
+                            >
+                                <FaUserTag /> Cargo
+                            </button>
+                        ) : (
+                            <select 
+                                className={styles.batchSelect}
+                                onChange={(e) => handleBatchAction('update_role', e.target.value)}
+                                defaultValue=""
+                            >
+                                <option value="" disabled>Selecione...</option>
+                                <option value="operador">Operador</option>
+                                <option value="supervisor">Supervisor</option>
+                                <option value="administrador">Admin</option>
+                            </select>
+                        )}
+
+                        {/* Ação: Excluir */}
+                        <button 
+                            className={`${styles.batchBtn} ${styles.btnDanger}`} 
+                            onClick={() => handleBatchAction('delete')}
+                            disabled={isBatchProcessing}
+                        >
+                            <FaTrashAlt /> Excluir
+                        </button>
+
+                        <button className={styles.batchClose} onClick={() => setSelectedUsers([])}><FaTimes /></button>
+                    </div>
+                </div>
+            )}
+
             {isUserFormModalOpen && (
                 <div className={styles.modalOverlay}>
-                    {/* Modal Form Content (Mesmo de antes) */}
                     <div className={styles.modalContent}>
                         <div className={styles.modalHeader}>
                             <h2>{isEditing ? 'Editar Usuário' : 'Novo Usuário'}</h2>

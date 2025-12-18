@@ -9,6 +9,7 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    padding-bottom: 80px; /* Espaço extra para a barra flutuante */
 }
 
 /* --- HEADER --- */
@@ -16,7 +17,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap; /* Ajuda no mobile */
+    flex-wrap: wrap; 
     gap: 1rem;
 }
 
@@ -64,7 +65,7 @@
 .newUserButton {
     background-color: var(--accent-primary);
     border: 1px solid var(--accent-primary);
-    color: #ffffff; /* Sempre branco no botão de destaque */
+    color: #ffffff;
 }
 
 .newUserButton:hover {
@@ -126,7 +127,7 @@
     border-radius: 8px;
     border: 1px solid var(--border-color-light);
     box-shadow: var(--card-shadow);
-    overflow-x: auto; /* Rolagem lateral se precisar */
+    overflow-x: auto;
 }
 
 .table {
@@ -152,6 +153,17 @@
     vertical-align: middle;
 }
 
+/* Estilo para linha selecionada */
+.rowSelected {
+    background-color: rgba(59, 130, 246, 0.05); /* Leve azul */
+}
+
+.checkboxInput {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
 /* Célula de Usuário (Avatar + Nome) */
 .userCell {
     display: flex;
@@ -163,7 +175,7 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background-color: var(--bg-hover); /* Fundo sutil */
+    background-color: var(--bg-hover);
     color: var(--accent-primary);
     display: flex;
     align-items: center;
@@ -196,7 +208,6 @@
     display: inline-block;
 }
 
-/* Tag da Área (Adaptável ao Tema) */
 .tagArea {
     background-color: var(--bg-hover);
     color: var(--text-secondary);
@@ -208,54 +219,100 @@
     white-space: nowrap;
 }
 
-/* --- AÇÕES (Força Bruta para alinhar) --- */
-
-/* 1. Define uma largura mínima fixa para a coluna inteira */
-.actionsHeader, 
-.actionsCell {
-    min-width: 100px !important; /* Garante espaço para os 2 ícones */
-    width: 100px;
-    box-sizing: border-box;
-}
-
-/* 2. Alinha os ícones */
-.actionsCell {
-    display: flex !important;
-    flex-direction: row !important; /* Garante linha horizontal */
+/* --- BATCH ACTION BAR (Ações em Lote) --- */
+.batchActionBar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color-dark);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    padding: 15px 25px;
+    border-radius: 12px;
+    display: flex;
     align-items: center;
-    justify-content: flex-start;
-    gap: 15px; /* Espaço entre eles */
-    white-space: nowrap !important; /* Proíbe quebra de linha */
+    gap: 20px;
+    z-index: 1000;
+    animation: slideUp 0.3s ease-out;
+    width: 90%;
+    max-width: 800px;
 }
 
-/* 3. Estilo dos Ícones */
-.iconBtn {
+.batchInfo {
+    font-size: 1rem;
+    color: var(--text-primary);
+    padding-right: 20px;
+    border-right: 1px solid var(--border-color-light);
+}
+
+.batchActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.batchBtn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
     cursor: pointer;
-    color: var(--text-secondary);
-    font-size: 1.1rem;
-    background: transparent;
     border: none;
-    display: inline-flex; /* Comportamento de texto */
-    padding: 0;
-    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    transition: filter 0.2s;
 }
 
-.iconBtn:hover {
-    color: var(--accent-primary);
-    transform: scale(1.1);
+.batchBtn:hover {
+    filter: brightness(1.1);
 }
 
-.iconDelete:hover {
-    color: #ef4444;
+.batchBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
-/* --- MODAL (Janela Flutuante) --- */
+
+/* Cores dos botões de lote */
+.btnSuccess { background-color: #38a169; }
+.btnWarning { background-color: #718096; }
+.btnInfo { background-color: #3182ce; }
+.btnDanger { background-color: #e53e3e; }
+
+.batchSelect {
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color-dark);
+}
+
+.batchClose {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    margin-left: auto; /* Empurra para o fim */
+    cursor: pointer;
+}
+
+.batchClose:hover { color: #e53e3e; }
+
+@keyframes slideUp {
+    from { transform: translate(-50%, 100%); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+/* --- MODAL --- */
 .modalOverlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.7); /* Fundo escuro transparente */
+    background: rgba(0, 0, 0, 0.7);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -264,7 +321,7 @@
 }
 
 .modalContent {
-    background-color: var(--bg-card); /* Adapta ao tema */
+    background-color: var(--bg-card);
     color: var(--text-primary);
     padding: 30px;
     border-radius: 12px;
@@ -310,7 +367,6 @@
     gap: 15px;
 }
 
-/* ALINHAMENTO LADO A LADO */
 .formRow {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -337,7 +393,7 @@
     border-radius: 6px;
     font-size: 0.95rem;
     width: 100%;
-    box-sizing: border-box; /* O SEGREDO DO ALINHAMENTO */
+    box-sizing: border-box;
     background-color: var(--bg-input);
     color: var(--text-primary);
     outline: none;
