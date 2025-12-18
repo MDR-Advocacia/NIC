@@ -1,5 +1,5 @@
 // src/pages/CaseDetailPage.jsx
-
+// VERSÃO BLINDADA: Corrige crash em dados importados (Objetos e Nulos)
 
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -33,7 +33,7 @@ const CaseDetailPage = () => {
     const [legalCase, setLegalCase] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [debugInfo, setDebugInfo] = useState(null); // Para mostrar o erro real na tela
+    const [debugInfo, setDebugInfo] = useState(null);
 
     const [conversation, setConversation] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -49,15 +49,13 @@ const CaseDetailPage = () => {
             setLoading(true);
             setError('');
             
-            // CONFIGURAÇÃO DE AUTENTICAÇÃO
             const config = { headers: { Authorization: `Bearer ${token}` } };
 
             try {
-                // CORREÇÃO: Adicionado 'config' na chamada
                 const caseResponse = await apiClient.get(`/cases/${caseId}`, config);
-                console.log("DADOS BRUTOS DO CASO:", caseResponse.data); 
+                // console.log("DADOS BRUTOS DO CASO:", caseResponse.data); 
 
-                // 1. TRATAMENTO DE FORMATO DE RESPOSTA
+                // TRATAMENTO DE FORMATO (data.data ou data direto)
                 let caseData = caseResponse.data;
                 if (caseData && caseData.data && !caseData.id) {
                     caseData = caseData.data;
@@ -69,7 +67,7 @@ const CaseDetailPage = () => {
 
                 setLegalCase(caseData);
 
-                // 2. LÓGICA DE ADVOGADO ADVERSO (Blindada)
+                // LÓGICA DE ADVOGADO ADVERSO
                 let opposingLawyerId = null;
                 
                 if (caseData.opposing_lawyer_id) {
@@ -81,7 +79,6 @@ const CaseDetailPage = () => {
 
                 if (opposingLawyerId && !isAbusiveLawyer) {
                     try {
-                        // CORREÇÃO: Adicionado 'config' na chamada
                         const advResponse = await apiClient.get('/opposing-lawyers', config);
                         const listaAdvogados = Array.isArray(advResponse.data) ? advResponse.data : (advResponse.data.data || []);
                         
@@ -94,10 +91,9 @@ const CaseDetailPage = () => {
                     }
                 }
 
-                // 3. CARREGA CHAT
+                // CARREGA CHAT
                 setIsLoadingMessages(true);
                 try {
-                    // CORREÇÃO: Adicionado 'config' na chamada
                     const chatResponse = await apiClient.get(`/cases/${caseId}/conversation`, config);
                     const chatData = chatResponse.data;
                     
@@ -109,7 +105,7 @@ const CaseDetailPage = () => {
                         setMessages(chatData.data.messages || []);
                     }
                 } catch (chatError) {
-                    console.warn("Nenhuma conversa encontrada ou erro ao carregar chat.");
+                    // console.warn("Nenhuma conversa encontrada.");
                 }
 
             } catch (err) {
@@ -120,7 +116,7 @@ const CaseDetailPage = () => {
                 if (err.response?.status === 401) {
                     setError('Sessão expirada. Por favor, faça login novamente.');
                 } else {
-                    setError('Não foi possível carregar os dados.');
+                    setError('Não foi possível carregar os dados deste caso.');
                 }
                 setDebugInfo(`${msg} ${status}`);
             } finally {
@@ -139,7 +135,6 @@ const CaseDetailPage = () => {
         }
         setIsSending(true);
         try {
-            // CORREÇÃO: Adicionado Authorization header
             const response = await apiClient.post(
                 `/chat/conversations/${conversation.id}/messages`, 
                 { content },
@@ -180,10 +175,10 @@ const CaseDetailPage = () => {
 
     if (loading) return <p style={{padding:'20px'}}>Carregando detalhes do processo...</p>;
     
-    // EXIBIÇÃO DE ERRO COM DEBUG
     if (error) return (
         <div style={{padding:'20px', color: '#e53e3e'}}>
-            <h3>{error}</h3>
+            <h3>Ops! Algo deu errado.</h3>
+            <p>{error}</p>
             {debugInfo && (
                 <div style={{background: '#fff5f5', padding: '10px', borderRadius: '5px', marginTop: '10px', border: '1px solid #feb2b2'}}>
                     <strong>Detalhes técnicos:</strong>
@@ -196,15 +191,23 @@ const CaseDetailPage = () => {
 
     if (!legalCase) return <p>Caso não encontrado.</p>;
 
+    // --- FUNÇÕES SEGURAS (Blindagem contra dados nulos) ---
     const formatCurrency = (value) => {
-        if (value === null || value === undefined) return '-';
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        if (value === null || value === undefined || value === '') return '-';
+        const num = parseFloat(value);
+        if (isNaN(num)) return '-';
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
     };
 
-    const currentStatus = STATUS_DETAILS[legalCase.status] || { name: legalCase.status, color: '#A0AEC0', textColor: '#1A202C' };
-    const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority, color: '#A0AEC0', textColor: '#1A202C' };
-    
-    // --- HELPERS PARA EXIBIR DADOS COMPLEXOS ---
+    const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '-';
+            return date.toLocaleDateString('pt-BR');
+        } catch (e) { return '-'; }
+    };
+
     const getPartyName = (party) => {
         if (!party) return '-';
         if (typeof party === 'string') return party;
@@ -212,10 +215,14 @@ const CaseDetailPage = () => {
     };
 
     const getLawyerName = (lawyer) => {
-        if (!lawyer) return 'Não inf.';
+        if (!lawyer) return 'Não informado';
         if (typeof lawyer === 'string') return lawyer;
-        return lawyer.name || lawyer.nome || 'Não inf.';
+        return lawyer.name || lawyer.nome || 'Não informado';
     };
+
+    // Segurança no Status/Prioridade (evita erro se vier nulo da importação)
+    const currentStatus = STATUS_DETAILS[legalCase.status] || { name: legalCase.status || 'Sem Status', color: '#CBD5E0', textColor: '#1A202C' };
+    const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority || 'Normal', color: '#CBD5E0', textColor: '#1A202C' };
 
     return (
         <div className={styles.pageContainer}>
@@ -224,15 +231,17 @@ const CaseDetailPage = () => {
                 <div>
                     <Link to="/pipeline" className={styles.backLink}>{"< Voltar"}</Link>
                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                        <h1 className={styles.title}>Processo #{legalCase.case_number}</h1>
+                        <h1 className={styles.title}>Processo #{legalCase.case_number || 'S/N'}</h1>
                         {legalCase.internal_number && (
                             <span style={{background:'#edf2f7', padding:'2px 8px', borderRadius:'4px', fontSize:'0.8rem', color:'#4a5568'}}>
                                 Interno: {legalCase.internal_number}
                             </span>
                         )}
                     </div>
-                    {/* TRATAMENTO AQUI: Usa helper function para extrair nome se for objeto */}
-                    <p>{legalCase.action_object} - {getPartyName(legalCase.opposing_party)} x {getPartyName(legalCase.defendant)}</p>
+                    {/* AQUI ESTAVA O PROBLEMA: Usamos helpers agora para extrair o nome se for Objeto */}
+                    <p>
+                        {legalCase.action_object || 'Ação'} - {getPartyName(legalCase.opposing_party)} x {getPartyName(legalCase.defendant)}
+                    </p>
                 </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1rem' }}>
@@ -265,7 +274,7 @@ const CaseDetailPage = () => {
                 <DetailKpiCard icon={<FaTasks />} title="PCOND (Risco)" value={legalCase.pcond_probability ? `${legalCase.pcond_probability}%` : '-'} color="#9333ea">
                     {legalCase.updated_condemnation_value ? `Cond. Atual: ${formatCurrency(legalCase.updated_condemnation_value)}` : 'Sem estimativa'}
                 </DetailKpiCard>
-                {/* TRATAMENTO AQUI: Usa helper function */}
+                {/* Usa helper para advogado também */}
                 <DetailKpiCard icon={<FaUserTie />} title="Advogado Adverso" value={getLawyerName(legalCase.opposing_lawyer)} color={isAbusiveLawyer ? "#dc2626" : "#4a5568"}>
                     {legalCase.opposing_contact || 'Sem contato'}
                 </DetailKpiCard>
@@ -278,9 +287,10 @@ const CaseDetailPage = () => {
                     <div className={styles.infoCard}>
                         <h3><FaGavel style={{marginRight:'8px', color:'#718096'}}/> Dados do Processo</h3>
                         <div className={styles.infoGrid}>
-                            <div className={styles.infoItem}><label>Banco</label><p>{legalCase.client?.name}</p></div>
-                            <div className={styles.infoItem}><label>Colaborador</label><p>{legalCase.lawyer?.name}</p></div>
-                            <div className={styles.infoItem}><label>Distribuição</label><p>{legalCase.start_date ? new Date(legalCase.start_date).toLocaleDateString('pt-BR') : '-'}</p></div>
+                            <div className={styles.infoItem}><label>Banco</label><p>{legalCase.client?.name || 'Não vinculado'}</p></div>
+                            <div className={styles.infoItem}><label>Colaborador</label><p>{legalCase.lawyer?.name || 'Sem responsável'}</p></div>
+                            {/* Usa helper formatDate */}
+                            <div className={styles.infoItem}><label>Distribuição</label><p>{formatDate(legalCase.start_date)}</p></div>
                             <div className={styles.infoItem}><label>Juizado Especial?</label><p>{legalCase.special_court || 'Não'}</p></div>
                         </div>
                         
@@ -298,13 +308,13 @@ const CaseDetailPage = () => {
                         </div>
                     </div>
 
-                    {/* CHECKLIST (READ ONLY) */}
+                    {/* CHECKLIST */}
                     {legalCase.agreement_checklist_data && (
                         <div className={styles.infoCard}>
                             <h3>Checklist de Análise</h3>
                             <AgreementChecklist 
                                 checklistData={legalCase.agreement_checklist_data} 
-                                onUpdate={() => {}} // Read-only visual effect
+                                onUpdate={() => {}} 
                             />
                         </div>
                     )}

@@ -1,5 +1,5 @@
 // src/components/EditCaseModal.jsx
-// ATUALIZADO: Com busca inteligente para Autor, Réu e Advogado Adverso
+// ATUALIZADO: Correção do crash no filtro (toLowerCase) e tratamento de objetos Autor/Réu
 
 import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api';
@@ -10,8 +10,8 @@ import ChatPreview from './ChatPreview';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditOpposingLawyerModal from './AddEditOpposingLawyerModal';
 import OpposingLawyerListModal from './OpposingLawyerListModal';
-import AddEditPlaintiffModal from './AddEditPlaintiffModal'; // NOVO
-import AddEditDefendantModal from './AddEditDefendantModal'; // NOVO
+import AddEditPlaintiffModal from './AddEditPlaintiffModal'; 
+import AddEditDefendantModal from './AddEditDefendantModal'; 
 
 // --- Ícones SVG Inline ---
 const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#4299e1'}}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
@@ -145,7 +145,7 @@ const HistoryTab = ({ caseId }) => {
     );
 };
 
-// --- Sub-componente DetailsTab (ATUALIZADO) ---
+// --- Sub-componente DetailsTab (ATUALIZADO E PROTEGIDO) ---
 const DetailsTab = ({ 
     formData, 
     handleChange, 
@@ -192,18 +192,23 @@ const DetailsTab = ({
     const actionObjects = ["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada", "Outros"];
     const availableColors = ['#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
     
-    // Filtros locais
+    // --- FILTROS SEGUROS (CORREÇÃO DO CRASH TO_LOWER_CASE) ---
+    // Garante que o termo seja string antes de chamar toLowerCase()
+    const safeLawyerTerm = (lawyerSearchTerm || '').toString().toLowerCase();
+    const safePlaintiffTerm = (plaintiffSearchTerm || '').toString().toLowerCase();
+    const safeDefendantTerm = (defendantSearchTerm || '').toString().toLowerCase();
+
     const filteredLawyers = opposingLawyersList.filter(l => 
-        l.name.toLowerCase().includes(lawyerSearchTerm.toLowerCase()) || 
-        (l.oab && l.oab.toLowerCase().includes(lawyerSearchTerm.toLowerCase()))
+        (l.name || '').toLowerCase().includes(safeLawyerTerm) || 
+        (l.oab && l.oab.toLowerCase().includes(safeLawyerTerm))
     );
     const filteredPlaintiffs = plaintiffsList.filter(p => 
-        p.name.toLowerCase().includes(plaintiffSearchTerm.toLowerCase()) || 
-        (p.cpf_cnpj && p.cpf_cnpj.includes(plaintiffSearchTerm))
+        (p.name || '').toLowerCase().includes(safePlaintiffTerm) || 
+        (p.cpf_cnpj && p.cpf_cnpj.includes(safePlaintiffTerm))
     );
     const filteredDefendants = defendantsList.filter(d => 
-        d.name.toLowerCase().includes(defendantSearchTerm.toLowerCase()) || 
-        (d.cnpj && d.cnpj.includes(defendantSearchTerm))
+        (d.name || '').toLowerCase().includes(safeDefendantTerm) || 
+        (d.cnpj && d.cnpj.includes(safeDefendantTerm))
     );
 
     const headerStyle = { display: 'flex', alignItems: 'center', gap: '10px' };
@@ -609,6 +614,14 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         fetchData();
     }, [token]);
 
+    // Função Helper para pegar string segura de objeto
+    const getStringValue = (val) => {
+        if (!val) return '';
+        if (typeof val === 'string') return val;
+        if (typeof val === 'object') return val.name || val.nome || '';
+        return String(val);
+    };
+
     useEffect(() => {
         if (legalCase) {
             setFormData({
@@ -627,18 +640,18 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 plaintiff_id: legalCase.plaintiff_id || '',
                 defendant_id: legalCase.defendant_id || '',
                 
-                // Mapeamento Nomes Visuais
-                opposing_lawyer: legalCase.opposing_lawyer || (legalCase.opposingLawyer ? legalCase.opposingLawyer.name : ''),
-                opposing_party: legalCase.opposing_party || (legalCase.plaintiff ? legalCase.plaintiff.name : ''),
-                defendant: legalCase.defendant || (legalCase.defendantRel ? legalCase.defendantRel.name : ''),
+                // Mapeamento Nomes Visuais (Extrai nome se for objeto)
+                opposing_lawyer: getStringValue(legalCase.opposing_lawyer || legalCase.opposingLawyer),
+                opposing_party: getStringValue(legalCase.opposing_party || legalCase.plaintiff),
+                defendant: getStringValue(legalCase.defendant || legalCase.defendantRel),
                 
                 opposing_contact: legalCase.opposing_contact || '',
             });
             
-            // Inicializar buscas
-            setLawyerSearchTerm(legalCase.opposing_lawyer || (legalCase.opposingLawyer ? legalCase.opposingLawyer.name : '') || '');
-            setPlaintiffSearchTerm(legalCase.opposing_party || (legalCase.plaintiff ? legalCase.plaintiff.name : '') || '');
-            setDefendantSearchTerm(legalCase.defendant || (legalCase.defendantRel ? legalCase.defendantRel.name : '') || '');
+            // Inicializar buscas com string segura
+            setLawyerSearchTerm(getStringValue(legalCase.opposing_lawyer || legalCase.opposingLawyer));
+            setPlaintiffSearchTerm(getStringValue(legalCase.opposing_party || legalCase.plaintiff));
+            setDefendantSearchTerm(getStringValue(legalCase.defendant || legalCase.defendantRel));
             
             setConversation(null);
             setMessages([]);

@@ -1,0 +1,41 @@
+.card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.header {
+    margin-bottom: 20px;
+    padding-left: 12px;
+}
+
+.section {
+    margin-bottom: 24px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.item:hover {
+    background-color: #f7fafc;
+}
+
+.score {
+    font-size: 1.5rem;
+    font-weight: 800;
+}

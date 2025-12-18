@@ -1,57 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../styles/AgreementChecklist.module.css';
 
-const AgreementChecklist = ({ checklistData, onUpdate, readOnly = false }) => {
-    // Estrutura padrão caso venha nulo
-    const defaultData = {
-        objective: {
-            materia: false,
-            obrigacao: false,
-            subsidio: false,
-            litigante_habitual: false,
-            analise_risco: false,
-            pcond_portal: false,
-            alcada: false
-        },
-        subjective: {
-            analise_subsidio: false,
-            pcond_processual: false
-        },
-        metadata: {
-            analise_risco_data: '',
-        }
-    };
+// Estrutura segura constante
+const SAFE_STRUCTURE = {
+    objective: {
+        materia: false, obrigacao: false, subsidio: false, litigante_habitual: false,
+        analise_risco: false, pcond_portal: false, alcada: false
+    },
+    subjective: {
+        analise_subsidio: false, pcond_processual: false
+    },
+    metadata: { analise_risco_data: '' }
+};
 
-    const [data, setData] = useState(checklistData || defaultData);
+const AgreementChecklist = ({ checklistData, onUpdate, readOnly = false }) => {
+    
+    // 1. Inicializa o estado APENAS UMA VEZ com os dados recebidos ou o padrão
+    const [data, setData] = useState(() => {
+        if (!checklistData || typeof checklistData !== 'object') return SAFE_STRUCTURE;
+        return {
+            objective: { ...SAFE_STRUCTURE.objective, ...(checklistData.objective || {}) },
+            subjective: { ...SAFE_STRUCTURE.subjective, ...(checklistData.subjective || {}) },
+            metadata: { ...SAFE_STRUCTURE.metadata, ...(checklistData.metadata || {}) }
+        };
+    });
+
     const [probability, setProbability] = useState(0);
 
-    // CORREÇÃO: Sincroniza o estado local quando os dados do pai (Banco de Dados) chegam
-    useEffect(() => {
-        if (checklistData) {
-            setData(checklistData);
-        }
-    }, [checklistData]);
-
-    // Recalcula probabilidade sempre que 'data' mudar
+    // 2. Calcula a probabilidade baseada no estado LOCAL (sem dependências externas)
     useEffect(() => {
         let score = 0;
-        
-        // 7 Objetivos = 10% cada
-        if (data.objective) {
-            Object.values(data.objective).forEach(val => val && (score += 10));
-        }
-        
-        // 2 Subjetivos = 15% cada
-        if (data.subjective) {
-            Object.values(data.subjective).forEach(val => val && (score += 15));
-        }
-
+        if (data.objective) Object.values(data.objective).forEach(val => val === true && (score += 10));
+        if (data.subjective) Object.values(data.subjective).forEach(val => val === true && (score += 15));
         setProbability(Math.min(score, 100));
     }, [data]);
 
     const handleToggle = (section, key) => {
         if (readOnly) return;
         
+        // Atualiza estado local
         const newData = {
             ...data,
             [section]: {
@@ -61,77 +48,77 @@ const AgreementChecklist = ({ checklistData, onUpdate, readOnly = false }) => {
         };
         setData(newData);
         
+        // Avisa o pai para ele poder salvar, mas o pai NÃO precisa devolver os dados
         if (onUpdate) {
+            let s = 0;
+            if (newData.objective) Object.values(newData.objective).forEach(v => v === true && (s += 10));
+            if (newData.subjective) Object.values(newData.subjective).forEach(v => v === true && (s += 15));
+            
             onUpdate({
                 agreement_checklist_data: newData,
-                agreement_probability: calculateScore(newData)
+                agreement_probability: Math.min(s, 100)
             });
         }
     };
 
-    const calculateScore = (d) => {
-        let s = 0;
-        if (d.objective) Object.values(d.objective).forEach(v => v && (s += 10));
-        if (d.subjective) Object.values(d.subjective).forEach(v => v && (s += 15));
-        return Math.min(s, 100);
-    };
+    const getColor = (prob) => prob >= 70 ? '#10b981' : (prob >= 40 ? '#f59e0b' : '#ef4444');
 
-    const getColor = (prob) => prob >= 70 ? '#4caf50' : (prob >= 40 ? '#ff9800' : '#f44336');
-
-    // Helper para formatar labels
     const formatLabel = (str) => {
-        const labels = {
-            materia: "Matéria [Objetivo]",
-            obrigacao: "Obrigação [Objetivo]",
-            subsidio: "Subsídio [Objetivo]",
-            litigante_habitual: "Litigante Habitual [Objetivo]",
-            analise_risco: "Análise de Risco (Data) [Objetivo]",
-            pcond_portal: "PCOND Portal [Objetivo]",
-            alcada: "Alçada [Objetivo]",
-            analise_subsidio: "Análise do Subsídio [Subjetivo]",
-            pcond_processual: "PCOND Processual [Subjetivo]"
-        };
-        return labels[str] || str.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        if (!str) return '';
+        return str.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     };
 
     return (
-        <div className={styles.card}>
-            <div className={styles.header} style={{ borderLeft: `5px solid ${getColor(probability)}` }}>
-                <h3>Probabilidade de Acordo</h3>
-                <span className={styles.score} style={{ color: getColor(probability) }}>
+        <div style={{padding: '15px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#fff'}}>
+            <div style={{ 
+                borderLeft: `5px solid ${getColor(probability)}`, 
+                paddingLeft: '12px', 
+                marginBottom: '20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+            }}>
+                <h3 style={{margin: 0, color: '#1f2937', fontSize: '1.1rem'}}>Probabilidade de Acordo</h3>
+                <span style={{ color: getColor(probability), fontWeight: '800', fontSize: '1.25rem' }}>
                     {probability}%
                 </span>
             </div>
 
-            <div className={styles.section}>
-                <h4>Critérios Objetivos <small>(10% cada)</small></h4>
-                <div className={styles.grid}>
-                    {data.objective && Object.keys(data.objective).map(key => (
-                        <label key={key} className={styles.item}>
+            <div style={{marginBottom: '24px'}}>
+                <h4 style={{margin: '0 0 12px 0', color: '#4b5563', borderBottom: '1px solid #f3f4f6', paddingBottom: '6px', fontSize: '0.95rem'}}>
+                    Critérios Objetivos 
+                </h4>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px'}}>
+                    {Object.keys(SAFE_STRUCTURE.objective).map(key => (
+                        <label key={key} style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: readOnly ? 'default' : 'pointer', fontSize: '0.9rem'}}>
                             <input 
                                 type="checkbox" 
-                                checked={data.objective[key]} 
+                                checked={!!data.objective[key]} 
                                 onChange={() => handleToggle('objective', key)}
                                 disabled={readOnly}
+                                style={{accentColor: '#3b82f6', width: '16px', height: '16px'}}
                             />
-                            <span>{formatLabel(key)}</span>
+                            <span style={{color: '#374151'}}>{formatLabel(key)}</span>
                         </label>
                     ))}
                 </div>
             </div>
 
-            <div className={`${styles.section} ${styles.subjective}`}>
-                <h4>Critérios Subjetivos <small>(15% cada)</small></h4>
-                <div className={styles.grid}>
-                    {data.subjective && Object.keys(data.subjective).map(key => (
-                        <label key={key} className={styles.item}>
+            <div>
+                <h4 style={{margin: '0 0 12px 0', color: '#4b5563', borderBottom: '1px solid #f3f4f6', paddingBottom: '6px', fontSize: '0.95rem'}}>
+                    Critérios Subjetivos 
+                </h4>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px'}}>
+                    {Object.keys(SAFE_STRUCTURE.subjective).map(key => (
+                        <label key={key} style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: readOnly ? 'default' : 'pointer', fontSize: '0.9rem'}}>
                             <input 
                                 type="checkbox" 
-                                checked={data.subjective[key]} 
+                                checked={!!data.subjective[key]} 
                                 onChange={() => handleToggle('subjective', key)}
                                 disabled={readOnly}
+                                style={{accentColor: '#3b82f6', width: '16px', height: '16px'}}
                             />
-                            <span>{formatLabel(key)}</span>
+                            <span style={{color: '#374151'}}>{formatLabel(key)}</span>
                         </label>
                     ))}
                 </div>
