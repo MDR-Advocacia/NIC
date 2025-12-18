@@ -28,6 +28,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     Route::apiResource('cases', LegalCaseController::class);
+    // --- ROTA NOVA PARA AÇÃO EM LOTE ---
+    Route::post('/cases/batch-update', [LegalCaseController::class, 'batchUpdate']); 
+    // -----------------------------------
+    
     Route::apiResource('aggressor-lawyers', AggressorLawyerController::class);
     Route::apiResource('departments', DepartmentController::class)->only(['index', 'store']);
 

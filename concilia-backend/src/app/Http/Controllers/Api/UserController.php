@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB; // Adicionado para transações em lote
 use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
@@ -141,12 +142,89 @@ class UserController extends Controller
                 'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
                 'action' => 'Exclusão de Usuário',
                 'details' => "Excluiu o usuário: {$deletedInfo}",
-                'ip_address' => $request->ip(),
+                'ip_address' => request()->ip(), // Ajustado para helper global pois $request não é injetado aqui diretamente
             ]);
         } catch (\Exception $e) {
             Log::error("ERRO AO SALVAR LOG (Exclusão): " . $e->getMessage());
         }
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Atualização em Lote de Usuários
+     * Permite alterar status, cargo, área ou excluir múltiplos usuários.
+     */
+    public function batchUpdate(Request $request)
+    {
+        // Requer permissão de admin ou similar (ajuste conforme suas Policies)
+        $this->authorize('create', User::class); 
+
+        $validated = $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id',
+            'action' => 'required|string|in:update_status,update_role,update_area,delete',
+            'value' => 'nullable', // Pode ser string (cargo, area, status)
+        ]);
+
+        $userIds = $validated['user_ids'];
+        $action = $validated['action'];
+        $value = $validated['value'];
+
+        // Proteção: Não permitir que o usuário altere seu próprio status/role ou se exclua em lote
+        if (in_array(auth()->id(), $userIds)) {
+             // Remove o ID do próprio usuário da lista se a ação for destrutiva ou de bloqueio
+             if (in_array($action, ['delete', 'update_status'])) {
+                 return response()->json(['message' => 'Segurança: Você não pode alterar seu próprio status ou excluir sua conta via ação em lote.'], 403);
+             }
+        }
+
+        DB::beginTransaction();
+        try {
+            $query = User::whereIn('id', $userIds);
+            $count = $query->count();
+            $logDetails = "";
+
+            switch ($action) {
+                case 'update_status':
+                    // Espera 'ativo' ou 'inativo'
+                    $query->update(['status' => $value]);
+                    $logDetails = "Alterou status de {$count} usuários para '{$value}'";
+                    break;
+
+                case 'update_role':
+                    // Espera 'administrador', 'supervisor', etc.
+                    $query->update(['role' => $value]);
+                    $logDetails = "Alterou cargo de {$count} usuários para '{$value}'";
+                    break;
+                
+                case 'update_area':
+                    $query->update(['area' => $value]);
+                    $logDetails = "Alterou área de {$count} usuários para '{$value}'";
+                    break;
+
+                case 'delete':
+                    $query->delete();
+                    $logDetails = "Excluiu {$count} usuários em lote";
+                    break;
+            }
+
+            // Registrar no AuditLog usando o padrão existente no controller
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Ação em Lote (Usuários)',
+                'details' => $logDetails . " (IDs afetados: " . implode(', ', $userIds) . ")",
+                'ip_address' => $request->ip(),
+            ]);
+
+            DB::commit();
+            return response()->json(['message' => 'Ação em lote realizada com sucesso.', 'affected_count' => $count]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("ERRO BATCH UPDATE: " . $e->getMessage());
+            return response()->json(['message' => 'Erro ao processar atualização em lote: ' . $e->getMessage()], 500);
+        }
     }
 }
