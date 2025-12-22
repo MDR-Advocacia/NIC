@@ -73,8 +73,29 @@ class LegalCaseController extends Controller
             $query->where('priority', $request->input('priority'));
         }
 
-        // Retorna os resultados ordenados pelos mais recentes
-        return response()->json($query->latest()->get());
+        // --- ORDENAÇÃO DINÂMICA ---
+        $sortColumn = $request->input('sort_by', 'id'); // Padrão: ID
+        $sortDirection = $request->input('sort_order', 'desc'); // Padrão: Decrescente
+
+        // Lista branca de colunas permitidas (Segurança)
+        $allowedSorts = ['id', 'case_number', 'cause_value', 'agreement_value', 'status', 'priority', 'created_at', 'updated_at'];
+        
+        if (!in_array($sortColumn, $allowedSorts)) {
+            $sortColumn = 'id';
+        }
+        if (!in_array(strtolower($sortDirection), ['asc', 'desc'])) {
+            $sortDirection = 'desc';
+        }
+
+        $query->orderBy($sortColumn, $sortDirection);
+
+        // --- PAGINAÇÃO ---
+        $perPage = (int) $request->input('per_page', 50);
+        if ($perPage > 200) $perPage = 200;
+        if ($perPage < 1) $perPage = 50;
+
+        // Retorna os resultados paginados
+        return response()->json($query->paginate($perPage));
     }
 
     /**
