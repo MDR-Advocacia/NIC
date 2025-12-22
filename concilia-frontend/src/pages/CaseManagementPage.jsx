@@ -5,7 +5,9 @@ import { Link } from 'react-router-dom';
 import { 
     FaPlus, FaSearch, FaEye, FaEdit, FaTrash, 
     FaCheckSquare, FaExchangeAlt, FaTrashAlt, FaTimes, 
-    FaGavel, FaExclamationCircle, FaUserTag 
+    FaGavel, FaExclamationCircle, FaUserTag,
+    FaChevronLeft, FaChevronRight,
+    FaSort, FaSortUp, FaSortDown
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
@@ -41,7 +43,9 @@ const PriorityTag = ({ priority }) => {
 };
 
 const CaseManagementPage = () => {
-    const { token } = useAuth();
+    // Adicionado 'user' para verificar a role
+    const { token, user } = useAuth();
+    
     const [cases, setCases] = useState([]);
     const [lawyers, setLawyers] = useState([]);
     const [clients, setClients] = useState([]); 
@@ -49,7 +53,20 @@ const CaseManagementPage = () => {
     const [error, setError] = useState('');
     const [editingCase, setEditingCase] = useState(null);
 
-    // --- ESTADOS DE AÇÃO EM LOTE (Inicializados corretamente) ---
+    // --- PAGINAÇÃO (ESTADOS) ---
+    const [currentPage, setCurrentPage] = useState(1);
+    const [perPage, setPerPage] = useState(50); 
+    const [paginationData, setPaginationData] = useState({
+        last_page: 1,
+        total: 0,
+        from: 0,
+        to: 0
+    });
+
+    // --- ORDENAÇÃO ---
+    const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
+
+    // --- ESTADOS DE AÇÃO EM LOTE ---
     const [selectedCaseIds, setSelectedCaseIds] = useState([]);
     const [batchActionType, setBatchActionType] = useState(null); 
     const [isBatchProcessing, setIsBatchProcessing] = useState(false);
@@ -80,26 +97,70 @@ const CaseManagementPage = () => {
     const fetchCases = useCallback(async () => {
         if (!token) return;
         setLoading(true);
-        setSelectedCaseIds([]); // Limpa seleção
+        setSelectedCaseIds([]); 
         setBatchActionType(null);
         
         try {
             const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
+            
+            // Adiciona paginação
+            params.append('page', currentPage);
+            params.append('per_page', perPage);
+
+            // Adiciona ordenação
+            params.append('sort_by', sortConfig.key);
+            params.append('sort_order', sortConfig.direction);
+
             const response = await apiClient.get(`/cases?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
-            setCases(response.data);
+            
+            if (response.data && response.data.data) {
+                setCases(response.data.data);
+                setPaginationData({
+                    last_page: response.data.last_page,
+                    total: response.data.total,
+                    from: response.data.from,
+                    to: response.data.to
+                });
+            } else {
+                setCases(response.data);
+            }
+
         } catch (err) {
             setError('Não foi possível carregar os casos.');
+            console.error(err);
         } finally {
             setLoading(false);
         }
-    }, [token, filters]);
+    }, [token, filters, currentPage, perPage, sortConfig]);
+
+    // Reseta para página 1 se mudar filtros
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filters]);
 
     useEffect(() => {
         const timer = setTimeout(() => { fetchCases(); }, 500);
         return () => clearTimeout(timer);
     }, [fetchCases]);
 
-    // --- MANIPULADORES ---
+    // --- MANIPULADORES DE ORDENAÇÃO ---
+    const handleSort = (key) => {
+        setSortConfig(current => {
+            if (current.key === key) {
+                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'asc' };
+        });
+    };
+
+    const getSortIcon = (columnKey) => {
+        if (sortConfig.key !== columnKey) return <FaSort style={{marginLeft:'5px', color:'#A0AEC0', fontSize:'0.8rem'}} />;
+        return sortConfig.direction === 'asc' 
+            ? <FaSortUp style={{marginLeft:'5px', color:'#4a5568', fontSize:'0.8rem'}} /> 
+            : <FaSortDown style={{marginLeft:'5px', color:'#4a5568', fontSize:'0.8rem'}} />;
+    };
+
+    // --- MANIPULADORES GERAIS ---
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
         setFilters(prev => ({ ...prev, [name]: value }));
@@ -113,20 +174,16 @@ const CaseManagementPage = () => {
         }
     };
 
-    // --- CORREÇÃO DE SEGURANÇA PARA O ERRO DO CHECKBOX ---
     const handleSelectCase = (id) => {
         if (!id) return;
         setSelectedCaseIds(prev => {
-            // Garante que prev é um array antes de usar includes
             const list = Array.isArray(prev) ? prev : [];
-            
             if (list.includes(id)) {
                 return list.filter(cId => cId !== id);
             }
             return [...list, id];
         });
     };
-    // -----------------------------------------------------
 
     const executeBatchUpdate = async (action, value) => {
         if (!value && action !== 'delete') return; 
@@ -162,7 +219,7 @@ const CaseManagementPage = () => {
     const formatValue = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
     
     const kpis = {
-        total_cases: cases.length,
+        total_cases: paginationData.total || cases.length,
         total_cause_value: cases.reduce((acc, c) => acc + (parseFloat(c.cause_value) || 0), 0),
         total_agreement_value: cases.reduce((acc, c) => acc + (parseFloat(c.agreement_value) || 0), 0),
         total_economy: cases.reduce((acc, c) => {
@@ -172,7 +229,6 @@ const CaseManagementPage = () => {
         }, 0)
     };
 
-    // Verifica se todos estão selecionados com segurança
     const isAllSelected = cases.length > 0 && Array.isArray(selectedCaseIds) && selectedCaseIds.length === cases.length;
 
     return (
@@ -185,10 +241,10 @@ const CaseManagementPage = () => {
             </header>
             
             <section className={styles.kpiGrid}>
-                <KpiCard title="Total na Tela" value={kpis.total_cases.toString()} />
+                <KpiCard title="Total (Geral)" value={kpis.total_cases.toString()} />
                 <KpiCard title="Selecionados" value={selectedCaseIds?.length?.toString() || '0'} />
-                <KpiCard title="Acordos (R$)" value={formatValue(kpis.total_agreement_value)} />
-                <KpiCard title="Economia (R$)" value={formatValue(kpis.total_economy)} />
+                <KpiCard title="Acordos (Pág.)" value={formatValue(kpis.total_agreement_value)} />
+                <KpiCard title="Economia (Pág.)" value={formatValue(kpis.total_economy)} />
             </section>
 
             <section className={styles.filtersContainer}>
@@ -208,64 +264,127 @@ const CaseManagementPage = () => {
             
             <section className={styles.tableContainer}>
                 {loading ? <p>Carregando...</p> : error ? <p style={{color:'red'}}>{error}</p> : (
-                    <table className={styles.table}>
-                        <thead>
-                            <tr>
-                                <th style={{width: '40px', textAlign: 'center'}}>
-                                    <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className={styles.checkboxInput} />
-                                </th>
-                                <th>ID/Processo</th>
-                                <th>Cliente/Local</th>
-                                <th>Partes</th>
-                                <th>Valores</th>
-                                <th>Status/Prioridade</th>
-                                <th>Responsável</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {cases.map(legalCase => (
-                                <tr key={legalCase.id} className={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id) ? styles.rowSelected : ''}>
-                                    <td style={{textAlign: 'center'}}>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id)} 
-                                            onChange={() => handleSelectCase(legalCase.id)}
-                                            className={styles.checkboxInput}
-                                        />
-                                    </td>
-                                    <td>
-                                        <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>{legalCase.id}</Link>
-                                        <div className={styles.subText}>{legalCase.case_number}</div>
-                                    </td>
-                                    <td>
-                                        <div>{legalCase.client?.name || '-'}</div>
-                                        <div className={styles.subText}>{legalCase.comarca}</div>
-                                    </td>
-                                    <td>
-                                        <div><small>A:</small> {legalCase.opposing_party}</div>
-                                        <div className={styles.subText}><small>R:</small> {legalCase.defendant}</div>
-                                    </td>
-                                    <td>
-                                        <div>{formatValue(legalCase.cause_value)}</div>
-                                        {legalCase.agreement_value > 0 && <div style={{color: '#38a169', fontSize: '0.8rem'}}>Acordo: {formatValue(legalCase.agreement_value)}</div>}
-                                    </td>
-                                    <td>
-                                        <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
-                                        <PriorityTag priority={legalCase.priority} />
-                                    </td>
-                                    <td>{legalCase.lawyer?.name || <span style={{color: '#E53E3E'}}>Sem advogado</span>}</td>
-                                    <td>
-                                        <div style={{ display: 'flex', gap: '10px' }}>
-                                            <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
-                                            <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
-                                            <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase.id)}><FaTrash /></span>
-                                        </div>
-                                    </td>
+                    <>
+                        {/* --- CONTROLES DE PAGINAÇÃO (TOPO) --- */}
+                        <div className={styles.paginationTopBar}>
+                            <div className={styles.paginationInfoText}>
+                                Exibindo {paginationData.from || 0}-{paginationData.to || 0} de {paginationData.total || 0} resultados
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span className={styles.paginationInfoText}>Exibir:</span>
+                                <select 
+                                    value={perPage} 
+                                    onChange={(e) => {
+                                        setPerPage(Number(e.target.value));
+                                        setCurrentPage(1); 
+                                    }}
+                                    className={styles.perPageSelect}
+                                >
+                                    <option value="15">15</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <table className={styles.table}>
+                            <thead>
+                                <tr>
+                                    <th style={{width: '40px', textAlign: 'center'}}>
+                                        <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className={styles.checkboxInput} />
+                                    </th>
+                                    
+                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('id')}>
+                                        ID/Processo {getSortIcon('id')}
+                                    </th>
+                                    <th>Cliente/Local</th>
+                                    <th>Partes</th>
+                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('cause_value')}>
+                                        Valores {getSortIcon('cause_value')}
+                                    </th>
+                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('priority')}>
+                                        Status/Prioridade {getSortIcon('priority')}
+                                    </th>
+                                    
+                                    <th>Responsável</th>
+                                    <th>Ações</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {cases.map(legalCase => (
+                                    <tr key={legalCase.id} className={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id) ? styles.rowSelected : ''}>
+                                        <td style={{textAlign: 'center'}}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id)} 
+                                                onChange={() => handleSelectCase(legalCase.id)}
+                                                className={styles.checkboxInput}
+                                            />
+                                        </td>
+                                        <td>
+                                            <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>{legalCase.id}</Link>
+                                            <div className={styles.subText}>{legalCase.case_number}</div>
+                                        </td>
+                                        <td>
+                                            <div>{legalCase.client?.name || '-'}</div>
+                                            <div className={styles.subText}>{legalCase.comarca}</div>
+                                        </td>
+                                        <td>
+                                            <div><small>A:</small> {legalCase.opposing_party}</div>
+                                            <div className={styles.subText}><small>R:</small> {legalCase.defendant}</div>
+                                        </td>
+                                        <td>
+                                            <div>{formatValue(legalCase.cause_value)}</div>
+                                            {legalCase.agreement_value > 0 && <div style={{color: '#38a169', fontSize: '0.8rem'}}>Acordo: {formatValue(legalCase.agreement_value)}</div>}
+                                        </td>
+                                        <td>
+                                            <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
+                                            <PriorityTag priority={legalCase.priority} />
+                                        </td>
+                                        <td>{legalCase.lawyer?.name || <span style={{color: '#E53E3E'}}>Sem advogado</span>}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
+                                                <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
+                                                
+                                                {/* SÓ MOSTRA SE FOR ADMIN */}
+                                                {user?.role === 'admin' && (
+                                                    <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase.id)}>
+                                                        <FaTrash />
+                                                    </span>
+                                                )}
+
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {/* --- CONTROLES DE PAGINAÇÃO (RODAPÉ) --- */}
+                        <div className={styles.paginationFooter}>
+                            <button 
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className={styles.paginationBtn}
+                            >
+                                <FaChevronLeft /> Anterior
+                            </button>
+
+                            <span className={styles.paginationPageInfo}>
+                                Página {currentPage} de {paginationData.last_page || 1}
+                            </span>
+
+                            <button 
+                                onClick={() => setCurrentPage(p => Math.min(paginationData.last_page, p + 1))}
+                                disabled={currentPage >= paginationData.last_page}
+                                className={styles.paginationBtn}
+                            >
+                                Próxima <FaChevronRight />
+                            </button>
+                        </div>
+                    </>
                 )}
             </section>
 
@@ -288,9 +407,13 @@ const CaseManagementPage = () => {
                                 <button className={`${styles.batchBtn} ${styles.btnSuccess}`} onClick={() => setBatchActionType('lawyer')}>
                                     <FaUserTag /> Transferir
                                 </button>
-                                <button className={`${styles.batchBtn} ${styles.btnDanger}`} onClick={() => executeBatchUpdate('delete')}>
-                                    <FaTrashAlt /> Excluir
-                                </button>
+                                
+                                {/* SÓ MOSTRA SE FOR ADMIN */}
+                                {user?.role === 'admin' && (
+                                    <button className={`${styles.batchBtn} ${styles.btnDanger}`} onClick={() => executeBatchUpdate('delete')}>
+                                        <FaTrashAlt /> Excluir
+                                    </button>
+                                )}
                             </>
                         ) : (
                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
