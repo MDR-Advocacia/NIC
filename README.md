@@ -1,3 +1,4 @@
+# VERSÃO COOLIFY
 ⚖️ NIC - Núcleo Integrado de Conciliação
 
 Gestão Inteligente de Processos Jurídicos e Acordos
