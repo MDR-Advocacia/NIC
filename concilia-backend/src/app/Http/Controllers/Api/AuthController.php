@@ -99,6 +99,10 @@ class AuthController extends Controller
     if (!Hash::check($request->current_password, $user->password)) {
         return response()->json(['message' => 'A senha atual está incorreta.'], 422);
     }
+    // 2. NOVO: Verifica se a nova senha é IGUAL à antiga (Bloqueio)
+        if (Hash::check($request->new_password, $user->password)) {
+            return response()->json(['message' => 'A nova senha não pode ser igual à atual.'], 422);
+        }
 
     // Atualiza
     $user->update([
