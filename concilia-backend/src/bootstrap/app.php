@@ -11,17 +11,12 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->api(prepend: [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        ]);
-
-        $middleware->alias([
-            'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
-        ]);
-
-        //
+    ->withMiddleware(function (Middleware $middleware) {
+        // --- AQUI ESTÁ A SOLUÇÃO DO CORS ---
+        // Adicionamos o middleware manual que força a aceitação do Frontend
+        // Certifique-se de que o arquivo app/Http/Middleware/ForceCors.php existe!
+        $middleware->append(\App\Http\Middleware\ForceCors::class);
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
+    ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();

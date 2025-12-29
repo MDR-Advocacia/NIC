@@ -173,27 +173,48 @@ const PipelinePage = () => {
 
     const handleDragEnd = (event) => {
         const { active, over } = event;
-        const activeContainer = findContainer(active.id);
-        const overContainer = findContainer(over?.id);
 
-        if (
-            !activeContainer ||
-            !overContainer ||
-            (activeContainer === overContainer && active.id === over.id)
-        ) {
+        // 1. Se soltou fora de qualquer lugar válido, cancela
+        if (!over) {
             setActiveId(null);
             return;
         }
 
-        // Recupera o card movido do estado atualizado
-        const movedCase = pipelineData.grouped[overContainer].find(c => String(c.id) === String(active.id));
+        const overId = over.id;
+        // Onde o card foi solto (Nova Coluna)
+        const overContainer = findContainer(overId);
         
-        // Verifica se houve mudança real de coluna para chamar API
-        if (movedCase && movedCase.status !== overContainer) {
-            // Prepara payload limpo
+        // Onde o card está agora na memória do React (pode já ser a nova coluna por causa do DragOver)
+        const currentContainerOfItem = findContainer(active.id);
+
+        if (!overContainer || !currentContainerOfItem) {
+            setActiveId(null);
+            return;
+        }
+
+        // 2. Encontra o objeto do caso (Card) na lista atual
+        const movedCase = pipelineData.grouped[currentContainerOfItem].find(
+            (c) => String(c.id) === String(active.id)
+        );
+
+        if (!movedCase) {
+            setActiveId(null);
+            return;
+        }
+
+        // 3. A CORREÇÃO PRINCIPAL:
+        // Compara o status REAL do banco (movedCase.status) com a coluna de destino (overContainer).
+        // Se forem diferentes, houve troca de fase, independente da animação visual.
+        const isStatusChange = movedCase.status !== overContainer;
+
+        if (isStatusChange) {
+            console.log(`🔄 Movendo card ${movedCase.id}: ${movedCase.status} -> ${overContainer}`);
+
+            // Prepara o objeto para enviar ao Backend
             const updatedCasePayload = { 
                 ...movedCase, 
-                status: overContainer,
+                status: overContainer, // Força o novo status
+                // Garante que os IDs relacionados sejam mantidos
                 client_id: movedCase.client?.id || movedCase.client_id,
                 lawyer_id: movedCase.lawyer?.id || movedCase.lawyer_id,
                 plaintiff_id: movedCase.plaintiff?.id || movedCase.plaintiff_id,
@@ -201,45 +222,55 @@ const PipelinePage = () => {
                 opposing_lawyer_id: movedCase.opposing_lawyer?.id || movedCase.opposing_lawyer_id
             };
 
-            // Limpeza de objetos
+            // Remove objetos aninhados para não quebrar a API (se o backend esperar apenas IDs)
             delete updatedCasePayload.client;
             delete updatedCasePayload.lawyer;
             delete updatedCasePayload.plaintiff;
             delete updatedCasePayload.defendant;
             delete updatedCasePayload.opposing_lawyer;
 
-            // Atualiza status localmente no objeto para persistir na UI
+            // 4. Atualiza o State Local para persistir a mudança visualmente
             setPipelineData((prev) => {
                 const newGrouped = { ...prev.grouped };
-                const items = [...newGrouped[overContainer]];
-                const index = items.findIndex(c => String(c.id) === String(active.id));
-                if (index !== -1) {
-                    items[index] = { ...items[index], status: overContainer };
-                    newGrouped[overContainer] = items;
+                const listContainer = findContainer(active.id); 
+                
+                if (listContainer && newGrouped[listContainer]) {
+                    const items = [...newGrouped[listContainer]];
+                    const itemIndex = items.findIndex(c => String(c.id) === String(active.id));
+                    
+                    if (itemIndex !== -1) {
+                        // Atualiza a propriedade 'status' dentro do objeto para bater com a nova coluna
+                        items[itemIndex] = { ...items[itemIndex], status: overContainer };
+                        newGrouped[listContainer] = items;
+                    }
                 }
                 return { ...prev, grouped: newGrouped };
             });
 
-            // Chama API
+            // 5. CHAMA A API PARA SALVAR
             apiClient.put(`/cases/${movedCase.id}`, updatedCasePayload, {
                 headers: { Authorization: `Bearer ${token}` }
-            }).catch(err => {
-                console.error("Erro ao atualizar status:", err);
-                setError('Erro ao salvar alteração. Revertendo...');
-                fetchAllData();
+            })
+            .then(() => {
+                console.log("✅ Salvo com sucesso no Backend!");
+            })
+            .catch(err => {
+                console.error("❌ Erro ao atualizar status:", err);
+                // Se der erro, recarrega os dados para desfazer a mudança visual enganosa
+                fetchAllData(); 
             });
         } 
-        else if (activeContainer === overContainer) {
-            // Apenas reordenação na mesma coluna
-            const activeIndex = pipelineData.grouped[activeContainer].findIndex((i) => String(i.id) === String(active.id));
-            const overIndex = pipelineData.grouped[overContainer].findIndex((i) => String(i.id) === String(over.id));
+        else {
+            // Lógica de Reordenação na MESMA coluna (apenas visual, ou salva posição se tiver endpoint)
+            const activeIndex = pipelineData.grouped[currentContainerOfItem].findIndex((i) => String(i.id) === String(active.id));
+            const overIndex = pipelineData.grouped[overContainer].findIndex((i) => String(i.id) === String(overId));
 
             if (activeIndex !== overIndex) {
                 setPipelineData((prev) => ({
                     ...prev,
                     grouped: {
                         ...prev.grouped,
-                        [activeContainer]: arrayMove(prev.grouped[activeContainer], activeIndex, overIndex),
+                        [overContainer]: arrayMove(prev.grouped[overContainer], activeIndex, overIndex),
                     },
                 }));
             }

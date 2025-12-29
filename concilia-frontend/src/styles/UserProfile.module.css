@@ -1,0 +1,115 @@
+/* Variáveis de Cores (Ajuste conforme seu tema) */
+.containerLight {
+    --bg-page: #f3f4f6;
+    --bg-card: #ffffff;
+    --text-primary: #111827;
+    --text-sec: #6b7280;
+    --border: #e5e7eb;
+}
+
+.containerDark {
+    --bg-page: #111827;
+    --bg-card: #1f2937;
+    --text-primary: #f9fafb;
+    --text-sec: #9ca3af;
+    --border: #374151;
+}
+
+.pageContainer {
+    padding: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+    color: var(--text-primary);
+}
+
+.title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 2rem;
+}
+
+.card {
+    background: var(--bg-card);
+    border-radius: 8px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.group {
+    margin-bottom: 1.2rem;
+}
+
+.label {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--text-sec);
+    margin-bottom: 0.5rem;
+}
+
+.input {
+    width: 100%;
+    padding: 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.input:focus {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.readOnly {
+    background: rgba(0,0,0,0.05);
+    cursor: not-allowed;
+}
+
+.btn {
+    background: #4f46e5;
+    color: white;
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.message {
+    padding: 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.success { background: #dcfce7; color: #166534; }
+.error { background: #fee2e2; color: #991b1b; }

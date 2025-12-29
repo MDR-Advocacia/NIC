@@ -2,7 +2,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-
+import UserProfile from './pages/UserProfile';
 import './App.css';
 
 // Nossas Páginas
@@ -40,6 +40,7 @@ function App() {
           </ProtectedRoute>
         }
       >
+        <Route path="profile" element={<UserProfile />} />
         <Route path="logs" element={<SystemLogsPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="pipeline" element={<PipelinePage />} />

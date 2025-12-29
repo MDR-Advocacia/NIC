@@ -3,7 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import styles from '../styles/MainLayout.module.css';
-
+import { FaUserCog } from 'react-icons/fa';
 import { 
     FaTachometerAlt, FaInbox, FaStream, FaSuitcase, 
     FaFileUpload, FaUsers, FaSignOutAlt, FaHandshake, 
@@ -43,6 +43,7 @@ const MainLayout = () => {
 
                 <nav>
                     <ul className={styles.navList}>
+                        
                         <li className={styles.navItem}>
                             <NavLink to="/dashboard" className={getNavLinkClass}>
                                 <FaTachometerAlt /> <span>Dashboard</span>
@@ -84,6 +85,11 @@ const MainLayout = () => {
                                 </NavLink>
                             </li>
                         )}
+                        <li className={styles.navItem}>
+    <NavLink to="/profile" className={getNavLinkClass}>
+        <FaUserCog /> <span>Meu Perfil</span>
+    </NavLink>
+</li>
                     </ul>
                 </nav>
 
