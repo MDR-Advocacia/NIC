@@ -29,6 +29,7 @@ class User extends Authenticatable
         'phone',
         'last_login_at',
         'department_id',
+        'must_change_password',
     ];
 
     /**
@@ -47,6 +48,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         
         'last_login_at' => 'datetime', // NOVO CAST ADICIONADO
+        'must_change_password' => 'boolean',
     ];
 
     /**

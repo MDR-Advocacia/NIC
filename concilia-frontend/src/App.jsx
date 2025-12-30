@@ -18,6 +18,7 @@ import CaseCreatePage from './pages/CaseCreatePage';
 import UserManagementPage from './pages/UserManagementPage';
 import InboxPage from './pages/InboxPage';
 import ConversationDetailPage from './pages/ConversationDetailPage';
+import ForceChangePassword from './pages/ForceChangePassword';
 
 
 

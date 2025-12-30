@@ -95,20 +95,21 @@ class AuthController extends Controller
 
     $user = $request->user();
 
-    // Verifica se a senha atual bate com o banco
     if (!Hash::check($request->current_password, $user->password)) {
-        return response()->json(['message' => 'A senha atual está incorreta.'], 422);
-    }
-    // 2. NOVO: Verifica se a nova senha é IGUAL à antiga (Bloqueio)
+            return response()->json(['message' => 'A senha atual está incorreta.'], 422);
+        }
+
+        // Bloqueio de senha igual (que sugerimos antes)
         if (Hash::check($request->new_password, $user->password)) {
             return response()->json(['message' => 'A nova senha não pode ser igual à atual.'], 422);
         }
 
-    // Atualiza
-    $user->update([
-        'password' => Hash::make($request->new_password)
-    ]);
+        // ATUALIZAÇÃO
+        $user->update([
+            'password' => Hash::make($request->new_password),
+            'must_change_password' => false // <--- AQUI: Libera o usuário!
+        ]);
 
-    return response()->json(['message' => 'Senha alterada com sucesso!']);
-}
+        return response()->json(['message' => 'Senha alterada com sucesso! Você já pode navegar no sistema.']);
+    }
 }
