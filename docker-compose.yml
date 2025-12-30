@@ -12,9 +12,11 @@ services:
     volumes:
       - ./concilia-backend/src:/var/www/html
     env_file:
-      - ./.env
+      - ./concilia-backend/src/.env
     networks:
       - concilia_network
+    depends_on:
+      - db
 
   # --- SERVIDOR WEB (NGINX) ---
   nginx:
@@ -31,7 +33,7 @@ services:
     networks:
       - concilia_network
 
-  # --- BANCO DE DADOS (MYSQL) - ESTAVA FALTANDO ISSO ---
+  # --- BANCO DE DADOS (MYSQL) ---
   db:
     image: mysql:8.0
     container_name: concilia_db
@@ -47,6 +49,24 @@ services:
       - db_data:/var/lib/mysql
     networks:
       - concilia_network
+
+  # --- FRONTEND (REACT/VITE) - ADICIONADO ---
+  frontend:
+    build:
+      context: ./concilia-frontend
+      dockerfile: Dockerfile
+    container_name: concilia_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173" # Porta padrão do Vite
+    volumes:
+      - ./concilia-frontend:/app
+      - /app/node_modules # Evita sobrescrever node_modules do container
+    networks:
+      - concilia_network
+    environment:
+      # Aponta para o NGINX (porta externa mapeada no docker-compose)
+      - VITE_API_URL=http://localhost:8123/api 
 
 networks:
   concilia_network:
