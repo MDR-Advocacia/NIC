@@ -2,20 +2,12 @@ import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import styles from './MainLayout.module.css';
-
+import styles from '../styles/MainLayout.module.css';
+import { FaUserCog } from 'react-icons/fa';
 import { 
-    FaTachometerAlt, 
-    FaInbox, 
-    FaStream, 
-    FaSuitcase, 
-    FaFileUpload, 
-    FaUsers, 
-    FaSignOutAlt,
-    FaHandshake, // Ícone principal
-    FaSun,
-    FaMoon,
-    FaShieldAlt 
+    FaTachometerAlt, FaInbox, FaStream, FaSuitcase, 
+    FaFileUpload, FaUsers, FaSignOutAlt, FaHandshake, 
+    FaSun, FaMoon, FaShieldAlt 
 } from 'react-icons/fa';
 
 const MainLayout = () => {
@@ -26,20 +18,18 @@ const MainLayout = () => {
         return `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`;
     };
 
-    const isAdmin = user?.role === 'admin';
-    const isSupervisor = user?.role === 'supervisor';
-    const canManageUsers = isAdmin || isSupervisor;
+    const isAdmin = user?.role === 'administrador';
+    const canManageUsers = user?.role === 'administrador' || user?.role === 'supervisor';
 
     return (
         <div className={styles.layoutContainer}>
             <aside className={styles.sidebar}>
                 
-                {/* --- NOVO LOGO NIC (Estilo Corporativo) --- */}
-                <div className={styles.brandWrapper}>
-                    {/* Parte 1: O Ícone Grande */}
+                {/* --- LOGO NIC INTELIGENTE --- */}
+                {/* Se o tema for 'light', adiciona a classe .brandLight */}
+                <div className={`${styles.brandWrapper} ${theme === 'light' ? styles.brandLight : ''}`}>
                     {/* <FaHandshake className={styles.mainIcon} /> */}
-
-                    {/* Parte 2: O Texto (NIC + Significado) */}
+                    
                     <div className={styles.textGroup}>
                         <h1 className={styles.nicTitle}>NIC</h1>
                         <div className={styles.meaningBox}>
@@ -49,10 +39,11 @@ const MainLayout = () => {
                         </div>
                     </div>
                 </div>
-                {/* ------------------------------------------ */}
+                {/* ---------------------------- */}
 
                 <nav>
                     <ul className={styles.navList}>
+                        
                         <li className={styles.navItem}>
                             <NavLink to="/dashboard" className={getNavLinkClass}>
                                 <FaTachometerAlt /> <span>Dashboard</span>
@@ -94,6 +85,11 @@ const MainLayout = () => {
                                 </NavLink>
                             </li>
                         )}
+                        <li className={styles.navItem}>
+    <NavLink to="/profile" className={getNavLinkClass}>
+        <FaUserCog /> <span>Meu Perfil</span>
+    </NavLink>
+</li>
                     </ul>
                 </nav>
 
@@ -102,11 +98,11 @@ const MainLayout = () => {
                         <p>{user?.name}</p>
                         <p style={{ fontSize: '10px', color: '#888' }}>
                             {user?.role?.toUpperCase()}
-                        </p> 
+                        </p>
                         <button 
                             className={styles.themeToggleButton} 
                             onClick={toggleTheme}
-                            title={theme === 'light' ? 'Mudar para Modo Noturno' : 'Mudar para Modo Claro'}
+                            title="Mudar Tema"
                         >
                             {theme === 'light' ? <FaMoon /> : <FaSun />}
                         </button>

@@ -1,23 +1,23 @@
 // src/pages/PipelinePage.jsx
-// ATUALIZADO: Com filtro de "Casos Atrasados"
+// ATUALIZADO: Implementação completa de DragOver para suportar colunas vazias
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom'; 
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
-import NewCaseModal from '../components/NewCaseModal';
 import EditCaseModal from '../components/EditCaseModal';
 import { 
     DndContext, 
     PointerSensor, 
     useSensor, 
     useSensors,
-    closestCorners 
+    closestCorners,
+    DragOverlay,
+    defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
-import AggressorLawyersModal from '../components/AggressorLawyersModal';
-// ADICIONADO: Ícone para o filtro
 import { FaExclamationTriangle } from 'react-icons/fa';
 
 const PipelinePage = () => {
@@ -28,14 +28,11 @@ const PipelinePage = () => {
     const [error, setError] = useState('');
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
-    const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false);
-    const [editingCase, setEditingCase] = useState(null);
-    const [isAggressorModalOpen, setIsAggressorModalOpen] = useState(false);
-
-    const [filters, setFilters] = useState({});
     
-    // ADICIONADO: Estado para o filtro de atrasos
+    const [editingCase, setEditingCase] = useState(null);
+    const [filters, setFilters] = useState({});
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
+    const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
 
     const handleOpenEditModal = (caseToEdit) => setEditingCase(caseToEdit);
     const handleCloseEditModal = () => setEditingCase(null);
@@ -54,6 +51,8 @@ const PipelinePage = () => {
         (cases || []).forEach(currentCase => {
             if (grouped[currentCase.status]) {
                 grouped[currentCase.status].push(currentCase);
+            } else {
+                grouped['initial_analysis'].push(currentCase);
             }
         });
         return { grouped, titles: initialGroups };
@@ -71,95 +70,213 @@ const PipelinePage = () => {
                 apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } })
             ]);
 
-            let fetchedCases = casesResponse.data;
+            let fetchedCases = Array.isArray(casesResponse.data) ? casesResponse.data : (casesResponse.data.data || []);
 
-            // --- LÓGICA DE FILTRO DE ATRASO (Frontend) ---
+            // Filtro de Atraso
             if (showDelayedOnly) {
                 const today = new Date();
                 fetchedCases = fetchedCases.filter(c => {
                     const lastUpdate = new Date(c.updated_at);
                     const diffTime = Math.abs(today - lastUpdate);
                     const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-                    // A mesma lógica do Card: > 5 dias é atrasado
                     return days > 5;
                 });
             }
-            // -------------------------------------------
 
             const groupedCases = groupCasesByStatus(fetchedCases);
             setPipelineData(groupedCases);
             setClients(clientsResponse.data);
             setLawyers(lawyersResponse.data.data || []);
         } catch (err) {
+            console.error("Erro pipeline:", err);
             setError('Não foi possível carregar os dados do pipeline.');
         } finally {
             setLoading(false);
         }
-    // ADICIONADO: 'showDelayedOnly' como dependência para recarregar quando clicar
     }, [token, groupCasesByStatus, filters, showDelayedOnly]);
 
     useEffect(() => {
         fetchAllData();
     }, [fetchAllData]);
 
-    const sensors = useSensors(useSensor(PointerSensor));
+    const sensors = useSensors(useSensor(PointerSensor, {
+        activationConstraint: {
+            distance: 5,
+        },
+    }));
+
+    // --- LÓGICA DE DRAG & DROP ROBUSTA ---
+
+    // Encontra a coluna onde um ID (de card ou de coluna) está
+    const findContainer = (id) => {
+        if (!pipelineData?.grouped) return null;
+        if (id in pipelineData.grouped) return id;
+        
+        return Object.keys(pipelineData.grouped).find((key) => 
+            pipelineData.grouped[key].find((item) => String(item.id) === String(id))
+        );
+    };
+
+    const handleDragStart = (event) => {
+        setActiveId(event.active.id);
+    };
+
+    const handleDragOver = (event) => {
+        const { active, over } = event;
+        const overId = over?.id;
+
+        if (!overId || active.id === overId) return;
+
+        const activeContainer = findContainer(active.id);
+        const overContainer = findContainer(overId);
+
+        if (!activeContainer || !overContainer || activeContainer === overContainer) return;
+
+        // Move o item visualmente entre colunas durante o arraste
+        setPipelineData((prev) => {
+            const activeItems = prev.grouped[activeContainer];
+            const overItems = prev.grouped[overContainer];
+            const activeIndex = activeItems.findIndex((i) => String(i.id) === String(active.id));
+            const overIndex = overItems.findIndex((i) => String(i.id) === String(overId));
+
+            let newIndex;
+            if (overId in prev.grouped) {
+                // Soltou na área vazia da coluna
+                newIndex = overItems.length + 1;
+            } else {
+                // Soltou sobre outro card
+                const isBelowOverItem =
+                    over &&
+                    active.rect.current.translated &&
+                    active.rect.current.translated.top > over.rect.top + over.rect.height;
+
+                const modifier = isBelowOverItem ? 1 : 0;
+                newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
+            }
+
+            return {
+                ...prev,
+                grouped: {
+                    ...prev.grouped,
+                    [activeContainer]: [
+                        ...prev.grouped[activeContainer].filter((item) => String(item.id) !== String(active.id)),
+                    ],
+                    [overContainer]: [
+                        ...prev.grouped[overContainer].slice(0, newIndex),
+                        activeItems[activeIndex],
+                        ...prev.grouped[overContainer].slice(newIndex, prev.grouped[overContainer].length),
+                    ],
+                },
+            };
+        });
+    };
 
     const handleDragEnd = (event) => {
         const { active, over } = event;
-        if (!over) return; 
 
-        const activeId = active.id;
-        const overId = over.id;
-
-        const movedCase = active.data.current.caseData;
-        const sourceStatus = active.data.current.status;
-
-        let destinationStatus;
-        if (over.data.current?.status) {
-            destinationStatus = over.data.current.status;
-        } else {
-            destinationStatus = over.id;
+        // 1. Se soltou fora de qualquer lugar válido, cancela
+        if (!over) {
+            setActiveId(null);
+            return;
         }
 
-        if (activeId === overId && sourceStatus === destinationStatus) return;
+        const overId = over.id;
+        // Onde o card foi solto (Nova Coluna)
+        const overContainer = findContainer(overId);
+        
+        // Onde o card está agora na memória do React (pode já ser a nova coluna por causa do DragOver)
+        const currentContainerOfItem = findContainer(active.id);
 
-        setPipelineData(prevData => {
-            const newGroupedData = { ...prevData.grouped };
-            const sourceItems = newGroupedData[sourceStatus];
-            const destinationItems = newGroupedData[destinationStatus];
-            const oldIndex = sourceItems.findIndex(c => c.id === activeId);
-            
-            if (sourceStatus === destinationStatus) {
-                const newIndex = destinationItems.findIndex(c => c.id === overId);
-                if (newIndex === -1) return prevData; 
-                newGroupedData[sourceStatus] = arrayMove(sourceItems, oldIndex, newIndex);
-            } 
-            else {
-                newGroupedData[sourceStatus] = sourceItems.filter(c => c.id !== activeId);
-                let newIndex = destinationItems.findIndex(c => c.id === overId);
-                if (newIndex === -1) {
-                    newIndex = destinationItems.length; 
+        if (!overContainer || !currentContainerOfItem) {
+            setActiveId(null);
+            return;
+        }
+
+        // 2. Encontra o objeto do caso (Card) na lista atual
+        const movedCase = pipelineData.grouped[currentContainerOfItem].find(
+            (c) => String(c.id) === String(active.id)
+        );
+
+        if (!movedCase) {
+            setActiveId(null);
+            return;
+        }
+
+        // 3. A CORREÇÃO PRINCIPAL:
+        // Compara o status REAL do banco (movedCase.status) com a coluna de destino (overContainer).
+        // Se forem diferentes, houve troca de fase, independente da animação visual.
+        const isStatusChange = movedCase.status !== overContainer;
+
+        if (isStatusChange) {
+            console.log(`🔄 Movendo card ${movedCase.id}: ${movedCase.status} -> ${overContainer}`);
+
+            // Prepara o objeto para enviar ao Backend
+            const updatedCasePayload = { 
+                ...movedCase, 
+                status: overContainer, // Força o novo status
+                // Garante que os IDs relacionados sejam mantidos
+                client_id: movedCase.client?.id || movedCase.client_id,
+                lawyer_id: movedCase.lawyer?.id || movedCase.lawyer_id,
+                plaintiff_id: movedCase.plaintiff?.id || movedCase.plaintiff_id,
+                defendant_id: movedCase.defendant?.id || movedCase.defendant_id,
+                opposing_lawyer_id: movedCase.opposing_lawyer?.id || movedCase.opposing_lawyer_id
+            };
+
+            // Remove objetos aninhados para não quebrar a API (se o backend esperar apenas IDs)
+            delete updatedCasePayload.client;
+            delete updatedCasePayload.lawyer;
+            delete updatedCasePayload.plaintiff;
+            delete updatedCasePayload.defendant;
+            delete updatedCasePayload.opposing_lawyer;
+
+            // 4. Atualiza o State Local para persistir a mudança visualmente
+            setPipelineData((prev) => {
+                const newGrouped = { ...prev.grouped };
+                const listContainer = findContainer(active.id); 
+                
+                if (listContainer && newGrouped[listContainer]) {
+                    const items = [...newGrouped[listContainer]];
+                    const itemIndex = items.findIndex(c => String(c.id) === String(active.id));
+                    
+                    if (itemIndex !== -1) {
+                        // Atualiza a propriedade 'status' dentro do objeto para bater com a nova coluna
+                        items[itemIndex] = { ...items[itemIndex], status: overContainer };
+                        newGrouped[listContainer] = items;
+                    }
                 }
-                newGroupedData[destinationStatus] = [
-                    ...destinationItems.slice(0, newIndex),
-                    { ...movedCase, status: destinationStatus },
-                    ...destinationItems.slice(newIndex)
-                ];
-            }
-            
-            return { ...prevData, grouped: newGroupedData };
-        });
+                return { ...prev, grouped: newGrouped };
+            });
 
-        if (sourceStatus !== destinationStatus) {
-            const updatedCaseData = { ...movedCase, status: destinationStatus, client_id: movedCase.client.id };
-            apiClient.put(`/cases/${movedCase.id}`, updatedCaseData, {
+            // 5. CHAMA A API PARA SALVAR
+            apiClient.put(`/cases/${movedCase.id}`, updatedCasePayload, {
                 headers: { Authorization: `Bearer ${token}` }
-            }).catch(err => {
-                console.error("Erro ao atualizar o status do caso:", err);
-                setError('Não foi possível salvar a alteração. Recarregando...');
+            })
+            .then(() => {
+                console.log("✅ Salvo com sucesso no Backend!");
+            })
+            .catch(err => {
+                console.error("❌ Erro ao atualizar status:", err);
+                // Se der erro, recarrega os dados para desfazer a mudança visual enganosa
                 fetchAllData(); 
             });
+        } 
+        else {
+            // Lógica de Reordenação na MESMA coluna (apenas visual, ou salva posição se tiver endpoint)
+            const activeIndex = pipelineData.grouped[currentContainerOfItem].findIndex((i) => String(i.id) === String(active.id));
+            const overIndex = pipelineData.grouped[overContainer].findIndex((i) => String(i.id) === String(overId));
+
+            if (activeIndex !== overIndex) {
+                setPipelineData((prev) => ({
+                    ...prev,
+                    grouped: {
+                        ...prev.grouped,
+                        [overContainer]: arrayMove(prev.grouped[overContainer], activeIndex, overIndex),
+                    },
+                }));
+            }
         }
+
+        setActiveId(null);
     };
 
     const handleFilterChange = (name, value) => {
@@ -174,26 +291,16 @@ const PipelinePage = () => {
             <div className={styles.header}>
                 <h1>Pipeline de Acordos</h1>
                 <div className={styles.headerActions}>
-                    <button
-                        className={styles.aggressorButton}
-                        onClick={() => setIsAggressorModalOpen(true)}
-                    >
-                        Advogados Agressores
-                    </button>
-                    <button className={styles.newCaseButton} onClick={() => setIsNewCaseModalOpen(true)}>
+                    <Link to="/cases/create" className={styles.newCaseButton}>
                         + Novo Caso
-                    </button>
+                    </Link>
                 </div>
             </div>
 
             <div className={styles.filterBar}>
                 <div className={styles.filterGroup}>
                     <label>Cliente</label>
-                    <select
-                        className={styles.filterSelect}
-                        value={filters.client_id || ''}
-                        onChange={(e) => handleFilterChange('client_id', e.target.value)}
-                    >
+                    <select className={styles.filterSelect} value={filters.client_id || ''} onChange={(e) => handleFilterChange('client_id', e.target.value)}>
                         <option value="">Todos</option>
                         {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
                     </select>
@@ -202,11 +309,7 @@ const PipelinePage = () => {
                 {user?.role === 'administrador' && (
                     <div className={styles.filterGroup}>
                         <label>Advogado</label>
-                        <select
-                            className={styles.filterSelect}
-                            value={filters.lawyer_id || ''}
-                            onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}
-                        >
+                        <select className={styles.filterSelect} value={filters.lawyer_id || ''} onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}>
                             <option value="">Todos</option>
                             {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
                         </select>
@@ -215,11 +318,7 @@ const PipelinePage = () => {
                 
                 <div className={styles.filterGroup}>
                     <label>Prioridade</label>
-                    <select
-                        className={styles.filterSelect}
-                        value={filters.priority || ''}
-                        onChange={(e) => handleFilterChange('priority', e.target.value)}
-                    >
+                    <select className={styles.filterSelect} value={filters.priority || ''} onChange={(e) => handleFilterChange('priority', e.target.value)}>
                         <option value="">Todas</option>
                         <option value="baixa">Baixa</option>
                         <option value="media">Média</option>
@@ -227,7 +326,6 @@ const PipelinePage = () => {
                     </select>
                 </div>
 
-                {/* ADICIONADO: Botão de Filtro de Atraso */}
                 <button 
                     className={`${styles.delayedFilterButton} ${showDelayedOnly ? styles.active : ''}`}
                     onClick={() => setShowDelayedOnly(!showDelayedOnly)}
@@ -235,27 +333,27 @@ const PipelinePage = () => {
                 >
                     <FaExclamationTriangle /> {showDelayedOnly ? 'Mostrando Atrasados' : 'Ver Atrasados'}
                 </button>
-                {/* FIM ADIÇÃO */}
-
             </div>
 
-            {isNewCaseModalOpen &&
-                <NewCaseModal
-                    onClose={() => setIsNewCaseModalOpen(false)}
-                    clients={clients}
-                    lawyers={lawyers}
-                    onCaseCreated={fetchAllData}
-                />}
-
-            {editingCase && <EditCaseModal legalCase={editingCase} onClose={handleCloseEditModal} onCaseUpdated={handleCaseUpdated} clients={clients} lawyers={lawyers} />}
+            {/* Modal de Edição */}
+            {editingCase && (
+                <EditCaseModal 
+                    legalCase={editingCase} 
+                    onClose={handleCloseEditModal} 
+                    onCaseUpdated={handleCaseUpdated} 
+                    clients={clients} 
+                    lawyers={lawyers} 
+                />
+            )}
             
-            <AggressorLawyersModal
-                isOpen={isAggressorModalOpen}
-                onClose={() => setIsAggressorModalOpen(false)}
-            />
-
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCorners}>
-                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', padding: '1rem' }}>
+            <DndContext 
+                sensors={sensors} 
+                collisionDetection={closestCorners}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+            >
+                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', padding: '1rem', paddingBottom: '100px' }}>
                     {pipelineData?.titles && Object.entries(pipelineData.titles).map(([statusKey, statusTitle]) => (
                         <PipelineColumn 
                             key={statusKey} 
@@ -266,10 +364,11 @@ const PipelinePage = () => {
                         />
                     ))}
                 </div>
+                {/* Overlay opcional para feedback visual melhorado durante o arraste */}
+                {/* <DragOverlay> ... </DragOverlay> */}
             </DndContext>
         </div>
     );
 };
 
 export default PipelinePage;
-

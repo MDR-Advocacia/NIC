@@ -14,9 +14,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             UserSeeder::class,        // 1. Cria Usuários (Admin)
             ClientSeeder::class,      // 2. Cria Clientes (Livelo/BB)
-            LegalCaseSeeder::class,   // 3. Cria Casos (Vincula Admin + Clientes)
+           // LegalCaseSeeder::class,   // 3. Cria Casos (Vincula Admin + Clientes)
             ConversationSeeder::class, // (Opcional, se tiver chat)
-            ChatMessageSeeder::class,  // (Opcional)
+            //ChatMessageSeeder::class,  // (Opcional)
         ]);
     }
 }

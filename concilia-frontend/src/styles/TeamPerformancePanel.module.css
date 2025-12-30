@@ -1,62 +1,99 @@
-/* src/styles/ProcessStageChart.module.css */
-/* REATORADO v2: Cores de TEXTO corrigidas para Light/Dark */
-
-.container {
+/* --- CONTAINER PRINCIPAL --- */
+.panel {
+    /* Usa a variável do card do tema. Se não existir, usa cinza escuro como fallback */
+    background-color: var(--bg-card, #1f2733); 
+    color: var(--text-primary, #ffffff);
+    border-radius: 16px; /* Mais arredondado para um look moderno */
+    padding: 24px; /* Mais respiro interno */
+    height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    font-family: system-ui, sans-serif;
-    /* Herda a cor do body */
+    /* Sombra mais profunda e suave */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    /* Borda sutil para definição */
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.05));
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.stageRow {
-    display: grid;
-    grid-template-columns: 150px 1fr 80px;
-    align-items: center;
-    gap: 1rem;
-    cursor: pointer;
-    border-radius: 4px;
-    padding: 0.25rem 0.5rem;
-    margin: 0 -0.5rem;
-    transition: background-color 0.2s ease-out, transform 0.2s ease-out;
-}
-
-.stageRow:hover {
-    background-color: var(--bg-hover);
+.panel:hover {
+    /* Efeito sutil de "levantar" ao passar o mouse no card inteiro */
     transform: translateY(-2px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    border-color: var(--border-color-hover, rgba(99, 179, 237, 0.3));
 }
 
-.stageName {
-    font-size: 0.9rem;
-    color: var(--text-secondary); /* CORRIGIDO */
-    text-align: left;
+/* --- CABEÇALHO --- */
+.panelHeader {
+    display: flex;
+    justify-content: space-between; 
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
 }
 
-.barContainer {
-    width: 100%;
-    background-color: var(--bg-input); /* MUDADO */
-    height: 8px;
-    border-radius: 4px;
+.panelHeader h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    /* Título agora segue a cor do texto principal do tema */
+    color: var(--text-primary, #e2e8f0); 
 }
 
-.barFill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.5s ease-in-out;
-}
-
-.stageData {
-    text-align: right;
-}
-
-.stageCount {
-    font-weight: bold;
-    font-size: 0.9rem;
-    color: var(--text-primary); /* CORRIGIDO */
-}
-
-.stagePercentage {
+/* --- BOTÃO VER TODOS (Estilo "Pill" Moderno) --- */
+.viewAllLink {
+    background-color: rgba(99, 179, 237, 0.08); /* Fundo sutil fixo */
+    border: 1px solid transparent;
+    cursor: pointer;
     font-size: 0.8rem;
-    color: var(--text-secondary); /* CORRIGIDO */
-    display: block;
+    font-weight: 600;
+    /* Mantém o azul pois é cor de ação */
+    color: var(--accent-primary, #63b3ed); 
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 9999px; /* Formato de pílula completa */
+    text-decoration: none; 
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.viewAllLink:hover {
+    color: #ffffff; /* Texto branco */
+    background-color: var(--accent-primary, #3182ce); /* Preenche com a cor principal */
+    transform: translateY(-1px); /* Leve subida */
+    box-shadow: 0 4px 12px rgba(99, 179, 237, 0.3); /* Glow effect */
+}
+
+.viewAllLink:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* --- CORPO DA LISTA --- */
+.panelBody {
+    display: flex;
+    flex-direction: column;
+    gap: 16px; /* Mais espaço entre os itens */
+    flex: 1; 
+    overflow-y: auto;
+    padding-right: 8px; /* Espaço para a scrollbar não colar */
+    min-height: 0;
+}
+
+/* --- SCROLLBAR DINÂMICA (Minimalista) --- */
+.panelBody::-webkit-scrollbar {
+    width: 6px;
+}
+.panelBody::-webkit-scrollbar-track {
+    background: transparent; 
+}
+.panelBody::-webkit-scrollbar-thumb {
+    /* Cor da barra mais discreta */
+    background-color: var(--border-color, rgba(160, 174, 192, 0.3)); 
+    border-radius: 10px;
+}
+.panelBody::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-secondary, rgba(160, 174, 192, 0.5)); 
 }

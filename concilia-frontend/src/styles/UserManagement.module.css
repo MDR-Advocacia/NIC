@@ -1,124 +1,170 @@
 /* src/styles/UserManagement.module.css */
-/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
 
+/* --- LAYOUT PRINCIPAL --- */
 .pageContainer {
+    padding: 20px;
+    color: var(--text-primary);
+    max-width: 100%;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    padding-bottom: 80px; /* Espaço extra para a barra flutuante */
 }
 
+/* --- HEADER --- */
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap; 
+    gap: 1rem;
 }
 
-.header h1 { 
-    margin: 0; 
-    color: var(--text-primary); /* ADICIONADO */
+.header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    color: var(--text-primary);
 }
+
 .header p {
-    color: var(--text-secondary); /* ADICIONADO */
+    margin: 5px 0 0;
+    color: var(--text-secondary);
 }
 
 .headerActions {
     display: flex;
-    gap: 1rem;
+    gap: 10px;
 }
 
+/* BOTÕES PADRÃO */
 .actionButton, .newUserButton {
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.6rem 1.2rem;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    border: none;
-    transition: background-color 0.2s, transform 0.2s ease-out; /* ADICIONADO */
+    transition: all 0.2s ease-out;
+    font-size: 0.9rem;
 }
-/* ADICIONADO */
-.actionButton:hover, .newUserButton:hover {
+
+.actionButton {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color-light);
+    color: var(--text-secondary);
+}
+
+.actionButton:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
     transform: translateY(-2px);
 }
 
-
-.actionButton {
-    background-color: var(--bg-hover); /* MUDADO */
-    border: 1px solid var(--border-color-light); /* MUDADO */
-    color: var(--text-primary); /* MUDADO */
-}
-
 .newUserButton {
-    background-color: var(--accent-primary); /* MUDADO */
-    color: var(--text-on-accent); /* MUDADO */
+    background-color: var(--accent-primary);
+    border: 1px solid var(--accent-primary);
+    color: #ffffff;
 }
 
+.newUserButton:hover {
+    background-color: var(--accent-primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* --- GRID DE KPIs --- */
 .kpiGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1.5rem;
 }
 
+/* --- BARRA DE FILTROS --- */
 .filtersContainer {
-    background-color: var(--bg-card); /* MUDADO */
-    padding: 1.5rem;
+    background-color: var(--bg-card);
+    padding: 1.2rem;
     border-radius: 8px;
     display: flex;
-    gap: 1rem;
+    gap: 10px;
+    flex-wrap: wrap;
     align-items: center;
-    border: 1px solid var(--border-color-light); /* ADICIONADO */
-    box-shadow: var(--card-shadow); /* ADICIONADO */
+    border: 1px solid var(--border-color-light);
+    box-shadow: var(--card-shadow);
 }
 
 .searchInput {
-    flex-grow: 1;
-    padding: 0.75rem;
-    border-radius: 5px;
-    border: 1px solid var(--border-color-dark); /* MUDADO */
-    background-color: var(--bg-input); /* MUDADO */
-    color: var(--text-primary); /* MUDADO */
+    flex: 2;
+    min-width: 200px;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    outline: none;
 }
 
 .filterSelect {
-    padding: 0.75rem;
-    border-radius: 5px;
-    border: 1px solid var(--border-color-dark); /* MUDADO */
-    background-color: var(--bg-input); /* MUDADO */
-    color: var(--text-primary); /* MUDADO */
-    min-width: 180px;
+    flex: 1;
+    min-width: 140px;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    outline: none;
+    cursor: pointer;
 }
 
+.searchInput:focus, .filterSelect:focus {
+    border-color: var(--accent-primary);
+}
+
+/* --- TABELA --- */
 .tableContainer {
-    background-color: var(--bg-card); /* MUDADO */
-    padding: 1.5rem;
+    background-color: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid var(--border-color-light); /* ADICIONADO */
-    box-shadow: var(--card-shadow); /* ADICIONADO */
-}
-
-.tableContainer h3 {
-    color: var(--text-primary); /* ADICIONADO */
+    border: 1px solid var(--border-color-light);
+    box-shadow: var(--card-shadow);
+    overflow-x: auto;
 }
 
 .table {
     width: 100%;
     border-collapse: collapse;
-    color: var(--text-primary); /* MUDADO */
-}
-
-.table th, .table td {
-    padding: 1rem;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
 }
 
 .table th {
-    color: var(--text-secondary); /* MUDADO */
-    font-size: 0.8rem;
+    background-color: var(--bg-hover);
+    padding: 1rem;
+    text-align: left;
+    font-size: 0.75rem;
     text-transform: uppercase;
+    color: var(--text-secondary);
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-color-light);
 }
 
+.table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color-light);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+/* Estilo para linha selecionada */
+.rowSelected {
+    background-color: rgba(59, 130, 246, 0.05); /* Leve azul */
+}
+
+.checkboxInput {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* Célula de Usuário (Avatar + Nome) */
 .userCell {
     display: flex;
     align-items: center;
@@ -129,47 +175,279 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background-color: var(--bg-hover); /* MUDADO */
+    background-color: var(--bg-hover);
+    color: var(--accent-primary);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: bold;
-    font-size: 1rem;
-    color: var(--text-primary); /* ADICIONADO */
+    font-size: 0.9rem;
+    border: 1px solid var(--border-color-light);
 }
 
-.userName { 
-    font-weight: bold; 
-    color: var(--text-primary); /* ADICIONADO */
-}
-.userEmail { 
-    font-size: 0.8rem; 
-    color: var(--text-secondary); /* MUDADO */
+.userName {
+    font-weight: 600;
+    color: var(--text-primary);
+    display: block;
 }
 
-/* O estilo base da tag, as cores vêm do .jsx */
+.userEmail {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: block;
+}
+
+/* --- TAGS (Cores base) --- */
 .tag {
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
     font-size: 0.75rem;
-    font-weight: 500;
+    font-weight: 600;
+    text-transform: uppercase;
+    white-space: nowrap;
     display: inline-block;
-    white-space: nowrap; /* ADICIONADO */
 }
 
-/* REMOVIDO: Classes de cor (statusAtivo, roleAdmin, etc.) */
+.tagArea {
+    background-color: var(--bg-hover);
+    color: var(--text-secondary);
+    padding: 0.3rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid var(--border-color-light);
+    white-space: nowrap;
+}
 
-.actionsCell {
-    display: flex; /* MUDADO: para 'flex' */
-    gap: 1.5rem;
-    font-size: 1.1rem;
-    color: var(--text-secondary); /* MUDADO */
+/* --- BATCH ACTION BAR (Ações em Lote) --- */
+.batchActionBar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color-dark);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    padding: 15px 25px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    z-index: 1000;
+    animation: slideUp 0.3s ease-out;
+    width: 90%;
+    max-width: 800px;
 }
-.actionsCell > * { 
-    cursor: pointer; 
-    transition: color 0.2s, transform 0.2s; /* ADICIONADO */
+
+.batchInfo {
+    font-size: 1rem;
+    color: var(--text-primary);
+    padding-right: 20px;
+    border-right: 1px solid var(--border-color-light);
 }
-.actionsCell > *:hover { 
-    color: var(--accent-primary); /* MUDADO */
-    transform: scale(1.2); /* ADICIONADO */
+
+.batchActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.batchBtn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    transition: filter 0.2s;
+}
+
+.batchBtn:hover {
+    filter: brightness(1.1);
+}
+
+.batchBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Cores dos botões de lote */
+.btnSuccess { background-color: #38a169; }
+.btnWarning { background-color: #718096; }
+.btnInfo { background-color: #3182ce; }
+.btnDanger { background-color: #e53e3e; }
+
+.batchSelect {
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color-dark);
+}
+
+.batchClose {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    margin-left: auto; /* Empurra para o fim */
+    cursor: pointer;
+}
+
+.batchClose:hover { color: #e53e3e; }
+
+@keyframes slideUp {
+    from { transform: translate(-50%, 100%); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+/* --- MODAL --- */
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+}
+
+.modalContent {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    padding: 30px;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 550px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color-dark);
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+.modalHeader h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+.closeButton {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.closeButton:hover {
+    color: #ef4444;
+}
+
+/* --- FORMULÁRIO DO MODAL --- */
+.formGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.formRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    width: 100%;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.formGroup label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.formGroup input, .formGroup select {
+    padding: 12px;
+    border: 1px solid var(--border-color-dark);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    width: 100%;
+    box-sizing: border-box;
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.formGroup input:focus, .formGroup select:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Botões do Modal */
+.modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color-light);
+}
+
+.cancelButton {
+    padding: 10px 20px;
+    background-color: var(--bg-hover);
+    border: 1px solid var(--border-color-light);
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.cancelButton:hover {
+    background-color: var(--border-color-dark);
+    color: var(--text-primary);
+}
+
+.saveButton {
+    padding: 10px 20px;
+    background-color: var(--accent-primary);
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.saveButton:hover {
+    background-color: var(--accent-primary-hover);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }

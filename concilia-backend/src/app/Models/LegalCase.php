@@ -20,34 +20,61 @@ class LegalCase extends Model
     }
 
     protected $fillable = [
-        'case_number', 
-        'client_id', 
-        'user_id',          // <--- MUDANÇA 1: Era lawyer_id, agora é user_id
-        'opposing_party', 
-        'defendant',
-        'action_object', 
-        'description', 
-        'status', 
-        'priority', 
+        'case_number',
+        'internal_number', 
+        'client_id',
+        'user_id',
+        'opposing_party', // Mantemos string para compatibilidade ou texto livre
+        'plaintiff_id',   // NOVO: ID do Autor
+        'defendant',      // Mantemos string
+        'defendant_id',   // NOVO: ID do Réu
+        'action_object',
+        'description',
+        'status',
+        'priority',
         'original_value',
-        'agreement_value', 
-        'cause_value', 
-        'comarca', 
-        'state', 
+        'agreement_value',
+        'cause_value',
+        'updated_condemnation_value', 
+        'opposing_lawyer_id',
+        'comarca',
+        'state',
+        'city', 
         'special_court',
-        'opposing_lawyer', 
-        'opposing_contact', 
+        'opposing_lawyer',
+        'opposing_contact',
         'tags',
         'agreement_probability',
-        'agreement_checklist_data', 
+        'pcond_probability', 
+        'agreement_checklist_data',
         'start_date'
     ];
 
     protected $casts = ['tags' => 'array', 'agreement_checklist_data' => 'array'];
 
-    public function client() { return $this->belongsTo(Client::class); }
+    public function client()
+    {
+        return $this->belongsTo(Client::class);
+    }
 
-    // MUDANÇA 2: Mantemos o nome da função 'lawyer' para o frontend não quebrar,
-    // mas avisamos que no banco de dados a coluna se chama 'user_id'
-    public function lawyer() { return $this->belongsTo(User::class, 'user_id'); }
+    public function lawyer()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+    
+    public function opposingLawyer()
+    {
+        return $this->belongsTo(OpposingLawyer::class, 'opposing_lawyer_id');
+    }
+
+    // NOVOS RELACIONAMENTOS
+    public function plaintiff()
+    {
+        return $this->belongsTo(Plaintiff::class, 'plaintiff_id');
+    }
+
+    public function defendantRel()
+    {
+        return $this->belongsTo(Defendant::class, 'defendant_id');
+    }
 }

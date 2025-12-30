@@ -24,10 +24,12 @@ class User extends Authenticatable
         'password',
         'role',
         // --- NOVOS CAMPOS ADICIONADOS ---
+        'area',
         'status',
         'phone',
         'last_login_at',
         'department_id',
+        'must_change_password',
     ];
 
     /**
@@ -44,8 +46,9 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password' => 'hashed',
+        
         'last_login_at' => 'datetime', // NOVO CAST ADICIONADO
+        'must_change_password' => 'boolean',
     ];
 
     /**

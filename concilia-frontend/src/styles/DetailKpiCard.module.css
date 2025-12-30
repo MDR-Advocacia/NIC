@@ -1,47 +1,88 @@
+/* src/styles/DetailKpiCard.module.css */
+
 .card {
-    background-color: #1e293b; /* Fundo escuro (Slate 800) */
-    border-radius: 8px;
-    padding: 16px;
+    background-color: var(--bg-card, #ffffff);
+    border-radius: 12px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid var(--border-color, #e2e8f0);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    height: 100%;
+    
+    /* AUMENTADO: Garante um bom espaço entre os cards e o conteúdo abaixo */
+    margin-bottom: 2.5rem; 
+    
+    position: relative; /* Garante contexto de empilhamento correto */
+    z-index: 1;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    z-index: 10; /* Traz para frente ao passar o mouse */
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.iconContainer {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
     justify-content: center;
-    border: 1px solid #334155; /* Borda sutil */
-    min-height: 100px;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    /* A cor de fundo será injetada via style inline no JSX baseada na prop 'color' */
+    color: white; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .title {
-    font-size: 0.85rem;
-    color: #94a3b8; /* Cinza claro */
-    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: var(--text-secondary, #718096);
     font-weight: 500;
+    margin: 0;
 }
 
-.valueContainer {
+.content {
     display: flex;
-    align-items: baseline;
-    gap: 8px;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .value {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #f8fafc; /* Branco */
+    color: var(--text-primary, #2d3748);
     margin: 0;
     line-height: 1.2;
 }
 
 .subtext {
-    font-size: 0.75rem;
-    color: #64748b; /* Cinza mais escuro */
-    margin-top: 8px;
-    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #a0aec0);
+    margin: 0;
 }
 
-/* Cores opcionais para variações */
-.positive {
-    color: #22c55e;
-}
-
-.negative {
-    color: #ef4444;
+/* MODO ESCURO (Fallback caso variáveis falhem) */
+@media (prefers-color-scheme: dark) {
+    .card {
+        background-color: var(--bg-card, #1a202c);
+        border-color: var(--border-color, #2d3748);
+    }
+    .value {
+        color: var(--text-primary, #f7fafc);
+    }
+    .title, .subtext {
+        color: var(--text-secondary, #a0aec0);
+    }
 }

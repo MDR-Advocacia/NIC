@@ -6,23 +6,31 @@ use App\Http\Controllers\Controller;
 use App\Models\LegalCase;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth; // <--- Importante
 
 class DashboardController extends Controller
 {
     public function index(Request $request)
     {
+        $user = Auth::user(); // <--- Identifica quem está logado
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
 
+        // --- 1. CONSULTA PRINCIPAL (CASOS) ---
         $query = LegalCase::query();
+
+        // SEGURANÇA: Se for operador, filtra para ver APENAS os seus casos
+        if ($user->role === 'operador') {
+            $query->where('user_id', $user->id);
+        }
 
         if ($startDate && $endDate) {
             $query->whereBetween('created_at', [$startDate, $endDate]);
         }
 
-        $allCases = $query->get();
+        $allCases = $query->get(); // A partir daqui, $allCases já está filtrado ou completo
 
-        // KPI GERAIS
+        // --- KPI GERAIS ---
         $totalCases = $allCases->count();
         $totalAgreementValue = $allCases->sum('agreement_value');
         $totalOriginalValue = $allCases->sum('original_value');
@@ -37,12 +45,23 @@ class DashboardController extends Controller
 
         $conversionRate = $totalCases > 0 ? ($closedCases->count() / $totalCases) * 100 : 0;
 
-        // PERFORMANCE POR EQUIPE
-        $lawyers = User::whereIn('role', ['operador', 'admin'])->with(['cases' => function($q) use ($startDate, $endDate) {
+        // --- PERFORMANCE POR EQUIPE ---
+        // Preparamos a query de usuários
+        $lawyersQuery = User::with(['cases' => function($q) use ($startDate, $endDate) {
             if ($startDate && $endDate) {
                 $q->whereBetween('created_at', [$startDate, $endDate]);
             }
-        }])->get();
+        }]);
+
+        // SEGURANÇA: Operador só vê sua própria performance na tabela
+        if ($user->role === 'operador') {
+            $lawyersQuery->where('id', $user->id);
+        } else {
+            // Admin vê todos os operadores/admins
+            $lawyersQuery->whereIn('role', ['operador', 'administrador', 'supervisor']);
+        }
+        
+        $lawyers = $lawyersQuery->get();
 
         $teamPerformance = $lawyers->map(function ($lawyer) {
             $myCases = $lawyer->cases;
@@ -57,14 +76,9 @@ class DashboardController extends Controller
             $myConversion = $myTotal > 0 ? ($myClosed / $myTotal) * 100 : 0;
             $score = ($myClosed * 10) + ($myEconomy / 1000);
 
-            // --- LÓGICA DE PRODUTOS (SIMULAÇÃO INTELIGENTE) ---
-            // Assumimos que 40% dos acordos usaram produtos
+            // Simulação de Produtos
             $productsCount = ceil($myClosed * 0.4); 
-            
-            // Valor médio proposto de R$ 2.500 por produto
             $productsValue = $productsCount * 2500; 
-            
-            // Economia gerada pelos produtos (aprox 15% da economia total)
             $productsEconomy = $myEconomy > 0 ? ($myEconomy * 0.15) : 0;
 
             return [
@@ -75,7 +89,6 @@ class DashboardController extends Controller
                 'economy' => $myEconomy,
                 'conversion_rate' => round($myConversion, 1),
                 'score' => round($score, 1),
-                // Novos campos calculados:
                 'products_count' => $productsCount,
                 'products_proposed_value' => $productsValue,
                 'products_economy' => $productsEconomy
@@ -84,25 +97,33 @@ class DashboardController extends Controller
 
         $teamPerformance = $teamPerformance->sortByDesc('score')->values();
 
-        // GRÁFICO DE EVOLUÇÃO
+        // --- GRÁFICO DE EVOLUÇÃO ---
         $months = collect([]);
         $createdData = collect([]);
         $closedData = collect([]);
 
-        for ($i = 11; $i >= 0; $i--) { // Últimos 12 meses
+        for ($i = 11; $i >= 0; $i--) { 
             $date = now()->subMonths($i);
             $months->push($date->format('M'));
 
-            $createdCount = LegalCase::whereYear('created_at', $date->year)
-                                    ->whereMonth('created_at', $date->month)
-                                    ->count();
-            $createdData->push($createdCount);
+            // Query Criação
+            $cQuery = LegalCase::whereYear('created_at', $date->year)
+                                ->whereMonth('created_at', $date->month);
+            // Filtro de Segurança no Gráfico
+            if ($user->role === 'operador') {
+                $cQuery->where('user_id', $user->id);
+            }
+            $createdData->push($cQuery->count());
 
-            $closedCount = LegalCase::where('status', 'closed_deal')
-                                    ->whereYear('updated_at', $date->year)
-                                    ->whereMonth('updated_at', $date->month)
-                                    ->count();
-            $closedData->push($closedCount);
+            // Query Fechamento
+            $clQuery = LegalCase::where('status', 'closed_deal')
+                                ->whereYear('updated_at', $date->year)
+                                ->whereMonth('updated_at', $date->month);
+            // Filtro de Segurança no Gráfico
+            if ($user->role === 'operador') {
+                $clQuery->where('user_id', $user->id);
+            }
+            $closedData->push($clQuery->count());
         }
 
         $monthlyEvolution = [
@@ -111,6 +132,7 @@ class DashboardController extends Controller
             'closed' => $closedData->values()
         ];
 
+        // --- DISTRIBUIÇÃO DE STATUS ---
         $statusDistribution = [
             'initial_analysis' => $allCases->where('status', 'initial_analysis')->count(),
             'proposal_sent' => $allCases->where('status', 'proposal_sent')->count(),
@@ -132,7 +154,7 @@ class DashboardController extends Controller
             'status_distribution' => $statusDistribution,
             'monthly_evolution' => $monthlyEvolution,
             'team_performance' => $teamPerformance,
-            'recent_cases' => $allCases->take(5)
+            'recent_cases' => $allCases->take(5)->values()
         ]);
     }
 }

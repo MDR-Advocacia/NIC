@@ -1,23 +1,20 @@
-// src/pages/UserManagementPage.jsx
-// ATUALIZADO: Lógica de cores das tags movida para o JSX
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import styles from '../styles/UserManagement.module.css';
-import { FaUserPlus, FaSync, FaFileExport, FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import { 
+    FaUserPlus, FaSync, FaEdit, FaTrash, FaPlus, FaTimes, FaSave, 
+    FaChevronLeft, FaChevronRight, FaCheckSquare, FaBan, FaTrashAlt, FaUserTag 
+} from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
-import AddEditUserModal from '../components/AddEditUserModal';
 import AddDepartmentModal from '../components/AddDepartmentModal';
 
-// --- COMPONENTES AUXILIARES (LÓGICA DE COR ATUALIZADA) ---
+const AREAS_LIST = ["Recuperação de Crédito", "Contencioso Passivo", "Atendente"];
 
-// Mapa de Status
 const STATUS_DETAILS = {
     'ativo': { name: 'Ativo', color: '#38a169', textColor: '#FFFFFF' },
     'inativo': { name: 'Inativo', color: '#718096', textColor: '#FFFFFF' },
 };
-// Mapa de Funções (Role)
 const ROLE_DETAILS = {
     'administrador': { name: 'Administrador', color: '#9f7aea', textColor: '#FFFFFF' },
     'supervisor': { name: 'Supervisor', color: '#ed8936', textColor: '#FFFFFF' },
@@ -25,70 +22,72 @@ const ROLE_DETAILS = {
 };
 
 const StatusTag = ({ status }) => {
-    const currentStatus = STATUS_DETAILS[status] || { 
-        name: status, 
-        color: '#A0AEC0', // Cinza padrão
-        textColor: '#1A202C'
-    };
-    return (
-        <span 
-            className={styles.tag} 
-            style={{ 
-                backgroundColor: currentStatus.color, 
-                color: currentStatus.textColor 
-            }}
-        >
-            {currentStatus.name}
-        </span>
-    );
-};
-const RoleTag = ({ role }) => {
-    const currentRole = ROLE_DETAILS[role] || { 
-        name: role, 
-        color: '#A0AEC0',
-        textColor: '#1A202C'
-    };
-    return (
-        <span 
-            className={styles.tag} 
-            style={{ 
-                backgroundColor: currentRole.color, 
-                color: currentRole.textColor 
-            }}
-        >
-            {currentRole.name}
-        </span>
-    );
+    const s = STATUS_DETAILS[status] || { name: status, color: '#CBD5E0', textColor: '#1A202C' };
+    return <span className={styles.tag} style={{ backgroundColor: s.color, color: s.textColor }}>{s.name}</span>;
 };
 
+const RoleTag = ({ role }) => {
+    const r = ROLE_DETAILS[role] || { name: role, color: '#CBD5E0', textColor: '#1A202C' };
+    return <span className={styles.tag} style={{ backgroundColor: r.color, color: r.textColor }}>{r.name}</span>;
+};
 
 const UserManagementPage = () => {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
+    const canManage = ['administrador', 'supervisor'].includes(user?.role);
+
     const [users, setUsers] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [isUserFormModalOpen, setIsUserFormModalOpen] = useState(false);
-    const [isDepartmentModalOpen, setIsDepartmentModalOpen] = useState(false);
-    const [editingUser, setEditingUser] = useState(null);
-
-    const [filters, setFilters] = useState({
-        search: '', status: '', role: '', department_id: '',
+    
+    // --- PAGINAÇÃO ---
+    const [pagination, setPagination] = useState({
+        current_page: 1,
+        last_page: 1,
+        total: 0
     });
 
-    const fetchData = useCallback(async () => {
+    const [filters, setFilters] = useState({ search: '', status: '', role: '', department_id: '' });
+    const [filterArea, setFilterArea] = useState('');
+
+    const [isDepartmentModalOpen, setIsDepartmentModalOpen] = useState(false);
+    const [isUserFormModalOpen, setIsUserFormModalOpen] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState(null);
+
+    // --- ESTADOS PARA AÇÕES EM LOTE ---
+    const [selectedUsers, setSelectedUsers] = useState([]); // Array de IDs
+    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+    const [showBatchRoleSelect, setShowBatchRoleSelect] = useState(false); // Para mostrar select de cargo na barra
+
+    const [formData, setFormData] = useState({
+        name: '', email: '', password: '', role: 'operador', department_id: '', status: 'ativo', area: ''
+    });
+
+    // Função de busca
+    const fetchData = useCallback(async (page = 1) => {
         setLoading(true);
-        setError('');
+        // Limpa seleção ao mudar de página ou recarregar para evitar erros
+        setSelectedUsers([]); 
         try {
-            const userParams = new URLSearchParams(filters);
-            const [usersResponse, departmentsResponse] = await Promise.all([
+            const userParams = new URLSearchParams({ ...filters, page: page });
+            
+            const [usersRes, deptsRes] = await Promise.all([
                 apiClient.get(`/users?${userParams.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
                 apiClient.get('/departments', { headers: { Authorization: `Bearer ${token}` } })
             ]);
-            setUsers(usersResponse.data.data || []);
-            setDepartments(departmentsResponse.data || []);
+
+            const responseData = usersRes.data;
+            
+            setUsers(responseData.data || []);
+            setDepartments(deptsRes.data || []);
+
+            setPagination({
+                current_page: responseData.current_page || 1,
+                last_page: responseData.last_page || 1,
+                total: responseData.total || 0
+            });
+
         } catch (err) {
-            setError('Não foi possível carregar os dados.');
             console.error(err);
         } finally {
             setLoading(false);
@@ -96,171 +95,395 @@ const UserManagementPage = () => {
     }, [token, filters]);
 
     useEffect(() => {
-        const timer = setTimeout(() => { fetchData(); }, 300);
+        const timer = setTimeout(() => { fetchData(1); }, 300);
         return () => clearTimeout(timer);
-    }, [fetchData]);
+    }, [filters, fetchData]);
+
+    // Filtragem Frontend (Área)
+    const displayedUsers = useMemo(() => {
+        if (!filterArea) return users; 
+        return users.filter(user => user.area === filterArea);
+    }, [users, filterArea]);
 
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
-        setFilters(prev => ({ ...prev, [name]: value }));
+        if (name === 'area') {
+            setFilterArea(value); 
+        } else {
+            setFilters(prev => ({ ...prev, [name]: value })); 
+        }
     };
 
-    const getInitials = (name) => {
-        if (!name) return '';
-        const names = name.split(' ');
-        const firstInitial = names[0]?.[0] || '';
-        const lastInitial = names.length > 1 ? names[names.length - 1][0] : '';
-        return `${firstInitial}${lastInitial}`.toUpperCase();
-    };
-    
-    const handleSaveSuccess = () => {
-        setIsUserFormModalOpen(false);
-        setIsDepartmentModalOpen(false);
-        setEditingUser(null);
-        fetchData();
-    };
-    
-    const handleDelete = async (userId) => {
-        if (!window.confirm('Tem certeza que deseja excluir este usuário?')) {
-            return;
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= pagination.last_page) {
+            fetchData(newPage);
         }
+    };
+
+    // --- LÓGICA DE SELEÇÃO (CHECKBOXES) ---
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            // Seleciona todos os visíveis na tela
+            const allIds = displayedUsers.map(u => u.id);
+            setSelectedUsers(allIds);
+        } else {
+            setSelectedUsers([]);
+        }
+    };
+
+    const handleSelectUser = (id) => {
+        setSelectedUsers(prev => {
+            if (prev.includes(id)) {
+                return prev.filter(userId => userId !== id);
+            } else {
+                return [...prev, id];
+            }
+        });
+    };
+
+    // --- LÓGICA DE AÇÕES EM LOTE (API) ---
+    const handleBatchAction = async (action, value = null) => {
+        if (!window.confirm(`Tem a certeza que deseja aplicar esta ação para ${selectedUsers.length} utilizadores?`)) return;
+
+        setIsBatchProcessing(true);
         try {
-            await apiClient.delete(`/users/${userId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            fetchData();
-        } catch (err) {
-            alert('Não foi possível excluir o usuário.');
-            console.error(err);
+            await apiClient.post('/users/batch-update', {
+                user_ids: selectedUsers,
+                action: action,
+                value: value
+            }, { headers: { Authorization: `Bearer ${token}` } });
+
+            alert('Ação em lote realizada com sucesso!');
+            fetchData(pagination.current_page); // Recarrega dados
+            setSelectedUsers([]); // Limpa seleção
+            setShowBatchRoleSelect(false);
+        } catch (error) {
+            console.error(error);
+            alert('Erro ao processar ação em lote. Verifique se tem permissão.');
+        } finally {
+            setIsBatchProcessing(false);
         }
     };
 
+    // --- CRUD INDIVIDUAL ---
     const handleOpenAddModal = () => {
-        setEditingUser(null);
+        setIsEditing(false);
+        setCurrentUserId(null);
+        setFormData({ name: '', email: '', password: '', role: 'operador', department_id: '', status: 'ativo', area: '' });
         setIsUserFormModalOpen(true);
     };
 
     const handleOpenEditModal = (user) => {
-        setEditingUser(user);
+        setIsEditing(true);
+        setCurrentUserId(user.id);
+        setFormData({
+            name: user.name,
+            email: user.email,
+            password: '', 
+            role: user.role,
+            department_id: user.department_id || '',
+            status: user.status || 'ativo',
+            area: user.area || '' 
+        });
         setIsUserFormModalOpen(true);
     };
+
+    const handleSaveUser = async (e) => {
+        e.preventDefault();
+        try {
+            const payload = {
+                name: formData.name, email: formData.email, role: formData.role,
+                department_id: formData.department_id, status: formData.status, area: formData.area 
+            };
+            if (formData.password) payload.password = formData.password;
+            else if (!isEditing) payload.password = '123456';
+
+            if (isEditing) {
+                await apiClient.put(`/users/${currentUserId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+            } else {
+                await apiClient.post('/users', payload, { headers: { Authorization: `Bearer ${token}` } });
+            }
+            setIsUserFormModalOpen(false);
+            fetchData(pagination.current_page);
+            alert(isEditing ? 'Atualizado!' : 'Criado!');
+        } catch (err) {
+            alert('Erro ao salvar.');
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm('Excluir usuário?')) {
+            try {
+                await apiClient.delete(`/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+                fetchData(pagination.current_page);
+            } catch (err) {
+                alert("Erro ao excluir.");
+            }
+        }
+    };
+
+    const getInitials = (n) => {
+        if(!n) return ''; 
+        const p = n.split(' '); 
+        return (p[0][0] + (p.length>1?p[p.length-1][0]:'')).toUpperCase();
+    };
+
+    const handleSaveSuccess = () => { setIsDepartmentModalOpen(false); fetchData(pagination.current_page); };
+
+    // Verifica se todos da página atual estão selecionados
+    const isAllSelected = displayedUsers.length > 0 && displayedUsers.every(u => selectedUsers.includes(u.id));
 
     return (
         <div className={styles.pageContainer}>
             <header className={styles.header}>
-                <div>
-                    <h1>Gestão de Usuários</h1>
-                    <p>Gerencie usuários, permissões e controle de acesso</p>
-                </div>
+                <div><h1>Gestão de Usuários</h1><p>Controle de acesso e áreas</p></div>
                 <div className={styles.headerActions}>
-                    <button className={styles.actionButton}><FaFileExport /> Exportar</button>
-                    <button className={styles.actionButton} onClick={fetchData}><FaSync /> Atualizar</button>
-                    <button className={styles.actionButton} onClick={() => setIsDepartmentModalOpen(true)}>
-                        <FaPlus/> Novo Departamento
-                    </button>
-                    <button className={styles.newUserButton} onClick={handleOpenAddModal}>
-                        <FaUserPlus /> Novo Usuário
-                    </button>
+                    <button className={styles.actionButton} onClick={() => fetchData(pagination.current_page)}><FaSync /> Atualizar</button>
+                    {canManage && (
+                        <>
+                            <button className={styles.actionButton} onClick={() => setIsDepartmentModalOpen(true)}><FaPlus/> Depto</button>
+                            <button className={styles.newUserButton} onClick={handleOpenAddModal}><FaUserPlus /> Usuário</button>
+                        </>
+                    )}
                 </div>
             </header>
 
             <section className={styles.kpiGrid}>
-                {/* O KpiCard já foi refatorado e usará as variáveis CSS */}
-                <KpiCard title="Total de Usuários" value={users.length.toString()} />
-                <KpiCard title="Usuários Ativos" value={users.filter(u => u.status === 'ativo').length.toString()} />
-                <KpiCard title="Primeiro Login" value={"-"} /> 
-                <KpiCard title="Departamentos" value={departments.length.toString()} />
+                <KpiCard title="Total" value={pagination.total} />
+                <KpiCard title="Selecionados" value={selectedUsers.length} />
+                <KpiCard title="Página" value={`${pagination.current_page}/${pagination.last_page}`} />
             </section>
 
             <section className={styles.filtersContainer}>
-                <input 
-                    type="text" 
-                    name="search"
-                    placeholder="Buscar usuários..." 
-                    className={styles.searchInput}
-                    value={filters.search}
-                    onChange={handleFilterChange}
-                />
+                <input type="text" name="search" placeholder="Buscar..." className={styles.searchInput} value={filters.search} onChange={handleFilterChange} />
                 <select name="status" className={styles.filterSelect} value={filters.status} onChange={handleFilterChange}>
-                    <option value="">Todos os status</option>
+                    <option value="">Status: Todos</option>
                     <option value="ativo">Ativo</option>
                     <option value="inativo">Inativo</option>
                 </select>
                 <select name="role" className={styles.filterSelect} value={filters.role} onChange={handleFilterChange}>
-                    <option value="">Todas as funções</option>
+                    <option value="">Função: Todas</option>
                     <option value="administrador">Administrador</option>
                     <option value="supervisor">Supervisor</option>
                     <option value="operador">Operador</option>
                 </select>
                 <select name="department_id" className={styles.filterSelect} value={filters.department_id} onChange={handleFilterChange}>
-                    <option value="">Todos os departamentos</option>
-                    {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
+                    <option value="">Depto: Todos</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+                <select name="area" className={styles.filterSelect} value={filterArea} onChange={handleFilterChange}>
+                    <option value="">Área: Todas</option>
+                    {AREAS_LIST.map(area => (<option key={area} value={area}>{area}</option>))}
                 </select>
             </section>
-            
+
             <section className={styles.tableContainer}>
-                <h3>Lista de Usuários ({users.length})</h3>
-                {loading ? <p>Carregando...</p> : error ? <p style={{color: 'red'}}>{error}</p> : (
-                    <table className={styles.table}>
-                        <thead>
-                            <tr>
-                                <th>Usuário</th>
-                                <th>Contato</th>
-                                <th>Função</th>
-                                <th>Departamento</th>
-                                <th>Último Login</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {users.map(user => (
-                                <tr key={user.id}>
-                                    <td>
-                                        <div className={styles.userCell}>
-                                            <div className={styles.userAvatar}>{getInitials(user.name)}</div>
-                                            <div>
-                                                <div className={styles.userName}>{user.name}</div>
-                                                <div className={styles.userEmail}>{user.email}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>{user.phone || '-'}</td>
-                                    {/* ATUALIZADO: Usa o novo componente RoleTag */}
-                                    <td><RoleTag role={user.role} /></td>
-                                    <td>{user.department?.name || '-'}</td>
-                                    <td>{user.last_login_at ? new Date(user.last_login_at).toLocaleString('pt-BR') : 'Nunca'}</td>
-                                    {/* ATUALIZADO: Usa o novo componente StatusTag */}
-                                    <td><StatusTag status={user.status} /></td>
-                                    <td className={styles.actionsCell}>
-                                        <FaEdit title="Editar" onClick={() => handleOpenEditModal(user)} />
-                                        <FaTrash title="Excluir" onClick={() => handleDelete(user.id)} />
-                                    </td>
+                {loading ? <p style={{padding:'20px'}}>Carregando...</p> : (
+                    <>
+                        <table className={styles.table}>
+                            <thead>
+                                <tr>
+                                    {/* CHECKBOX HEADER */}
+                                    <th style={{ width: '40px', textAlign: 'center' }}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isAllSelected} 
+                                            onChange={handleSelectAll}
+                                            className={styles.checkboxInput}
+                                        />
+                                    </th>
+                                    <th>Usuário</th><th>Função</th><th>Área</th><th>Depto</th><th>Status</th>
+                                    {canManage && <th style={{ minWidth: '100px', whiteSpace: 'nowrap' }}>Ações</th>}
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {displayedUsers.map(user => (
+                                    <tr key={user.id} className={selectedUsers.includes(user.id) ? styles.rowSelected : ''}>
+                                        {/* CHECKBOX ROW */}
+                                        <td style={{ textAlign: 'center' }}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedUsers.includes(user.id)}
+                                                onChange={() => handleSelectUser(user.id)}
+                                                className={styles.checkboxInput}
+                                            />
+                                        </td>
+                                        <td>
+                                            <div className={styles.userCell}>
+                                                <div className={styles.userAvatar}>{getInitials(user.name)}</div>
+                                                <div><div className={styles.userName}>{user.name}</div><div className={styles.userEmail}>{user.email}</div></div>
+                                            </div>
+                                        </td>
+                                        <td><RoleTag role={user.role} /></td>
+                                        <td>{user.area ? <span className={styles.tagArea}>{user.area}</span> : <span style={{color:'#cbd5e1'}}>-</span>}</td>
+                                        <td>{user.department?.name || '-'}</td>
+                                        <td><StatusTag status={user.status} /></td>
+                                        {canManage && (
+                                            <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                                    <FaEdit title="Editar" size={18} style={{ cursor: 'pointer', color: '#718096' }} onClick={() => handleOpenEditModal(user)} />
+                                                    <FaTrash title="Excluir" size={18} style={{ cursor: 'pointer', color: '#718096' }} onClick={() => handleDelete(user.id)} />
+                                                </div>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        
+                        {/* PAGINAÇÃO */}
+                        {pagination.last_page > 1 && (
+                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', padding: '20px' }}>
+                                <button 
+                                    onClick={() => handlePageChange(pagination.current_page - 1)}
+                                    disabled={pagination.current_page === 1}
+                                    style={{ padding: '8px 16px', cursor: 'pointer', opacity: pagination.current_page === 1 ? 0.5 : 1 }}
+                                >
+                                    <FaChevronLeft /> Anterior
+                                </button>
+                                <span style={{ color: '#64748b' }}>
+                                    Página <strong>{pagination.current_page}</strong> de <strong>{pagination.last_page}</strong>
+                                </span>
+                                <button 
+                                    onClick={() => handlePageChange(pagination.current_page + 1)}
+                                    disabled={pagination.current_page === pagination.last_page}
+                                    style={{ padding: '8px 16px', cursor: 'pointer', opacity: pagination.current_page === pagination.last_page ? 0.5 : 1 }}
+                                >
+                                    Próxima <FaChevronRight />
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </section>
 
-            <AddEditUserModal
-                isOpen={isUserFormModalOpen}
-                onClose={() => {
-                    setIsUserFormModalOpen(false);
-                    setEditingUser(null);
-                }}
-                onSave={handleSaveSuccess}
-                departments={departments}
-                existingUser={editingUser}
-            />
+            {/* --- BARRA FLUTUANTE DE AÇÕES EM LOTE --- */}
+            {selectedUsers.length > 0 && (
+                <div className={styles.batchActionBar}>
+                    <div className={styles.batchInfo}>
+                        <strong>{selectedUsers.length}</strong> selecionado(s)
+                    </div>
+                    
+                    <div className={styles.batchActions}>
+                        {/* Ação: Ativar */}
+                        <button 
+                            className={`${styles.batchBtn} ${styles.btnSuccess}`} 
+                            onClick={() => handleBatchAction('update_status', 1)} // 1 ou true para ativo
+                            disabled={isBatchProcessing}
+                        >
+                            <FaCheckSquare /> Ativar
+                        </button>
 
-            <AddDepartmentModal
-                isOpen={isDepartmentModalOpen}
-                onClose={() => setIsDepartmentModalOpen(false)}
-                onSave={handleSaveSuccess}
-            />
+                        {/* Ação: Desativar */}
+                        <button 
+                            className={`${styles.batchBtn} ${styles.btnWarning}`} 
+                            onClick={() => handleBatchAction('update_status', 0)} // 0 ou false para inativo
+                            disabled={isBatchProcessing}
+                        >
+                            <FaBan /> Desativar
+                        </button>
+                        
+                        {/* Ação: Mudar Cargo (Toggle Select) */}
+                        {!showBatchRoleSelect ? (
+                            <button 
+                                className={`${styles.batchBtn} ${styles.btnInfo}`} 
+                                onClick={() => setShowBatchRoleSelect(true)}
+                                disabled={isBatchProcessing}
+                            >
+                                <FaUserTag /> Cargo
+                            </button>
+                        ) : (
+                            <select 
+                                className={styles.batchSelect}
+                                onChange={(e) => handleBatchAction('update_role', e.target.value)}
+                                defaultValue=""
+                            >
+                                <option value="" disabled>Selecione...</option>
+                                <option value="operador">Operador</option>
+                                <option value="supervisor">Supervisor</option>
+                                <option value="administrador">Admin</option>
+                            </select>
+                        )}
+
+                        {/* Ação: Excluir */}
+                        <button 
+                            className={`${styles.batchBtn} ${styles.btnDanger}`} 
+                            onClick={() => handleBatchAction('delete')}
+                            disabled={isBatchProcessing}
+                        >
+                            <FaTrashAlt /> Excluir
+                        </button>
+
+                        <button className={styles.batchClose} onClick={() => setSelectedUsers([])}><FaTimes /></button>
+                    </div>
+                </div>
+            )}
+
+            {isUserFormModalOpen && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.modalContent}>
+                        <div className={styles.modalHeader}>
+                            <h2>{isEditing ? 'Editar Usuário' : 'Novo Usuário'}</h2>
+                            <button className={styles.closeButton} onClick={() => setIsUserFormModalOpen(false)}><FaTimes /></button>
+                        </div>
+                        <form onSubmit={handleSaveUser} className={styles.formGrid}>
+                            <div className={styles.formGroup}>
+                                <label>Nome</label>
+                                <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                            </div>
+                            <div className={styles.formGroup}>
+                                <label>E-mail</label>
+                                <input required type="email" disabled={isEditing} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                            </div>
+                            {!isEditing && (
+                                <div className={styles.formGroup}>
+                                    <label>Senha</label>
+                                    <input type="password" placeholder="Padrão: 123456" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                                </div>
+                            )}
+                            <div className={styles.formRow}>
+                                <div className={styles.formGroup}>
+                                    <label>Função</label>
+                                    <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
+                                        <option value="operador">Operador</option>
+                                        <option value="supervisor">Supervisor</option>
+                                        <option value="administrador">Administrador</option>
+                                    </select>
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label>Área</label>
+                                    <select required value={formData.area} onChange={e => setFormData({...formData, area: e.target.value})}>
+                                        <option value="">Selecione...</option>
+                                        {AREAS_LIST.map(area => (<option key={area} value={area}>{area}</option>))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className={styles.formRow}>
+                                <div className={styles.formGroup}>
+                                    <label>Departamento</label>
+                                    <select value={formData.department_id} onChange={e => setFormData({...formData, department_id: e.target.value})}>
+                                        <option value="">Nenhum</option>
+                                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label>Status</label>
+                                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                                        <option value="ativo">Ativo</option>
+                                        <option value="inativo">Inativo</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className={styles.modalActions}>
+                                <button type="button" className={styles.cancelButton} onClick={() => setIsUserFormModalOpen(false)}>Cancelar</button>
+                                <button type="submit" className={styles.saveButton}><FaSave /> Salvar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            <AddDepartmentModal isOpen={isDepartmentModalOpen} onClose={() => setIsDepartmentModalOpen(false)} onSave={handleSaveSuccess} />
         </div>
     );
 };
-
 export default UserManagementPage;
