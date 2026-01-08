@@ -72,8 +72,13 @@ class UserController extends Controller
             'area'   => 'nullable|string',
         ]);
 
+        // 1. Hash da senha
         $validatedData['password'] = Hash::make($validatedData['password']);
 
+        // 2. CORREÇÃO: Força o usuário a trocar a senha no primeiro login
+        $validatedData['must_change_password'] = true; 
+
+        // 3. Cria o usuário com a flag ativada
         $user = User::create($validatedData);
 
         try {
