@@ -26,6 +26,9 @@ services:
       - "8123:80"
     # IMPORTANTE: Removido o volume do default.conf para evitar erro de deploy
     # Você deve adicionar o conteúdo do default.conf na aba STORAGE do Coolify
+    volumes:
+      # Isso diz ao Coolify para pegar o arquivo do seu repositório e colocar no container
+      - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
     networks:
