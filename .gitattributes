@@ -1,0 +1,10 @@
+# Arquivos de Configuração de Infraestrutura (Protegidos na Production)
+docker-compose.yml merge=ours
+concilia-backend/Dockerfile merge=ours
+concilia-frontend/Dockerfile merge=ours
+concilia-backend/docker/nginx/default.conf merge=ours
+
+# Arquivos de Configuração do Laravel
+concilia-backend/src/config/cors.php merge=ours
+concilia-backend/src/config/sanctum.php merge=ours
+concilia-backend/src/config/session.php merge=ours
