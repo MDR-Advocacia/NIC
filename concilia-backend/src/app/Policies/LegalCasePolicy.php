@@ -21,7 +21,6 @@ class LegalCasePolicy
      */
     public function view(User $user, LegalCase $legalCase): bool
     {
-        
         return true;
     }
 
@@ -38,7 +37,7 @@ class LegalCasePolicy
      */
     public function update(User $user, LegalCase $legalCase): bool
     {
-        // AJUSTE TEMPORÁRIO: Permitir que qualquer usuário logado atualize qualquer caso.
+        // Permite que qualquer usuário logado atualize (mantido conforme anterior)
         return true;
     }
 
@@ -47,7 +46,7 @@ class LegalCasePolicy
      */
     public function delete(User $user, LegalCase $legalCase): bool
     {
-        // AJUSTE TEMPORÁRIO: Permitir que qualquer usuário logado delete qualquer caso.
-        return true;
+        // SEGURANÇA: Apenas administradores podem excluir
+        return $user->role === 'admin';
     }
 }

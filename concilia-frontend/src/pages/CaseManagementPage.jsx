@@ -2,7 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { FaFileExport, FaPlus, FaSearch, FaEye, FaEdit, FaTrash } from 'react-icons/fa';
+import { 
+    FaPlus, FaSearch, FaEye, FaEdit, FaTrash, 
+    FaCheckSquare, FaExchangeAlt, FaTrashAlt, FaTimes, 
+    FaGavel, FaExclamationCircle, FaUserTag,
+    FaChevronLeft, FaChevronRight,
+    FaSort, FaSortUp, FaSortDown
+} from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
 import styles from '../styles/CaseManagement.module.css';
@@ -11,7 +17,6 @@ import apiClient from '../api';
 
 // --- COMPONENTES AUXILIARES ---
 
-// Mapa de Status
 const STATUS_DETAILS = {
     'initial_analysis': { name: 'Análise Inicial', color: '#4299E1', textColor: '#FFFFFF' },
     'proposal_sent': { name: 'Proposta Enviada', color: '#48BB78', textColor: '#FFFFFF' },
@@ -20,7 +25,7 @@ const STATUS_DETAILS = {
     'closed_deal': { name: 'Acordo Fechado', color: '#38B2AC', textColor: '#FFFFFF' },
     'failed_deal': { name: 'Acordo Frustrado', color: '#E53E3E', textColor: '#FFFFFF' },
 };
-// Mapa de Prioridade
+
 const PRIORITY_DETAILS = {
     'alta': { name: 'Alta', color: '#e53e3e', textColor: '#FFFFFF' },
     'media': { name: 'Média', color: '#dd6b20', textColor: '#FFFFFF' },
@@ -28,59 +33,49 @@ const PRIORITY_DETAILS = {
 };
 
 const StatusTag = ({ status }) => {
-    const currentStatus = STATUS_DETAILS[status] || { 
-        name: status.replace('_', ' '), 
-        color: '#A0AEC0',
-        textColor: '#1A202C'
-    };
-    return (
-        <span 
-            className={styles.statusTag} 
-            style={{ 
-                backgroundColor: currentStatus.color, 
-                color: currentStatus.textColor 
-            }}
-        >
-            {currentStatus.name}
-        </span>
-    );
+    const currentStatus = STATUS_DETAILS[status] || { name: status, color: '#A0AEC0', textColor: '#1A202C' };
+    return <span className={styles.statusTag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>;
 };
 
 const PriorityTag = ({ priority }) => {
-    const currentPriority = PRIORITY_DETAILS[priority] || { 
-        name: priority, 
-        color: '#A0AEC0',
-        textColor: '#1A202C'
-    };
-    return (
-        <span 
-            className={styles.priorityTag} 
-            style={{ 
-                backgroundColor: currentPriority.color, 
-                color: currentPriority.textColor 
-            }}
-        >
-            {currentPriority.name}
-        </span>
-    );
+    const currentPriority = PRIORITY_DETAILS[priority] || { name: priority, color: '#A0AEC0', textColor: '#1A202C' };
+    return <span className={styles.priorityTag} style={{ backgroundColor: currentPriority.color, color: currentPriority.textColor }}>{currentPriority.name}</span>;
 };
 
-
 const CaseManagementPage = () => {
-    const { token } = useAuth();
+    // Adicionado 'user' para verificar a role
+    const { token, user } = useAuth();
+    
     const [cases, setCases] = useState([]);
     const [lawyers, setLawyers] = useState([]);
-    const [clients, setClients] = useState([]);
+    const [clients, setClients] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    
-    const [editingCase, setEditingCase] = useState(null); 
-    // Removido estado isNewCaseModalOpen
+    const [editingCase, setEditingCase] = useState(null);
+
+    // --- PAGINAÇÃO (ESTADOS) ---
+    const [currentPage, setCurrentPage] = useState(1);
+    const [perPage, setPerPage] = useState(50); 
+    const [paginationData, setPaginationData] = useState({
+        last_page: 1,
+        total: 0,
+        from: 0,
+        to: 0
+    });
+
+    // --- ORDENAÇÃO ---
+    const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
+
+    // --- ESTADOS DE AÇÃO EM LOTE ---
+    const [selectedCaseIds, setSelectedCaseIds] = useState([]);
+    const [batchActionType, setBatchActionType] = useState(null); 
+    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
     const [filters, setFilters] = useState({
         search: '', status: '', priority: '', lawyer_id: '',
     });
 
+    // Carrega dados de apoio
     useEffect(() => {
         const fetchDropdownData = async () => {
             if (!token) return;
@@ -92,225 +87,375 @@ const CaseManagementPage = () => {
                 setLawyers(usersResponse.data.data || []);
                 setClients(clientsResponse.data || []);
             } catch (err) { 
-                console.error("Erro ao buscar dados de apoio (usuários/clientes)", err); 
+                console.error("Erro ao buscar dados de apoio", err); 
             }
         };
         fetchDropdownData();
     }, [token]);
 
+    // Carrega Casos
     const fetchCases = useCallback(async () => {
         if (!token) return;
         setLoading(true);
+        setSelectedCaseIds([]); 
+        setBatchActionType(null);
+        
         try {
             const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
+            
+            // Adiciona paginação
+            params.append('page', currentPage);
+            params.append('per_page', perPage);
+
+            // Adiciona ordenação
+            params.append('sort_by', sortConfig.key);
+            params.append('sort_order', sortConfig.direction);
+
             const response = await apiClient.get(`/cases?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
-            setCases(response.data);
+            
+            if (response.data && response.data.data) {
+                setCases(response.data.data);
+                setPaginationData({
+                    last_page: response.data.last_page,
+                    total: response.data.total,
+                    from: response.data.from,
+                    to: response.data.to
+                });
+            } else {
+                setCases(response.data);
+            }
+
         } catch (err) {
             setError('Não foi possível carregar os casos.');
+            console.error(err);
         } finally {
             setLoading(false);
         }
-    }, [token, filters]);
+    }, [token, filters, currentPage, perPage, sortConfig]);
+
+    // Reseta para página 1 se mudar filtros
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filters]);
 
     useEffect(() => {
         const timer = setTimeout(() => { fetchCases(); }, 500);
         return () => clearTimeout(timer);
     }, [fetchCases]);
 
+    // --- MANIPULADORES DE ORDENAÇÃO ---
+    const handleSort = (key) => {
+        setSortConfig(current => {
+            if (current.key === key) {
+                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'asc' };
+        });
+    };
+
+    const getSortIcon = (columnKey) => {
+        if (sortConfig.key !== columnKey) return <FaSort style={{marginLeft:'5px', color:'#A0AEC0', fontSize:'0.8rem'}} />;
+        return sortConfig.direction === 'asc' 
+            ? <FaSortUp style={{marginLeft:'5px', color:'#4a5568', fontSize:'0.8rem'}} /> 
+            : <FaSortDown style={{marginLeft:'5px', color:'#4a5568', fontSize:'0.8rem'}} />;
+    };
+
+    // --- MANIPULADORES GERAIS ---
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleOpenEditModal = (legalCase) => setEditingCase(legalCase);
-    const handleCloseEditModal = () => setEditingCase(null);
-    const handleDataUpdate = () => fetchCases();
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            setSelectedCaseIds(cases.map(c => c.id));
+        } else {
+            setSelectedCaseIds([]);
+        }
+    };
+
+    const handleSelectCase = (id) => {
+        if (!id) return;
+        setSelectedCaseIds(prev => {
+            const list = Array.isArray(prev) ? prev : [];
+            if (list.includes(id)) {
+                return list.filter(cId => cId !== id);
+            }
+            return [...list, id];
+        });
+    };
+
+    const executeBatchUpdate = async (action, value) => {
+        if (!value && action !== 'delete') return; 
+        if (!window.confirm(`Aplicar alteração em ${selectedCaseIds.length} processos?`)) return;
+
+        setIsBatchProcessing(true);
+        try {
+            await apiClient.post('/cases/batch-update', {
+                case_ids: selectedCaseIds,
+                action: action,
+                value: value
+            }, { headers: { Authorization: `Bearer ${token}` } });
+
+            alert('Ação em lote concluída!');
+            fetchCases(); 
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao processar lote.');
+        } finally {
+            setIsBatchProcessing(false);
+        }
+    };
 
     const handleDeleteCase = async (caseId) => {
-        if (window.confirm('Tem certeza que deseja excluir este caso? Esta ação não pode ser desfeita.')) {
+        if (window.confirm('Tem certeza que deseja excluir?')) {
             try {
                 await apiClient.delete(`/cases/${caseId}`, { headers: { Authorization: `Bearer ${token}` } });
-                setCases(prevCases => prevCases.filter(c => c.id !== caseId));
-                alert('Caso excluído com sucesso!');
-            } catch (err) {
-                alert('Não foi possível excluir o caso.');
-            }
+                setCases(prev => prev.filter(c => c.id !== caseId));
+            } catch (err) { alert('Erro ao excluir.'); }
         }
-    };
-    
-    const handleExport = async () => {
-        try {
-            const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
-            const response = await apiClient.get(`/cases/export?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` },
-                responseType: 'blob',
-            });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            const fileName = `casos_concilia_${new Date().toISOString().split('T')[0]}.csv`;
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode.removeChild(link);
-        } catch (error) {
-            console.error('Erro ao exportar os dados:', error);
-            alert('Não foi possível exportar os dados.');
-        }
-    };
-
-    const kpis = {
-        total_cases: cases.length,
-        total_cause_value: cases.reduce((acc, c) => {
-            const value = parseFloat(c.cause_value);
-            return acc + (isNaN(value) ? 0 : value);
-        }, 0),
-        total_agreement_value: cases.reduce((acc, c) => {
-            const value = parseFloat(c.agreement_value);
-            return acc + (isNaN(value) ? 0 : value);
-        }, 0),
-        total_economy: cases.reduce((acc, c) => {
-            const original = parseFloat(c.original_value);
-            const agreement = parseFloat(c.agreement_value);
-            if (!isNaN(original) && !isNaN(agreement) && original > 0 && agreement > 0) {
-                return acc + (original - agreement);
-            }
-            return acc;
-        }, 0)
     };
 
     const formatValue = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    
+    const kpis = {
+        total_cases: paginationData.total || cases.length,
+        total_cause_value: cases.reduce((acc, c) => acc + (parseFloat(c.cause_value) || 0), 0),
+        total_agreement_value: cases.reduce((acc, c) => acc + (parseFloat(c.agreement_value) || 0), 0),
+        total_economy: cases.reduce((acc, c) => {
+            const orig = parseFloat(c.original_value);
+            const agree = parseFloat(c.agreement_value);
+            return (orig > 0 && agree > 0) ? acc + (orig - agree) : acc;
+        }, 0)
+    };
+
+    const isAllSelected = cases.length > 0 && Array.isArray(selectedCaseIds) && selectedCaseIds.length === cases.length;
 
     return (
         <div className={styles.pageContainer}>
             <header className={styles.header}>
-                <div>
-                    <h1>Gestão de Casos</h1>
-                    <p>Gerencie todos os casos direcionados para o escritório</p>
-                </div>
+                <div><h1>Gestão de Casos</h1><p>Gerencie todos os casos direcionados para o escritório</p></div>
                 <div className={styles.headerActions}>
-                    {/* Botão alterado para Link para a nova página de criação */}
-                    <Link to="/cases/create" className={styles.newCaseButton}>
-                        <FaPlus /> Novo Caso
-                    </Link>
+                    <Link to="/cases/create" className={styles.newCaseButton}><FaPlus /> Novo Caso</Link>
                 </div>
             </header>
             
             <section className={styles.kpiGrid}>
-                <KpiCard title="Total de Casos" value={kpis.total_cases.toString()} />
-                <KpiCard title="Valor Total dos Casos" value={formatValue(kpis.total_cause_value)} />
-                <KpiCard title="Total em Acordos" value={formatValue(kpis.total_agreement_value)} />
-                <KpiCard title="Economia Gerada" value={formatValue(kpis.total_economy)} />
+                <KpiCard title="Total (Geral)" value={kpis.total_cases.toString()} />
+                <KpiCard title="Selecionados" value={selectedCaseIds?.length?.toString() || '0'} />
+                <KpiCard title="Acordos (Pág.)" value={formatValue(kpis.total_agreement_value)} />
+                <KpiCard title="Economia (Pág.)" value={formatValue(kpis.total_economy)} />
             </section>
 
             <section className={styles.filtersContainer}>
-                <h3><FaSearch /> Filtros e Busca</h3>
+                <h3><FaSearch /> Filtros</h3>
                 <div className={styles.filterControls}>
-                    <input type="text" placeholder="Buscar por Nº do processo ou Autor..." className={styles.searchInput} name="search" value={filters.search} onChange={handleFilterChange} />
+                    <input type="text" placeholder="Buscar..." className={styles.searchInput} name="search" value={filters.search} onChange={handleFilterChange} />
                     <select className={styles.filterSelect} name="status" value={filters.status} onChange={handleFilterChange}>
-                        <option value="">Todos os Status</option>
-                        <option value="initial_analysis">Análise Inicial</option>
-                        <option value="proposal_sent">Proposta Enviada</option>
-                        <option value="in_negotiation">Em Negociação</option>
-                        <option value="awaiting_draft">Aguardando Minuta</option>
-                        <option value="closed_deal">Acordo Fechado</option>
-                        <option value="failed_deal">Acordo Frustrado</option> 
-                    </select>
-                    <select className={styles.filterSelect} name="priority" value={filters.priority} onChange={handleFilterChange}>
-                        <option value="">Todas as Prioridades</option>
-                        <option value="baixa">Baixa</option>
-                        <option value="media">Média</option>
-                        <option value="alta">Alta</option>
+                        <option value="">Status: Todos</option>
+                        {Object.entries(STATUS_DETAILS).map(([key, val]) => <option key={key} value={key}>{val.name}</option>)}
                     </select>
                     <select className={styles.filterSelect} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
-                        <option value="">Todos os Advogados</option>
-                        {lawyers.map(lawyer => (
-                            <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>
-                        ))}
+                        <option value="">Advogado: Todos</option>
+                        {lawyers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                     </select>
                 </div>
             </section>
             
             <section className={styles.tableContainer}>
-                <h3>Lista de Casos ({cases.length})</h3>
-                {loading ? <p>Carregando casos...</p> : error ? <p style={{color: 'red'}}>{error}</p> : (
-                    <table className={styles.table}>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Banco/Cliente</th>
-                                <th>Autor</th>
-                                <th>Valor</th>
-                                <th>Status</th>
-                                <th>Prioridade</th>
-                                <th>Advogado</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {cases.map(legalCase => (
-                                <tr key={legalCase.id}>
-                                    <td>
-                                        <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>{legalCase.id}</Link>
-                                        <div className={styles.subText}>{legalCase.case_number}</div>
-                                    </td>
-                                    <td>
-                                        <div>{legalCase.client?.name || 'N/A'}</div>
-                                        <div className={styles.subText}>{legalCase.comarca || 'N/A'}</div>
-                                    </td>
-                                    <td>{legalCase.opposing_party}</td>
-                                    <td>
-                                        <div>{formatValue(legalCase.cause_value)}</div>
-                                        <div className={styles.subText}>Negoc: {formatValue(legalCase.agreement_value)}</div>
-                                    </td>
-                                    <td><StatusTag status={legalCase.status} /></td>
-                                    <td><PriorityTag priority={legalCase.priority} /></td>
-                                    <td>
-                                        <div>{legalCase.lawyer?.name || 'N/A'}</div>
-                                    </td>
-                                    
-                                    {/* --- COLUNA DE AÇÕES CORRIGIDA --- */}
-                                    <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <Link 
-                                                to={`/cases/${legalCase.id}`} 
-                                                className={styles.actionIcon} 
-                                                title="Ver Detalhes"
-                                            >
-                                                <FaEye />
-                                            </Link>
-                                            <span 
-                                                className={styles.actionIcon} 
-                                                onClick={() => handleOpenEditModal(legalCase)} 
-                                                title="Editar"
-                                                style={{ cursor: 'pointer' }}
-                                            >
-                                                <FaEdit />
-                                            </span>
-                                            <span 
-                                                className={styles.actionIcon} 
-                                                onClick={() => handleDeleteCase(legalCase.id)} 
-                                                title="Excluir"
-                                                style={{ cursor: 'pointer' }}
-                                            >
-                                                <FaTrash />
-                                            </span>
-                                        </div>
-                                    </td>
-                                    {/* --- FIM DA CORREÇÃO --- */}
+                {loading ? <p>Carregando...</p> : error ? <p style={{color:'red'}}>{error}</p> : (
+                    <>
+                        {/* --- CONTROLES DE PAGINAÇÃO (TOPO) --- */}
+                        <div className={styles.paginationTopBar}>
+                            <div className={styles.paginationInfoText}>
+                                Exibindo {paginationData.from || 0}-{paginationData.to || 0} de {paginationData.total || 0} resultados
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span className={styles.paginationInfoText}>Exibir:</span>
+                                <select 
+                                    value={perPage} 
+                                    onChange={(e) => {
+                                        setPerPage(Number(e.target.value));
+                                        setCurrentPage(1); 
+                                    }}
+                                    className={styles.perPageSelect}
+                                >
+                                    <option value="15">15</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                </select>
+                            </div>
+                        </div>
 
+                        <table className={styles.table}>
+                            <thead>
+                                <tr>
+                                    <th style={{width: '40px', textAlign: 'center'}}>
+                                        <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className={styles.checkboxInput} />
+                                    </th>
+                                    
+                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('id')}>
+                                        ID/Processo {getSortIcon('id')}
+                                    </th>
+                                    <th>Cliente/Local</th>
+                                    <th>Partes</th>
+                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('cause_value')}>
+                                        Valores {getSortIcon('cause_value')}
+                                    </th>
+                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('priority')}>
+                                        Status/Prioridade {getSortIcon('priority')}
+                                    </th>
+                                    
+                                    <th>Responsável</th>
+                                    <th>Ações</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {cases.map(legalCase => (
+                                    <tr key={legalCase.id} className={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id) ? styles.rowSelected : ''}>
+                                        <td style={{textAlign: 'center'}}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id)} 
+                                                onChange={() => handleSelectCase(legalCase.id)}
+                                                className={styles.checkboxInput}
+                                            />
+                                        </td>
+                                        <td>
+                                            <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>{legalCase.id}</Link>
+                                            <div className={styles.subText}>{legalCase.case_number}</div>
+                                        </td>
+                                        <td>
+                                            <div>{legalCase.client?.name || '-'}</div>
+                                            <div className={styles.subText}>{legalCase.comarca}</div>
+                                        </td>
+                                        <td>
+                                            <div><small>A:</small> {legalCase.opposing_party}</div>
+                                            <div className={styles.subText}><small>R:</small> {legalCase.defendant}</div>
+                                        </td>
+                                        <td>
+                                            <div>{formatValue(legalCase.cause_value)}</div>
+                                            {legalCase.agreement_value > 0 && <div style={{color: '#38a169', fontSize: '0.8rem'}}>Acordo: {formatValue(legalCase.agreement_value)}</div>}
+                                        </td>
+                                        <td>
+                                            <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
+                                            <PriorityTag priority={legalCase.priority} />
+                                        </td>
+                                        <td>{legalCase.lawyer?.name || <span style={{color: '#E53E3E'}}>Sem advogado</span>}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
+                                                <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
+                                                
+                                                {/* SÓ MOSTRA SE FOR ADMIN */}
+                                                {user?.role === 'admin' && (
+                                                    <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase.id)}>
+                                                        <FaTrash />
+                                                    </span>
+                                                )}
+
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {/* --- CONTROLES DE PAGINAÇÃO (RODAPÉ) --- */}
+                        <div className={styles.paginationFooter}>
+                            <button 
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className={styles.paginationBtn}
+                            >
+                                <FaChevronLeft /> Anterior
+                            </button>
+
+                            <span className={styles.paginationPageInfo}>
+                                Página {currentPage} de {paginationData.last_page || 1}
+                            </span>
+
+                            <button 
+                                onClick={() => setCurrentPage(p => Math.min(paginationData.last_page, p + 1))}
+                                disabled={currentPage >= paginationData.last_page}
+                                className={styles.paginationBtn}
+                            >
+                                Próxima <FaChevronRight />
+                            </button>
+                        </div>
+                    </>
                 )}
             </section>
-            
+
+            {/* --- BARRA FLUTUANTE DE AÇÕES EM LOTE --- */}
+            {Array.isArray(selectedCaseIds) && selectedCaseIds.length > 0 && (
+                <div className={styles.batchActionBar}>
+                    <div className={styles.batchInfo}>
+                        <strong>{selectedCaseIds.length}</strong> selecionados
+                    </div>
+                    <div className={styles.batchActions}>
+                        
+                        {!batchActionType ? (
+                            <>
+                                <button className={`${styles.batchBtn} ${styles.btnInfo}`} onClick={() => setBatchActionType('status')}>
+                                    <FaCheckSquare /> Status
+                                </button>
+                                <button className={`${styles.batchBtn} ${styles.btnWarning}`} onClick={() => setBatchActionType('priority')}>
+                                    <FaExclamationCircle /> Prioridade
+                                </button>
+                                <button className={`${styles.batchBtn} ${styles.btnSuccess}`} onClick={() => setBatchActionType('lawyer')}>
+                                    <FaUserTag /> Transferir
+                                </button>
+                                
+                                {/* SÓ MOSTRA SE FOR ADMIN */}
+                                {user?.role === 'admin' && (
+                                    <button className={`${styles.batchBtn} ${styles.btnDanger}`} onClick={() => executeBatchUpdate('delete')}>
+                                        <FaTrashAlt /> Excluir
+                                    </button>
+                                )}
+                            </>
+                        ) : (
+                            <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                <span style={{fontSize:'0.9rem'}}>Selecione:</span>
+                                
+                                {batchActionType === 'status' && (
+                                    <select className={styles.batchSelect} onChange={(e) => executeBatchUpdate('update_status', e.target.value)} defaultValue="">
+                                        <option value="" disabled>Novo Status...</option>
+                                        {Object.entries(STATUS_DETAILS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
+                                    </select>
+                                )}
+
+                                {batchActionType === 'priority' && (
+                                    <select className={styles.batchSelect} onChange={(e) => executeBatchUpdate('update_priority', e.target.value)} defaultValue="">
+                                        <option value="" disabled>Nova Prioridade...</option>
+                                        <option value="alta">Alta</option>
+                                        <option value="media">Média</option>
+                                        <option value="baixa">Baixa</option>
+                                    </select>
+                                )}
+
+                                {batchActionType === 'lawyer' && (
+                                    <select className={styles.batchSelect} onChange={(e) => executeBatchUpdate('transfer_user', e.target.value)} defaultValue="">
+                                        <option value="" disabled>Novo Responsável...</option>
+                                        {lawyers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                    </select>
+                                )}
+
+                                <button className={styles.batchCancelBtn} onClick={() => setBatchActionType(null)}>Cancelar</button>
+                            </div>
+                        )}
+
+                        <button className={styles.batchClose} onClick={() => setSelectedCaseIds([])}><FaTimes /></button>
+                    </div>
+                </div>
+            )}
+
             {editingCase && (
                 <EditCaseModal 
                     legalCase={editingCase}
-                    onClose={handleCloseEditModal}
-                    onCaseUpdated={handleDataUpdate}
+                    onClose={() => setEditingCase(null)}
+                    onCaseUpdated={fetchCases}
                     clients={clients}
                     lawyers={lawyers}
                 />

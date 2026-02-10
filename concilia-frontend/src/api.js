@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Detecta se está rodando localmente ou em produção (ajuste a URL conforme seu ambiente)
 // Se você usa Vite, pode usar import.meta.env.VITE_API_URL
-const API_BASE_URL = 'http://localhost:8000/api'; 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8123/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

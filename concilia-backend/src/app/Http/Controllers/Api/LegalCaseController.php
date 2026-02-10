@@ -73,8 +73,29 @@ class LegalCaseController extends Controller
             $query->where('priority', $request->input('priority'));
         }
 
-        // Retorna os resultados ordenados pelos mais recentes
-        return response()->json($query->latest()->get());
+        // --- ORDENAÇÃO DINÂMICA ---
+        $sortColumn = $request->input('sort_by', 'id'); // Padrão: ID
+        $sortDirection = $request->input('sort_order', 'desc'); // Padrão: Decrescente
+
+        // Lista branca de colunas permitidas (Segurança)
+        $allowedSorts = ['id', 'case_number', 'cause_value', 'agreement_value', 'status', 'priority', 'created_at', 'updated_at'];
+        
+        if (!in_array($sortColumn, $allowedSorts)) {
+            $sortColumn = 'id';
+        }
+        if (!in_array(strtolower($sortDirection), ['asc', 'desc'])) {
+            $sortDirection = 'desc';
+        }
+
+        $query->orderBy($sortColumn, $sortDirection);
+
+        // --- PAGINAÇÃO ---
+        $perPage = (int) $request->input('per_page', 50);
+        if ($perPage > 200) $perPage = 200;
+        if ($perPage < 1) $perPage = 50;
+
+        // Retorna os resultados paginados
+        return response()->json($query->paginate($perPage));
     }
 
     /**
@@ -617,6 +638,98 @@ class LegalCaseController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Erro interno crítico no servidor.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Atualização em Lote de Casos (Processos).
+     */
+    public function batchUpdate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'case_ids' => 'required|array',
+            'case_ids.*' => 'exists:legal_cases,id',
+            'action' => 'required|string|in:update_status,update_priority,transfer_user,add_tag,update_opposing_lawyer,delete',
+            'value' => 'nullable', 
+        ]);
+
+        $caseIds = $validated['case_ids'];
+        $action = $validated['action'];
+        $value = $validated['value'];
+
+        DB::beginTransaction();
+        try {
+            $query = LegalCase::whereIn('id', $caseIds);
+            $count = $query->count();
+            $logDetails = "";
+
+            switch ($action) {
+                case 'update_status':
+                    // Assume que o frontend envia o enum correto
+                    $query->update(['status' => $value]);
+                    $logDetails = "Alterou status de {$count} processos para '{$value}'";
+                    break;
+
+                case 'update_priority':
+                    $query->update(['priority' => $value]);
+                    $logDetails = "Alterou prioridade de {$count} processos para '{$value}'";
+                    break;
+
+                case 'transfer_user':
+                    // $value é o user_id do novo responsável
+                    $query->update(['user_id' => $value]);
+                    $newOwner = User::find($value);
+                    $ownerName = $newOwner ? $newOwner->name : 'ID ' . $value;
+                    $logDetails = "Transferiu {$count} processos para {$ownerName}";
+                    break;
+                
+                case 'update_opposing_lawyer':
+                    $query->update(['opposing_lawyer_id' => $value]);
+                    $logDetails = "Vinculou advogado adverso (ID {$value}) em {$count} processos";
+                    break;
+
+                case 'add_tag':
+                    // Loop para manipular JSON com segurança
+                    $cases = $query->get();
+                    foreach($cases as $case) {
+                        $currentTags = $case->tags ?? [];
+                        if (!in_array($value, $currentTags)) {
+                            $currentTags[] = $value;
+                            $case->update(['tags' => $currentTags]);
+                        }
+                    }
+                    $logDetails = "Adicionou a tag '{$value}' em {$count} processos";
+                    break;
+
+                case 'delete':
+                    // Captura os números para o log antes de deletar
+                    $deletedNumbers = $query->limit(5)->pluck('case_number')->toArray();
+                    $deletedString = implode(', ', $deletedNumbers) . ($count > 5 ? '...' : '');
+                    
+                    $query->delete();
+                    $logDetails = "Excluiu {$count} processos (Ex: {$deletedString})";
+                    break;
+            }
+
+            // Log de Auditoria
+            try {
+                AuditLog::create([
+                    'user_id' => auth()->id(),
+                    'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                    'action' => 'Ação em Lote (Processos)',
+                    'details' => $logDetails,
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Erro AuditLog batchUpdate: " . $e->getMessage());
+            }
+
+            DB::commit();
+            return response()->json(['message' => 'Lote processado com sucesso.', 'affected_count' => $count]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erro ao processar lote: ' . $e->getMessage()], 500);
         }
     }
 }

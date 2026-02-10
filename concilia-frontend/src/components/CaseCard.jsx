@@ -62,7 +62,7 @@ const CaseCard = ({ id, legalCase, onClick }) => {
                 onClick={onClick}
             >
                 <div className={styles.header} {...listeners}>
-                    <span className={styles.caseNumber}>#{legalCase.case_number}</span>
+                    <span className={styles.caseNumber}>{legalCase.case_number}</span>
                     
                     {/*  Mostra Alerta se atrasado, senão mostra Prioridade */}
                     {isDelayed ? (
@@ -92,7 +92,7 @@ const CaseCard = ({ id, legalCase, onClick }) => {
                     </div>
                     
                     <div className={styles.infoRow}><FaLandmark /><span>{legalCase.client?.name}</span></div>
-                    <div className={styles.infoRow}><FaGavel /><span>Dr(a) {legalCase.lawyer?.name}</span></div>
+                    <div className={styles.infoRow}><FaGavel /><span>Responsável: {legalCase.lawyer?.name}</span></div>
                     
                     {/* Exibe a data da última atualização */}
                     <div className={`${styles.infoRow} ${isDelayed ? styles.textDelayed : ''}`}>

@@ -117,9 +117,9 @@ const DashboardPage = () => {
     };
     
     const kpiTitles = {
-        total_original_value: "Total Original",
-        total_agreement_value: "Total Acordos",
-        total_economy: "Economia Gerada",
+        total_original_value: "Total em alçadas",
+        total_agreement_value: "Total em valores de acordos",
+        total_economy: "Economia gerada",
         total_cases: "Casos Totais",
         active_cases: "Casos Ativos",
         conversion_rate: "Taxa de Conversão"

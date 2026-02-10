@@ -1,181 +1,522 @@
 /* src/styles/CaseManagement.module.css */
-/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
 
+/* VARIÁVEIS E BASE */
 .pageContainer {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    padding-bottom: 80px; /* Espaço para a barra flutuante */
 }
 
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
 .header h1 {
     margin: 0;
     font-size: 1.8rem;
-    color: var(--text-primary); /* ADICIONADO */
+    color: var(--text-primary);
 }
 
-.header p {
-    margin: 0;
-    color: var(--text-secondary); /* MUDADO */
-}
+.header p { margin: 0; color: var(--text-secondary); }
 
-.headerActions {
-    display: flex;
-    gap: 1rem;
-}
+/* BOTÕES */
+.headerActions { display: flex; gap: 1rem; }
 
-.actionButton, .newCaseButton {
+.newCaseButton {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.6rem 1.2rem;
     border-radius: 6px;
     font-weight: 500;
-    cursor: pointer;
-    border: none;
-    transition: background-color 0.2s, transform 0.2s ease-out; /* ADICIONADO transform */
+    text-decoration: none;
+    background-color: var(--accent-primary);
+    color: #fff;
+    transition: transform 0.2s;
 }
-.actionButton:hover, .newCaseButton:hover {
-    transform: translateY(-2px); /* ADICIONADO */
-}
+.newCaseButton:hover { transform: translateY(-2px); }
 
-
-.actionButton {
-    background-color: var(--bg-hover); /* MUDADO */
-    border: 1px solid var(--border-color-light); /* MUDADO */
-    color: var(--text-primary); /* MUDADO */
-}
-
-.newCaseButton {
-    background-color: var(--accent-primary); /* MUDADO */
-    color: var(--text-on-accent); /* MUDADO */
-}
-
-/* KPIs */
+/* KPIS */
 .kpiGrid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 1.5rem;
-    /* O KpiCard.jsx já está refatorado */
 }
 
-/* Filtros */
+/* FILTROS */
 .filtersContainer {
-    background-color: var(--bg-card); /* MUDADO */
+    background-color: var(--bg-card);
     padding: 1.5rem;
     border-radius: 8px;
+    border: 1px solid var(--border-color-light);
+    box-shadow: var(--card-shadow);
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    border: 1px solid var(--border-color-light); /* ADICIONADO */
-    box-shadow: var(--card-shadow); /* ADICIONADO */
 }
 
-.filtersContainer h3 {
-    margin: 0;
-    color: var(--text-primary); /* ADICIONADO */
-}
+.filtersContainer h3 { margin: 0; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
 
 .filterControls {
     display: flex;
     gap: 1rem;
-    align-items: center;
+    flex-wrap: wrap;
 }
 
-.searchInput {
-    flex-grow: 1;
+.searchInput, .filterSelect {
     padding: 0.75rem;
-    border-radius: 5px;
-    border: 1px solid var(--border-color-dark); /* MUDADO */
-    background-color: var(--bg-input); /* MUDADO */
-    color: var(--text-primary); /* MUDADO */
+    border-radius: 6px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
 }
+.searchInput { flex-grow: 1; min-width: 200px; }
 
-.filterSelect {
-    padding: 0.75rem;
-    border-radius: 5px;
-    border: 1px solid var(--border-color-dark); /* MUDADO */
-    background-color: var(--bg-input); /* MUDADO */
-    color: var(--text-primary); /* MUDADO */
-    min-width: 180px;
-}
-
-/* Tabela */
+/* TABELA */
 .tableContainer {
-    background-color: var(--bg-card); /* MUDADO */
-    padding: 1.5rem;
-    border-radius: 8px;
-    border: 1px solid var(--border-color-light); /* ADICIONADO */
-    box-shadow: var(--card-shadow); /* ADICIONADO */
-}
-
-.tableContainer h3 {
-    color: var(--text-primary); /* ADICIONADO */
-}
-
-.table {
-    width: 100%;
-    border-collapse: collapse;
-    color: var(--text-primary); /* MUDADO */
-}
-
-.table th, .table td {
+    background-color: var(--bg-card);
     padding: 1rem;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light);
+    box-shadow: var(--card-shadow);
+    overflow-x: auto;
 }
+
+.table { width: 100%; border-collapse: collapse; }
 
 .table th {
-    color: var(--text-secondary); /* MUDADO */
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 2px solid var(--border-color-light);
+    color: var(--text-secondary);
     font-size: 0.8rem;
     text-transform: uppercase;
 }
 
-.caseLink {
-    color: var(--accent-primary); /* MUDADO */
-    text-decoration: none;
-    font-weight: bold;
+.table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color-light);
+    color: var(--text-primary);
+    vertical-align: middle;
 }
 
-.subText {
-    font-size: 0.8rem;
-    color: var(--text-secondary); /* MUDADO */
+/* Linha Selecionada */
+.rowSelected {
+    background-color: rgba(59, 130, 246, 0.08); /* Azul bem claro */
 }
 
-/* As cores das tags agora vêm do JSX */
+.checkboxInput {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* Links e Tags */
+.caseLink { color: var(--accent-primary); text-decoration: none; font-weight: bold; }
+.subText { font-size: 0.8rem; color: var(--text-secondary); }
+
 .statusTag, .priorityTag {
     padding: 0.25rem 0.75rem;
     border-radius: 12px;
     font-size: 0.75rem;
-    font-weight: 500;
+    font-weight: 600;
     display: inline-block;
-    white-space: nowrap; /* Impede quebra de linha */
-}
-
-/* REMOVIDO: Todas as classes de cor .status... e .priority... 
-   A lógica agora está no .jsx
-*/
-
-.actionsCell {
-    display: flex; /* MUDADO: para 'flex' para melhor alinhamento */
-    align-items: center;
-    gap: 1.2rem;
+    white-space: nowrap;
 }
 
 .actionIcon {
-    color: var(--text-secondary); /* MUDADO */
+    color: var(--text-secondary);
     cursor: pointer;
-    transition: color 0.2s ease-in-out, transform 0.2s ease-out; /* ADICIONADO transform */
-    display: flex; 
+    font-size: 1.1rem;
+    transition: color 0.2s, transform 0.2s;
+}
+.actionIcon:hover { color: var(--accent-primary); transform: scale(1.1); }
+
+/* --- BARRA FLUTUANTE (BATCH ACTIONS) --- */
+.batchActionBar {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color-dark);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    padding: 15px 25px;
+    border-radius: 50px; /* Mais arredondado */
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    z-index: 1000;
+    animation: slideUp 0.3s ease-out;
+    width: auto;
+    min-width: 600px;
+    justify-content: space-between;
+}
+
+.batchInfo {
+    font-size: 1rem;
+    color: var(--text-primary);
+    padding-right: 20px;
+    border-right: 1px solid var(--border-color-light);
+    white-space: nowrap;
+}
+
+.batchActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    justify-content: center;
+}
+
+.batchBtn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    transition: filter 0.2s, transform 0.1s;
+}
+.batchBtn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+.btnSuccess { background-color: #38a169; }
+.btnWarning { background-color: #dd6b20; }
+.btnInfo { background-color: #3182ce; }
+.btnDanger { background-color: #e53e3e; }
+
+.batchSelect {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.batchCancelBtn {
+    background: none;
+    border: 1px solid var(--text-secondary);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.batchCancelBtn:hover { background-color: var(--bg-hover); }
+
+.batchClose {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-left: 10px;
+}
+.batchClose:hover { color: #e53e3e; }
+
+@keyframes slideUp {
+    from { transform: translate(-50%, 100%); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+/* src/styles/CaseManagement.module.css */
+
+/* VARIÁVEIS E BASE */
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding-bottom: 80px; /* Espaço para a barra flutuante */
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    color: var(--text-primary);
+}
+
+.header p { margin: 0; color: var(--text-secondary); }
+
+/* BOTÕES */
+.headerActions { display: flex; gap: 1rem; }
+
+.newCaseButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 500;
+    text-decoration: none;
+    background-color: var(--accent-primary);
+    color: #fff;
+    transition: transform 0.2s;
+}
+.newCaseButton:hover { transform: translateY(-2px); }
+
+/* KPIS */
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+}
+
+/* FILTROS */
+.filtersContainer {
+    background-color: var(--bg-card);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light);
+    box-shadow: var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.filtersContainer h3 { margin: 0; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+
+.filterControls {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.searchInput, .filterSelect {
+    padding: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+}
+.searchInput { flex-grow: 1; min-width: 200px; }
+
+/* TABELA */
+.tableContainer {
+    background-color: var(--bg-card);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light);
+    box-shadow: var(--card-shadow);
+    overflow-x: auto;
+}
+
+.table { width: 100%; border-collapse: collapse; }
+
+.table th {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 2px solid var(--border-color-light);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color-light);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+/* Linha Selecionada */
+.rowSelected {
+    background-color: rgba(59, 130, 246, 0.08); /* Azul bem claro */
+}
+
+.checkboxInput {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* Links e Tags */
+.caseLink { color: var(--accent-primary); text-decoration: none; font-weight: bold; }
+.subText { font-size: 0.8rem; color: var(--text-secondary); }
+
+.statusTag, .priorityTag {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.actionIcon {
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: color 0.2s, transform 0.2s;
+}
+.actionIcon:hover { color: var(--accent-primary); transform: scale(1.1); }
+
+/* --- BARRA FLUTUANTE (BATCH ACTIONS) --- */
+.batchActionBar {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color-dark);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    padding: 15px 25px;
+    border-radius: 50px; /* Mais arredondado */
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    z-index: 1000;
+    animation: slideUp 0.3s ease-out;
+    width: auto;
+    min-width: 600px;
+    justify-content: space-between;
+}
+
+.batchInfo {
+    font-size: 1rem;
+    color: var(--text-primary);
+    padding-right: 20px;
+    border-right: 1px solid var(--border-color-light);
+    white-space: nowrap;
+}
+
+.batchActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    justify-content: center;
+}
+
+.batchBtn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    transition: filter 0.2s, transform 0.1s;
+}
+.batchBtn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+.btnSuccess { background-color: #38a169; }
+.btnWarning { background-color: #dd6b20; }
+.btnInfo { background-color: #3182ce; }
+.btnDanger { background-color: #e53e3e; }
+
+.batchSelect {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.batchCancelBtn {
+    background: none;
+    border: 1px solid var(--text-secondary);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.batchCancelBtn:hover { background-color: var(--bg-hover); }
+
+.batchClose {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-left: 10px;
+}
+.batchClose:hover { color: #e53e3e; }
+
+@keyframes slideUp {
+    from { transform: translate(-50%, 100%); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+/* --- PAGINAÇÃO (NOVO) --- */
+
+.paginationTopBar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
     align-items: center;
 }
 
-.actionIcon:hover {
-    color: var(--accent-primary); /* MUDADO */
-    transform: scale(1.2); /* ADICIONADO: Efeito de zoom no hover */
+.paginationInfoText {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.perPageSelect {
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input); /* Adapta ao tema */
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.paginationFooter {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 20px;
+    padding-bottom: 20px;
+}
+
+.paginationBtn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 16px;
+    border: 1px solid var(--border-color-dark);
+    border-radius: 5px;
+    background-color: var(--bg-card); /* Adapta ao tema (card/input) */
+    color: var(--text-primary);
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.paginationBtn:hover:not(:disabled) {
+    background-color: var(--bg-hover);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.paginationBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: var(--bg-input); 
+}
+
+.paginationPageInfo {
+    font-weight: bold;
+    color: var(--text-primary);
 }
