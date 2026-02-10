@@ -14,7 +14,157 @@ services:
     env_file:
       - ./.env
     networks:
+      - concilia_networkversion: '3.8'
+
+services:
+  # --- APLICAÇÃO (LARAVEL) ---
+  app:version: '3.8'
+
+services:
+  # --- APLICAÇÃO (LARAVEL) ---
+  app:
+    build:
+      context: ./concilia-backend
+      dockerfile: Dockerfile
+    container_name: concilia_app_teste  # <--- MUDADO (Nome único)
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./concilia-backend/src:/var/www/html
+    env_file:
+      - ./concilia-backend/src/.env
+    networks:
+      - concilia_network_teste          # <--- MUDADO (Rede separada)
+    depends_on:
+      - db
+
+  # --- SERVIDOR WEB (NGINX) ---
+  nginx:
+    image: nginx:1.19-alpine
+    container_name: concilia_nginx_teste # <--- MUDADO
+    restart: unless-stopped
+    ports:
+      - "8124:80"  # <--- MUDADO (De 8123 para 8124 para não conflitar)
+    volumes:
+      - ./concilia-backend/src:/var/www/html
+      - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - concilia_network_teste
+
+  # --- BANCO DE DADOS (MYSQL) ---
+  db:
+    image: mysql:8.0
+    container_name: concilia_db_teste    # <--- MUDADO
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: concilia_db
+      MYSQL_USER: conciliauser
+      MYSQL_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306" # <--- MUDADO (De 3306 para 3307 - CRÍTICO!)
+    volumes:
+      - db_data_teste:/var/lib/mysql     # <--- MUDADO (Volume novo para não apagar a produção)
+    networks:
+      - concilia_network_teste
+
+  # --- FRONTEND (REACT/VITE) ---
+  frontend:
+    build:
+      context: ./concilia-frontend
+      dockerfile: Dockerfile
+    container_name: concilia_frontend_teste # <--- MUDADO
+    restart: unless-stopped
+    ports:
+      - "5174:5173" # <--- MUDADO (De 5173 para 5174)
+    volumes:
+      - ./concilia-frontend:/app
+      - /app/node_modules
+    networks:
+      - concilia_network_teste
+    environment:
+      # Apontei para a nova porta do Nginx de teste (8124)
+      - VITE_API_URL=http://localhost:8124/api 
+
+networks:
+  concilia_network_teste: # <--- Rede isolada
+    driver: bridge
+
+volumes:
+  db_data_teste: # <--- Volume isolado
+    build:
+      context: ./concilia-backend
+      dockerfile: Dockerfile
+    container_name: concilia_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./concilia-backend/src:/var/www/html
+    env_file:
+      - ./concilia-backend/src/.env
+    networks:
       - concilia_network
+    depends_on:
+      - db
+
+  # --- SERVIDOR WEB (NGINX) ---
+  nginx:
+    image: nginx:1.19-alpine
+    container_name: concilia_nginx
+    restart: unless-stopped
+    ports:
+      - "8123:80"
+    volumes:
+      - ./concilia-backend/src:/var/www/html
+      - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - concilia_network
+
+  # --- BANCO DE DADOS (MYSQL) ---
+  db:
+    image: mysql:8.0
+    container_name: concilia_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: concilia_db
+      MYSQL_USER: conciliauser
+      MYSQL_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - concilia_network
+
+  # --- FRONTEND (REACT/VITE) - ADICIONADO ---
+  frontend:
+    build:
+      context: ./concilia-frontend
+      dockerfile: Dockerfile
+    container_name: concilia_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173" # Porta padrão do Vite
+    volumes:
+      - ./concilia-frontend:/app
+      - /app/node_modules # Evita sobrescrever node_modules do container
+    networks:
+      - concilia_network
+    environment:
+      # Aponta para o NGINX (porta externa mapeada no docker-compose)
+      - VITE_API_URL=http://localhost:8123/api 
+
+networks:
+  concilia_network:
+    driver: bridge
+
+volumes:
+  db_data:
 
   # --- SERVIDOR WEB (NGINX) ---
   nginx:
@@ -53,4 +203,79 @@ networks:
     driver: bridge
 
 volumes:
-  db_data:
+  db_data:version: '3.8'
+
+services:
+  # --- APLICAÇÃO (LARAVEL) ---
+  app:
+    build:
+      context: ./concilia-backend
+      dockerfile: Dockerfile
+    container_name: concilia_app_teste  # <--- MUDADO (Nome único)
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./concilia-backend/src:/var/www/html
+    env_file:
+      - ./concilia-backend/src/.env
+    networks:
+      - concilia_network_teste          # <--- MUDADO (Rede separada)
+    depends_on:
+      - db
+
+  # --- SERVIDOR WEB (NGINX) ---
+  nginx:
+    image: nginx:1.19-alpine
+    container_name: concilia_nginx_teste # <--- MUDADO
+    restart: unless-stopped
+    ports:
+      - "8124:80"  # <--- MUDADO (De 8123 para 8124 para não conflitar)
+    volumes:
+      - ./concilia-backend/src:/var/www/html
+      - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - concilia_network_teste
+
+  # --- BANCO DE DADOS (MYSQL) ---
+  db:
+    image: mysql:8.0
+    container_name: concilia_db_teste    # <--- MUDADO
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: concilia_db
+      MYSQL_USER: conciliauser
+      MYSQL_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306" # <--- MUDADO (De 3306 para 3307 - CRÍTICO!)
+    volumes:
+      - db_data_teste:/var/lib/mysql     # <--- MUDADO (Volume novo para não apagar a produção)
+    networks:
+      - concilia_network_teste
+
+  # --- FRONTEND (REACT/VITE) ---
+  frontend:
+    build:
+      context: ./concilia-frontend
+      dockerfile: Dockerfile
+    container_name: concilia_frontend_teste # <--- MUDADO
+    restart: unless-stopped
+    ports:
+      - "5174:5173" # <--- MUDADO (De 5173 para 5174)
+    volumes:
+      - ./concilia-frontend:/app
+      - /app/node_modules
+    networks:
+      - concilia_network_teste
+    environment:
+      # Apontei para a nova porta do Nginx de teste (8124)
+      - VITE_API_URL=http://localhost:8124/api 
+
+networks:
+  concilia_network_teste: # <--- Rede isolada
+    driver: bridge
+
+volumes:
+  db_data_teste: # <--- Volume isolado

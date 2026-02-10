@@ -1,5 +1,6 @@
 // src/pages/LoginPage.jsx
 import React from 'react';
+import { Link } from 'react-router-dom';
 import Login from '../components/Login';
 import styles from '../styles/Login.module.css'; // Importe os novos estilos
 
