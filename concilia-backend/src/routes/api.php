@@ -14,6 +14,9 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\OpposingLawyerController;
 
+
+Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import styles from '../styles/Login.module.css'; // O CSS que vamos mudar a seguir
+import { Link, useNavigate } from 'react-router-dom'; 
+import styles from '../styles/Login.module.css';
 import { FaEnvelope, FaLock, FaHandshake, FaSpinner } from 'react-icons/fa';
 
 const Login = () => {
@@ -70,6 +70,19 @@ const Login = () => {
             required
           />
         </div>
+
+        {/* --- 2. LINK ADICIONADO AQUI --- */}
+        <div style={{ width: '100%', textAlign: 'right', marginBottom: '15px', marginTop: '-10px' }}>
+            <Link 
+                to="/forgot-password" 
+                style={{ color: '#4a5568', fontSize: '0.85rem', textDecoration: 'none' }}
+                onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
+                onMouseOut={(e) => e.target.style.textDecoration = 'none'}
+            >
+                Esqueci minha senha
+            </Link>
+        </div>
+        {/* ------------------------------- */}
 
         <button type="submit" className={styles.button} disabled={loading}>
           {loading ? (
