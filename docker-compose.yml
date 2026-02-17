@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # --- BACKEND (LARAVEL) ---
   app:
@@ -46,7 +44,7 @@ services:
     networks:
       - concilia_network_teste
 
-  # --- FRONTEND (ESTAVA FORA DE LUGAR) ---
+  # --- FRONTEND (AGORA COM IDENTAÇÃO CORRETA) ---
   frontend:
     build:
       context: ./concilia-frontend
