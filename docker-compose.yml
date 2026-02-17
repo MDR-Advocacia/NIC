@@ -9,8 +9,7 @@ services:
     working_dir: /var/www/html
     volumes:
       - ./concilia-backend/src:/var/www/html
-    env_file:
-      - ./concilia-backend/src/.env
+    # Removi o env_file daqui para evitar o erro de arquivo não encontrado
     networks:
       - concilia_network_teste
     depends_on:
@@ -44,7 +43,7 @@ services:
     networks:
       - concilia_network_teste
 
-  # --- FRONTEND (AGORA COM IDENTAÇÃO CORRETA) ---
+  # --- FRONTEND (REACT/VITE) ---
   frontend:
     build:
       context: ./concilia-frontend
