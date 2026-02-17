@@ -1,5 +1,4 @@
 services:
-  # --- BACKEND (LARAVEL) ---
   app:
     build:
       context: ./concilia-backend
@@ -9,13 +8,10 @@ services:
     working_dir: /var/www/html
     volumes:
       - ./concilia-backend/src:/var/www/html
-    # Removi o env_file daqui para evitar o erro de arquivo não encontrado
     networks:
       - concilia_network_teste
     depends_on:
       - db
-
-  # --- NGINX (API) ---
   nginx:
     image: nginx:1.19-alpine
     container_name: concilia_nginx_teste
@@ -27,8 +23,6 @@ services:
       - app
     networks:
       - concilia_network_teste
-
-  # --- BANCO DE DADOS ---
   db:
     image: mysql:8.0
     container_name: concilia_db_teste
@@ -42,8 +36,6 @@ services:
       - db_data_teste:/var/lib/mysql
     networks:
       - concilia_network_teste
-
-  # --- FRONTEND (REACT/VITE) ---
   frontend:
     build:
       context: ./concilia-frontend
