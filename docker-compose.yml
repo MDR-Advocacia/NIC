@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # --- APLICAÇÃO (LARAVEL BACKEND) ---
+  # --- BACKEND (LARAVEL) ---
   app:
     build:
       context: ./concilia-backend
@@ -18,12 +18,11 @@ services:
     depends_on:
       - db
 
-  # --- SERVIDOR WEB (NGINX - INTERFACE DO BACKEND) ---
+  # --- NGINX (API) ---
   nginx:
     image: nginx:1.19-alpine
     container_name: concilia_nginx_teste
     restart: unless-stopped
-    # No Coolify, o FQDN api-nic-lab.mdradvocacia.com deve apontar para este serviço
     volumes:
       - ./concilia-backend/src:/var/www/html
       - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
@@ -32,7 +31,7 @@ services:
     networks:
       - concilia_network_teste
 
-  # --- BANCO DE DADOS (MYSQL) ---
+  # --- BANCO DE DADOS ---
   db:
     image: mysql:8.0
     container_name: concilia_db_teste
@@ -47,8 +46,8 @@ services:
     networks:
       - concilia_network_teste
 
-  # --- FRONTEND (REACT/VITE) ---
-frontend:
+  # --- FRONTEND (ESTAVA FORA DE LUGAR) ---
+  frontend:
     build:
       context: ./concilia-frontend
       dockerfile: Dockerfile
@@ -59,7 +58,7 @@ frontend:
     deploy:
       resources:
         limits:
-          memory: 1024M # Limita a 1GB para sobrar para o sistema
+          memory: 1024M
     environment:
       - VITE_API_URL=https://api-nic-lab.mdradvocacia.com/api
 
