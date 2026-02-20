@@ -57,9 +57,9 @@ services:
     restart: unless-stopped
     ports:
       - "5173:5173"
-    volumes:
-      - ./concilia-frontend:/app
-      - /app/node_modules
+    # volumes:
+    #   - ./concilia-frontend:/app
+    #   - /app/node_modules
     networks:
       - concilia_network
     deploy:
