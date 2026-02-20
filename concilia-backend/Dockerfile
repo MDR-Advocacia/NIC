@@ -14,21 +14,23 @@ WORKDIR /var/www/html
 
 # Copiar arquivos de dependência
 COPY src/composer.json src/composer.lock ./
+# Copiar o código da subpasta src para a raiz do WORKDIR
+COPY src/. .
 
 # Instalar dependências
 RUN cp .env.example .env
 RUN composer install --no-interaction --no-plugins --no-scripts --prefer-dist --no-dev
-
-# Copiar o código da subpasta src para a raiz do WORKDIR
-COPY src/. .
-
-# --- AJUSTE DE PERMISSÕES DEFINITIVO ---
 # Mudamos o dono de TUDO para www-data antes de trocar de usuário
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Otimiza o autoloader
 RUN composer dump-autoload --optimize
+
+
+
+# --- AJUSTE DE PERMISSÕES DEFINITIVO ---
+
 
 # Expõe a porta 9000
 EXPOSE 9000
