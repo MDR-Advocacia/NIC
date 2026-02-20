@@ -1,49 +1,35 @@
 # Usar a imagem oficial do PHP 8.2 com FPM
 FROM php:8.2-fpm
 
-# Instalar dependências do sistema e extensões PHP necessárias para o Laravel
+# Instalar dependências do sistema
 RUN apt-get update && apt-get install -y \
-    git \
-    unzip \
-    zip \
-    curl \
-    libpng-dev \
-    libjpeg-dev \
-    libfreetype6-dev \
-    libonig-dev \
-    libxml2-dev \
+    git unzip zip curl libpng-dev libjpeg-dev libfreetype6-dev libonig-dev libxml2-dev \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd xml
 
-# Instalar o Composer (gerenciador de pacotes do PHP)
+# Instalar o Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Definir o diretório de trabalho
-WORKDIR /var/www
+# --- AJUSTE AQUI: Usar /var/www/html que é o padrão do Nginx ---
+WORKDIR /var/www/html
 
-# Copiar arquivos de dependência primeiro para aproveitar o cache do Docker
+# Copiar arquivos de dependência
 COPY src/composer.json src/composer.lock ./
 
-# Instalar dependências do Composer
-RUN composer install --no-interaction --no-plugins --no-scripts --prefer-dist
+# Instalar dependências
 
-# Copiar o restante do código da aplicação
+RUN composer install --no-interaction --no-plugins --no-scripts --prefer-dist --no-dev
+
+# Copiar o código da subpasta src para a raiz do WORKDIR
 COPY src/. .
 
-# Mudar o dono dos arquivos para o usuário do www-data para corrigir permissões
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+# --- AJUSTE DE PERMISSÕES DEFINITIVO ---
+# Mudamos o dono de TUDO para www-data antes de trocar de usuário
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Copiar o restante do código da aplicação
-COPY src/. .
-
-# Gera o autoloader otimizado do Laravel
+# Otimiza o autoloader
 RUN composer dump-autoload --optimize
 
-# Mudar o dono dos arquivos para o usuário do www-data para corrigir permissões
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-
-# A aplicação será executada como www-data
-USER www-data
-
-# Expõe a porta 9000 e inicia o PHP-FPM
+# Expõe a porta 9000
 EXPOSE 9000
 CMD ["php-fpm"]
