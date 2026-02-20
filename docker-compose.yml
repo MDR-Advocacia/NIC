@@ -63,8 +63,10 @@ services:
     networks:
       - concilia_network
     environment:
-      # Aponta para o NGINX (porta externa mapeada no docker-compose)
-      - VITE_API_URL=http://localhost:8123/api 
+  - VITE_API_URL=${VITE_API_URL:-https://api-nic-lab.mdradvocacia.com/api}
+    # environment:
+    #   # Aponta para o NGINX (porta externa mapeada no docker-compose)
+    #   - VITE_API_URL=http://localhost:8123/api 
 
 networks:
   concilia_network:
