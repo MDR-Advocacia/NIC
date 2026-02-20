@@ -1,15 +1,20 @@
+version: '3.8'
+
 services:
+  # --- APLICAÇÃO (LARAVEL) ---
   app:
     build:
       context: ./concilia-backend
       dockerfile: Dockerfile
-    container_name: concilia_app_teste
+    container_name: concilia_app
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
       - ./concilia-backend/src:/var/www/html
     networks:
       - concilia_network
+    depends_on:
+      - db
 
   # --- SERVIDOR WEB (NGINX) ---
   nginx:
@@ -17,7 +22,7 @@ services:
     container_name: concilia_nginx
     restart: unless-stopped
     ports:
-      - "8123:80"
+      - "8000:80"
     volumes:
       - ./concilia-backend/src:/var/www/html
       - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
@@ -43,7 +48,7 @@ services:
     networks:
       - concilia_network
 
-  # --- FRONTEND (REACT/VITE) - ADICIONADO ---
+  # --- FRONTEND (REACT/VITE) ---
   frontend:
     build:
       context: ./concilia-frontend
@@ -51,82 +56,22 @@ services:
     container_name: concilia_frontend
     restart: unless-stopped
     ports:
-      - "5173:5173" # Porta padrão do Vite
+      - "5173:5173"
     volumes:
       - ./concilia-frontend:/app
-      - /app/node_modules # Evita sobrescrever node_modules do container
+      - /app/node_modules
     networks:
       - concilia_network
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
     environment:
-      # Aponta para o NGINX (porta externa mapeada no docker-compose)
-      - VITE_API_URL=http://localhost:8123/api 
+      - VITE_API_URL=${VITE_API_URL:-https://api-nic-lab.mdradvocacia.com/api}
 
 networks:
   concilia_network:
     driver: bridge
 
 volumes:
-  db_data:version: '3.8'
-
-services:
-  # --- APLICAÇÃO (LARAVEL) ---
-  app:
-    build:
-      context: ./concilia-backend
-      dockerfile: Dockerfile
-    container_name: concilia_app_teste  # <--- MUDADO (Nome único)
-    restart: unless-stopped
-    working_dir: /var/www/html
-    volumes:
-      - ./concilia-backend/src:/var/www/html
-    env_file:
-      - ./concilia-backend/src/.env
-    networks:
-      - concilia_network_teste          # <--- MUDADO (Rede separada)
-    depends_on:
-      - db
-  nginx:
-    image: nginx:1.19-alpine
-    container_name: concilia_nginx_teste
-    restart: unless-stopped
-    volumes:
-      - ./concilia-backend/src:/var/www/html
-      - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - app
-    networks:
-      - concilia_network_teste
-  db:
-    image: mysql:8.0
-    container_name: concilia_db_teste
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: concilia_db
-      MYSQL_USER: conciliauser
-      MYSQL_PASSWORD: root
-      MYSQL_ROOT_PASSWORD: root
-    volumes:
-      - db_data_teste:/var/lib/mysql
-    networks:
-      - concilia_network_teste
-  frontend:
-    build:
-      context: ./concilia-frontend
-      dockerfile: Dockerfile
-    container_name: concilia_frontend_teste
-    restart: unless-stopped
-    networks:
-      - concilia_network_teste
-    deploy:
-      resources:
-        limits:
-          memory: 1024M
-    environment:
-      - VITE_API_URL=https://api-nic-lab.mdradvocacia.com/api
-
-networks:
-  concilia_network_teste:
-    driver: bridge
-
-volumes:
-  db_data_teste:
+  db_data:
