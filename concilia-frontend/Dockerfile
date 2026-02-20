@@ -2,20 +2,23 @@
 
 FROM node:22-alpine
 
-# Define o diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copia os arquivos de dependências
+# Copia dependências
 COPY package.json package-lock.json ./
 
-# Instala as dependências
+# Instala dependências (omitindo avisos desnecessários)
 RUN npm install
 
-# Copia o restante do código fonte
+# Copia o código
 COPY . .
 
-# Expõe a porta padrão do Vite
+# Faz o build do projeto para gerar a pasta /dist
+RUN npm run build
+
+# Expõe a porta 5173
 EXPOSE 5173
 
-# Comando para iniciar o servidor de desenvolvimento
-CMD ["npm", "run", "dev", "--", "--host"]
+# Em vez de 'dev', vamos usar o 'preview' que é mais leve para o servidor
+# O --host 0.0.0.0 é fundamental para o Coolify conseguir acessar o container
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
