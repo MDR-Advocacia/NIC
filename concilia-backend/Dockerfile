@@ -16,7 +16,7 @@ WORKDIR /var/www/html
 COPY src/composer.json src/composer.lock ./
 
 # Instalar dependências
-
+RUN cp .env.example .env
 RUN composer install --no-interaction --no-plugins --no-scripts --prefer-dist --no-dev
 
 # Copiar o código da subpasta src para a raiz do WORKDIR
