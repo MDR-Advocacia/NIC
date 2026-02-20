@@ -9,8 +9,8 @@ services:
     container_name: concilia_app
     restart: unless-stopped
     working_dir: /var/www/html
-    volumes:
-      - ./concilia-backend/src:/var/www/html
+    # volumes:  <-- ADICIONE O # AQUI
+    #   - ./concilia-backend/src:/var/www/html
     networks:
       - concilia_network
     depends_on:
@@ -24,7 +24,7 @@ services:
     ports:
       - "8123:80"
     volumes:
-      - ./concilia-backend/src:/var/www/html
+      # - ./concilia-backend/src:/var/www/html  <-- ADICIONE O # AQUI
       - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
