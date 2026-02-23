@@ -4,9 +4,10 @@ const InboxPage = () => {
   // Configura a URL base. 
   // Se estiver rodando no localhost (teste), usa o link de teste.
   // Se estiver em produção, usa o link oficial.
+  // Configura a URL base com a conta 1 e a caixa de entrada 4
   const chatwootUrl = window.location.hostname.includes('test') 
-    ? 'https://test-chat.mdradvocacia.com/app' // URL do seu Chatwoot de Teste
-    : 'https://chat.mdradvocacia.com/app';      // URL do seu Chatwoot de Produção
+    ? 'https://test-chat.mdradvocacia.com/app/accounts/1/inbox/4?display=pure' 
+    : 'https://chat.mdradvocacia.com/app/accounts/1/inbox/4?display=pure';
 
   const [isLoading, setIsLoading] = useState(true);
 
