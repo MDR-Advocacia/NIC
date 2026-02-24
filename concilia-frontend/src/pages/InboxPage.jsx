@@ -10,7 +10,7 @@ const InboxPage = () => {
 
   useEffect(() => {
     const proxyUrl = "https://cors-anywhere.com/"; 
-    const targetUrl = `https://chat.mdradvocacia.com/api/v1/accounts/${ACCOUNT_ID}/conversations`;
+    const targetUrl = `https://chat.mdradvocacia.com/api/v1/accounts/${ACCOUNT_ID}/conversations?status=all`;
 
     fetch(proxyUrl + targetUrl, {
       method: 'GET',
