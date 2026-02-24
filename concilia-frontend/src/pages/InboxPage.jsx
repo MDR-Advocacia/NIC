@@ -1,50 +1,42 @@
 import React, { useState, useEffect } from 'react';
 
 const InboxPage = () => {
-  // Configura a URL base. 
-  // Se estiver rodando no localhost (teste), usa o link de teste.
-  // Se estiver em produção, usa o link oficial.
-  // Configura a URL base com a conta 1 e a caixa de entrada 4
-  // Configuração direta para a caixa de entrada oficial
-const chatwootUrl = 'https://chat.mdradvocacia.com/app/login';
+  const [conversas, setConversas] = useState([]);
+  const [carregando, setCarregando] = useState(true);
 
-  const [isLoading, setIsLoading] = useState(true);
+  // Substitua pela Chave API da sua imagem image_60b0b0.png
+  const API_KEY = "EAALPQHvqNkQBPzH75IZB2kBZCulsIQoplb4u3mCffixPvZBdL1jqW67TI5M0yb3HizO37WR6cptwHe3Uw7e4hZCQrZAOmE4LeyDN4wumHBp71BG9MAJCz5cXtGQTx2H8Ka38UtHGjZAkZB9onAhaHEa1cAx8l84LX2jDqOJsY2Ei9PrQzcjKdQxpqroRsVCoeLcrwZDZD"; 
+  const ACCOUNT_ID = "1";
+
+  useEffect(() => {
+    fetch(`https://chat.mdradvocacia.com/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
+      method: 'GET',
+      headers: {
+        'api_access_token': API_KEY,
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      setConversas(data.payload);
+      setCarregando(false);
+    })
+    .catch(err => console.error("Erro ao espelhar chat:", err));
+  }, []);
+
+  if (carregando) return <div>Carregando mensagens do WhatsApp...</div>;
 
   return (
-    <div style={{ height: '100vh', width: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Título ou Cabeçalho (Opcional) */}
-      <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff' }}>
-        <h2 style={{ margin: 0, fontSize: '18px' }}>Caixa de Entrada Unificada</h2>
+    <div style={{ padding: '20px' }}>
+      <h2>Atendimento WhatsApp MDR</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {conversas.map(chat => (
+          <div key={chat.id} style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
+            <strong>{chat.meta.sender.name}</strong>
+            <p style={{ color: '#666' }}>{chat.messages[0]?.content || "Sem mensagens recentes"}</p>
+          </div>
+        ))}
       </div>
-
-      {/* Área de Carregamento */}
-      {isLoading && (
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100%', 
-          background: '#f5f5f5' 
-        }}>
-          <span>Carregando Chatwoot...</span>
-        </div>
-      )}
-
-      {/* O Iframe Mágico */}
-      <iframe
-        src={chatwootUrl}
-        title="Chatwoot Dashboard"
-        width="100%"
-        height="100%"
-        style={{ 
-          border: 'none', 
-          display: isLoading ? 'none' : 'block',
-          flex: 1 
-        }}
-        // Permissões cruciais para áudio e anexo funcionarem dentro do NIC
-        allow="camera; microphone; geolocation; fullscreen; clipboard-read; clipboard-write"
-        onLoad={() => setIsLoading(false)}
-      />
     </div>
   );
 };
