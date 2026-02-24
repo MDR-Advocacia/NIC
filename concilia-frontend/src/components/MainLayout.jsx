@@ -50,10 +50,16 @@ const MainLayout = () => {
                             </NavLink>
                         </li>
                         <li className={styles.navItem}>
-                            <NavLink to="/inbox" className={getNavLinkClass}>
-                                <FaInbox /> <span>Caixa de Entrada</span>
-                            </NavLink>
-                        </li>
+    <a 
+        href="https://chat.mdradvocacia.com/app/accounts/1/inbox/4" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className={getNavLinkClass({ isActive: false })} // Mantém o estilo visual do menu
+        style={{ textDecoration: 'none' }}
+    >
+        <FaInbox /> <span>Atendimento WhatsApp</span>
+    </a>
+</li>
                         <li className={styles.navItem}>
                             <NavLink to="/pipeline" className={getNavLinkClass}>
                                 <FaStream /> <span>Pipeline de Acordos</span>
