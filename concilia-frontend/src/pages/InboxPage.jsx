@@ -9,7 +9,8 @@ const InboxPage = () => {
   const ACCOUNT_ID = "1";
 
   useEffect(() => {
-    const proxyUrl = "https://cors-anywhere.herokuapp.com/";
+    // Atualizado para o novo domínio que você encontrou
+    const proxyUrl = "https://cors-anywhere.com/"; 
     const targetUrl = `https://chat.mdradvocacia.com/api/v1/accounts/${ACCOUNT_ID}/conversations`;
 
     fetch(proxyUrl + targetUrl, {
@@ -22,7 +23,7 @@ const InboxPage = () => {
     })
     .then(res => res.json())
     .then(data => {
-      // O Chatwoot retorna a lista dentro de data (pode ser direto ou em .payload)
+      // Ajuste para garantir que pegamos a lista de conversas
       const listaConversas = data.payload || data;
       setConversas(Array.isArray(listaConversas) ? listaConversas : []);
       setCarregando(false);
