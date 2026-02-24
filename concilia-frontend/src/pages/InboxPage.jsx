@@ -9,36 +9,40 @@ const InboxPage = () => {
   const ACCOUNT_ID = "1";
 
   useEffect(() => {
-    // Usando o proxy estável que você encontrou
-    const proxyUrl = "https://cors-anywhere.com/"; 
-    
-    // Inserindo a API_KEY na URL para evitar bloqueio de cabeçalho (CORS)
+    // Tentaremos sem o proxy externo primeiro, usando um modo de requisição diferente
     const targetUrl = `https://chat.mdradvocacia.com/api/v1/accounts/${ACCOUNT_ID}/conversations?status=all&api_access_token=${API_KEY}`;
 
-    fetch(proxyUrl + targetUrl, {
+    fetch(targetUrl, {
       method: 'GET',
+      mode: 'cors', // Força o modo CORS
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       }
     })
     .then(res => {
-      if (res.status === 401) throw new Error("Acesso negado (401): Verifique a Chave API no perfil");
-      if (res.status === 404) throw new Error("Conta não encontrada (404): Verifique o ID da conta");
       if (!res.ok) throw new Error(`Erro ${res.status}`);
       return res.json();
     })
     .then(data => {
-      console.log("Dados que chegaram do Chatwoot:", data);
-      
-      // O Chatwoot pode retornar os dados direto ou dentro de .payload
       const lista = data.payload || data;
       setConversas(Array.isArray(lista) ? lista : []);
       setCarregando(false);
     })
     .catch(err => {
       console.error("Erro no espelhamento:", err.message);
-      setCarregando(false);
+      // Se falhar o direto, tentamos um proxy reserva mais estável
+      const backupProxy = "https://api.allorigins.win/get?url=";
+      
+      fetch(backupProxy + encodeURIComponent(targetUrl))
+        .then(res => res.json())
+        .then(data => {
+          const parsedData = JSON.parse(data.contents);
+          const lista = parsedData.payload || parsedData;
+          setConversas(Array.isArray(lista) ? lista : []);
+          setCarregando(false);
+        })
+        .catch(() => setCarregando(false));
     });
   }, []);
 
