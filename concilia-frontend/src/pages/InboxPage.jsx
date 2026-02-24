@@ -5,7 +5,7 @@ const InboxPage = () => {
   const [carregando, setCarregando] = useState(true);
 
   // Chave de API extraída do seu código
-  const API_KEY = "EAALPQHvqNkQBPzH75IZB2kBZCulsIQoplb4u3mCffixPvZBdL1jqW67TI5M0yb3HizO37WR6cptwHe3Uw7e4hZCQrZAOmE4LeyDN4wumHBp71BG9MAJCz5cXtGQTx2H8Ka38UtHGjZAkZB9onAhaHEa1cAx8l84LX2jDqOJsY2Ei9PrQzcjKdQxpqroRsVCoeLcrwZDZD"; 
+  const API_KEY = "gG4gX1KUxE4NrFtJjUynZw2c"; 
   const ACCOUNT_ID = "1";
 
   useEffect(() => {
