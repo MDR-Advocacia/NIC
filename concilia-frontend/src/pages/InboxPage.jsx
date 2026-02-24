@@ -1,56 +1,85 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { FaWhatsapp, FaExternalLinkAlt, FaInfoCircle } from 'react-icons/fa';
 
 const InboxPage = () => {
-  const [conversas, setConversas] = useState([]);
-  const [carregando, setCarregando] = useState(true);
-
-  useEffect(() => {
-    const API_KEY = "gG4gX1KUxE4NrFtJjUynZw2c"; 
-    const ACCOUNT_ID = "1";
-    
-    // Usamos o AllOrigins mas de uma forma que ele não tente validar o conteúdo
-    const targetUrl = `https://chat.mdradvocacia.com/api/v1/accounts/${ACCOUNT_ID}/conversations?status=all&api_access_token=${API_KEY}`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-
-    fetch(proxyUrl)
-      .then(res => {
-        if (!res.ok) throw new Error("Erro na rede");
-        return res.json();
-      })
-      .then(data => {
-        // O AllOrigins embrulha o resultado em uma string chamada .contents
-        if (data.contents) {
-          const parsedData = JSON.parse(data.contents);
-          const lista = parsedData.payload || parsedData;
-          setConversas(Array.isArray(lista) ? lista : []);
-        }
-        setCarregando(false);
-      })
-      .catch(err => {
-        console.error("Erro final:", err);
-        setCarregando(false);
-      });
-  }, []);
-
-  if (carregando) return <div style={{ padding: '20px' }}>Conectando ao WhatsApp MDR...</div>;
+  const CHATWOOT_URL = "https://chat.mdradvocacia.com/app/accounts/1/inbox/4";
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2 style={{ marginBottom: '20px' }}>Atendimento WhatsApp MDR</h2>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {conversas.length > 0 ? (
-          conversas.map(chat => (
-            <div key={chat.id} style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '8px', background: '#fff' }}>
-              <strong>{chat.meta?.sender?.name || "Cliente"}</strong>
-              <p style={{ color: '#666' }}>
-                {chat.messages?.[0]?.content || "Conversa iniciada"}
-              </p>
-            </div>
-          ))
-        ) : (
-          <p>Nenhuma conversa ativa encontrada.</p>
-        )}
+    <div style={{ padding: '30px', maxWidth: '800px', margin: '0 auto' }}>
+      <div style={{ 
+        background: '#fff', 
+        borderRadius: '15px', 
+        padding: '40px', 
+        textAlign: 'center',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.05)',
+        border: '1px solid #eef0f2'
+      }}>
+        <div style={{ 
+          background: '#e7f9ed', 
+          width: '80px', 
+          height: '80px', 
+          borderRadius: '50%', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          margin: '0 auto 20px'
+        }}>
+          <FaWhatsapp size={40} color="#25D366" />
+        </div>
+
+        <h2 style={{ color: '#1a1d21', marginBottom: '10px', fontSize: '24px' }}>
+          Central de Atendimento WhatsApp
+        </h2>
+        
+        <p style={{ color: '#64748b', fontSize: '16px', lineHeight: '1.6', marginBottom: '30px' }}>
+          Para garantir a segurança e a melhor performance das conversas da <strong>MDR Advocacia</strong>, 
+          o atendimento é realizado em nossa plataforma dedicada.
+        </p>
+
+        <div style={{ 
+          background: '#f8fafc', 
+          padding: '20px', 
+          borderRadius: '10px', 
+          marginBottom: '30px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '15px',
+          textAlign: 'left'
+        }}>
+          <FaInfoCircle color="#3b82f6" size={20} style={{ marginTop: '3px' }} />
+          <span style={{ color: '#475569', fontSize: '14px' }}>
+            Ao clicar no botão abaixo, a central de mensagens será aberta em uma aba segura. 
+            Você continuará logado no NIC simultaneamente.
+          </span>
+        </div>
+
+        <button 
+          onClick={() => window.open(CHATWOOT_URL, '_blank')}
+          style={{
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            padding: '16px 32px',
+            borderRadius: '8px',
+            fontSize: '18px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '12px',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 4px 12px rgba(0, 123, 255, 0.3)'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+          Acessar Conversas <FaExternalLinkAlt size={16} />
+        </button>
       </div>
+
+      <p style={{ textAlign: 'center', marginTop: '20px', color: '#94a3b8', fontSize: '12px' }}>
+        MDR Advocacia - Sistema de Gestão Interna (NIC)
+      </p>
     </div>
   );
 };
