@@ -27,6 +27,7 @@ const InboxPage = () => {
     })
     .then(data => {
       // O Chatwoot costuma entregar a lista dentro de um array ou de um objeto .payload
+      console.log("Dados que chegaram do Chatwoot:", data);
       const lista = data.payload || data;
       setConversas(Array.isArray(lista) ? lista : []);
       setCarregando(false);
