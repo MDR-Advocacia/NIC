@@ -26,11 +26,14 @@ const InboxPage = () => {
       return res.json();
     })
     .then(data => {
-      // Tratando a estrutura de resposta do Chatwoot que vem através do Laravel
-      const lista = data.payload || data;
-      setConversas(Array.isArray(lista) ? lista : []);
-      setCarregando(false);
-    })
+  console.log("Dados que chegaram do Proxy:", data); // Isso vai nos mostrar a estrutura real
+
+  // Tentativa de pegar a lista em diferentes formatos comuns do Chatwoot
+  const lista = data.payload || data.data || (Array.isArray(data) ? data : []);
+  
+  setConversas(lista);
+  setCarregando(false);
+})
     .catch(err => {
       console.error("Erro na integração MDR:", err.message);
       setCarregando(false);
