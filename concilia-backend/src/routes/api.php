@@ -38,22 +38,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cases/batch-update', [LegalCaseController::class, 'batchUpdate']); 
     // -----------------------------------
     Route::get('/chatwoot-proxy', function () {
-    $accountId = '1';
-    $token = 'gG4gX1KUxE4NrFtJjUynZw2c';
-    
-    try {
-        $response = Http::withHeaders([
-            'Accept' => 'application/json',
-        ])->get("https://chat.mdradvocacia.com/api/v1/accounts/{$accountId}/conversations", [
-            'status' => 'all',
-            'api_access_token' => $token
-        ]);
+        $token = 'gG4gX1KUxE4NrFtJjUynZw2c'; 
+        
+        try {
+            $response = Http::withHeaders([
+                'api_access_token' => $token,
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ])->get("https://chat.mdradvocacia.com/api/v1/accounts/1/conversations", [
+                'status' => 'all'
+            ]);
 
-        return $response->json();
-    } catch (\Exception $e) {
-        return response()->json(['error' => 'Falha ao conectar com Chatwoot'], 500);
-    }
-});
+            return $response->json();
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Falha ao conectar com Chatwoot'], 500);
+        }
+    });
     Route::apiResource('aggressor-lawyers', AggressorLawyerController::class);
     Route::apiResource('departments', DepartmentController::class)->only(['index', 'store']);
 
