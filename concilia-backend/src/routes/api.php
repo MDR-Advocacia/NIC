@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Http;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ClientController;
@@ -36,7 +37,23 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- ROTA NOVA PARA AÇÃO EM LOTE ---
     Route::post('/cases/batch-update', [LegalCaseController::class, 'batchUpdate']); 
     // -----------------------------------
+    Route::get('/chatwoot-proxy', function () {
+    $accountId = '1';
+    $token = 'gG4gX1KUxE4NrFtJjUynZw2c';
     
+    try {
+        $response = Http::withHeaders([
+            'Accept' => 'application/json',
+        ])->get("https://chat.mdradvocacia.com/api/v1/accounts/{$accountId}/conversations", [
+            'status' => 'all',
+            'api_access_token' => $token
+        ]);
+
+        return $response->json();
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Falha ao conectar com Chatwoot'], 500);
+    }
+});
     Route::apiResource('aggressor-lawyers', AggressorLawyerController::class);
     Route::apiResource('departments', DepartmentController::class)->only(['index', 'store']);
 
