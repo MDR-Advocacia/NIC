@@ -9,42 +9,33 @@ const InboxPage = () => {
   const ACCOUNT_ID = "1";
 
   useEffect(() => {
-    // Tentaremos sem o proxy externo primeiro, usando um modo de requisição diferente
-    const targetUrl = `https://chat.mdradvocacia.com/api/v1/accounts/${ACCOUNT_ID}/conversations?status=all&api_access_token=${API_KEY}`;
+  // Usando o nome exato da chave que encontramos no seu LocalStorage
+  const token = localStorage.getItem('authToken'); 
 
-    fetch(targetUrl, {
-      method: 'GET',
-      mode: 'cors', // Força o modo CORS
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    })
+  fetch('https://api-nic-lab.mdradvocacia.com/api/chatwoot-proxy', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`, // Autoriza a entrada no middleware auth:sanctum
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  })
     .then(res => {
-      if (!res.ok) throw new Error(`Erro ${res.status}`);
+      if (res.status === 401) throw new Error("Sessão expirada ou não autorizado");
+      if (!res.ok) throw new Error(`Erro no servidor: ${res.status}`);
       return res.json();
     })
     .then(data => {
+      // Tratando a estrutura de resposta do Chatwoot que vem através do Laravel
       const lista = data.payload || data;
       setConversas(Array.isArray(lista) ? lista : []);
       setCarregando(false);
     })
     .catch(err => {
-      console.error("Erro no espelhamento:", err.message);
-      // Se falhar o direto, tentamos um proxy reserva mais estável
-      const backupProxy = "https://api.allorigins.win/get?url=";
-      
-      fetch(backupProxy + encodeURIComponent(targetUrl))
-        .then(res => res.json())
-        .then(data => {
-          const parsedData = JSON.parse(data.contents);
-          const lista = parsedData.payload || parsedData;
-          setConversas(Array.isArray(lista) ? lista : []);
-          setCarregando(false);
-        })
-        .catch(() => setCarregando(false));
+      console.error("Erro na integração MDR:", err.message);
+      setCarregando(false);
     });
-  }, []);
+}, []);
 
   if (carregando) {
     return (
