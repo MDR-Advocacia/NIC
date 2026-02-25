@@ -9,33 +9,26 @@ const InboxPage = () => {
   const ACCOUNT_ID = "1";
 
   useEffect(() => {
-  // Usando o nome exato da chave que encontramos no seu LocalStorage
   const token = localStorage.getItem('authToken'); 
 
   fetch('https://api-nic-lab.mdradvocacia.com/api/chatwoot-proxy', {
-    method: 'GET',
     headers: {
-      'Authorization': `Bearer ${token}`, // Autoriza a entrada no middleware auth:sanctum
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json'
     }
   })
-    .then(res => {
-      if (res.status === 401) throw new Error("Sessão expirada ou não autorizado");
-      if (!res.ok) throw new Error(`Erro no servidor: ${res.status}`);
-      return res.json();
+    .then(res => res.json())
+    .then(response => {
+      console.log("Processando lista...", response);
+      
+      // O seu console mostrou que a lista está em response.data.payload
+      const lista = response.data?.payload || response.payload || [];
+      
+      setConversas(lista);
+      setCarregando(false);
     })
-    .then(data => {
-  console.log("Dados que chegaram do Proxy:", data); // Isso vai nos mostrar a estrutura real
-
-  // Tentativa de pegar a lista em diferentes formatos comuns do Chatwoot
-  const lista = data.payload || data.data || (Array.isArray(data) ? data : []);
-  
-  setConversas(lista);
-  setCarregando(false);
-})
     .catch(err => {
-      console.error("Erro na integração MDR:", err.message);
+      console.error("Erro ao processar conversas:", err);
       setCarregando(false);
     });
 }, []);
