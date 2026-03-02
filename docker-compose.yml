@@ -16,10 +16,11 @@ services:
     depends_on:
       - db
     command: >
-      sh -c "mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions bootstrap/cache resources/views
-      && chmod -R 777 storage bootstrap/cache
-      && php artisan key:generate --force
-      && php-fpm"
+      sh -c "mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions bootstrap/cache resources/views && 
+      chmod -R 777 storage bootstrap/cache && 
+      php artisan key:generate --force && 
+      php artisan config:clear &&
+      php-fpm"
 
   # --- SERVIDOR WEB (NGINX) ---
   nginx:
