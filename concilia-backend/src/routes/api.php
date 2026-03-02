@@ -15,7 +15,8 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\OpposingLawyerController;
 
-
+// Rota para receber os eventos do Chatwoot
+Route::post('/webhooks/chatwoot', [App\Http\Controllers\Api\ChatwootWebhookController::class, 'receive']);
 Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('/login', [AuthController::class, 'login']);

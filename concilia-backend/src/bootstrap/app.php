@@ -12,11 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // --- AQUI ESTÁ A SOLUÇÃO DO CORS ---
-        // Adicionamos o middleware manual que força a aceitação do Frontend
-        // Certifique-se de que o arquivo app/Http/Middleware/ForceCors.php existe!
-        $middleware->append(\App\Http\Middleware\ForceCors::class);
-    })
+    $middleware->validateCsrfTokens(except: [
+        'api/webhooks/chatwoot', // Liberando a rota do Webhook
+    ]);
+})
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();
