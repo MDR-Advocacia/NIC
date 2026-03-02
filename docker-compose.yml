@@ -22,7 +22,8 @@ services:
     container_name: concilia_nginx
     restart: unless-stopped
     ports:
-      - "8123:80"
+      # - "8123:80"
+      - "80:80" # Mapeando a porta 80 do host para a porta 80 do container (Murilo:  mudei para 80 para evitar conflitos com outros serviços)
     volumes:
       # - ./concilia-backend/src:/var/www/html  
       - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
