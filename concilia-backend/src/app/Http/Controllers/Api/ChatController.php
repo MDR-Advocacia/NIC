@@ -145,10 +145,11 @@ public function getInboxes()
      */
     public function getConversationMessages($conversationId)
 {
-    // Busca o histórico completo diretamente da API do Chatwoot
     $response = Http::withHeaders([
         'api_access_token' => $this->apiToken,
-    ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages");
+    ])
+    ->timeout(5) // Se o Chatwoot não responder em 5s, ele encerra a tentativa
+    ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages");
 
     if ($response->failed()) {
         return response()->json(['error' => 'Não foi possível carregar as mensagens'], 500);
