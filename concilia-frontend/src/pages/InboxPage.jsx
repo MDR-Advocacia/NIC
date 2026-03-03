@@ -13,7 +13,11 @@ const InboxPage = () => {
     setCarregando(true);
     const token = localStorage.getItem('authToken');
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      headers: { 
+  'Authorization': `Bearer ${token}`, 
+  'Accept': 'application/json',
+  'Content-Type': 'application/json' 
+}
     })
       .then(res => res.json())
       .then(response => {
@@ -29,7 +33,11 @@ const InboxPage = () => {
     const token = localStorage.getItem('authToken');
 
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${chatId}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 
+  'Authorization': `Bearer ${token}`,
+  'Accept': 'application/json',
+  'Content-Type': 'application/json'
+}
     })
       .then(res => res.json())
       .then(data => {
@@ -50,7 +58,8 @@ const InboxPage = () => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ content: novaMensagem })
       });
