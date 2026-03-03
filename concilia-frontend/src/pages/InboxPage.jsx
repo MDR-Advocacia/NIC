@@ -9,7 +9,6 @@ const InboxPage = () => {
     setCarregando(true);
     const token = localStorage.getItem('authToken');
 
-    // Chamando a nova função do seu ChatController com o filtro da aba
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -19,13 +18,16 @@ const InboxPage = () => {
       .then(res => res.json())
       .then(response => {
         console.log("Dados recebidos do NIC:", response);
-        // O Chatwoot pode retornar os dados direto ou dentro de uma chave .data
-        const lista = Array.isArray(response) ? response : (response.data || response.payload || []);
+        
+        // AJUSTE AQUI: Acessando a hierarquia correta que vimos no console
+        // O caminho exato é response.data.payload
+        const lista = response.data?.payload || [];
+        
         setConversas(lista);
         setCarregando(false);
       })
       .catch(err => {
-        console.error("Erro ao buscar conversas:", err);
+        console.error("Erro na chamada da API:", err);
         setCarregando(false);
       });
   };
