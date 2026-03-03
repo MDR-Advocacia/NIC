@@ -23,6 +23,16 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    // --- ROTAS DE CHAT ATUALIZADAS ---
+    // Esta é a rota que o seu React está chamando agora (resolve o erro 404)
+    Route::get('/chat/conversations', [ChatController::class, 'getConversations']);
+    
+    
+    Route::get('/chat/inboxes', [ChatController::class, 'getInboxes']);
+    Route::post('/chat/conversations/{conversationId}/link', [ChatController::class, 'linkConversation']);
+    Route::get('/chat/conversations/{conversationId}', [ChatController::class, 'getConversationMessages']);
+    Route::post('/chat/conversations/{conversationId}/messages', [ChatController::class, 'sendMessage']);
+    Route::get('/cases/{legal_case}/conversation', [ChatController::class, 'getConversationByCase']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::put('/auth/change-password', [AuthController::class, 'changePassword']);
     Route::post('/logout', [AuthController::class, 'logout']);
