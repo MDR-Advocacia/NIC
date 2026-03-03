@@ -20,7 +20,7 @@ class ChatController extends Controller
         // $this->chatwootUrl = config('app.chatwoot_url');
         // $this->apiToken = config('app.chatwoot_api_token');
         // $this->accountId = config('app.chatwoot_account_id');
-        
+
         // Pega as credenciais diretamente das variáveis de ambiente do Coolify/.env
         $this->chatwootUrl = env('CHATWOOT_URL');
         $this->apiToken = env('CHATWOOT_API_TOKEN');
@@ -37,6 +37,7 @@ class ChatController extends Controller
     
     // O React vai enviar: 'me' (Minhas), 'unassigned' (Não atribuídas) ou 'all' (Todas)
     $assigneeType = $request->query('assignee_type', 'all');
+    \Log::info("Tentando conectar no Chatwoot: " . $this->chatwootUrl);
 
     $queryParams = [
         'status' => $status,
@@ -143,18 +144,18 @@ public function getInboxes()
      * Busca todas as mensagens de uma conversa específica.
      */
     public function getConversationMessages($conversationId)
-    {
-        $conversation = Conversation::find($conversationId);
+{
+    // Busca o histórico completo diretamente da API do Chatwoot
+    $response = Http::withHeaders([
+        'api_access_token' => $this->apiToken,
+    ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages");
 
-        if (!$conversation) {
-            return response()->json([], 404); // Retorna 'Not Found' se a conversa não existir
-        }
-
-        // Busca as mensagens usando a relação que definimos no modelo Conversation
-        $messages = $conversation->chatMessages()->orderBy('created_at', 'asc')->get();
-
-        return response()->json($messages);
+    if ($response->failed()) {
+        return response()->json(['error' => 'Não foi possível carregar as mensagens'], 500);
     }
+
+    return response()->json($response->json());
+}
     
 
     /**
