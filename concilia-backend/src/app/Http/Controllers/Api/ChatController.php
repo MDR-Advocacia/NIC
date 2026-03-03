@@ -17,9 +17,14 @@ class ChatController extends Controller
     public function __construct()
     {
         // Pega as credenciais do .env
-        $this->chatwootUrl = config('app.chatwoot_url');
-        $this->apiToken = config('app.chatwoot_api_token');
-        $this->accountId = config('app.chatwoot_account_id');
+        // $this->chatwootUrl = config('app.chatwoot_url');
+        // $this->apiToken = config('app.chatwoot_api_token');
+        // $this->accountId = config('app.chatwoot_account_id');
+        
+        // Pega as credenciais diretamente das variáveis de ambiente do Coolify/.env
+        $this->chatwootUrl = env('CHATWOOT_URL');
+        $this->apiToken = env('CHATWOOT_API_TOKEN');
+        $this->accountId = env('CHATWOOT_ACCOUNT_ID');
     }
 
     /**

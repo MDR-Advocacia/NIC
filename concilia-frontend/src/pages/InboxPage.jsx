@@ -18,8 +18,9 @@ const InboxPage = () => {
     })
       .then(res => res.json())
       .then(response => {
+        console.log("Dados recebidos do NIC:", response);
         // O Chatwoot pode retornar os dados direto ou dentro de uma chave .data
-        const lista = Array.isArray(response) ? response : (response.data || []);
+        const lista = Array.isArray(response) ? response : (response.data || response.payload || []);
         setConversas(lista);
         setCarregando(false);
       })
