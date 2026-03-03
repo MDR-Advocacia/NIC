@@ -62,6 +62,15 @@ export const litigantsApi = {
     update: (id, data) => apiClient.put(`/litigants/${id}`, data),
     delete: (id) => apiClient.delete(`/litigants/${id}`),
 };
+// Função para buscar conversas filtradas (Minhas, Não Atribuídas, Todas)
+export const getConversations = (assigneeType = 'all') => {
+  return api.get(`/chat/conversations?assignee_type=${assigneeType}`);
+};
+
+// Função para buscar os canais (Inboxes/Caixas de entrada)
+export const getInboxes = () => {
+  return api.get('/chat/inboxes');
+};
 // -----------------------
 
 export default apiClient;

@@ -25,20 +25,59 @@ class ChatController extends Controller
     /**
      * Busca conversas no Chatwoot e filtra as que não estão vinculadas.
      */
-   public function getUnassignedConversations()
-    {
-        // 1. Importa o modelo Conversation se ainda não foi importado no topo do arquivo.
-        // use App\Models\Conversation;
+   public function getConversations(Request $request)
+{
+    $user = $request->user(); 
+    $status = $request->query('status', 'open');
+    
+    // O React vai enviar: 'me' (Minhas), 'unassigned' (Não atribuídas) ou 'all' (Todas)
+    $assigneeType = $request->query('assignee_type', 'all');
 
-        // 2. Busca no seu banco de dados todas as conversas onde 'legal_case_id' é nulo.
-        $unassignedConversations = \App\Models\Conversation::whereNull('legal_case_id')
-            ->orderBy('timestamp', 'desc') // Ordena pelas mais recentes
-            ->get();
+    $queryParams = [
+        'status' => $status,
+    ];
 
-        // 3. Retorna os dados encontrados como resposta para o frontend.
-        return response()->json($unassignedConversations);
+    // Lógica de abas:
+    // Se o usuário pediu "Minhas", forçamos o filtro do Chatwoot para 'me'
+    // Se o usuário pediu "Não Atribuídas", forçamos 'unassigned'
+    if ($assigneeType !== 'all') {
+        $queryParams['assignee_type'] = $assigneeType;
     }
 
+    // Camada de segurança extra: Se não for admin e tentar ver "Todas", 
+    // você pode forçar a ver apenas as dele aqui, se desejar.
+
+    $response = Http::withHeaders([
+        'api_access_token' => $this->apiToken,
+    ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", $queryParams);
+
+    if ($response->failed()) {
+        return response()->json(['error' => 'Erro ao buscar conversas no Chatwoot'], 500);
+    }
+
+    return $response->json();
+}
+public function getMyInboxes(Request $request)
+{
+    $response = Http::withHeaders([
+        'api_access_token' => $this->apiToken,
+    ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
+
+    $inboxes = $response->json();
+
+    // Aqui você pode filtrar o array $inboxes comparando com o departamento do usuário no NIC
+    // Exemplo: return collect($inboxes)->where('name', $user->department->name);
+
+    return response()->json($inboxes);
+}
+public function getInboxes()
+{
+    $response = Http::withHeaders([
+        'api_access_token' => $this->apiToken,
+    ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
+
+    return response()->json($response->json());
+}
     /**
      * Vincula uma conversa do Chatwoot a um processo/pasta.
      */
