@@ -43,11 +43,20 @@ const InboxPage = () => {
     })
       .then(res => res.json())
       .then(data => {
-        const msgLista = data.payload || [];
-        setMensagens([...msgLista].reverse());
+        // Pega a lista de mensagens (payload ou data)
+        const msgLista = data.payload || data.data || [];
+        
+        // ORDENAÇÃO: Garante que a mensagem com ID menor (mais antiga) fique em cima
+        // e a com ID maior (mais nova) fique embaixo.
+        const ordenada = [...msgLista].sort((a, b) => a.id - b.id);
+        
+        setMensagens(ordenada);
         setCarregandoChat(false);
       })
-      .catch(() => setCarregandoChat(false));
+      .catch((err) => {
+        console.error("Erro ao carregar mensagens:", err);
+        setCarregandoChat(false);
+      });
   };
 
   // 3. Envia nova mensagem
@@ -88,20 +97,23 @@ const InboxPage = () => {
       abrirConversa(conversaSelecionada);
 
       intervalo = setInterval(() => {
-        const token = localStorage.getItem('authToken');
-        fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}`, {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json' 
-          }
-        })
-        .then(res => res.json())
-        .then(data => {
-          const msgLista = data.payload || [];
-          // Só atualiza se o número de mensagens mudou (chegou algo novo)
-          setMensagens(prev => prev.length !== msgLista.length ? [...msgLista].reverse() : prev);
-        });
-      }, 5000); 
+  // Só busca se a página estiver visível para o usuário
+  if (document.visibilityState === 'visible') {
+    const token = localStorage.getItem('authToken');
+    fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}`, {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json' 
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      const msgLista = data.payload || [];
+      setMensagens(prev => prev.length !== msgLista.length ? [...msgLista].reverse() : prev);
+    })
+    .catch(err => console.log("Timeout ou erro na rede, tentando na próxima..."));
+  }
+}, 5000); // Aumentado para 5 segundos
     }
     return () => clearInterval(intervalo);
   }, [conversaSelecionada]);
@@ -149,33 +161,85 @@ const InboxPage = () => {
               <strong>#{conversaSelecionada} - Chat Ativo</strong>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', backgroundColor: '#e5ddd5' }}>
-              {carregandoChat ? (
-                <p>Carregando histórico...</p>
-              ) : (
-                mensagens.map((m, i) => {
-                  const eMinha = m.message_type === 'outgoing' || m.message_type === 1;
-                  return (
-                    <div key={i} style={{ display: 'flex', justifyContent: eMinha ? 'flex-end' : 'flex-start', marginBottom: '10px' }}>
-                      <div style={{
-                        maxWidth: '70%',
-                        padding: '8px 12px',
-                        borderRadius: '12px',
-                        borderTopRightRadius: eMinha ? '2px' : '12px',
-                        borderTopLeftRadius: eMinha ? '12px' : '2px',
-                        backgroundColor: eMinha ? '#dcf8c6' : '#fff',
-                        boxShadow: '0 1px 1px rgba(0,0,0,0.1)'
-                      }}>
-                        <p style={{ margin: 0, fontSize: '14px' }}>{m.content}</p>
-                        <div style={{ textAlign: 'right', fontSize: '10px', color: '#999', marginTop: '4px' }}>
-                          {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+            {/* Mensagens com Avatares e Status */}
+<div style={{ flex: 1, overflowY: 'auto', padding: '20px', backgroundColor: '#e5ddd5', display: 'flex', flexDirection: 'column' }}>
+  {carregandoChat ? (
+    <p>Carregando histórico...</p>
+  ) : (
+    mensagens.map((m, i) => {
+      const eMinha = m.message_type === 'outgoing' || m.message_type === 1;
+      const nomeRemetente = m.sender?.name || "Cliente";
+      const iniciais = nomeRemetente.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+      return (
+        <div 
+          key={i} 
+          style={{ 
+            display: 'flex', 
+            flexDirection: eMinha ? 'row-reverse' : 'row', 
+            alignItems: 'flex-end',
+            marginBottom: '15px',
+            gap: '10px'
+          }}
+        >
+          {/* Avatar ou Iniciais */}
+          <div style={{
+            width: '35px',
+            height: '35px',
+            borderRadius: '50%',
+            backgroundColor: eMinha ? '#007bff' : '#6c757d',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            overflow: 'hidden',
+            flexShrink: 0
+          }}>
+            {m.sender?.avatar_url ? (
+              <img src={m.sender.avatar_url} alt="avatar" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+            ) : iniciais}
+          </div>
+
+          {/* Balão */}
+          <div style={{
+            maxWidth: '70%',
+            padding: '8px 12px',
+            borderRadius: '12px',
+            backgroundColor: eMinha ? '#dcf8c6' : '#fff',
+            boxShrink: 1,
+            boxShadow: '0 1px 1px rgba(0,0,0,0.1)',
+            position: 'relative'
+          }}>
+            <p style={{ margin: 0, fontSize: '14px', color: '#303030', wordBreak: 'break-word' }}>{m.content}</p>
+            
+            <div style={{ 
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: '4px',
+              marginTop: '4px' 
+            }}>
+              <span style={{ fontSize: '10px', color: '#999' }}>
+                {new Date(m.created_at * 1000 || m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              
+              {/* Status de Envio (Checks) */}
+              {eMinha && (
+                <span style={{ fontSize: '12px', color: m.status === 'read' ? '#34b7f1' : '#999' }}>
+                  {m.status === 'sent' ? '✓' : '✓✓'}
+                </span>
               )}
             </div>
+          </div>
+        </div>
+      );
+    })
+  )}
+  {/* Div oculta para forçar o scroll para baixo sempre que carregar novas mensagens */}
+  <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
+</div>
 
             <div style={{ padding: '15px', backgroundColor: '#f0f0f0', display: 'flex', gap: '10px' }}>
               <input 
