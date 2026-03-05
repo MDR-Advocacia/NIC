@@ -91,32 +91,61 @@ const InboxPage = () => {
   }, [abaAtiva]);
 
   // Hook para TEMPO REAL: Atualiza o chat a cada 5 segundos
+  // --- ESTE É O BLOCO QUE VOCÊ DEVE SUBSTITUIR ---
   useEffect(() => {
-    let intervalo;
-    if (conversaSelecionada) {
-      abrirConversa(conversaSelecionada);
+    let timer;
+    let ativo = true; // Controle para evitar que o "robô" rode após sair da página
 
-      intervalo = setInterval(() => {
-  // Só busca se a página estiver visível para o usuário
-  if (document.visibilityState === 'visible') {
-    const token = localStorage.getItem('authToken');
-    fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}`, {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json' 
+    const buscarAtualizacao = async () => {
+      // Se não tiver conversa selecionada ou se saímos da página, para o robô
+      if (!conversaSelecionada || !ativo) return;
+
+      const token = localStorage.getItem('authToken');
+      try {
+        const res = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}`, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json' 
+          }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          const msgLista = data.payload || [];
+          
+          // ORDENAÇÃO: Garante que a mensagem nova apareça EMBAIXO
+          const ordenada = [...msgLista].sort((a, b) => a.id - b.id);
+          
+          // Só atualiza o estado se o número de mensagens for diferente
+          setMensagens(prev => prev.length !== ordenada.length ? ordenada : prev);
+        }
+      } catch (err) {
+        console.log("Servidor ocupado ou falha na rede, tentando novamente...");
+      } finally {
+        // AQUI ESTÁ O SEGREDO: Só agenda a próxima busca após a anterior terminar
+        // Isso evita o erro 504 (Gateway Timeout)
+        if (ativo) {
+          timer = setTimeout(buscarAtualizacao, 5000); // 5 segundos de intervalo
+        }
       }
-    })
-    .then(res => res.json())
-    .then(data => {
-      const msgLista = data.payload || [];
-      setMensagens(prev => prev.length !== msgLista.length ? [...msgLista].reverse() : prev);
-    })
-    .catch(err => console.log("Timeout ou erro na rede, tentando na próxima..."));
-  }
-}, 5000); // Aumentado para 5 segundos
+    };
+
+    if (conversaSelecionada) {
+      // 1. Carrega as mensagens na hora que clica
+      abrirConversa(conversaSelecionada);
+      
+      // 2. Inicia o robô de atualização automática (sem dar F5)
+      buscarAtualizacao();
     }
-    return () => clearInterval(intervalo);
+
+    // Função de limpeza: roda quando você troca de chat ou sai da tela
+    return () => {
+      ativo = false;
+      clearTimeout(timer);
+    };
   }, [conversaSelecionada]);
+  // --- FIM DO BLOCO ---
+  
 
   return (
     <div style={{ display: 'flex', height: '85vh', backgroundColor: '#f0f2f5', margin: '-20px' }}>

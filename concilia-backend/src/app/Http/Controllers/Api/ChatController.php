@@ -32,36 +32,33 @@ class ChatController extends Controller
      */
    public function getConversations(Request $request)
 {
-    $user = $request->user(); 
     $status = $request->query('status', 'open');
-    
-    // O React vai enviar: 'me' (Minhas), 'unassigned' (Não atribuídas) ou 'all' (Todas)
     $assigneeType = $request->query('assignee_type', 'all');
-    \Log::info("Tentando conectar no Chatwoot: " . $this->chatwootUrl);
 
-    $queryParams = [
-        'status' => $status,
-    ];
+    $queryParams = ['status' => $status];
 
-    // Lógica de abas:
-    // Se o usuário pediu "Minhas", forçamos o filtro do Chatwoot para 'me'
-    // Se o usuário pediu "Não Atribuídas", forçamos 'unassigned'
     if ($assigneeType !== 'all') {
         $queryParams['assignee_type'] = $assigneeType;
     }
 
-    // Camada de segurança extra: Se não for admin e tentar ver "Todas", 
-    // você pode forçar a ver apenas as dele aqui, se desejar.
+    try {
+        // Adicionamos o timeout(5) para evitar o erro 504 no servidor
+        $response = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])
+        ->timeout(5) 
+        ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", $queryParams);
 
-    $response = Http::withHeaders([
-        'api_access_token' => $this->apiToken,
-    ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", $queryParams);
+        if ($response->failed()) {
+            return response()->json(['error' => 'Erro na API do Chatwoot', 'details' => $response->body()], 502);
+        }
 
-    if ($response->failed()) {
-        return response()->json(['error' => 'Erro ao buscar conversas no Chatwoot'], 500);
+        return response()->json($response->json());
+
+    } catch (\Exception $e) {
+        // Se der timeout ou o servidor do Chatwoot estiver fora, retorna erro limpo
+        return response()->json(['error' => 'O servidor do Chatwoot demorou a responder.'], 504);
     }
-
-    return $response->json();
 }
 public function getMyInboxes(Request $request)
 {
