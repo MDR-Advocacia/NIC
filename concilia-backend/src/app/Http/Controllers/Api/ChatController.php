@@ -60,23 +60,11 @@ class ChatController extends Controller
         return response()->json(['error' => 'O servidor do Chatwoot demorou a responder.'], 504);
     }
 }
-public function getMyInboxes(Request $request)
-{
-    $response = Http::withHeaders([
-        'api_access_token' => $this->apiToken,
-    ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
-
-    $inboxes = $response->json();
-
-    // Aqui você pode filtrar o array $inboxes comparando com o departamento do usuário no NIC
-    // Exemplo: return collect($inboxes)->where('name', $user->department->name);
-
-    return response()->json($inboxes);
-}
 public function getInboxes()
 {
     try {
-        $response = \Illuminate\Support\Facades\Http::withHeaders([
+        // Use apenas Http:: pois o 'use' já está no topo do arquivo
+        $response = Http::withHeaders([
             'api_access_token' => $this->apiToken,
         ])
         ->timeout(5)
@@ -85,6 +73,21 @@ public function getInboxes()
         return response()->json($response->json());
     } catch (\Exception $e) {
         return response()->json(['error' => 'Falha ao conectar no Chatwoot'], 500);
+    }
+}
+
+public function getMyInboxes(Request $request)
+{
+    try {
+        $response = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])
+        ->timeout(5)
+        ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
+
+        return response()->json($response->json());
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Erro ao carregar canais'], 500);
     }
 }
     /**
