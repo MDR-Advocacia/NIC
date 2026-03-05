@@ -77,7 +77,9 @@ public function getInboxes()
 {
     $response = Http::withHeaders([
         'api_access_token' => $this->apiToken,
-    ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
+    ])
+    ->timeout(5)
+    ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
 
     return response()->json($response->json());
 }

@@ -9,7 +9,22 @@ const InboxPage = () => {
   const [carregandoChat, setCarregandoChat] = useState(false);
   const [novaMensagem, setNovaMensagem] = useState('');
 
-  // 1. Busca a lista de conversas da lateral
+  // NOVOS ESTADOS PARA CANAIS (INBOXES)
+  const [inboxes, setInboxes] = useState([]);
+  const [inboxSelecionada, setInboxSelecionada] = useState('all');
+
+  // 1. Busca as Inboxes (Canais) do Chatwoot ao carregar a página
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes', {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => setInboxes(data.payload || []))
+    .catch(err => console.error("Erro ao carregar inboxes:", err));
+  }, []);
+
+  // 2. Busca a lista de conversas da lateral
   const buscarConversas = (tipo) => {
     setCarregando(true);
     const token = localStorage.getItem('authToken');
@@ -28,7 +43,7 @@ const InboxPage = () => {
       });
   };
 
-  // 2. Carrega as mensagens de um chat específico
+  // 3. Carrega as mensagens de um chat específico
   const abrirConversa = (chatId) => {
     setConversaSelecionada(chatId);
     setCarregandoChat(true);
@@ -48,13 +63,10 @@ const InboxPage = () => {
         setMensagens(ordenada);
         setCarregandoChat(false);
       })
-      .catch((err) => {
-        console.error("Erro ao carregar mensagens:", err);
-        setCarregandoChat(false);
-      });
+      .catch(() => setCarregandoChat(false));
   };
 
-  // 3. Envia nova mensagem
+  // 4. Envia nova mensagem
   const enviarMensagem = async () => {
     if (!novaMensagem.trim()) return;
     const token = localStorage.getItem('authToken');
@@ -79,16 +91,12 @@ const InboxPage = () => {
     }
   };
 
-  // Hook para atualizar a lista lateral quando troca de aba
-  useEffect(() => { 
-    buscarConversas(abaAtiva); 
-  }, [abaAtiva]);
+  useEffect(() => { buscarConversas(abaAtiva); }, [abaAtiva]);
 
-  // Hook para TEMPO REAL Inteligente (Polling Seguro)
+  // Tempo Real Inteligente
   useEffect(() => {
     let timer;
     let ativo = true;
-
     const buscarAtualizacao = async () => {
       if (!conversaSelecionada || !ativo) return;
       const token = localStorage.getItem('authToken');
@@ -102,97 +110,86 @@ const InboxPage = () => {
           const ordenada = [...msgLista].sort((a, b) => a.id - b.id);
           setMensagens(prev => prev.length !== ordenada.length ? ordenada : prev);
         }
-      } catch (err) {
-        console.log("Servidor ocupado...");
       } finally {
         if (ativo) timer = setTimeout(buscarAtualizacao, 5000);
       }
     };
-
-    if (conversaSelecionada) {
-      abrirConversa(conversaSelecionada);
-      buscarAtualizacao();
-    }
+    if (conversaSelecionada) buscarAtualizacao();
     return () => { ativo = false; clearTimeout(timer); };
   }, [conversaSelecionada]);
 
   return (
     <div style={{ display: 'flex', height: '85vh', backgroundColor: '#f0f2f5', margin: '-20px' }}>
       
-      {/* BARRA LATERAL */}
+      {/* --- BARRA LATERAL (CANAIS E LISTA) --- */}
       <div style={{ width: '350px', backgroundColor: '#fff', borderRight: '1px solid #ddd', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
-          <h3 style={{ margin: '0 0 15px 0' }}>WhatsApp MDR</h3>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Canais</h3>
+          
+          <select 
+            value={inboxSelecionada}
+            onChange={(e) => setInboxSelecionada(e.target.value)}
+            style={{ width: '100%', padding: '8px', marginBottom: '15px', borderRadius: '5px', border: '1px solid #ddd' }}
+          >
+            <option value="all">Todos os Canais</option>
+            {inboxes.map(ib => (
+              <option key={ib.id} value={ib.id}>{ib.name}</option>
+            ))}
+          </select>
+
           <div style={{ display: 'flex', gap: '5px' }}>
             <button onClick={() => setAbaAtiva('me')} style={estiloTab(abaAtiva === 'me')}>Minhas</button>
-            <button onClick={() => setAbaAtiva('unassigned')} style={estiloTab(abaAtiva === 'unassigned')}>Abertas</button>
+            <button onClick={() => setAbaAtiva('unassigned')} style={estiloTab(abaAtiva === 'unassigned')}>Não atribuídas</button>
             <button onClick={() => setAbaAtiva('all')} style={estiloTab(abaAtiva === 'all')}>Todas</button>
           </div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {carregando ? <p style={{padding: '20px'}}>Carregando...</p> : conversas.map(chat => {
-            const nomeCliente = chat.meta?.sender?.name || "Cliente";
-            const iniciais = nomeCliente.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-            const estaSelecionado = conversaSelecionada === chat.id;
+          {carregando ? <p style={{padding: '20px'}}>Carregando...</p> : 
+            conversas
+              .filter(chat => inboxSelecionada === 'all' || chat.inbox_id == inboxSelecionada)
+              .map(chat => {
+                const nomeCliente = chat.meta?.sender?.name || "Cliente";
+                const iniciais = nomeCliente.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                const estaSelecionado = conversaSelecionada === chat.id;
+                const naoLidas = chat.unread_count || 0;
 
-            return (
-              <div 
-                key={chat.id} 
-                onClick={() => abrirConversa(chat.id)}
-                style={{
-                  padding: '12px 15px',
-                  borderBottom: '1px solid #f2f2f2',
-                  cursor: 'pointer',
-                  backgroundColor: estaSelecionado ? '#ebebeb' : '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px'
-                }}
-              >
-                <div style={{
-                  width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#6c757d',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
-                  fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', flexShrink: 0
-                }}>
-                  {chat.meta?.sender?.avatar_url ? (
-                    <img src={chat.meta.sender.avatar_url} alt="avatar" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-                  ) : iniciais}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: estaSelecionado ? 'bold' : 'normal', color: '#303030', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {nomeCliente}
+                return (
+                  <div key={chat.id} onClick={() => abrirConversa(chat.id)} style={{ padding: '12px 15px', borderBottom: '1px solid #f2f2f2', cursor: 'pointer', backgroundColor: estaSelecionado ? '#ebebeb' : '#fff', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#6c757d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', flexShrink: 0 }}>
+                      {chat.meta?.sender?.avatar_url ? <img src={chat.meta.sender.avatar_url} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : iniciais}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: (naoLidas > 0 || estaSelecionado) ? 'bold' : 'normal', color: '#303030', fontSize: '14px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nomeCliente}</span>
+                        {naoLidas > 0 && <span style={{ backgroundColor: '#25D366', color: '#fff', borderRadius: '10px', padding: '2px 8px', fontSize: '10px' }}>{naoLidas}</span>}
+                      </div>
+                      <div style={{ fontSize: '12px', color: naoLidas > 0 ? '#000' : '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {chat.messages?.[0]?.content || "Conversa aberta"}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '12px', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {chat.messages?.[0]?.content || "Conversa aberta"}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })
+          }
         </div>
       </div>
 
-      {/* ÁREA DO CHAT */}
+      {/* --- ÁREA DO CHAT --- */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {conversaSelecionada ? (
           <>
             <div style={{ padding: '15px', backgroundColor: '#fff', borderBottom: '1px solid #ddd' }}>
               <strong>#{conversaSelecionada} - Chat Ativo</strong>
             </div>
-
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px', backgroundColor: '#e5ddd5', display: 'flex', flexDirection: 'column' }}>
               {carregandoChat ? <p>Carregando histórico...</p> : mensagens.map((m, i) => {
                 const eMinha = m.message_type === 'outgoing' || m.message_type === 1;
-                const nomeRemetente = m.sender?.name || "Cliente";
-                const iniciaisM = nomeRemetente.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-
+                const nomeM = m.sender?.name || "Cliente";
+                const iniciaisM = nomeM.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                 return (
                   <div key={i} style={{ display: 'flex', flexDirection: eMinha ? 'row-reverse' : 'row', alignItems: 'flex-end', marginBottom: '15px', gap: '10px' }}>
-                    <div style={{
-                      width: '35px', height: '35px', borderRadius: '50%', backgroundColor: eMinha ? '#007bff' : '#6c757d',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 'bold', overflow: 'hidden', flexShrink: 0
-                    }}>
+                    <div style={{ width: '35px', height: '35px', borderRadius: '50%', backgroundColor: eMinha ? '#007bff' : '#6c757d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 'bold', overflow: 'hidden', flexShrink: 0 }}>
                       {m.sender?.avatar_url ? <img src={m.sender.avatar_url} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : iniciaisM}
                     </div>
                     <div style={{ maxWidth: '70%', padding: '8px 12px', borderRadius: '12px', backgroundColor: eMinha ? '#dcf8c6' : '#fff', boxShadow: '0 1px 1px rgba(0,0,0,0.1)' }}>
@@ -207,13 +204,8 @@ const InboxPage = () => {
               })}
               <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
-
             <div style={{ padding: '15px', backgroundColor: '#f0f0f0', display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" value={novaMensagem} onChange={(e) => setNovaMensagem(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && enviarMensagem()}
-                placeholder="Digite uma mensagem..." style={{ flex: 1, padding: '10px', borderRadius: '25px', border: '1px solid #ddd' }} 
-              />
+              <input type="text" value={novaMensagem} onChange={(e) => setNovaMensagem(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && enviarMensagem()} placeholder="Digite uma mensagem..." style={{ flex: 1, padding: '10px', borderRadius: '25px', border: '1px solid #ddd' }} />
               <button onClick={enviarMensagem} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Enviar</button>
             </div>
           </>
