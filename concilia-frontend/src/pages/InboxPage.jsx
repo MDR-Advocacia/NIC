@@ -43,13 +43,8 @@ const InboxPage = () => {
     })
       .then(res => res.json())
       .then(data => {
-        // Pega a lista de mensagens (payload ou data)
         const msgLista = data.payload || data.data || [];
-        
-        // ORDENAÇÃO: Garante que a mensagem com ID menor (mais antiga) fique em cima
-        // e a com ID maior (mais nova) fique embaixo.
         const ordenada = [...msgLista].sort((a, b) => a.id - b.id);
-        
         setMensagens(ordenada);
         setCarregandoChat(false);
       })
@@ -76,7 +71,6 @@ const InboxPage = () => {
 
       if (response.ok) {
         const enviada = await response.json();
-        // Adiciona a mensagem enviada ao fim da lista (já que está em ordem de leitura)
         setMensagens(prev => [...prev, enviada]); 
         setNovaMensagem(''); 
       }
@@ -90,62 +84,37 @@ const InboxPage = () => {
     buscarConversas(abaAtiva); 
   }, [abaAtiva]);
 
-  // Hook para TEMPO REAL: Atualiza o chat a cada 5 segundos
-  // --- ESTE É O BLOCO QUE VOCÊ DEVE SUBSTITUIR ---
+  // Hook para TEMPO REAL Inteligente (Polling Seguro)
   useEffect(() => {
     let timer;
-    let ativo = true; // Controle para evitar que o "robô" rode após sair da página
+    let ativo = true;
 
     const buscarAtualizacao = async () => {
-      // Se não tiver conversa selecionada ou se saímos da página, para o robô
       if (!conversaSelecionada || !ativo) return;
-
       const token = localStorage.getItem('authToken');
       try {
         const res = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}`, {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json' 
-          }
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
         });
-        
         if (res.ok) {
           const data = await res.json();
           const msgLista = data.payload || [];
-          
-          // ORDENAÇÃO: Garante que a mensagem nova apareça EMBAIXO
           const ordenada = [...msgLista].sort((a, b) => a.id - b.id);
-          
-          // Só atualiza o estado se o número de mensagens for diferente
           setMensagens(prev => prev.length !== ordenada.length ? ordenada : prev);
         }
       } catch (err) {
-        console.log("Servidor ocupado ou falha na rede, tentando novamente...");
+        console.log("Servidor ocupado...");
       } finally {
-        // AQUI ESTÁ O SEGREDO: Só agenda a próxima busca após a anterior terminar
-        // Isso evita o erro 504 (Gateway Timeout)
-        if (ativo) {
-          timer = setTimeout(buscarAtualizacao, 5000); // 5 segundos de intervalo
-        }
+        if (ativo) timer = setTimeout(buscarAtualizacao, 5000);
       }
     };
 
     if (conversaSelecionada) {
-      // 1. Carrega as mensagens na hora que clica
       abrirConversa(conversaSelecionada);
-      
-      // 2. Inicia o robô de atualização automática (sem dar F5)
       buscarAtualizacao();
     }
-
-    // Função de limpeza: roda quando você troca de chat ou sai da tela
-    return () => {
-      ativo = false;
-      clearTimeout(timer);
-    };
+    return () => { ativo = false; clearTimeout(timer); };
   }, [conversaSelecionada]);
-  // --- FIM DO BLOCO ---
-  
 
   return (
     <div style={{ display: 'flex', height: '85vh', backgroundColor: '#f0f2f5', margin: '-20px' }}>
@@ -160,29 +129,51 @@ const InboxPage = () => {
             <button onClick={() => setAbaAtiva('all')} style={estiloTab(abaAtiva === 'all')}>Todas</button>
           </div>
         </div>
-        
+
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {carregando ? <p style={{padding: '20px'}}>Carregando...</p> : conversas.map(chat => (
-            <div 
-              key={chat.id} 
-              onClick={() => abrirConversa(chat.id)}
-              style={{
-                padding: '15px',
-                borderBottom: '1px solid #f2f2f2',
-                cursor: 'pointer',
-                backgroundColor: conversaSelecionada === chat.id ? '#ebebeb' : '#fff'
-              }}
-            >
-              <div style={{ fontWeight: 'bold' }}>{chat.meta?.sender?.name || "Cliente"}</div>
-              <div style={{ fontSize: '12px', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {chat.messages?.[0]?.content || "Conversa aberta"}
+          {carregando ? <p style={{padding: '20px'}}>Carregando...</p> : conversas.map(chat => {
+            const nomeCliente = chat.meta?.sender?.name || "Cliente";
+            const iniciais = nomeCliente.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+            const estaSelecionado = conversaSelecionada === chat.id;
+
+            return (
+              <div 
+                key={chat.id} 
+                onClick={() => abrirConversa(chat.id)}
+                style={{
+                  padding: '12px 15px',
+                  borderBottom: '1px solid #f2f2f2',
+                  cursor: 'pointer',
+                  backgroundColor: estaSelecionado ? '#ebebeb' : '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}
+              >
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#6c757d',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+                  fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', flexShrink: 0
+                }}>
+                  {chat.meta?.sender?.avatar_url ? (
+                    <img src={chat.meta.sender.avatar_url} alt="avatar" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                  ) : iniciais}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: estaSelecionado ? 'bold' : 'normal', color: '#303030', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {nomeCliente}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {chat.messages?.[0]?.content || "Conversa aberta"}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* ÁREA DO CHAT (DESIGN BALÕES) */}
+      {/* ÁREA DO CHAT */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {conversaSelecionada ? (
           <>
@@ -190,103 +181,44 @@ const InboxPage = () => {
               <strong>#{conversaSelecionada} - Chat Ativo</strong>
             </div>
 
-            {/* Mensagens com Avatares e Status */}
-<div style={{ flex: 1, overflowY: 'auto', padding: '20px', backgroundColor: '#e5ddd5', display: 'flex', flexDirection: 'column' }}>
-  {carregandoChat ? (
-    <p>Carregando histórico...</p>
-  ) : (
-    mensagens.map((m, i) => {
-      const eMinha = m.message_type === 'outgoing' || m.message_type === 1;
-      const nomeRemetente = m.sender?.name || "Cliente";
-      const iniciais = nomeRemetente.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', backgroundColor: '#e5ddd5', display: 'flex', flexDirection: 'column' }}>
+              {carregandoChat ? <p>Carregando histórico...</p> : mensagens.map((m, i) => {
+                const eMinha = m.message_type === 'outgoing' || m.message_type === 1;
+                const nomeRemetente = m.sender?.name || "Cliente";
+                const iniciaisM = nomeRemetente.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
-      return (
-        <div 
-          key={i} 
-          style={{ 
-            display: 'flex', 
-            flexDirection: eMinha ? 'row-reverse' : 'row', 
-            alignItems: 'flex-end',
-            marginBottom: '15px',
-            gap: '10px'
-          }}
-        >
-          {/* Avatar ou Iniciais */}
-          <div style={{
-            width: '35px',
-            height: '35px',
-            borderRadius: '50%',
-            backgroundColor: eMinha ? '#007bff' : '#6c757d',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            overflow: 'hidden',
-            flexShrink: 0
-          }}>
-            {m.sender?.avatar_url ? (
-              <img src={m.sender.avatar_url} alt="avatar" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-            ) : iniciais}
-          </div>
-
-          {/* Balão */}
-          <div style={{
-            maxWidth: '70%',
-            padding: '8px 12px',
-            borderRadius: '12px',
-            backgroundColor: eMinha ? '#dcf8c6' : '#fff',
-            boxShrink: 1,
-            boxShadow: '0 1px 1px rgba(0,0,0,0.1)',
-            position: 'relative'
-          }}>
-            <p style={{ margin: 0, fontSize: '14px', color: '#303030', wordBreak: 'break-word' }}>{m.content}</p>
-            
-            <div style={{ 
-              display: 'flex',
-              justifyContent: 'flex-end',
-              alignItems: 'center',
-              gap: '4px',
-              marginTop: '4px' 
-            }}>
-              <span style={{ fontSize: '10px', color: '#999' }}>
-                {new Date(m.created_at * 1000 || m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              
-              {/* Status de Envio (Checks) */}
-              {eMinha && (
-                <span style={{ fontSize: '12px', color: m.status === 'read' ? '#34b7f1' : '#999' }}>
-                  {m.status === 'sent' ? '✓' : '✓✓'}
-                </span>
-              )}
+                return (
+                  <div key={i} style={{ display: 'flex', flexDirection: eMinha ? 'row-reverse' : 'row', alignItems: 'flex-end', marginBottom: '15px', gap: '10px' }}>
+                    <div style={{
+                      width: '35px', height: '35px', borderRadius: '50%', backgroundColor: eMinha ? '#007bff' : '#6c757d',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 'bold', overflow: 'hidden', flexShrink: 0
+                    }}>
+                      {m.sender?.avatar_url ? <img src={m.sender.avatar_url} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : iniciaisM}
+                    </div>
+                    <div style={{ maxWidth: '70%', padding: '8px 12px', borderRadius: '12px', backgroundColor: eMinha ? '#dcf8c6' : '#fff', boxShadow: '0 1px 1px rgba(0,0,0,0.1)' }}>
+                      <p style={{ margin: 0, fontSize: '14px' }}>{m.content}</p>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px', marginTop: '4px' }}>
+                        <span style={{ fontSize: '10px', color: '#999' }}>{new Date(m.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        {eMinha && <span style={{ fontSize: '12px', color: m.status === 'read' ? '#34b7f1' : '#999' }}>{m.status === 'read' ? '✓✓' : '✓'}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
-          </div>
-        </div>
-      );
-    })
-  )}
-  {/* Div oculta para forçar o scroll para baixo sempre que carregar novas mensagens */}
-  <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
-</div>
 
             <div style={{ padding: '15px', backgroundColor: '#f0f0f0', display: 'flex', gap: '10px' }}>
               <input 
-                type="text" value={novaMensagem}
-                onChange={(e) => setNovaMensagem(e.target.value)}
+                type="text" value={novaMensagem} onChange={(e) => setNovaMensagem(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && enviarMensagem()}
-                placeholder="Digite uma mensagem..." 
-                style={{ flex: 1, padding: '10px', borderRadius: '25px', border: '1px solid #ddd' }} 
+                placeholder="Digite uma mensagem..." style={{ flex: 1, padding: '10px', borderRadius: '25px', border: '1px solid #ddd' }} 
               />
-              <button onClick={enviarMensagem} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>
-                Enviar
-              </button>
+              <button onClick={enviarMensagem} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Enviar</button>
             </div>
           </>
         ) : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-            Selecione uma conversa para atender
-          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>Selecione uma conversa</div>
         )}
       </div>
     </div>
