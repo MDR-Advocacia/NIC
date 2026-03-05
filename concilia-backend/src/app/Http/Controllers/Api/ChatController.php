@@ -75,13 +75,17 @@ public function getMyInboxes(Request $request)
 }
 public function getInboxes()
 {
-    $response = Http::withHeaders([
-        'api_access_token' => $this->apiToken,
-    ])
-    ->timeout(5)
-    ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
+    try {
+        $response = \Illuminate\Support\Facades\Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])
+        ->timeout(5)
+        ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
 
-    return response()->json($response->json());
+        return response()->json($response->json());
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Falha ao conectar no Chatwoot'], 500);
+    }
 }
     /**
      * Vincula uma conversa do Chatwoot a um processo/pasta.
