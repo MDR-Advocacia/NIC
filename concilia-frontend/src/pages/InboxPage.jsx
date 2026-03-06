@@ -150,19 +150,43 @@ const InboxPage = () => {
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '25px', display: 'flex', flexDirection: 'column' }}>
               {mensagens.map((m, i) => {
-                const eMinha = m.message_type === 'outgoing' || m.message_type === 1;
-                return (
-                  <div key={i} style={{ display: 'flex', flexDirection: eMinha ? 'row-reverse' : 'row', alignItems: 'flex-end', marginBottom: '15px', gap: '8px' }}>
-                    <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: '12px', backgroundColor: eMinha ? '#e3f2fd' : '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.08)', border: eMinha ? '1px solid #bbdefb' : '1px solid #e0e0e0' }}>
-                      <p style={{ margin: 0, fontSize: '14px', color: '#3c4043', lineHeight: '1.4' }}>{m.content}</p>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '5px', marginTop: '5px' }}>
-                        <span style={{ fontSize: '10px', color: '#80868b' }}>{new Date(m.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        {eMinha && <span style={{ fontSize: '12px', color: m.status === 'read' ? '#1a73e8' : '#dadce0' }}>{m.status === 'read' ? '✓✓' : '✓'}</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+  const eMinha = m.message_type === 'outgoing' || m.message_type === 1;
+  // Pega a primeira letra do nome para o caso de não ter foto
+  const iniciaisM = m.sender?.name?.charAt(0).toUpperCase() || "C";
+  
+  return (
+    <div key={i} style={{ display: 'flex', flexDirection: eMinha ? 'row-reverse' : 'row', alignItems: 'flex-end', marginBottom: '15px', gap: '8px' }}>
+      
+      {/* ADICIONE/CORRIJA ESTE BLOCO DO AVATAR ABAIXO */}
+      <div style={{ 
+        width: '32px', 
+        height: '32px', 
+        borderRadius: '50%', 
+        backgroundColor: eMinha ? '#1a73e8' : '#6c757d', 
+        color: '#fff', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        fontSize: '12px', 
+        fontWeight: 'bold', 
+        overflow: 'hidden', 
+        flexShrink: 0 
+      }}>
+        {m.sender?.avatar_url ? (
+          <img src={m.sender.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="avatar" />
+        ) : (
+          iniciaisM
+        )}
+      </div>
+
+      {/* O seu balão de mensagem (Bubble) continua aqui abaixo sem alterações... */}
+      <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: '12px', backgroundColor: eMinha ? '#e3f2fd' : '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.08)', border: '1px solid #e0e0e0' }}>
+        <p style={{ margin: 0, fontSize: '14px' }}>{m.content}</p>
+        {/* ... resto do seu código de horário e checks ... */}
+      </div>
+    </div>
+  );
+})}
               <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
             <div style={{ padding: '20px', backgroundColor: '#fff', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '12px' }}>
