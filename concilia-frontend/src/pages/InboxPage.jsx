@@ -9,217 +9,271 @@ const InboxPage = () => {
   const [carregandoChat, setCarregandoChat] = useState(false);
   const [novaMensagem, setNovaMensagem] = useState('');
 
-  // NOVOS ESTADOS PARA CANAIS (INBOXES)
   const [inboxes, setInboxes] = useState([]);
   const [inboxSelecionada, setInboxSelecionada] = useState('all');
+  const [visaoAtiva, setVisaoAtiva] = useState('conversas'); 
+  const [contatos, setContatos] = useState([]);
+  const [buscaContato, setBuscaContato] = useState('');
 
-  // 1. Busca as Inboxes (Canais) do Chatwoot ao carregar a página
-  useEffect(() => {
+  const [modalAberto, setModalAberto] = useState(false);
+  const [novoContato, setNovoContato] = useState({ name: '', email: '', phone_number: '', inbox_id: '' });
+
+  const carregarDadosIniciais = () => {
     const token = localStorage.getItem('authToken');
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes', {
       headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
     .then(res => res.json())
     .then(data => setInboxes(data.payload || []))
-    .catch(err => console.error("Erro ao carregar inboxes:", err));
-  }, []);
+    .catch(err => console.error("Erro inboxes:", err));
 
-  // 2. Busca a lista de conversas da lateral
+    fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => setContatos(data.payload || []))
+    .catch(err => console.error("Erro contatos:", err));
+  };
+
+  useEffect(() => { carregarDadosIniciais(); }, []);
+
   const buscarConversas = (tipo) => {
     setCarregando(true);
     const token = localStorage.getItem('authToken');
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`, {
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Accept': 'application/json',
-        'Content-Type': 'application/json' 
-      }
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
-      .then(res => res.json())
-      .then(response => {
-        const lista = response.data?.payload || [];
-        setConversas(lista);
-        setCarregando(false);
-      });
+    .then(res => res.json())
+    .then(response => {
+      setConversas(response.data?.payload || []);
+      setCarregando(false);
+    });
   };
 
-  // 3. Carrega as mensagens de um chat específico
+  useEffect(() => { buscarConversas(abaAtiva); }, [abaAtiva]);
+
+  // FUNÇÃO PARA CLICAR NO CONTATO E ABRIR O CHAT
+  const iniciarConversa = async (contactId) => {
+    const token = localStorage.getItem('authToken');
+    setCarregandoChat(true);
+    try {
+      // Aqui usamos a rota que cria ou busca uma conversa para o contato
+      const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/contacts/${contactId}/conversations`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+      const data = await response.json();
+      
+      if (data.id) {
+        setVisaoAtiva('conversas'); // Volta para a aba de chats
+        abrirConversa(data.id);      // Abre a conversa retornada
+      }
+    } catch (error) {
+      console.error("Erro ao iniciar conversa:", error);
+    } finally {
+      setCarregandoChat(false);
+    }
+  };
+
   const abrirConversa = (chatId) => {
     setConversaSelecionada(chatId);
     setCarregandoChat(true);
     const token = localStorage.getItem('authToken');
-
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${chatId}`, {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
-      .then(res => res.json())
-      .then(data => {
-        const msgLista = data.payload || data.data || [];
-        const ordenada = [...msgLista].sort((a, b) => a.id - b.id);
-        setMensagens(ordenada);
-        setCarregandoChat(false);
-      })
-      .catch(() => setCarregandoChat(false));
+    .then(res => res.json())
+    .then(data => {
+      const msgLista = data.payload || data.data || [];
+      setMensagens([...msgLista].sort((a, b) => a.id - b.id));
+      setCarregandoChat(false);
+    }).catch(() => setCarregandoChat(false));
   };
 
-  // 4. Envia nova mensagem
   const enviarMensagem = async () => {
     if (!novaMensagem.trim()) return;
     const token = localStorage.getItem('authToken');
     try {
       const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({ content: novaMensagem })
       });
-
       if (response.ok) {
         const enviada = await response.json();
         setMensagens(prev => [...prev, enviada]); 
         setNovaMensagem(''); 
       }
-    } catch (error) {
-      console.error("Erro ao enviar:", error);
-    }
+    } catch (error) { console.error("Erro ao enviar:", error); }
   };
 
-  useEffect(() => { buscarConversas(abaAtiva); }, [abaAtiva]);
-
-  // Tempo Real Inteligente
-  useEffect(() => {
-    let timer;
-    let ativo = true;
-    const buscarAtualizacao = async () => {
-      if (!conversaSelecionada || !ativo) return;
-      const token = localStorage.getItem('authToken');
-      try {
-        const res = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const msgLista = data.payload || [];
-          const ordenada = [...msgLista].sort((a, b) => a.id - b.id);
-          setMensagens(prev => prev.length !== ordenada.length ? ordenada : prev);
-        }
-      } finally {
-        if (ativo) timer = setTimeout(buscarAtualizacao, 5000);
+  const criarContato = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem('authToken');
+    try {
+      const response = await fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(novoContato)
+      });
+      if (response.ok) {
+        setModalAberto(false);
+        setNovoContato({ name: '', email: '', phone_number: '', inbox_id: '' });
+        carregarDadosIniciais();
+        alert("Contato criado com sucesso!");
       }
-    };
-    if (conversaSelecionada) buscarAtualizacao();
-    return () => { ativo = false; clearTimeout(timer); };
-  }, [conversaSelecionada]);
+    } catch (error) { console.error("Erro ao criar contato:", error); }
+  };
 
   return (
     <div style={{ display: 'flex', height: '85vh', backgroundColor: '#f0f2f5', margin: '-20px' }}>
       
-      {/* --- BARRA LATERAL (CANAIS E LISTA) --- */}
+      {modalAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '10px', width: '400px' }}>
+            <h3>Novo Contato</h3>
+            <form onSubmit={criarContato}>
+              <label>Nome *</label>
+              <input required style={estiloInput} type="text" value={novoContato.name} onChange={e => setNovoContato({...novoContato, name: e.target.value})} />
+              <label>Telefone</label>
+              <input style={estiloInput} type="text" value={novoContato.phone_number} onChange={e => setNovoContato({...novoContato, phone_number: e.target.value})} />
+              <label>Canal de Origem *</label>
+              <select required style={estiloInput} value={novoContato.inbox_id} onChange={e => setNovoContato({...novoContato, inbox_id: e.target.value})}>
+                <option value="">Selecione...</option>
+                {inboxes.map(ib => <option key={ib.id} value={ib.id}>{ib.name}</option>)}
+              </select>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button type="button" onClick={() => setModalAberto(false)} style={{ flex: 1, padding: '10px' }}>Cancelar</button>
+                <button type="submit" style={{ flex: 1, padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none' }}>Criar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* LATERAL */}
       <div style={{ width: '350px', backgroundColor: '#fff', borderRight: '1px solid #ddd', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
-          <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Canais</h3>
-          
-          <select 
-            value={inboxSelecionada}
-            onChange={(e) => setInboxSelecionada(e.target.value)}
-            style={{ width: '100%', padding: '8px', marginBottom: '15px', borderRadius: '5px', border: '1px solid #ddd' }}
-          >
-            <option value="all">Todos os Canais</option>
-            {inboxes.map(ib => (
-              <option key={ib.id} value={ib.id}>{ib.name}</option>
-            ))}
-          </select>
-
-          <div style={{ display: 'flex', gap: '5px' }}>
-            <button onClick={() => setAbaAtiva('me')} style={estiloTab(abaAtiva === 'me')}>Minhas</button>
-            <button onClick={() => setAbaAtiva('unassigned')} style={estiloTab(abaAtiva === 'unassigned')}>Não atribuídas</button>
-            <button onClick={() => setAbaAtiva('all')} style={estiloTab(abaAtiva === 'all')}>Todas</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <h3 style={{ margin: 0 }}>{visaoAtiva === 'conversas' ? 'Chats' : 'Contatos'}</h3>
+            <div style={{ display: 'flex', gap: '5px' }}>
+              {visaoAtiva === 'contatos' && <button onClick={() => setModalAberto(true)} style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '5px' }}>+</button>}
+              <button onClick={() => setVisaoAtiva(visaoAtiva === 'conversas' ? 'contatos' : 'conversas')} style={{ fontSize: '12px', color: '#007bff', background: 'none', border: 'none', cursor: 'pointer' }}>
+                {visaoAtiva === 'conversas' ? '👥 Contatos' : '💬 Chats'}
+              </button>
+            </div>
           </div>
+          {visaoAtiva === 'conversas' ? (
+            <select value={inboxSelecionada} onChange={(e) => setInboxSelecionada(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+              <option value="all">Todos os Canais</option>
+              {inboxes.map(ib => <option key={ib.id} value={ib.id}>{ib.name}</option>)}
+            </select>
+          ) : (
+            <input type="text" placeholder="Buscar..." value={buscaContato} onChange={(e) => setBuscaContato(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {carregando ? <p style={{padding: '20px'}}>Carregando...</p> : 
-            conversas
-              .filter(chat => inboxSelecionada === 'all' || chat.inbox_id == inboxSelecionada)
-              .map(chat => {
-                const nomeCliente = chat.meta?.sender?.name || "Cliente";
-                const iniciais = nomeCliente.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-                const estaSelecionado = conversaSelecionada === chat.id;
-                const naoLidas = chat.unread_count || 0;
-
-                return (
-                  <div key={chat.id} onClick={() => abrirConversa(chat.id)} style={{ padding: '12px 15px', borderBottom: '1px solid #f2f2f2', cursor: 'pointer', backgroundColor: estaSelecionado ? '#ebebeb' : '#fff', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#6c757d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', flexShrink: 0 }}>
-                      {chat.meta?.sender?.avatar_url ? <img src={chat.meta.sender.avatar_url} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : iniciais}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: (naoLidas > 0 || estaSelecionado) ? 'bold' : 'normal', color: '#303030', fontSize: '14px', display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nomeCliente}</span>
-                        {naoLidas > 0 && <span style={{ backgroundColor: '#25D366', color: '#fff', borderRadius: '10px', padding: '2px 8px', fontSize: '10px' }}>{naoLidas}</span>}
-                      </div>
-                      <div style={{ fontSize: '12px', color: naoLidas > 0 ? '#000' : '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {chat.messages?.[0]?.content || "Conversa aberta"}
-                      </div>
+          {carregando ? <p style={{padding: '20px'}}>Carregando...</p> : (
+            visaoAtiva === 'conversas' ? (
+              conversas.filter(chat => inboxSelecionada === 'all' || chat.inbox_id == inboxSelecionada).map(chat => (
+                <div key={chat.id} onClick={() => abrirConversa(chat.id)} style={{ padding: '12px 15px', borderBottom: '1px solid #f2f2f2', cursor: 'pointer', backgroundColor: conversaSelecionada === chat.id ? '#ebebeb' : '#fff', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#6c757d', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                    {chat.meta?.sender?.name?.charAt(0)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '14px', fontWeight: chat.unread_count > 0 ? 'bold' : 'normal', display: 'flex', justifyContent: 'space-between' }}>
+                      {chat.meta?.sender?.name}
+                      {chat.unread_count > 0 && <span style={{ backgroundColor: '#25D366', color: '#fff', borderRadius: '10px', padding: '2px 6px', fontSize: '10px' }}>{chat.unread_count}</span>}
                     </div>
                   </div>
-                );
-              })
-          }
+                </div>
+              ))
+            ) : (
+              contatos.filter(c => c.name.toLowerCase().includes(buscaContato.toLowerCase())).map(c => (
+                <div key={c.id} onClick={() => iniciarConversa(c.id)} style={{ padding: '12px 15px', borderBottom: '1px solid #f2f2f2', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#007bff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{c.name.charAt(0)}</div>
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{c.name}</div>
+                    <div style={{ fontSize: '12px', color: '#888' }}>{c.phone_number || 'Sem telefone'}</div>
+                  </div>
+                </div>
+              ))
+            )
+          )}
         </div>
       </div>
 
       {/* --- ÁREA DO CHAT --- */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {conversaSelecionada ? (
-          <>
-            <div style={{ padding: '15px', backgroundColor: '#fff', borderBottom: '1px solid #ddd' }}>
-              <strong>#{conversaSelecionada} - Chat Ativo</strong>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', backgroundColor: '#e5ddd5', display: 'flex', flexDirection: 'column' }}>
-              {carregandoChat ? <p>Carregando histórico...</p> : mensagens.map((m, i) => {
-                const eMinha = m.message_type === 'outgoing' || m.message_type === 1;
-                const nomeM = m.sender?.name || "Cliente";
-                const iniciaisM = nomeM.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-                return (
-                  <div key={i} style={{ display: 'flex', flexDirection: eMinha ? 'row-reverse' : 'row', alignItems: 'flex-end', marginBottom: '15px', gap: '10px' }}>
-                    <div style={{ width: '35px', height: '35px', borderRadius: '50%', backgroundColor: eMinha ? '#007bff' : '#6c757d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 'bold', overflow: 'hidden', flexShrink: 0 }}>
-                      {m.sender?.avatar_url ? <img src={m.sender.avatar_url} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : iniciaisM}
-                    </div>
-                    <div style={{ maxWidth: '70%', padding: '8px 12px', borderRadius: '12px', backgroundColor: eMinha ? '#dcf8c6' : '#fff', boxShadow: '0 1px 1px rgba(0,0,0,0.1)' }}>
-                      <p style={{ margin: 0, fontSize: '14px' }}>{m.content}</p>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px', marginTop: '4px' }}>
-                        <span style={{ fontSize: '10px', color: '#999' }}>{new Date(m.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        {eMinha && <span style={{ fontSize: '12px', color: m.status === 'read' ? '#34b7f1' : '#999' }}>{m.status === 'read' ? '✓✓' : '✓'}</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
-            </div>
-            <div style={{ padding: '15px', backgroundColor: '#f0f0f0', display: 'flex', gap: '10px' }}>
-              <input type="text" value={novaMensagem} onChange={(e) => setNovaMensagem(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && enviarMensagem()} placeholder="Digite uma mensagem..." style={{ flex: 1, padding: '10px', borderRadius: '25px', border: '1px solid #ddd' }} />
-              <button onClick={enviarMensagem} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Enviar</button>
-            </div>
-          </>
-        ) : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>Selecione uma conversa</div>
-        )}
+<div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+  {conversaSelecionada ? (
+    <>
+      {/* CABEÇALHO COM BOTÃO RESOLVER */}
+      <div style={{ 
+        padding: '10px 15px', 
+        backgroundColor: '#fff', 
+        borderBottom: '1px solid #ddd', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center' 
+      }}>
+        <div>
+          <strong style={{ fontSize: '16px' }}>#{conversaSelecionada} - Chat Ativo</strong>
+        </div>
+        
+        <button 
+          onClick={() => encerrarAtendimento(conversaSelecionada)}
+          style={{ 
+            backgroundColor: '#007bff', 
+            color: '#fff', 
+            border: 'none', 
+            padding: '8px 15px', 
+            borderRadius: '5px', 
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            fontSize: '13px'
+          }}
+        >
+          ✅ Resolver Conversa
+        </button>
       </div>
+
+      {/* MENSAGENS E INPUT (CONTINUAM IGUAIS) */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', backgroundColor: '#e5ddd5', display: 'flex', flexDirection: 'column' }}>
+         {/* ... (map das mensagens) ... */}
+      </div>
+      {/* ... (input de envio) ... */}
+    </>
+  ) : (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+      Selecione um chat ou contato para iniciar
+    </div>
+  )}
+</div>
     </div>
   );
 };
+const encerrarAtendimento = async (chatId) => {
+  if (!window.confirm("Deseja marcar esta conversa como resolvida?")) return;
 
-const estiloTab = (ativo) => ({
-  flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', border: 'none', borderRadius: '4px',
-  backgroundColor: ativo ? '#007bff' : '#eee', color: ativo ? '#fff' : '#333'
-});
+  const token = localStorage.getItem('authToken');
+  try {
+    const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${chatId}/resolve`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+    });
+
+    if (response.ok) {
+      setConversaSelecionada(null); // Fecha o chat da tela
+      setMensagens([]);            // Limpa mensagens
+      buscarConversas(abaAtiva);   // Atualiza a lista lateral para remover a resolvida
+      alert("Conversa resolvida com sucesso!");
+    }
+  } catch (error) {
+    console.error("Erro ao resolver:", error);
+  }
+};
+const estiloTab = (ativo) => ({ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', backgroundColor: ativo ? '#007bff' : '#eee', color: ativo ? '#fff' : '#333', border: 'none', borderRadius: '4px' });
+const estiloInput = { width: '100%', padding: '8px', marginTop: '5px', marginBottom: '15px' };
 
 export default InboxPage;

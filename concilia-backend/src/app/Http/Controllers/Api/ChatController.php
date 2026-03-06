@@ -26,6 +26,41 @@ class ChatController extends Controller
         $this->apiToken = env('CHATWOOT_API_TOKEN');
         $this->accountId = env('CHATWOOT_ACCOUNT_ID');
     }
+    //contatos do chatwoot
+    public function getContacts(Request $request)
+{
+    $search = $request->query('search');
+    $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", [
+            'search' => $search
+        ]);
+    return response()->json($response->json());
+}
+public function resolveConversation($conversationId)
+{
+    $response = Http::withHeaders([
+        'api_access_token' => $this->apiToken,
+    ])->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/toggle_status", [
+        'status' => 'resolved'
+    ]);
+
+    return response()->json($response->json());
+}
+
+public function createContact(Request $request)
+{
+    $validated = $request->validate([
+        'name' => 'required|string',
+        'email' => 'nullable|email',
+        'phone_number' => 'nullable|string',
+        'inbox_id' => 'required|integer' // O contato precisa ser criado vinculado a um canal
+    ]);
+
+    $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", $validated);
+    
+    return response()->json($response->json());
+}
 
     /**
      * Busca conversas no Chatwoot e filtra as que não estão vinculadas.

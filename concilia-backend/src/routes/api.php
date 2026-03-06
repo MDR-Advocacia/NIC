@@ -23,7 +23,8 @@ use App\Http\Controllers\Api\DefendantController;
 */
 // Webhook do Chatwoot (Sem autenticação pois vem do Chatwoot)
 Route::post('/webhooks/chatwoot', [WebhookController::class, 'receive']);
-
+//Rota para resolver uma conversa (Fechar a conversa no Chatwoot)
+Route::post('/chat/conversations/{conversationId}/resolve', [ChatController::class, 'resolveConversation']);
 // Autenticação e Recuperação de Senha
 Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
@@ -46,6 +47,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/chat/conversations/{conversationId}', [ChatController::class, 'getConversationMessages']);
     Route::post('/chat/conversations/{conversationId}/messages', [ChatController::class, 'sendMessage']);
     Route::post('/chat/conversations/{conversationId}/link', [ChatController::class, 'linkConversation']);
+    //Lista e criação de contatos (Clientes) no Chatwoot
+    Route::get('/chat/contacts', [ChatController::class, 'getContacts']);
+    Route::post('/chat/contacts', [ChatController::class, 'createContact']);
     
     // Vínculo com Processos (Legal Cases)
     Route::get('/cases/{legal_case}/conversation', [ChatController::class, 'getConversationByCase']);
