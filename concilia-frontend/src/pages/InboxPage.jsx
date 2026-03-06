@@ -149,7 +149,7 @@ const InboxPage = () => {
 
       {/* 4. COLUNA DA DIREITA (DETALHES DO CONTATO - TEMA DARK) */}
       {contatoParaDetalhar && (
-        <div style={{ width: '350px', backgroundColor: '#111', color: '#fff', borderLeft: '1px solid #333', display: 'flex', flexDirection: 'column', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ width: '350px', backgroundColor: '#888', color: '#fff', borderLeft: '1px solid #333', display: 'flex', flexDirection: 'column', padding: '20px', overflowY: 'auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <div style={{ width: '80px', height: '80px', borderRadius: '10px', backgroundColor: '#553355', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px' }}>{contatoParaDetalhar.name?.charAt(0)}</div>
             <h2 style={{ margin: '15px 0 5px 0', fontSize: '20px' }}>{contatoParaDetalhar.name}</h2>
