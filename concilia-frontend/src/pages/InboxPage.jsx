@@ -77,9 +77,56 @@ const InboxPage = () => {
       }
     } catch (e) { console.error(e); }
   };
+  const handlesubmitNovoContato = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem('authToken');
+    try {
+      const response = await fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(novoContato)
+      });
+      if (response.ok) {
+        setModalAberto(false);
+        setNovoContato({ name: '', email: '', phone_number: '', inbox_id: '' });
+        carregarDadosIniciais();
+        alert("Contato criado com sucesso!");
+      }
+    } catch (error) { console.error("Erro ao criar contato:", error); }
+  };
 
   return (
     <div style={{ display: 'flex', height: '88vh', backgroundColor: '#f8f9fa', margin: '-20px', fontFamily: 'Inter, sans-serif' }}>
+      
+      {/* MODAL DE NOVO CONTATO */}
+      {modalAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#202124' }}>Novo Contato</h3>
+            <form onSubmit={handlesubmitNovoContato}>
+              <div style={estiloCampo}>
+                <label style={{fontSize: '12px', fontWeight: 'bold', color: '#5f6368'}}>NOME</label>
+                <input required style={estiloInputWhite} placeholder="Nome do cliente" value={novoContato.name} onChange={e => setNovoContato({...novoContato, name: e.target.value})} />
+              </div>
+              <div style={estiloCampo}>
+                <label style={{fontSize: '12px', fontWeight: 'bold', color: '#5f6368'}}>TELEFONE</label>
+                <input style={estiloInputWhite} placeholder="+55849..." value={novoContato.phone_number} onChange={e => setNovoContato({...novoContato, phone_number: e.target.value})} />
+              </div>
+              <div style={estiloCampo}>
+                <label style={{fontSize: '12px', fontWeight: 'bold', color: '#5f6368'}}>CANAL (INBOX)</label>
+                <select required style={estiloInputWhite} value={novoContato.inbox_id} onChange={e => setNovoContato({...novoContato, inbox_id: e.target.value})}>
+                  <option value="">Selecione o canal...</option>
+                  {inboxes.map(ib => <option key={ib.id} value={ib.id}>{ib.name}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setModalAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer', fontWeight: 'bold' }}>Cancelar</button>
+                <button type="submit" style={{ flex: 1, padding: '12px', backgroundColor: '#1a73e8', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Criar Contato</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       
       {/* 1. MENU LATERAL (NIC) - CLEAN */}
       <div style={{ width: '240px', backgroundColor: '#fff', borderRight: '1px solid #e0e0e0', padding: '15px' }}>
