@@ -5,6 +5,7 @@ const InboxPage = () => {
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState('me');
   const [conversaSelecionada, setConversaSelecionada] = useState(null);
+  const [detalhesContato, setDetalhesContato] = useState(null);
   const [mensagens, setMensagens] = useState([]);
   const [carregandoChat, setCarregandoChat] = useState(false);
   const [novaMensagem, setNovaMensagem] = useState('');
@@ -53,6 +54,8 @@ const InboxPage = () => {
     }).then(res => res.json()).then(data => {
       const msgLista = data.payload || data.data || [];
       setMensagens([...msgLista].sort((a, b) => a.id - b.id));
+      // Carrega os detalhes do contato da conversa para a Sidebar
+      setDetalhesContato(data.meta?.sender || null);
       setCarregandoChat(false);
     }).catch(() => setCarregandoChat(false));
   };
@@ -173,6 +176,7 @@ const InboxPage = () => {
           )}
         </div>
       </div>
+      
 
       {/* ÁREA DO CHAT */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -211,6 +215,39 @@ const InboxPage = () => {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>Selecione uma conversa</div>
         )}
       </div>
+      {/* 4. SIDEBAR DE DETALHES (DIREITA) - NOVO */}
+      {detalhesContato && (
+        <div style={{ width: '300px', backgroundColor: '#fff', borderLeft: '1px solid #ddd', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#007bff', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '24px', fontWeight: 'bold' }}>
+              {detalhesContato.name?.charAt(0)}
+            </div>
+            <h3 style={{ marginTop: '10px' }}>{detalhesContato.name}</h3>
+            <div style={{ fontSize: '12px', color: '#888' }}>Criado há 4 meses</div>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button style={{ flex: 1, padding: '8px', borderRadius: '5px', border: '1px solid #ddd' }}>Bloquear</button>
+            <button style={{ flex: 1, padding: '8px', borderRadius: '5px', backgroundColor: '#007bff', color: '#fff', border: 'none' }}>Enviar mensagem</button>
+          </div>
+
+          <hr style={{ border: '0.5px solid #eee' }} />
+
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Telefone</label>
+            <div style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '5px', marginTop: '5px' }}>
+              {detalhesContato.phone_number || 'Não informado'}
+            </div>
+          </div>
+          
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>E-mail</label>
+            <div style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '5px', marginTop: '5px' }}>
+              {detalhesContato.email || 'Não informado'}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
