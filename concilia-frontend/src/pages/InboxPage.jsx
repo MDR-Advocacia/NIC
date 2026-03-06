@@ -8,7 +8,8 @@ const InboxPage = () => {
   const [mensagens, setMensagens] = useState([]);
   const [carregandoChat, setCarregandoChat] = useState(false);
   const [novaMensagem, setNovaMensagem] = useState('');
-  
+  const [modalAberto, setModalAberto] = useState(false);
+  const [novoContato, setNovoContato] = useState({ name: '', email: '', phone_number: '', inbox_id: '' });
   const [inboxes, setInboxes] = useState([]);
   const [inboxSelecionada, setInboxSelecionada] = useState('all');
   const [visaoAtiva, setVisaoAtiva] = useState('conversas'); 
@@ -92,10 +93,17 @@ const InboxPage = () => {
           💬 Mensagens
         </div>
         <div 
-          onClick={() => setVisaoAtiva('contatos')}
-          style={{ padding: '12px', cursor: 'pointer', borderRadius: '8px', backgroundColor: visaoAtiva === 'contatos' ? '#f1f3f4' : 'transparent', color: visaoAtiva === 'contatos' ? '#1a73e8' : '#5f6368', fontWeight: '600', fontSize: '14px', transition: '0.3s' }}
-        >
+  onClick={() => setVisaoAtiva('contatos')}
+  style={{ padding: '12px', cursor: 'pointer', borderRadius: '8px', backgroundColor: visaoAtiva === 'contatos' ? '#f1f3f4' : 'transparent', color: visaoAtiva === 'contatos' ? '#1a73e8' : '#5f6368', fontWeight: '600', fontSize: '14px', transition: '0.3s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+>
           👥 Contatos
+          {/* O BOTÃO ABAIXO É O QUE ABRE O MODAL */}
+  <span 
+    onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} 
+    style={{ color: '#25D366', fontWeight: 'bold', fontSize: '18px', padding: '0 5px' }}
+  >
+    +
+  </span>
         </div>
       </div>
 
@@ -182,7 +190,24 @@ const InboxPage = () => {
       {/* O seu balão de mensagem (Bubble) continua aqui abaixo sem alterações... */}
       <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: '12px', backgroundColor: eMinha ? '#e3f2fd' : '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.08)', border: '1px solid #e0e0e0' }}>
         <p style={{ margin: 0, fontSize: '14px' }}>{m.content}</p>
-        {/* ... resto do seu código de horário e checks ... */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+  
+  {/* HORÁRIO DA MENSAGEM */}
+  <span style={{ fontSize: '10px', color: '#80868b' }}>
+    {new Date(m.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+  </span>
+
+  {/* CHECKS DE LEITURA (APENAS PARA MINHAS MENSAGENS) */}
+  {eMinha && (
+    <span style={{ 
+      fontSize: '14px', 
+      lineHeight: '1',
+      color: m.status === 'read' ? '#1a73e8' : '#dadce0' // Azul se lido, cinza se entregue
+    }}>
+      {m.status === 'read' ? '✓✓' : '✓'}
+    </span>
+  )}
+</div>
       </div>
     </div>
   );
