@@ -18,36 +18,70 @@ const InboxPage = () => {
   const [contatoParaDetalhar, setContatoParaDetalhar] = useState(null);
 
   const carregarDadosIniciais = () => {
-    const token = localStorage.getItem('authToken')?.trim();
-    if (!token) return;
+    // Pega o token e remove aspas extras e espaços
+    let token = localStorage.getItem('authToken');
+    if (token) {
+      token = token.replace(/"/g, '').trim(); 
+    }
+
+    if (!token || token === 'undefined' || token === 'null') {
+      console.error("Token ausente ou inválido");
+      return;
+    }
 
     const headers = { 
       'Authorization': `Bearer ${token}`, 
-      'Accept': 'application/json' 
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
     };
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes', { headers })
       .then(res => res.json())
-      .then(data => setInboxes(data.payload || []));
+      .then(data => setInboxes(data.payload || []))
+      .catch(err => console.error("Erro Inboxes:", err));
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', { headers })
       .then(res => res.json())
-      .then(data => setContatos(data.payload || []));
+      .then(data => setContatos(data.payload || []))
+      .catch(err => console.error("Erro Contatos:", err));
   };
 
   useEffect(() => { carregarDadosIniciais(); }, []);
 
   const buscarConversas = (tipo) => {
     setCarregando(true);
-    const token = localStorage.getItem('authToken');
-    fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-    })
-    .then(res => res.json())
-    .then(response => {
-      setConversas(response.data?.payload || []);
+    
+    // Limpeza do token (essencial para evitar o erro de credenciais inválidas)
+    let token = localStorage.getItem('authToken');
+    if (token) {
+      token = token.replace(/"/g, '').trim(); 
+    }
+
+    if (!token) {
       setCarregando(false);
-    }).catch(() => setCarregando(false));
+      return;
+    }
+
+    fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`, {
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Accept': 'application/json' 
+      }
+    })
+    .then(res => {
+      if (res.status === 401) throw new Error("Não autorizado");
+      return res.json();
+    })
+    .then(response => {
+      // Ajuste conforme a estrutura da sua API (payload ou data)
+      const lista = response.data?.payload || response.payload || [];
+      setConversas(lista);
+      setCarregando(false);
+    })
+    .catch((err) => {
+      console.error("Erro ao buscar conversas:", err);
+      setCarregando(false);
+    });
   };
 
   useEffect(() => { buscarConversas(abaAtiva); }, [abaAtiva]);
@@ -55,17 +89,33 @@ const InboxPage = () => {
   const abrirConversa = (chatId) => {
     setConversaSelecionada(chatId);
     setCarregandoChat(true);
-    const token = localStorage.getItem('authToken');
+    
+    // Limpeza do token (Removendo aspas e espaços extras)
+    let token = localStorage.getItem('authToken');
+    if (token) {
+      token = token.replace(/"/g, '').trim(); 
+    }
+
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${chatId}`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Accept': 'application/json' 
+      }
     })
-    .then(res => res.json())
+    .then(res => {
+      if (res.status === 401) throw new Error("Não autorizado");
+      return res.json();
+    })
     .then(data => {
       const msgLista = data.payload || data.data || [];
       setMensagens([...msgLista].sort((a, b) => a.id - b.id));
       setContatoParaDetalhar(data.meta?.sender || null);
       setCarregandoChat(false);
-    }).catch(() => setCarregandoChat(false));
+    })
+    .catch((err) => {
+      console.error("Erro ao abrir chat:", err);
+      setCarregandoChat(false);
+    });
   };
 
   const enviarMensagem = async () => {
