@@ -16,72 +16,74 @@ const InboxPage = () => {
   const [contatos, setContatos] = useState([]);
   const [buscaContato, setBuscaContato] = useState('');
   const [contatoParaDetalhar, setContatoParaDetalhar] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [mostrarTemplates, setMostrarTemplates] = useState(false);
 
   const carregarDadosIniciais = () => {
-    // Pega o token e remove aspas extras e espaços
-    let token = localStorage.getItem('authToken');
-    if (token) {
-      token = token.replace(/"/g, '').trim(); 
-    }
-
-    if (!token || token === 'undefined' || token === 'null') {
-      console.error("Token ausente ou inválido");
-      return;
-    }
+    const token = localStorage.getItem('authToken')?.trim();
+    if (!token) return;
 
     const headers = { 
       'Authorization': `Bearer ${token}`, 
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
+      'Accept': 'application/json' 
     };
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes', { headers })
       .then(res => res.json())
-      .then(data => setInboxes(data.payload || []))
-      .catch(err => console.error("Erro Inboxes:", err));
+      .then(data => setInboxes(data.payload || []));
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', { headers })
       .then(res => res.json())
-      .then(data => setContatos(data.payload || []))
-      .catch(err => console.error("Erro Contatos:", err));
+      .then(data => setContatos(data.payload || []));
   };
 
   useEffect(() => { carregarDadosIniciais(); }, []);
+  const carregarTemplates = () => {
+    let token = localStorage.getItem('authToken')?.replace(/"/g, '').trim();
+    fetch('https://api-nic-lab.mdradvocacia.com/api/chat/templates', {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => setTemplates(data.payload || []))
+    .catch(err => console.error("Erro ao carregar templates:", err));
+  };
+
+  // Carrega os templates assim que o componente abrir
+  useEffect(() => { carregarTemplates(); }, []);
+  const enviarTemplateSelecionado = async (templateName) => {
+    const token = localStorage.getItem('authToken')?.replace(/"/g, '').trim();
+    try {
+      const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`, 
+          'Content-Type': 'application/json', 
+          'Accept': 'application/json' 
+        },
+        body: JSON.stringify({ 
+          template_name: templateName,
+          message_type: 'template',
+          language: 'pt_BR' 
+        })
+      });
+      if (response.ok) {
+        setMostrarTemplates(false);
+        abrirConversa(conversaSelecionada); // Atualiza o chat
+      }
+    } catch (e) { console.error("Erro ao enviar template:", e); }
+  };
 
   const buscarConversas = (tipo) => {
     setCarregando(true);
-    
-    // Limpeza do token (essencial para evitar o erro de credenciais inválidas)
-    let token = localStorage.getItem('authToken');
-    if (token) {
-      token = token.replace(/"/g, '').trim(); 
-    }
-
-    if (!token) {
-      setCarregando(false);
-      return;
-    }
-
+    const token = localStorage.getItem('authToken');
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`, {
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Accept': 'application/json' 
-      }
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
-    .then(res => {
-      if (res.status === 401) throw new Error("Não autorizado");
-      return res.json();
-    })
+    .then(res => res.json())
     .then(response => {
-      // Ajuste conforme a estrutura da sua API (payload ou data)
-      const lista = response.data?.payload || response.payload || [];
-      setConversas(lista);
+      setConversas(response.data?.payload || []);
       setCarregando(false);
-    })
-    .catch((err) => {
-      console.error("Erro ao buscar conversas:", err);
-      setCarregando(false);
-    });
+    }).catch(() => setCarregando(false));
   };
 
   useEffect(() => { buscarConversas(abaAtiva); }, [abaAtiva]);
@@ -89,33 +91,17 @@ const InboxPage = () => {
   const abrirConversa = (chatId) => {
     setConversaSelecionada(chatId);
     setCarregandoChat(true);
-    
-    // Limpeza do token (Removendo aspas e espaços extras)
-    let token = localStorage.getItem('authToken');
-    if (token) {
-      token = token.replace(/"/g, '').trim(); 
-    }
-
+    const token = localStorage.getItem('authToken');
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${chatId}`, {
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Accept': 'application/json' 
-      }
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
-    .then(res => {
-      if (res.status === 401) throw new Error("Não autorizado");
-      return res.json();
-    })
+    .then(res => res.json())
     .then(data => {
       const msgLista = data.payload || data.data || [];
       setMensagens([...msgLista].sort((a, b) => a.id - b.id));
       setContatoParaDetalhar(data.meta?.sender || null);
       setCarregandoChat(false);
-    })
-    .catch((err) => {
-      console.error("Erro ao abrir chat:", err);
-      setCarregandoChat(false);
-    });
+    }).catch(() => setCarregandoChat(false));
   };
 
   const enviarMensagem = async () => {
@@ -214,7 +200,7 @@ const InboxPage = () => {
   </span>
         </div>
       </div>
-
+      
       {/* 2. COLUNA DE LISTAGEM - WHITE DESIGN */}
       <div style={{ width: '380px', backgroundColor: '#fff', borderRight: '1px solid #e0e0e0', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px', borderBottom: '1px solid #f0f0f0' }}>
@@ -322,7 +308,34 @@ const InboxPage = () => {
 })}
               <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
-            <div style={{ padding: '20px', backgroundColor: '#fff', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '12px' }}>
+            <div style={{ padding: '20px', backgroundColor: '#fff', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '12px', position: 'relative' }}>
+              {/* BOTÃO PARA ABRIR TEMPLATES */}
+    <button 
+      onClick={() => setMostrarTemplates(!mostrarTemplates)}
+      style={{ padding: '0 15px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '30px', cursor: 'pointer', fontSize: '18px' }}
+    >
+      📋
+    </button>
+
+    {/* MENU FLUTUANTE DE TEMPLATES */}
+    {mostrarTemplates && (
+      <div style={{ position: 'absolute', bottom: '80px', left: '20px', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', width: '250px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', zIndex: 100 }}>
+        <div style={{ padding: '10px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}>Templates Meta</div>
+        <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+          {templates.map(t => (
+            <div 
+              key={t.id} 
+              onClick={() => enviarTemplateSelecionado(t.name)}
+              style={{ padding: '10px 15px', cursor: 'pointer', fontSize: '12px', borderBottom: '1px solid #f9f9f9' }}
+              onMouseOver={e => e.target.style.backgroundColor = '#f8f9fa'}
+              onMouseOut={e => e.target.style.backgroundColor = '#fff'}
+            >
+              {t.name}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
               <input type="text" value={novaMensagem} onChange={(e) => setNovaMensagem(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && enviarMensagem()} placeholder="Escreva sua mensagem..." style={{ flex: 1, padding: '12px 18px', borderRadius: '30px', border: '1px solid #dadce0', backgroundColor: '#f1f3f4', outline: 'none' }} />
               <button onClick={enviarMensagem} style={{ padding: '0 25px', backgroundColor: '#1a73e8', color: '#fff', border: 'none', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer' }}>Enviar</button>
             </div>
