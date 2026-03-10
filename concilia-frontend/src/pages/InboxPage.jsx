@@ -29,51 +29,48 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+    // Removemos Content-Type e Accept para simplificar o preflight do CORS
+    const headers = { 'Authorization': `Bearer ${token}` };
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes', { headers })
-      .then(res => res.json()).then(data => setInboxes(data.payload || []));
+      .then(res => res.json()).then(data => setInboxes(data.payload || []))
+      .catch(e => console.error("Erro Inboxes (CORS?)", e));
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', { headers })
-      .then(res => res.json()).then(data => setContatos(data.payload || []));
+      .then(res => res.json()).then(data => setContatos(data.payload || []))
+      .catch(e => console.error("Erro Contatos (CORS?)", e));
   };
 
   const carregarTemplates = () => {
-  const token = getCleanToken();
-  if (!token) return;
+    const token = getCleanToken();
+    if (!token) return;
 
-  // ROTA 1: Respostas Rápidas (Canned Responses) - Mais comum em sistemas customizados
-  fetch('https://api-nic-lab.mdradvocacia.com/api/chat/canned_responses', {
-    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-  })
-  .then(res => {
-    if (res.ok) return res.json();
-    
-    // ROTA 2: Se a primeira falhar, tenta a rota oficial de templates da Inbox
-    // Nota: Se você souber o ID da sua inbox de WhatsApp, substitua o '1' abaixo
-    return fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes/1/whatsapp_templates', {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-    }).then(res => res.json());
-  })
-  .then(data => {
-    // O Chatwoot pode devolver os dados em formatos diferentes
-    const lista = data.payload || data || [];
-    setTemplates(lista);
-  })
-  .catch(err => console.error("Erro ao carregar templates:", err));
-};
+    fetch('https://api-nic-lab.mdradvocacia.com/api/chat/canned_responses', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => setTemplates(data.payload || data || []))
+    .catch(err => console.error("Erro Templates:", err));
+  };
 
   const buscarConversas = (tipo) => {
     setCarregando(true);
     const token = getCleanToken();
+    if (!token) return;
+
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      headers: { 'Authorization': `Bearer ${token}` } // Apenas o essencial
     })
     .then(res => res.json())
     .then(response => {
-      setConversas(response.data?.payload || response.payload || []);
+      const lista = response.data?.payload || response.payload || [];
+      setConversas(lista);
       setCarregando(false);
-    }).catch(() => setCarregando(false));
+    })
+    .catch(e => {
+      console.error("Erro Conversas (CORS?)", e);
+      setCarregando(false);
+    });
   };
 
   useEffect(() => { buscarConversas(abaAtiva); }, [abaAtiva]);
