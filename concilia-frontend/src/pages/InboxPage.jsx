@@ -39,25 +39,29 @@ const InboxPage = () => {
   };
 
   const carregarTemplates = () => {
-    const token = getCleanToken();
-    if (!token) return;
+  const token = getCleanToken();
+  if (!token) return;
 
-    // Tentando a rota padrão de modelos/templates do sistema
-    fetch('https://api-nic-lab.mdradvocacia.com/api/chat/canned_responses', {
+  // ROTA 1: Respostas Rápidas (Canned Responses) - Mais comum em sistemas customizados
+  fetch('https://api-nic-lab.mdradvocacia.com/api/chat/canned_responses', {
+    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+  })
+  .then(res => {
+    if (res.ok) return res.json();
+    
+    // ROTA 2: Se a primeira falhar, tenta a rota oficial de templates da Inbox
+    // Nota: Se você souber o ID da sua inbox de WhatsApp, substitua o '1' abaixo
+    return fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes/1/whatsapp_templates', {
       headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-    })
-    .then(res => {
-      if (res.status === 404) {
-        // Se ainda der 404, tenta a rota de integradora Meta específica
-        return fetch('https://api-nic-lab.mdradvocacia.com/api/chat/v1/accounts/1/working_hours', { 
-           headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-        });
-      }
-      return res.json();
-    })
-    .then(data => setTemplates(data.payload || data || []))
-    .catch(err => console.error("Erro ao carregar templates:", err));
-  };
+    }).then(res => res.json());
+  })
+  .then(data => {
+    // O Chatwoot pode devolver os dados em formatos diferentes
+    const lista = data.payload || data || [];
+    setTemplates(lista);
+  })
+  .catch(err => console.error("Erro ao carregar templates:", err));
+};
 
   const buscarConversas = (tipo) => {
     setCarregando(true);
@@ -107,29 +111,39 @@ const InboxPage = () => {
     } catch (e) { console.error(e); }
   };
 
-  const enviarTemplateSelecionado = async (templateName) => {
-    if (!conversaSelecionada) return;
-    const token = getCleanToken();
-    try {
-      const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`, 
-          'Content-Type': 'application/json', 
-          'Accept': 'application/json' 
-        },
-        body: JSON.stringify({ 
-          template_name: templateName,
-          message_type: 'template',
-          language: 'pt_BR' 
-        })
-      });
-      if (response.ok) {
-        setMostrarTemplates(false);
-        abrirConversa(conversaSelecionada);
-      }
-    } catch (e) { console.error("Erro ao enviar template:", e); }
+  const enviarTemplateSelecionado = async (template) => {
+  if (!conversaSelecionada) return;
+  const token = getCleanToken();
+
+  // O Chatwoot espera esta estrutura para templates oficiais da Meta
+  const payload = {
+    content: template.content || template.name, // Texto de fallback
+    message_type: 'outgoing',
+    content_type: 'template',
+    content_attributes: {
+      template_name: template.name,
+      language_code: 'pt_BR',
+      parameters: [] // Caso seu template tenha {{1}}, {{2}}, você preencheria aqui
+    }
   };
+
+  try {
+    const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Content-Type': 'application/json', 
+        'Accept': 'application/json' 
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    if (response.ok) {
+      setMostrarTemplates(false);
+      abrirConversa(conversaSelecionada);
+    }
+  } catch (e) { console.error("Erro ao enviar template:", e); }
+};
 
   const handlesubmitNovoContato = async (e) => {
     e.preventDefault();
@@ -306,16 +320,14 @@ const InboxPage = () => {
                   <div style={{ padding: '10px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}>Templates Meta</div>
                   <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     {templates.map(t => (
-                      <div 
-                        key={t.id} 
-                        onClick={() => enviarTemplateSelecionado(t.name)}
-                        style={{ padding: '10px 15px', cursor: 'pointer', fontSize: '12px', borderBottom: '1px solid #f9f9f9' }}
-                        onMouseOver={e => e.target.style.backgroundColor = '#f8f9fa'}
-                        onMouseOut={e => e.target.style.backgroundColor = '#fff'}
-                      >
-                        {t.name}
-                      </div>
-                    ))}
+  <div 
+    key={t.id} 
+    onClick={() => enviarTemplateSelecionado(t)} // Passa o objeto todo
+    style={{ padding: '10px 15px', cursor: 'pointer', fontSize: '12px', borderBottom: '1px solid #f9f9f9' }}
+  >
+    {t.short_code ? `/${t.short_code}` : t.name}
+  </div>
+))}
                   </div>
                 </div>
               )}
