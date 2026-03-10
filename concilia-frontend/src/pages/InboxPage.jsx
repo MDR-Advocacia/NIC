@@ -29,28 +29,34 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    // Removemos Content-Type e Accept para simplificar o preflight do CORS
+    // Removendo 'Accept' e 'Content-Type' das buscas GET para evitar Preflight CORS
     const headers = { 'Authorization': `Bearer ${token}` };
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes', { headers })
-      .then(res => res.json()).then(data => setInboxes(data.payload || []))
-      .catch(e => console.error("Erro Inboxes (CORS?)", e));
+      .then(res => res.json())
+      .then(data => setInboxes(data.payload || []))
+      .catch(e => console.error("CORS ou Erro de Rede nos Inboxes:", e));
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', { headers })
-      .then(res => res.json()).then(data => setContatos(data.payload || []))
-      .catch(e => console.error("Erro Contatos (CORS?)", e));
+      .then(res => res.json())
+      .then(data => setContatos(data.payload || []))
+      .catch(e => console.error("CORS ou Erro de Rede nos Contatos:", e));
   };
 
   const carregarTemplates = () => {
     const token = getCleanToken();
     if (!token) return;
 
+    // Rota padrão do Chatwoot para Respostas Rápidas/Templates
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/canned_responses', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
-    .then(data => setTemplates(data.payload || data || []))
-    .catch(err => console.error("Erro Templates:", err));
+    .then(data => {
+      // Aceita payload (padrão NIC) ou data (padrão Chatwoot)
+      setTemplates(data.payload || data || []);
+    })
+    .catch(err => console.error("Rota de templates não encontrada:", err));
   };
 
   const buscarConversas = (tipo) => {
@@ -59,7 +65,7 @@ const InboxPage = () => {
     if (!token) return;
 
     fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`, {
-      headers: { 'Authorization': `Bearer ${token}` } // Apenas o essencial
+      headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
     .then(response => {
@@ -68,7 +74,7 @@ const InboxPage = () => {
       setCarregando(false);
     })
     .catch(e => {
-      console.error("Erro Conversas (CORS?)", e);
+      console.error("Erro CORS nas Conversas:", e);
       setCarregando(false);
     });
   };
