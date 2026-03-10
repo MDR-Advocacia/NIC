@@ -18,14 +18,21 @@ const InboxPage = () => {
   const [contatoParaDetalhar, setContatoParaDetalhar] = useState(null);
 
   const carregarDadosIniciais = () => {
-    const token = localStorage.getItem('authToken');
-    const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+    const token = localStorage.getItem('authToken')?.trim();
+    if (!token) return;
+
+    const headers = { 
+      'Authorization': `Bearer ${token}`, 
+      'Accept': 'application/json' 
+    };
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes', { headers })
-      .then(res => res.json()).then(data => setInboxes(data.payload || []));
+      .then(res => res.json())
+      .then(data => setInboxes(data.payload || []));
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', { headers })
-      .then(res => res.json()).then(data => setContatos(data.payload || []));
+      .then(res => res.json())
+      .then(data => setContatos(data.payload || []));
   };
 
   useEffect(() => { carregarDadosIniciais(); }, []);
@@ -83,14 +90,18 @@ const InboxPage = () => {
     try {
       const response = await fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: { 
+          'Authorization': `Bearer ${token}`, 
+          'Content-Type': 'application/json', 
+          'Accept': 'application/json' 
+        },
         body: JSON.stringify(novoContato)
       });
       if (response.ok) {
         setModalAberto(false);
         setNovoContato({ name: '', email: '', phone_number: '', inbox_id: '' });
         carregarDadosIniciais();
-        alert("Contato criado com sucesso!");
+        alert("Contato criado!");
       }
     } catch (error) { console.error("Erro ao criar contato:", error); }
   };
@@ -305,7 +316,16 @@ const InboxPage = () => {
   );
 };
 
-const estiloInputWhite = { width: '100%', padding: '12px', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '8px', color: '#202124', marginTop: '6px', fontSize: '14px', outline: 'none' };
+const estiloInputWhite = { 
+  width: '100%', 
+  padding: '12px', 
+  backgroundColor: '#f8f9fa', 
+  border: '1px solid #e0e0e0', 
+  borderRadius: '8px', 
+  marginTop: '6px', 
+  fontSize: '14px', 
+  outline: 'none' 
+};
 const estiloCampo = { marginBottom: '20px' };
 const estiloTab = (ativo) => ({ flex: 1, padding: '8px', fontSize: '12px', cursor: 'pointer', border: 'none', borderRadius: '6px', backgroundColor: ativo ? '#1a73e8' : '#f1f3f4', color: ativo ? '#fff' : '#5f6368', fontWeight: 'bold', transition: '0.2s' });
 
