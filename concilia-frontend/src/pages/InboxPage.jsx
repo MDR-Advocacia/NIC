@@ -30,6 +30,7 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
+    // Removemos 'Accept' e 'Content-Type' para evitar o Preflight do CORS
     const headers = { 'Authorization': `Bearer ${token}` };
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes', { headers })
@@ -45,33 +46,16 @@ const InboxPage = () => {
 
   // 2. CARREGAR TEMPLATES (Respostas Rápidas)
   const carregarTemplates = () => {
-    const token = localStorage.getItem('authToken')?.replace(/"/g, '').trim();
+    const token = getCleanToken();
     if (!token) return;
 
-    // Primeiro, precisamos do ID da conta (geralmente 1 no lab) e da Inbox
-    // Vamos tentar a rota que lista os templates oficiais sincronizados da Meta
+    // Tentando a rota v1 que é o padrão para templates sincronizados da Meta
     fetch('https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/whatsapp_templates', {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      headers: { 'Authorization': `Bearer ${token}` }
     })
-    .then(res => {
-      if (!res.ok) throw new Error("Não encontrou templates sincronizados");
-      return res.json();
-    })
-    .then(data => {
-      // Templates da Meta costumam vir em data.payload ou direto no data
-      const lista = data.payload || data || [];
-      console.log("Templates Meta sincronizados:", lista);
-      setTemplates(lista);
-    })
-    .catch(err => {
-      console.error("Erro ao carregar templates da Meta:", err);
-      // Fallback: Tenta a rota de respostas rápidas se a da Meta falhar
-      fetch('https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/canned_responses', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(r => r.json())
-      .then(d => setTemplates(d.payload || d || []));
-    });
+    .then(res => res.json())
+    .then(data => setTemplates(data.payload || data || []))
+    .catch(err => console.error("Erro Templates:", err));
   };
 
   // 3. BUSCAR CONVERSAS (Lista da esquerda)
@@ -88,7 +72,11 @@ const InboxPage = () => {
       const lista = response.data?.payload || response.payload || [];
       setConversas(lista);
       setCarregando(false);
-    }).catch(() => setCarregando(false));
+    })
+    .catch(e => {
+      console.error("Erro Conversas:", e);
+      setCarregando(false);
+    });
   };
 
   useEffect(() => { buscarConversas(abaAtiva); }, [abaAtiva]);
