@@ -45,21 +45,33 @@ const InboxPage = () => {
 
   // 2. CARREGAR TEMPLATES (Respostas Rápidas)
   const carregarTemplates = () => {
-    let token = localStorage.getItem('authToken');
-    if (token) { token = token.replace(/"/g, '').trim(); }
+    const token = localStorage.getItem('authToken')?.replace(/"/g, '').trim();
     if (!token) return;
 
-    fetch('https://api-nic-lab.mdradvocacia.com/api/chat/canned_responses', {
+    // Primeiro, precisamos do ID da conta (geralmente 1 no lab) e da Inbox
+    // Vamos tentar a rota que lista os templates oficiais sincronizados da Meta
+    fetch('https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/whatsapp_templates', {
       headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) throw new Error("Não encontrou templates sincronizados");
+      return res.json();
+    })
     .then(data => {
-      console.log("Resposta da API de Templates:", data); // Olhe isso no F12
-      // Se a API retornar { data: [...] }, pegamos data.data
-      const lista = data.payload || data.data || data || [];
+      // Templates da Meta costumam vir em data.payload ou direto no data
+      const lista = data.payload || data || [];
+      console.log("Templates Meta sincronizados:", lista);
       setTemplates(lista);
     })
-    .catch(err => console.error("Erro ao carregar templates:", err));
+    .catch(err => {
+      console.error("Erro ao carregar templates da Meta:", err);
+      // Fallback: Tenta a rota de respostas rápidas se a da Meta falhar
+      fetch('https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/canned_responses', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(r => r.json())
+      .then(d => setTemplates(d.payload || d || []));
+    });
   };
 
   // 3. BUSCAR CONVERSAS (Lista da esquerda)
@@ -295,10 +307,24 @@ const InboxPage = () => {
   <div 
     key={t.id} 
     onClick={() => enviarTemplateSelecionado(t)} 
-    style={{ padding: '10px 15px', cursor: 'pointer', fontSize: '12px', borderBottom: '1px solid #f9f9f9', color: '#333' }}
+    style={{ 
+      padding: '10px 15px', 
+      cursor: 'pointer', 
+      fontSize: '12px', 
+      borderBottom: '1px solid #f9f9f9',
+      color: '#333',
+      display: 'flex',
+      flexDirection: 'column'
+    }}
+    onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+    onMouseOut={e => e.currentTarget.style.backgroundColor = '#fff'}
   >
-    {/* Tenta mostrar o short_code, se não tiver tenta o name, se não tiver mostra o começo do conteúdo */}
-    {t.short_code ? `/${t.short_code}` : (t.name || t.content?.substring(0, 20) + "...")}
+    {/* t.name é o nome técnico do template na Meta */}
+    <strong style={{ color: '#1a73e8' }}>{t.name}</strong>
+    {/* t.message é o texto que será enviado */}
+    <span style={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      {t.message || t.content || "Template Meta"}
+    </span>
   </div>
 ))}
                   </div>
