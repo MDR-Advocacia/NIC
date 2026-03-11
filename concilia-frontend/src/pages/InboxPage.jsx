@@ -45,24 +45,22 @@ const InboxPage = () => {
 
   // 2. CARREGAR TEMPLATES (Respostas Rápidas)
   const carregarTemplates = () => {
-    const token = getCleanToken();
+    let token = localStorage.getItem('authToken');
+    if (token) { token = token.replace(/"/g, '').trim(); }
     if (!token) return;
 
     fetch('https://api-nic-lab.mdradvocacia.com/api/chat/canned_responses', {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
     .then(res => res.json())
     .then(data => {
-      setTemplates(data.payload || data || []);
+      console.log("Resposta da API de Templates:", data); // Olhe isso no F12
+      // Se a API retornar { data: [...] }, pegamos data.data
+      const lista = data.payload || data.data || data || [];
+      setTemplates(lista);
     })
-    .catch(err => console.error("Erro Templates:", err));
+    .catch(err => console.error("Erro ao carregar templates:", err));
   };
-
-  // Executa ao montar o componente
-  useEffect(() => { 
-    carregarDadosIniciais(); 
-    carregarTemplates();
-  }, []);
 
   // 3. BUSCAR CONVERSAS (Lista da esquerda)
   const buscarConversas = (tipo) => {
@@ -294,8 +292,15 @@ const InboxPage = () => {
                   <div style={{ padding: '10px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}>Templates</div>
                   <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     {templates.map(t => (
-                      <div key={t.id} onClick={() => enviarTemplateSelecionado(t)} style={{ padding: '10px 15px', cursor: 'pointer', fontSize: '12px', borderBottom: '1px solid #f9f9f9' }}>{t.short_code ? `/${t.short_code}` : t.name}</div>
-                    ))}
+  <div 
+    key={t.id} 
+    onClick={() => enviarTemplateSelecionado(t)} 
+    style={{ padding: '10px 15px', cursor: 'pointer', fontSize: '12px', borderBottom: '1px solid #f9f9f9', color: '#333' }}
+  >
+    {/* Tenta mostrar o short_code, se não tiver tenta o name, se não tiver mostra o começo do conteúdo */}
+    {t.short_code ? `/${t.short_code}` : (t.name || t.content?.substring(0, 20) + "...")}
+  </div>
+))}
                   </div>
                 </div>
               )}
