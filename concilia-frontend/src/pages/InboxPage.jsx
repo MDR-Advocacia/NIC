@@ -45,19 +45,41 @@ const InboxPage = () => {
   };
 
   // 2. CARREGAR TEMPLATES (Respostas Rápidas)
-  const carregarTemplates = () => {
-    const token = getCleanToken();
+  const carregarTemplates = async () => {
+    const token = localStorage.getItem('authToken')?.replace(/"/g, '').trim();
     if (!token) return;
 
-    // Tentando a rota v1 que é o padrão para templates sincronizados da Meta
-    fetch('https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/whatsapp_templates', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => res.json())
-    .then(data => setTemplates(data.payload || data || []))
-    .catch(err => console.error("Erro Templates:", err));
-  };
+    // Rota 1: Templates Sincronizados da Meta (ID 1)
+    // Rota 2: Canned Responses (ID 1)
+    const urls = [
+      'https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/whatsapp_templates',
+      'https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/canned_responses'
+    ];
 
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          // O Chatwoot pode retornar a lista direto ou dentro de um objeto
+          const lista = data.payload || data || [];
+          if (Array.isArray(lista) && lista.length > 0) {
+            setTemplates(lista);
+            console.log("Templates carregados com sucesso de:", url);
+            return; // Encontrou, encerra a busca
+          }
+        }
+      } catch (err) {
+        console.error("Falha ao tentar rota:", url, err);
+      }
+    }
+  };
   // 3. BUSCAR CONVERSAS (Lista da esquerda)
   const buscarConversas = (tipo) => {
     setCarregando(true);
