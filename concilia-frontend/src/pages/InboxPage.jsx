@@ -26,34 +26,33 @@ const InboxPage = () => {
   };
 
   // 1. CARREGAR DADOS INICIAIS (Canais e Contatos)
+  // Usando URLs relativas para passar pelo Proxy do Vite
   const carregarDadosIniciais = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    // Removemos 'Accept' e 'Content-Type' para evitar o Preflight do CORS
     const headers = { 'Authorization': `Bearer ${token}` };
 
-    fetch('https://api-nic-lab.mdradvocacia.com/api/chat/inboxes', { headers })
+    fetch('/api/chat/inboxes', { headers })
       .then(res => res.json())
       .then(data => setInboxes(data.payload || []))
       .catch(e => console.error("Erro Inboxes:", e));
 
-    fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', { headers })
+    fetch('/api/chat/contacts', { headers })
       .then(res => res.json())
       .then(data => setContatos(data.payload || []))
       .catch(e => console.error("Erro Contatos:", e));
   };
 
-  // 2. CARREGAR TEMPLATES (Respostas Rápidas)
+  // 2. CARREGAR TEMPLATES (Sincronizados da Meta)
   const carregarTemplates = async () => {
-    const token = localStorage.getItem('authToken')?.replace(/"/g, '').trim();
+    const token = getCleanToken();
     if (!token) return;
 
-    // Rota 1: Templates Sincronizados da Meta (ID 1)
-    // Rota 2: Canned Responses (ID 1)
+    // Tentamos as rotas oficiais via Proxy
     const urls = [
-      'https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/whatsapp_templates',
-      'https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/canned_responses'
+      '/api/v1/accounts/1/whatsapp_templates',
+      '/api/v1/accounts/1/canned_responses'
     ];
 
     for (const url of urls) {
@@ -67,26 +66,31 @@ const InboxPage = () => {
 
         if (res.ok) {
           const data = await res.json();
-          // O Chatwoot pode retornar a lista direto ou dentro de um objeto
           const lista = data.payload || data || [];
           if (Array.isArray(lista) && lista.length > 0) {
             setTemplates(lista);
-            console.log("Templates carregados com sucesso de:", url);
-            return; // Encontrou, encerra a busca
+            console.log("Templates carregados via Proxy de:", url);
+            return; 
           }
         }
       } catch (err) {
-        console.error("Falha ao tentar rota:", url, err);
+        console.error("Falha ao tentar rota via Proxy:", url, err);
       }
     }
   };
-  // 3. BUSCAR CONVERSAS (Lista da esquerda)
+
+  useEffect(() => { 
+    carregarDadosIniciais(); 
+    carregarTemplates();
+  }, []);
+
+  // 3. BUSCAR CONVERSAS
   const buscarConversas = (tipo) => {
     setCarregando(true);
     const token = getCleanToken();
     if (!token) return;
 
-    fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`, {
+    fetch(`/api/chat/conversations?assignee_type=${tipo}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -103,12 +107,12 @@ const InboxPage = () => {
 
   useEffect(() => { buscarConversas(abaAtiva); }, [abaAtiva]);
 
-  // 4. ABRIR CHAT ESPECÍFICO
+  // 4. ABRIR CHAT
   const abrirConversa = (chatId) => {
     setConversaSelecionada(chatId);
     setCarregandoChat(true);
     const token = getCleanToken();
-    fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${chatId}`, {
+    fetch(`/api/chat/conversations/${chatId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -125,7 +129,7 @@ const InboxPage = () => {
     if (!novaMensagem.trim() || !conversaSelecionada) return;
     const token = getCleanToken();
     try {
-      const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`, {
+      const response = await fetch(`/api/chat/conversations/${conversaSelecionada}/messages`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`, 
@@ -141,14 +145,13 @@ const InboxPage = () => {
     } catch (e) { console.error(e); }
   };
 
-  // 6. ENVIAR TEMPLATE META
+  // 6. ENVIAR TEMPLATE META (Payload oficial Chatwoot)
   const enviarTemplateSelecionado = async (template) => {
     if (!conversaSelecionada) return;
     const token = getCleanToken();
     
-    // Padrão Chatwoot/Meta para templates
     const payload = {
-      content: template.content || template.name,
+      content: template.message || template.content || template.name,
       message_type: 'outgoing',
       content_type: 'template',
       content_attributes: {
@@ -158,7 +161,7 @@ const InboxPage = () => {
     };
 
     try {
-      const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`, {
+      const response = await fetch(`/api/chat/conversations/${conversaSelecionada}/messages`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`, 
@@ -173,12 +176,12 @@ const InboxPage = () => {
     } catch (e) { console.error(e); }
   };
 
-  // 7. CRIAR NOVO CONTATO
+  // 7. CRIAR CONTATO
   const handlesubmitNovoContato = async (e) => {
     e.preventDefault();
     const token = getCleanToken();
     try {
-      const response = await fetch('https://api-nic-lab.mdradvocacia.com/api/chat/contacts', {
+      const response = await fetch('/api/chat/contacts', {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`, 
@@ -194,6 +197,11 @@ const InboxPage = () => {
       }
     } catch (error) { console.error(error); }
   };
+
+  // Estilos permanecem os mesmos...
+  const estiloInputWhite = { width: '100%', padding: '12px', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '8px', marginTop: '6px', fontSize: '14px', outline: 'none' };
+  const estiloCampo = { marginBottom: '20px' };
+  const estiloTab = (ativo) => ({ flex: 1, padding: '8px', fontSize: '12px', cursor: 'pointer', border: 'none', borderRadius: '6px', backgroundColor: ativo ? '#1a73e8' : '#f1f3f4', color: ativo ? '#fff' : '#5f6368', fontWeight: 'bold' });
 
   return (
     <div style={{ display: 'flex', height: '88vh', backgroundColor: '#f8f9fa', margin: '-20px', fontFamily: 'Inter, sans-serif' }}>
@@ -314,29 +322,11 @@ const InboxPage = () => {
                   <div style={{ padding: '10px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}>Templates</div>
                   <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     {templates.map(t => (
-  <div 
-    key={t.id} 
-    onClick={() => enviarTemplateSelecionado(t)} 
-    style={{ 
-      padding: '10px 15px', 
-      cursor: 'pointer', 
-      fontSize: '12px', 
-      borderBottom: '1px solid #f9f9f9',
-      color: '#333',
-      display: 'flex',
-      flexDirection: 'column'
-    }}
-    onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-    onMouseOut={e => e.currentTarget.style.backgroundColor = '#fff'}
-  >
-    {/* t.name é o nome técnico do template na Meta */}
-    <strong style={{ color: '#1a73e8' }}>{t.name}</strong>
-    {/* t.message é o texto que será enviado */}
-    <span style={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-      {t.message || t.content || "Template Meta"}
-    </span>
-  </div>
-))}
+                      <div key={t.id} onClick={() => enviarTemplateSelecionado(t)} style={{ padding: '10px 15px', cursor: 'pointer', fontSize: '12px', borderBottom: '1px solid #f9f9f9', display: 'flex', flexDirection: 'column' }}>
+                        <strong style={{ color: '#1a73e8' }}>{t.name}</strong>
+                        <span style={{ fontSize: '11px', color: '#666' }}>{t.message || t.content || "Template Meta"}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -349,27 +339,8 @@ const InboxPage = () => {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9aa0a6' }}>Selecione um atendimento</div>
         )}
       </div>
-
-      {/* DETALHES DIREITA */}
-      {contatoParaDetalhar && (
-        <div style={{ width: '360px', backgroundColor: '#fff', borderLeft: '1px solid #e0e0e0', padding: '25px', overflowY: 'auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <div style={{ width: '90px', height: '90px', borderRadius: '15px', backgroundColor: '#e8f0fe', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', color: '#1a73e8', fontWeight: 'bold' }}>{contatoParaDetalhar.name?.charAt(0)}</div>
-            <h2 style={{ margin: '15px 0 5px 0', fontSize: '18px' }}>{contatoParaDetalhar.name}</h2>
-          </div>
-          <div style={estiloCampo}>
-            <label style={{ color: '#5f6368', fontSize: '11px', fontWeight: 'bold' }}>TELEFONE</label>
-            <input style={estiloInputWhite} defaultValue={contatoParaDetalhar.phone_number || 'Não informado'} />
-          </div>
-        </div>
-      )}
     </div>
   );
 };
-
-// Estilos
-const estiloInputWhite = { width: '100%', padding: '12px', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '8px', marginTop: '6px', fontSize: '14px', outline: 'none' };
-const estiloCampo = { marginBottom: '20px' };
-const estiloTab = (ativo) => ({ flex: 1, padding: '8px', fontSize: '12px', cursor: 'pointer', border: 'none', borderRadius: '6px', backgroundColor: ativo ? '#1a73e8' : '#f1f3f4', color: ativo ? '#fff' : '#5f6368', fontWeight: 'bold' });
 
 export default InboxPage;
