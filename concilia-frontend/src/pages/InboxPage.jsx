@@ -337,11 +337,22 @@ const InboxPage = () => {
                   <div style={{ padding: '10px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}>Templates</div>
                   <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     {templates.map(t => (
-                      <div key={t.id} onClick={() => enviarTemplateSelecionado(t)} style={{ padding: '10px 15px', cursor: 'pointer', fontSize: '12px', borderBottom: '1px solid #f9f9f9', display: 'flex', flexDirection: 'column' }}>
-                        <strong style={{ color: '#1a73e8' }}>{t.name}</strong>
-                        <span style={{ fontSize: '11px', color: '#666' }}>{t.message || t.content || "Template Meta"}</span>
-                      </div>
-                    ))}
+  <div 
+    key={t.id} 
+    onClick={() => enviarTemplateSelecionado(t)} 
+    style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
+    onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+    onMouseOut={e => e.currentTarget.style.backgroundColor = '#fff'}
+  >
+    {/* Tenta mostrar o nome da Meta ou o atalho da Resposta Rápida */}
+    <strong style={{ color: '#1a73e8', display: 'block' }}>
+        {t.name || t.short_code || "Sem título"}
+    </strong>
+    <span style={{ fontSize: '11px', color: '#666' }}>
+        {t.message || t.content || "Clique para enviar"}
+    </span>
+  </div>
+))}
                   </div>
                 </div>
               )}

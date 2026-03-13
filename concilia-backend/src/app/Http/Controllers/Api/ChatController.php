@@ -245,36 +245,29 @@ public function getMyInboxes(Request $request)
     public function getTemplates(Request $request)
 {
     try {
-        // Pega o inbox_id da requisição ou usa o primeiro disponível
         $inboxId = $request->query('inbox_id');
+        
+        // 1. Tenta a rota oficial da Meta primeiro
+        $urlMeta = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])->get($urlMeta);
 
-        if (!$inboxId) {
-            // Se não enviou inbox_id, busca a primeira inbox da conta para não dar erro
-            $inboxResponse = Http::withHeaders(['api_access_token' => $this->apiToken])
-                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
-            $inboxes = $inboxResponse->json();
-            $inboxId = $inboxes[0]['id'] ?? null;
+        if ($response->successful()) {
+            return response()->json($response->json());
         }
 
-        if (!$inboxId) {
-            return response()->json(['error' => 'Nenhuma inbox encontrada'], 404);
+        // 2. Se a Meta falhou (404), tenta as Canned Responses (Respostas Rápidas)
+        // Esta rota é universal no Chatwoot
+        $urlCanned = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/canned_responses";
+        $responseCanned = Http::withHeaders(['api_access_token' => $this->apiToken])->get($urlCanned);
+
+        if ($responseCanned->successful()) {
+            return response()->json($responseCanned->json());
         }
 
-        // Rota oficial do Chatwoot para templates sincronizados da Meta (WhatsApp)
-        $response = Http::withHeaders([
-            'api_access_token' => $this->apiToken,
-        ])
-        ->timeout(10)
-        ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates");
-
-        if ($response->failed()) {
-            return response()->json(['error' => 'Falha ao buscar templates na Meta'], $response->status());
-        }
-
-        return response()->json($response->json());
+        return response()->json(['error' => 'Nenhum template encontrado em nenhuma rota'], 404);
 
     } catch (\Exception $e) {
-        return response()->json(['error' => 'Erro interno ao processar templates: ' . $e->getMessage()], 500);
+        return response()->json(['error' => $e->getMessage()], 500);
     }
 }
 }
