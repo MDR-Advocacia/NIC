@@ -149,38 +149,37 @@ const InboxPage = () => {
   if (!conversaSelecionada) return;
   const token = getCleanToken();
 
-  // Buscamos a conversa atual para saber qual a Inbox (número) ela pertence
-  const chatAtual = conversas.find(c => c.id === conversaSelecionada);
-  
+  // GARANTA QUE A URL TERMINE COM A BARRA OU ESTEJA EXATA
+  const url = `https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`;
+
   const payload = {
     message_type: 'outgoing',
-    content_type: 'template', // CRÍTICO: Informa que é um template aprovado
-    content: "", // No template Meta, o conteúdo vai nos atributos
+    content_type: 'template',
+    // O Chatwoot exige que o content seja o nome do template quando for content_type template
+    content: template.name, 
     content_attributes: {
-      template_name: template.name, // Nome técnico (ex: bb_negocial_...)
+      template_name: template.name,
       language_code: template.language || 'pt_BR',
-      parameters: {} // Aqui o Chatwoot/Meta processa as variáveis {{1}}
+      parameters: [] 
     }
   };
 
   try {
-    // Usamos a rota do seu backend NIC que aponta para as mensagens
-    const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${token}`, 
-        'Content-Type': 'application/json' 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json' // Adicionado para evitar redirecionamentos HTML
       },
       body: JSON.stringify(payload)
     });
 
     if (response.ok) {
       setMostrarTemplates(false);
-      setNovaMensagem('');
-      abrirConversa(conversaSelecionada); // Recarrega o chat para ver a mensagem enviada
-    } else {
-      const erro = await response.json();
-      alert("Erro Meta: " + (erro.message || "Falha ao iniciar contato. Verifique se o template está aprovado."));
+      abrirConversa(conversaSelecionada);
+    } else if (response.status === 401) {
+       alert("Sessão expirada. Por favor, faça login novamente.");
     }
   } catch (e) {
     console.error("Erro no envio de template:", e);
