@@ -49,37 +49,26 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    // Se "all" estiver selecionado, tenta a primeira inbox
-    const targetInbox = inboxSelecionada === 'all' ? inboxes[0]?.id : inboxSelecionada;
-    if (!targetInbox) return;
+    // IMPORTANTE: Templates da Meta no Chatwoot ficam vinculados à INBOX.
+    // Se não tiver conversa selecionada, tentamos pegar da primeira inbox disponível.
+    const inboxId = conversaSelecionada ? conversas.find(c => c.id === conversaSelecionada)?.inbox_id : inboxes[0]?.id;
+    
+    if (!inboxId) return;
 
-    // USANDO O PREFIXO /enterprise/ QUE VIMOS NO SEU LOG
-    // E a conta ID 1 (ajuste se no oficial for outro número)
-    const url = `https://api-nic-lab.mdradvocacia.com/enterprise/api/v1/accounts/1/inboxes/${targetInbox}/whatsapp_templates`;
+    // Rota Oficial para WhatsApp Templates sincronizados
+    const url = `https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/inboxes/${inboxId}/whatsapp_templates`;
 
     try {
       const res = await fetch(url, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
       if (res.ok) {
         const data = await res.json();
-        // O Chatwoot Enterprise costuma entregar um array direto ou em data.payload
-        const lista = data.payload || data || [];
-        setTemplates(lista);
-        console.log("Templates Meta carregados com sucesso!");
-      } else {
-        // Se der 404 com /enterprise/, tentamos sem o prefixo como backup
-        const backupUrl = `https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/inboxes/${targetInbox}/whatsapp_templates`;
-        const backupRes = await fetch(backupUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-        const backupData = await backupRes.json();
-        setTemplates(backupData.payload || backupData || []);
+        // A API retorna um array de objetos com { name, components, language }
+        setTemplates(data || []);
       }
     } catch (err) {
-      console.error("Erro fatal ao buscar templates:", err);
+      console.error("Erro ao buscar templates da Meta:", err);
     }
   };
 
@@ -154,20 +143,19 @@ const InboxPage = () => {
     if (!conversaSelecionada) return;
     const token = getCleanToken();
 
+    // Estrutura exata exigida pela API do Chatwoot para Templates Meta
     const payload = {
-      // O Chatwoot Enterprise ignora o 'content' se o 'template_name' estiver presente
       message_type: 'outgoing',
       content_type: 'template',
       content_attributes: {
         template_name: template.name,
         language_code: template.language || 'pt_BR',
-        parameters: [] 
+        parameters: [] // Aqui você pode evoluir para um form que preenche os {{1}}
       }
     };
 
     try {
-      // AJUSTADO PARA O CAMINHO ENTERPRISE
-      await fetch(`https://api-nic-lab.mdradvocacia.com/enterprise/api/v1/accounts/1/conversations/${conversaSelecionada}/messages`, {
+      const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/conversations/${conversaSelecionada}/messages`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`, 
@@ -175,10 +163,13 @@ const InboxPage = () => {
         },
         body: JSON.stringify(payload)
       });
-      setMostrarTemplates(false);
-      abrirConversa(conversaSelecionada);
+
+      if (response.ok) {
+        setMostrarTemplates(false);
+        abrirConversa(conversaSelecionada);
+      }
     } catch (e) {
-      console.error("Erro no envio:", e);
+      console.error("Erro ao disparar template Meta:", e);
     }
   };
 
