@@ -31,16 +31,25 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    const headers = { 'Authorization': `Bearer ${token}` };
+    // Use a URL completa da API de laboratório
+    const API_BASE = "https://api-nic-lab.mdradvocacia.com/api";
 
-    fetch('/api/chat/inboxes', { headers })
+    fetch(`${API_BASE}/chat/inboxes`, { 
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } 
+    })
       .then(res => res.json())
-      .then(data => setInboxes(data.payload || []))
+      .then(data => {
+        // Se a API retornar { payload: [...] }, pegamos o payload. Se não, pegamos data.
+        const lista = data.payload || data || [];
+        setInboxes(lista);
+      })
       .catch(e => console.error("Erro Inboxes:", e));
 
-    fetch('/api/chat/contacts', { headers })
+    fetch(`${API_BASE}/chat/contacts`, { 
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } 
+    })
       .then(res => res.json())
-      .then(data => setContatos(data.payload || []))
+      .then(data => setContatos(data.payload || data || []))
       .catch(e => console.error("Erro Contatos:", e));
   };
 

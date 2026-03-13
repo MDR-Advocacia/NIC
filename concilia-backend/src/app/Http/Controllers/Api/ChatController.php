@@ -98,16 +98,14 @@ public function createContact(Request $request)
 public function getInboxes()
 {
     try {
-        // Use apenas Http:: pois o 'use' já está no topo do arquivo
         $response = Http::withHeaders([
             'api_access_token' => $this->apiToken,
-        ])
-        ->timeout(5)
-        ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
+        ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
 
+        // Retorna apenas o payload para o frontend não se perder
         return response()->json($response->json());
     } catch (\Exception $e) {
-        return response()->json(['error' => 'Falha ao conectar no Chatwoot'], 500);
+        return response()->json(['error' => $e->getMessage()], 500);
     }
 }
 
@@ -205,7 +203,7 @@ public function getMyInboxes(Request $request)
      */
     public function sendMessage(Request $request, $conversationId)
 {
-    // Removemos a validação rígida de 'string' para o content, pois no template ele pode ir vazio
+    // IMPORTANTE: Removemos o $request->validate rígido que causa o 422
     $data = $request->all();
 
     $payload = [
@@ -213,7 +211,7 @@ public function getMyInboxes(Request $request)
         'message_type' => 'outgoing',
     ];
 
-    // Se o frontend enviou atributos de template, repassamos para o Chatwoot
+    // Se for template da Meta, repassa os atributos
     if (isset($data['content_type']) && $data['content_type'] === 'template') {
         $payload['content_type'] = 'template';
         $payload['content_attributes'] = $data['content_attributes'];
@@ -221,14 +219,9 @@ public function getMyInboxes(Request $request)
 
     $response = Http::withHeaders([
         'api_access_token' => $this->apiToken,
-        'Content-Type' => 'application/json; charset=utf-8'
     ])->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages", $payload);
 
-    if ($response->failed()) {
-        return response()->json($response->json(), $response->status());
-    }
-
-    return response()->json($response->json());
+    return response()->json($response->json(), $response->status());
 }
 
     public function getConversationByCase(LegalCase $legal_case)
