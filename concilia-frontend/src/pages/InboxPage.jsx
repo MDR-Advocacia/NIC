@@ -45,18 +45,35 @@ const InboxPage = () => {
   };
 
   const carregarTemplates = async () => {
+  console.log("Iniciando busca de templates..."); // Se isso não aparecer no F12, a função não foi chamada
   const token = getCleanToken();
-  const inboxId = inboxSelecionada === 'all' ? '' : inboxSelecionada;
-  
-  // Agora batemos na SUA API, que por sua vez bate no Chatwoot
+  if (!token) return;
+
+  // Pegamos a inbox da conversa selecionada
+  const chatAtual = conversas.find(c => c.id === conversaSelecionada);
+  const inboxId = chatAtual?.inbox_id || "";
+
+  // URL da SUA API NIC
   const url = `https://api-nic-lab.mdradvocacia.com/api/chat/templates?inbox_id=${inboxId}`;
 
-  const res = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  const data = await res.json();
-  setTemplates(data || []);
+  try {
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      console.log("Dados recebidos da API:", data); // Verifique o que chega aqui
+      const lista = data.payload || data || [];
+      setTemplates(lista);
+    } else {
+      console.error("Erro na resposta da API:", res.status);
+    }
+  } catch (e) {
+    console.error("Erro na requisição de templates:", e);
+  }
 };
+
 
   // 2. CORREÇÃO DO LOOP INFINITO
   // Use este useEffect EXATAMENTE assim para parar o travamento do console
@@ -306,8 +323,15 @@ const InboxPage = () => {
             </div>
 
             <div style={{ padding: '20px', backgroundColor: '#fff', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '12px', position: 'relative' }}>
-              <button onClick={() => setMostrarTemplates(!mostrarTemplates)} style={{ padding: '0 15px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '30px', cursor: 'pointer', fontSize: '18px' }}>📋</button>
-              
+              <button 
+  onClick={() => {
+    setMostrarTemplates(!mostrarTemplates);
+    if (!mostrarTemplates) carregarTemplates(); // Busca os dados ao abrir
+  }} 
+  style={{ padding: '0 15px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '30px', cursor: 'pointer', fontSize: '18px' }}
+>
+  📋
+</button>
               {mostrarTemplates && (
                 <div style={{ position: 'absolute', bottom: '80px', left: '20px', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', width: '250px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', zIndex: 100 }}>
                   <div style={{ padding: '10px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}>Templates</div>
