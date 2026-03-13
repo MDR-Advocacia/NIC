@@ -160,16 +160,16 @@ const InboxPage = () => {
 
   const url = `https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`;
 
-  // Para evitar o erro 422, o Chatwoot as vezes exige que o 'content' 
-  // contenha o nome do template ou uma mensagem padrão.
+  // Pegamos o texto real do template. Se não tiver 'message', usamos 'content'.
+  const textoParaEnviar = template.message || template.content || template.name;
+
   const payload = {
-    content: `Template: ${template.name}`, 
+    content: textoParaEnviar, 
     message_type: 'outgoing',
-    content_type: 'template',
+    content_type: 'text', // MUDAMOS DE 'template' PARA 'text'
     content_attributes: {
       template_name: template.name,
-      language_code: template.language || 'pt_BR',
-      parameters: [] // Se o seu template tem {{1}}, ele continuará dando 422 até enviarmos valores aqui
+      language_code: template.language || 'pt_BR'
     }
   };
 
@@ -184,14 +184,12 @@ const InboxPage = () => {
       body: JSON.stringify(payload)
     });
 
-    const result = await response.json();
-
     if (response.ok) {
       setMostrarTemplates(false);
       abrirConversa(conversaSelecionada);
     } else {
-      console.error("Erro 422 - Detalhes do Servidor:", result);
-      alert("Erro ao enviar: " + (result.message || "Verifique se o template exige variáveis ({{1}})."));
+      const result = await response.json();
+      alert("Erro ao enviar: " + (result.error || "Verifique a conexão."));
     }
   } catch (e) {
     console.error("Erro na requisição:", e);
