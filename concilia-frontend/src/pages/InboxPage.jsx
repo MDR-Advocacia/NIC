@@ -45,58 +45,50 @@ const InboxPage = () => {
   };
 
   // 2. CARREGAR TEMPLATES (Sincronizados da Meta)
+  // 1. CARREGAR TEMPLATES (Com prefixo Enterprise)
   const carregarTemplates = async () => {
     const token = getCleanToken();
-    if (!token) {
-      console.error("DEBUG: Token não encontrado no localStorage");
-      return;
-    }
+    if (!token) return;
 
-    // Pega o ID da Inbox da conversa atual ou tenta o ID 7 (que vimos no seu log)
-    const currentChat = conversas.find(c => c.id === conversaSelecionada);
-    const inboxId = currentChat?.inbox_id || inboxes[0]?.id || 7; 
+    // Se "all" estiver selecionado, usamos o ID 7 que vimos no log
+    const inboxId = inboxSelecionada === 'all' ? 7 : inboxSelecionada;
     
-    console.log(`DEBUG: Tentando carregar templates para Inbox ID: ${inboxId}`);
+    // Adicionamos o /enterprise/ que é o padrão da sua instalação
+    const url = `https://api-nic-lab.mdradvocacia.com/enterprise/api/v1/accounts/1/inboxes/${inboxId}/whatsapp_templates`;
 
-    const headers = { 
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/json'
-    };
-
-    // Tentativa A: Rota de Templates Sincronizados (Meta)
     try {
-      const resMeta = await fetch(`https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/inboxes/${inboxId}/whatsapp_templates`, { headers });
-      if (resMeta.ok) {
-        const data = await resMeta.json();
-        if (data && data.length > 0) {
-          console.log("DEBUG: Templates Meta carregados!");
-          setTemplates(data);
-          return;
+      const res = await fetch(url, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates(Array.isArray(data) ? data : (data.payload || []));
+        console.log("Templates Meta carregados!");
+      } else {
+        // Se a rota enterprise falhar, tenta a rota comum como última opção
+        const fallbackUrl = `https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/inboxes/${inboxId}/whatsapp_templates`;
+        const resFallback = await fetch(fallbackUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (resFallback.ok) {
+           const dataF = await resFallback.json();
+           setTemplates(dataF.payload || dataF || []);
         }
       }
-    } catch (e) { console.warn("Falha na Rota Meta"); }
-
-    // Tentativa B: Rota de Respostas Rápidas (Canned Responses)
-    try {
-      const resCanned = await fetch(`https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/canned_responses`, { headers });
-      if (resCanned.ok) {
-        const data = await resCanned.json();
-        const lista = data.payload || data || [];
-        if (lista.length > 0) {
-          console.log("DEBUG: Respostas rápidas carregadas!");
-          setTemplates(lista);
-          return;
-        }
-      }
-    } catch (e) { console.warn("Falha na Rota Canned"); }
-
-    console.error("DEBUG: Nenhuma rota retornou templates. Verifique se o Token tem permissão de Admin.");
+    } catch (err) {
+      console.error("Erro ao carregar templates:", err);
+    }
   };
 
-  useEffect(() => { 
-    carregarDadosIniciais(); 
-    carregarTemplates();
-  }, []);
+  // 2. CORREÇÃO DO LOOP INFINITO
+  // Use este useEffect EXATAMENTE assim para parar o travamento do console
+  useEffect(() => {
+    if (inboxes.length > 0) {
+      carregarTemplates();
+    }
+  }, [inboxSelecionada, inboxes.length]); // Só dispara se mudar a inbox ou carregar a lista inicial
 
   // 3. BUSCAR CONVERSAS
   const buscarConversas = (tipo) => {
