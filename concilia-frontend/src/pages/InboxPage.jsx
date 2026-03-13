@@ -146,38 +146,46 @@ const InboxPage = () => {
 
   // 6. ENVIAR TEMPLATE META (Payload oficial Chatwoot)
   const enviarTemplateSelecionado = async (template) => {
-    if (!conversaSelecionada) return;
-    const token = getCleanToken();
+  if (!conversaSelecionada) return;
+  const token = getCleanToken();
 
-    // Estrutura exata exigida pela API do Chatwoot para Templates Meta
-    const payload = {
-      message_type: 'outgoing',
-      content_type: 'template',
-      content_attributes: {
-        template_name: template.name,
-        language_code: template.language || 'pt_BR',
-        parameters: [] // Aqui você pode evoluir para um form que preenche os {{1}}
-      }
-    };
-
-    try {
-      const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/conversations/${conversaSelecionada}/messages`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`, 
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok) {
-        setMostrarTemplates(false);
-        abrirConversa(conversaSelecionada);
-      }
-    } catch (e) {
-      console.error("Erro ao disparar template Meta:", e);
+  // Buscamos a conversa atual para saber qual a Inbox (número) ela pertence
+  const chatAtual = conversas.find(c => c.id === conversaSelecionada);
+  
+  const payload = {
+    message_type: 'outgoing',
+    content_type: 'template', // CRÍTICO: Informa que é um template aprovado
+    content: "", // No template Meta, o conteúdo vai nos atributos
+    content_attributes: {
+      template_name: template.name, // Nome técnico (ex: bb_negocial_...)
+      language_code: template.language || 'pt_BR',
+      parameters: {} // Aqui o Chatwoot/Meta processa as variáveis {{1}}
     }
   };
+
+  try {
+    // Usamos a rota do seu backend NIC que aponta para as mensagens
+    const response = await fetch(`https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      setMostrarTemplates(false);
+      setNovaMensagem('');
+      abrirConversa(conversaSelecionada); // Recarrega o chat para ver a mensagem enviada
+    } else {
+      const erro = await response.json();
+      alert("Erro Meta: " + (erro.message || "Falha ao iniciar contato. Verifique se o template está aprovado."));
+    }
+  } catch (e) {
+    console.error("Erro no envio de template:", e);
+  }
+};
 
   // Carregar templates sempre que a Inbox selecionada mudar
   useEffect(() => {
