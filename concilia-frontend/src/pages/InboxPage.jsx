@@ -49,33 +49,25 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    // Tentamos as rotas oficiais via Proxy
-    const urls = [
-      '/api/v1/accounts/1/whatsapp_templates',
-      '/api/v1/accounts/1/canned_responses'
-    ];
+    // Se "all" estiver selecionado, usamos a primeira inbox da lista para puxar os templates
+    const targetInbox = inboxSelecionada === 'all' ? inboxes[0]?.id : inboxSelecionada;
+    if (!targetInbox) return;
 
-    for (const url of urls) {
-      try {
-        const res = await fetch(url, {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
-          }
-        });
+    // Rota oficial do Chatwoot para templates sincronizados da Meta
+    // Documentação: accounts/{account_id}/inboxes/{inbox_id}/whatsapp_templates
+    const url = `/api/v1/accounts/1/inboxes/${targetInbox}/whatsapp_templates`;
 
-        if (res.ok) {
-          const data = await res.json();
-          const lista = data.payload || data || [];
-          if (Array.isArray(lista) && lista.length > 0) {
-            setTemplates(lista);
-            console.log("Templates carregados via Proxy de:", url);
-            return; 
-          }
-        }
-      } catch (err) {
-        console.error("Falha ao tentar rota via Proxy:", url, err);
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // A API do Chatwoot retorna um array direto aqui
+        setTemplates(data || []);
       }
+    } catch (err) {
+      console.error("Erro ao carregar templates oficiais:", err);
     }
   };
 
@@ -150,18 +142,20 @@ const InboxPage = () => {
     if (!conversaSelecionada) return;
     const token = getCleanToken();
     
+    // O Chatwoot exige esta estrutura de "content_attributes" para templates da Meta
     const payload = {
-      content: template.message || template.content || template.name,
+      content: "", // Deixe vazio, o template_name já define o conteúdo na Meta
       message_type: 'outgoing',
       content_type: 'template',
       content_attributes: {
         template_name: template.name,
-        language_code: 'pt_BR'
+        language_code: template.language || 'pt_BR',
+        parameters: [] // Caso o template não tenha variáveis {{1}}, vai vazio
       }
     };
 
     try {
-      const response = await fetch(`/api/chat/conversations/${conversaSelecionada}/messages`, {
+      const response = await fetch(`/api/v1/accounts/1/conversations/${conversaSelecionada}/messages`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`, 
@@ -169,12 +163,18 @@ const InboxPage = () => {
         },
         body: JSON.stringify(payload)
       });
+      
       if (response.ok) {
         setMostrarTemplates(false);
         abrirConversa(conversaSelecionada);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Erro no envio do template Meta:", e); }
   };
+
+  // Carregar templates sempre que a Inbox selecionada mudar
+  useEffect(() => {
+    if (inboxes.length > 0) carregarTemplates();
+  }, [inboxSelecionada, inboxes]);
 
   // 7. CRIAR CONTATO
   const handlesubmitNovoContato = async (e) => {
