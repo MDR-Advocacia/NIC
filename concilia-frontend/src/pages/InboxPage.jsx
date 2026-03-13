@@ -47,29 +47,50 @@ const InboxPage = () => {
   // 2. CARREGAR TEMPLATES (Sincronizados da Meta)
   const carregarTemplates = async () => {
     const token = getCleanToken();
-    if (!token) return;
-
-    // IMPORTANTE: Templates da Meta no Chatwoot ficam vinculados à INBOX.
-    // Se não tiver conversa selecionada, tentamos pegar da primeira inbox disponível.
-    const inboxId = conversaSelecionada ? conversas.find(c => c.id === conversaSelecionada)?.inbox_id : inboxes[0]?.id;
-    
-    if (!inboxId) return;
-
-    // Rota Oficial para WhatsApp Templates sincronizados
-    const url = `https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/inboxes/${inboxId}/whatsapp_templates`;
-
-    try {
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // A API retorna um array de objetos com { name, components, language }
-        setTemplates(data || []);
-      }
-    } catch (err) {
-      console.error("Erro ao buscar templates da Meta:", err);
+    if (!token) {
+      console.error("DEBUG: Token não encontrado no localStorage");
+      return;
     }
+
+    // Pega o ID da Inbox da conversa atual ou tenta o ID 7 (que vimos no seu log)
+    const currentChat = conversas.find(c => c.id === conversaSelecionada);
+    const inboxId = currentChat?.inbox_id || inboxes[0]?.id || 7; 
+    
+    console.log(`DEBUG: Tentando carregar templates para Inbox ID: ${inboxId}`);
+
+    const headers = { 
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json'
+    };
+
+    // Tentativa A: Rota de Templates Sincronizados (Meta)
+    try {
+      const resMeta = await fetch(`https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/inboxes/${inboxId}/whatsapp_templates`, { headers });
+      if (resMeta.ok) {
+        const data = await resMeta.json();
+        if (data && data.length > 0) {
+          console.log("DEBUG: Templates Meta carregados!");
+          setTemplates(data);
+          return;
+        }
+      }
+    } catch (e) { console.warn("Falha na Rota Meta"); }
+
+    // Tentativa B: Rota de Respostas Rápidas (Canned Responses)
+    try {
+      const resCanned = await fetch(`https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/canned_responses`, { headers });
+      if (resCanned.ok) {
+        const data = await resCanned.json();
+        const lista = data.payload || data || [];
+        if (lista.length > 0) {
+          console.log("DEBUG: Respostas rápidas carregadas!");
+          setTemplates(lista);
+          return;
+        }
+      }
+    } catch (e) { console.warn("Falha na Rota Canned"); }
+
+    console.error("DEBUG: Nenhuma rota retornou templates. Verifique se o Token tem permissão de Admin.");
   };
 
   useEffect(() => { 
