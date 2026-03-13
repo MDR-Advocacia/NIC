@@ -149,18 +149,18 @@ const InboxPage = () => {
   if (!conversaSelecionada) return;
   const token = getCleanToken();
 
-  // GARANTA QUE A URL TERMINE COM A BARRA OU ESTEJA EXATA
   const url = `https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`;
 
+  // Para evitar o erro 422, o Chatwoot as vezes exige que o 'content' 
+  // contenha o nome do template ou uma mensagem padrão.
   const payload = {
+    content: `Template: ${template.name}`, 
     message_type: 'outgoing',
     content_type: 'template',
-    // O Chatwoot exige que o content seja o nome do template quando for content_type template
-    content: template.name, 
     content_attributes: {
       template_name: template.name,
       language_code: template.language || 'pt_BR',
-      parameters: [] 
+      parameters: [] // Se o seu template tem {{1}}, ele continuará dando 422 até enviarmos valores aqui
     }
   };
 
@@ -170,22 +170,24 @@ const InboxPage = () => {
       headers: { 
         'Authorization': `Bearer ${token}`, 
         'Content-Type': 'application/json',
-        'Accept': 'application/json' // Adicionado para evitar redirecionamentos HTML
+        'Accept': 'application/json'
       },
       body: JSON.stringify(payload)
     });
 
+    const result = await response.json();
+
     if (response.ok) {
       setMostrarTemplates(false);
       abrirConversa(conversaSelecionada);
-    } else if (response.status === 401) {
-       alert("Sessão expirada. Por favor, faça login novamente.");
+    } else {
+      console.error("Erro 422 - Detalhes do Servidor:", result);
+      alert("Erro ao enviar: " + (result.message || "Verifique se o template exige variáveis ({{1}})."));
     }
   } catch (e) {
-    console.error("Erro no envio de template:", e);
+    console.error("Erro na requisição:", e);
   }
 };
-
   // Carregar templates sempre que a Inbox selecionada mudar
   useEffect(() => {
     if (inboxes.length > 0) carregarTemplates();

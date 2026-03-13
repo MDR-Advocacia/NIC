@@ -204,27 +204,32 @@ public function getMyInboxes(Request $request)
      * Envia uma nova mensagem para uma conversa.
      */
     public function sendMessage(Request $request, $conversationId)
-    {
-        $validated = $request->validate([
-            'content' => 'required|string',
-        ]);
+{
+    // Removemos a validação rígida de 'string' para o content, pois no template ele pode ir vazio
+    $data = $request->all();
 
-        $payload = [
-            'content' => $validated['content'],
-            'message_type' => 'outgoing', // Mensagem enviada pelo agente
-        ];
+    $payload = [
+        'content' => $data['content'] ?? '',
+        'message_type' => 'outgoing',
+    ];
 
-        $response = Http::withHeaders([
-            'api_access_token' => $this->apiToken,
-            'Content-Type' => 'application/json; charset=utf-8'
-        ])->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages", $payload);
-
-        if ($response->failed()) {
-            return response()->json(['message' => 'Falha ao enviar mensagem', 'details' => $response->body()], 500);
-        }
-
-        return response()->json($response->json());
+    // Se o frontend enviou atributos de template, repassamos para o Chatwoot
+    if (isset($data['content_type']) && $data['content_type'] === 'template') {
+        $payload['content_type'] = 'template';
+        $payload['content_attributes'] = $data['content_attributes'];
     }
+
+    $response = Http::withHeaders([
+        'api_access_token' => $this->apiToken,
+        'Content-Type' => 'application/json; charset=utf-8'
+    ])->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages", $payload);
+
+    if ($response->failed()) {
+        return response()->json($response->json(), $response->status());
+    }
+
+    return response()->json($response->json());
+}
 
     public function getConversationByCase(LegalCase $legal_case)
     {
