@@ -42,7 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Listagem de conversas (Usada pelo seu InboxPage.jsx)
     Route::get('/chat/conversations', [ChatController::class, 'getConversations']);
     Route::get('/chat/inboxes', [ChatController::class, 'getInboxes']);
-    
+    Route::get('/chat/templates', [ChatController::class, 'getTemplates']);
     // Gestão de conversas específicas
     Route::get('/chat/conversations/{conversationId}', [ChatController::class, 'getConversationMessages']);
     Route::post('/chat/conversations/{conversationId}/messages', [ChatController::class, 'sendMessage']);

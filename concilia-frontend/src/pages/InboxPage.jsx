@@ -44,43 +44,19 @@ const InboxPage = () => {
       .catch(e => console.error("Erro Contatos:", e));
   };
 
-  // 2. CARREGAR TEMPLATES (Sincronizados da Meta)
-  // 1. CARREGAR TEMPLATES (Com prefixo Enterprise)
   const carregarTemplates = async () => {
-    const token = getCleanToken();
-    if (!token) return;
+  const token = getCleanToken();
+  const inboxId = inboxSelecionada === 'all' ? '' : inboxSelecionada;
+  
+  // Agora batemos na SUA API, que por sua vez bate no Chatwoot
+  const url = `https://api-nic-lab.mdradvocacia.com/api/chat/templates?inbox_id=${inboxId}`;
 
-    // Se "all" estiver selecionado, usamos o ID 7 que vimos no log
-    const inboxId = inboxSelecionada === 'all' ? 7 : inboxSelecionada;
-    
-    // Adicionamos o /enterprise/ que é o padrão da sua instalação
-    const url = `https://api-nic-lab.mdradvocacia.com/enterprise/api/v1/accounts/1/inboxes/${inboxId}/whatsapp_templates`;
-
-    try {
-      const res = await fetch(url, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(Array.isArray(data) ? data : (data.payload || []));
-        console.log("Templates Meta carregados!");
-      } else {
-        // Se a rota enterprise falhar, tenta a rota comum como última opção
-        const fallbackUrl = `https://api-nic-lab.mdradvocacia.com/api/v1/accounts/1/inboxes/${inboxId}/whatsapp_templates`;
-        const resFallback = await fetch(fallbackUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (resFallback.ok) {
-           const dataF = await resFallback.json();
-           setTemplates(dataF.payload || dataF || []);
-        }
-      }
-    } catch (err) {
-      console.error("Erro ao carregar templates:", err);
-    }
-  };
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await res.json();
+  setTemplates(data || []);
+};
 
   // 2. CORREÇÃO DO LOOP INFINITO
   // Use este useEffect EXATAMENTE assim para parar o travamento do console

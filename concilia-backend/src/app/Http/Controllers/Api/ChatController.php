@@ -242,4 +242,39 @@ public function getMyInboxes(Request $request)
             'messages' => $messages,
         ]);
     }
+    public function getTemplates(Request $request)
+{
+    try {
+        // Pega o inbox_id da requisição ou usa o primeiro disponível
+        $inboxId = $request->query('inbox_id');
+
+        if (!$inboxId) {
+            // Se não enviou inbox_id, busca a primeira inbox da conta para não dar erro
+            $inboxResponse = Http::withHeaders(['api_access_token' => $this->apiToken])
+                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
+            $inboxes = $inboxResponse->json();
+            $inboxId = $inboxes[0]['id'] ?? null;
+        }
+
+        if (!$inboxId) {
+            return response()->json(['error' => 'Nenhuma inbox encontrada'], 404);
+        }
+
+        // Rota oficial do Chatwoot para templates sincronizados da Meta (WhatsApp)
+        $response = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])
+        ->timeout(10)
+        ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates");
+
+        if ($response->failed()) {
+            return response()->json(['error' => 'Falha ao buscar templates na Meta'], $response->status());
+        }
+
+        return response()->json($response->json());
+
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Erro interno ao processar templates: ' . $e->getMessage()], 500);
+    }
+}
 }
