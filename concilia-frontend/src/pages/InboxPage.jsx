@@ -27,31 +27,25 @@ const InboxPage = () => {
 
   // 1. CARREGAR DADOS INICIAIS (Canais e Contatos)
   // Usando URLs relativas para passar pelo Proxy do Vite
-  const carregarDadosIniciais = () => {
-    const token = getCleanToken();
-    if (!token) return;
+  const carregarDadosIniciais = async () => {
+  const token = getCleanToken();
+  const API_BASE = "https://api-nic-lab.mdradvocacia.com/api";
 
-    // Use a URL completa da API de laboratório
-    const API_BASE = "https://api-nic-lab.mdradvocacia.com/api";
+  try {
+    const resInboxes = await fetch(`${API_BASE}/chat/inboxes`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+    });
+    const dataInboxes = await resInboxes.json();
+    
+    // TRATAMENTO CRÍTICO: Garante que 'inboxes' seja sempre um Array
+    const listaInboxes = Array.isArray(dataInboxes) ? dataInboxes : (dataInboxes.payload || []);
+    setInboxes(listaInboxes);
+    console.log("Canais carregados:", listaInboxes.length);
 
-    fetch(`${API_BASE}/chat/inboxes`, { 
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } 
-    })
-      .then(res => res.json())
-      .then(data => {
-        // Se a API retornar { payload: [...] }, pegamos o payload. Se não, pegamos data.
-        const lista = data.payload || data || [];
-        setInboxes(lista);
-      })
-      .catch(e => console.error("Erro Inboxes:", e));
-
-    fetch(`${API_BASE}/chat/contacts`, { 
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } 
-    })
-      .then(res => res.json())
-      .then(data => setContatos(data.payload || data || []))
-      .catch(e => console.error("Erro Contatos:", e));
-  };
+  } catch (e) {
+    console.error("Erro ao carregar canais:", e);
+  }
+};
 
   const carregarTemplates = async () => {
   console.log("Iniciando busca de templates..."); // Se isso não aparecer no F12, a função não foi chamada

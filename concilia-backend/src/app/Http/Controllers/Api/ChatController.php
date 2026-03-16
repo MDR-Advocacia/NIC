@@ -97,16 +97,12 @@ public function createContact(Request $request)
 }
 public function getInboxes()
 {
-    try {
-        $response = Http::withHeaders([
-            'api_access_token' => $this->apiToken,
-        ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
-
-        // Retorna apenas o payload para o frontend não se perder
-        return response()->json($response->json());
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
+    $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
+    
+    // O NIC Agent geralmente espera os dados puros ou dentro de um campo 'payload'
+    $data = $response->json();
+    return response()->json($data['payload'] ?? $data);
 }
 
 public function getMyInboxes(Request $request)
@@ -242,30 +238,18 @@ public function getMyInboxes(Request $request)
     }
     public function getTemplates(Request $request)
 {
-    try {
-        $inboxId = $request->query('inbox_id');
-        
-        // 1. Tenta a rota oficial da Meta primeiro
-        $urlMeta = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
-        $response = Http::withHeaders(['api_access_token' => $this->apiToken])->get($urlMeta);
-
-        if ($response->successful()) {
-            return response()->json($response->json());
-        }
-
-        // 2. Se a Meta falhou (404), tenta as Canned Responses (Respostas Rápidas)
-        // Esta rota é universal no Chatwoot
-        $urlCanned = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/canned_responses";
-        $responseCanned = Http::withHeaders(['api_access_token' => $this->apiToken])->get($urlCanned);
-
-        if ($responseCanned->successful()) {
-            return response()->json($responseCanned->json());
-        }
-
-        return response()->json(['error' => 'Nenhum template encontrado em nenhuma rota'], 404);
-
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
+    // Adicionamos ?per_page=100 para garantir que traga todos os modelos de uma vez
+    $urlMeta = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$request->query('inbox_id')}/whatsapp_templates?per_page=100";
+    
+    $response = Http::withHeaders(['api_access_token' => $this->apiToken])->get($urlMeta);
+    
+    // Se a Meta falhar, tentamos as Canned Responses também com limite alto
+    if ($response->failed()) {
+        $urlCanned = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/canned_responses?per_page=100";
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])->get($urlCanned);
     }
+
+    return response()->json($response->json());
 }
 }
+
