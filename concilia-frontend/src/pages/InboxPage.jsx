@@ -54,26 +54,19 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    // Filtro por Inbox
     let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
     if (inboxSelecionada && inboxSelecionada !== 'all') {
       url += `&inbox_id=${inboxSelecionada}`;
     }
 
     fetch(url, {
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Accept': 'application/json' 
-      }
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
     .then(res => res.json())
     .then(response => {
-  console.log("Resposta Conversas:", response);
-      
-      // O Chatwoot retorna um objeto. A lista real fica em response.data ou response.payload
-      const listaExtraida = response.data?.payload || response.payload || (Array.isArray(response) ? response : []);
-  
-  setConversas(Array.isArray(listaExtraida) ? listaExtraida : []);
+      // AJUSTE AQUI: O log mostrou que o array está em response.data.payload ou response.payload
+      const listaExtraida = response.payload || (Array.isArray(response) ? response : []);
+  setConversas(listaExtraida);
   setCarregando(false);
 })
     .catch(e => {
@@ -91,16 +84,15 @@ const InboxPage = () => {
     const chatAtual = conversas.find(c => c.id === conversaSelecionada);
     const inboxId = chatAtual?.inbox_id || "";
 
-    const url = `${API_BASE}/chat/templates?inbox_id=${inboxId}`;
-
     try {
-      const res = await fetch(url, {
+      const res = await fetch(`${API_BASE}/chat/templates?inbox_id=${inboxId}`, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
       });
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data.payload || data || []);
-      }
+      const data = await res.json();
+      
+      // Se for WhatsApp (templates), vem em .payload. Se for Canned, vem na raiz.
+      const listaFinal = data.payload || (Array.isArray(data) ? data : []);
+      setTemplates(listaFinal);
     } catch (e) {
       console.error("Erro templates:", e);
     }

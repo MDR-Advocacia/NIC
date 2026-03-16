@@ -69,7 +69,6 @@ public function createContact(Request $request)
 {
     $status = $request->query('status', 'open');
     $assigneeType = $request->query('assignee_type', 'all');
-
     $queryParams = ['status' => $status];
 
     if ($assigneeType !== 'all') {
@@ -77,22 +76,20 @@ public function createContact(Request $request)
     }
 
     try {
-        // Adicionamos o timeout(5) para evitar o erro 504 no servidor
-        $response = Http::withHeaders([
-            'api_access_token' => $this->apiToken,
-        ])
-        ->timeout(5) 
-        ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", $queryParams);
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->timeout(10) 
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", $queryParams);
 
         if ($response->failed()) {
-            return response()->json(['error' => 'Erro na API do Chatwoot', 'details' => $response->body()], 502);
+            return response()->json(['error' => 'Erro na API'], 502);
         }
 
-        return response()->json($response->json());
+        // FORÇAMOS O FORMATO: Sempre enviamos o payload como a raiz para o Frontend
+        $data = $response->json();
+        return response()->json($data['payload'] ?? $data);
 
     } catch (\Exception $e) {
-        // Se der timeout ou o servidor do Chatwoot estiver fora, retorna erro limpo
-        return response()->json(['error' => 'O servidor do Chatwoot demorou a responder.'], 504);
+        return response()->json(['error' => 'Timeout'], 504);
     }
 }
 public function getInboxes()
