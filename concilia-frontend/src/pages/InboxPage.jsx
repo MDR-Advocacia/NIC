@@ -64,13 +64,17 @@ const InboxPage = () => {
     })
     .then(res => res.json())
     .then(response => {
-      // TRATAMENTO: Tenta pegar de qualquer lugar que o Chatwoot mande
-      const lista = response.payload || response.data || (Array.isArray(response) ? response : []);
-      setConversas(lista);
+      // CORREÇÃO: O Chatwoot no Lab pode estar enviando os dados dentro de 'data' ou 'payload'
+      // Se vier um objeto com 'data', pegamos o data. Se não, tentamos payload.
+      let lista = response.data || response.payload || response;
+      
+      // GARANTIA: Se não for um array, forçamos um array vazio para não quebrar o .map()
+      setConversas(Array.isArray(lista) ? lista : []);
       setCarregando(false);
     })
     .catch(e => {
       console.error("Erro Conversas:", e);
+      setConversas([]); // Evita tela branca em caso de erro
       setCarregando(false);
     });
   };
