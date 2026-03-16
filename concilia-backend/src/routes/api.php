@@ -4,20 +4,11 @@ if (!env('APP_KEY')) {
     config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
 }
 
-// 2. CORS MANUAL AGRESSIVO (Executa antes de qualquer rota)
-if (isset($_SERVER['HTTP_ORIGIN'])) {
-    header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
-    header('Access-Control-Allow-Credentials: true');
-    header('Access-Control-Max-Age: 86400');
-}
-
+// 2. TRATAR APENAS O 'OPTIONS' SEM ADICIONAR ORIGIN MANUAL
+// Isso vai permitir que o Nginx do Coolify mande o header dele sozinho
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD']))
-        header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");         
-    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
-        header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
-    header('HTTP/1.1 200 OK');
-    exit();
+    header('HTTP/1.1 204 No Content');
+    exit;
 }
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
