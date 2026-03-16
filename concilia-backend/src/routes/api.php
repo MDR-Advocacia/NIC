@@ -15,24 +15,8 @@ use App\Http\Controllers\Api\OpposingLawyerController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\PlaintiffController;
 use App\Http\Controllers\Api\DefendantController;
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
 
-if (isset($_SERVER['REQUEST_METHOD'])) {
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
 
-    if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-        exit;
-    }
-}
-/*
-|--------------------------------------------------------------------------
-| Public Routes
-|--------------------------------------------------------------------------
-*/
 // Webhook do Chatwoot (Sem autenticação pois vem do Chatwoot)
 Route::post('/webhooks/chatwoot', [WebhookController::class, 'receive']);
 //Rota para resolver uma conversa (Fechar a conversa no Chatwoot)
