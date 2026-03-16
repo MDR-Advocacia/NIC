@@ -46,6 +46,11 @@ const InboxPage = () => {
     console.error("Erro ao carregar canais:", e);
   }
 };
+// CHAMADA INICIAL: Faz os canais e contatos aparecerem ao carregar a página
+// 1. Faz os canais e contatos aparecerem ao abrir a página
+  useEffect(() => {
+    carregarDadosIniciais();
+  }, []);
 
   const carregarTemplates = async () => {
   console.log("Iniciando busca de templates..."); // Se isso não aparecer no F12, a função não foi chamada
@@ -92,13 +97,21 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    fetch(`/api/chat/conversations?assignee_type=${tipo}`, {
+    // Montamos a URL com os dois filtros: Tipo (Minhas/Todas) e Canal (Inbox)
+    let url = `/api/chat/conversations?assignee_type=${tipo}`;
+    
+    if (inboxSelecionada && inboxSelecionada !== 'all') {
+      url += `&inbox_id=${inboxSelecionada}`;
+    }
+
+    fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
     .then(response => {
-      const lista = response.data?.payload || response.payload || [];
-      setConversas(lista);
+      // Ajuste para garantir que pega a lista independente do formato do objeto
+      const lista = response.payload || response.data || response;
+      setConversas(Array.isArray(lista) ? lista : []);
       setCarregando(false);
     })
     .catch(e => {
@@ -107,7 +120,10 @@ const InboxPage = () => {
     });
   };
 
-  useEffect(() => { buscarConversas(abaAtiva); }, [abaAtiva]);
+// 2. Atualiza a lista de conversas SEMPRE que mudar a aba OU o filtro de canal
+  useEffect(() => {
+    buscarConversas(abaAtiva);
+  }, [abaAtiva, inboxSelecionada]);
 
   // 4. ABRIR CHAT
   const abrirConversa = (chatId) => {
@@ -146,6 +162,11 @@ const InboxPage = () => {
       }
     } catch (e) { console.error(e); }
   };
+  useEffect(() => {
+    if (conversaSelecionada) {
+      carregarTemplates();
+    }
+  }, [conversaSelecionada]);
 
   // 6. ENVIAR TEMPLATE META (Payload oficial Chatwoot)
   const enviarTemplateSelecionado = async (template) => {

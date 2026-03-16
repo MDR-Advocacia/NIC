@@ -238,18 +238,19 @@ public function getMyInboxes(Request $request)
     }
     public function getTemplates(Request $request)
 {
-    // Adicionamos ?per_page=100 para garantir que traga todos os modelos de uma vez
-    $urlMeta = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$request->query('inbox_id')}/whatsapp_templates?per_page=100";
+    $inboxId = $request->query('inbox_id');
     
-    $response = Http::withHeaders(['api_access_token' => $this->apiToken])->get($urlMeta);
-    
-    // Se a Meta falhar, tentamos as Canned Responses também com limite alto
-    if ($response->failed()) {
-        $urlCanned = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/canned_responses?per_page=100";
-        $response = Http::withHeaders(['api_access_token' => $this->apiToken])->get($urlCanned);
-    }
+    // Se não tiver inbox_id, pegamos de uma URL geral ou da primeira inbox
+    $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}";
+    $endpoint = $inboxId 
+        ? "/inboxes/{$inboxId}/whatsapp_templates" 
+        : "/canned_responses"; // Fallback para respostas rápidas se não houver inbox
+
+    $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        ->get($baseUrl . $endpoint, [
+            'per_page' => 100 // Isso força o Chatwoot a mandar todos
+        ]);
 
     return response()->json($response->json());
 }
 }
-
