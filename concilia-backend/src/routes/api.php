@@ -1,4 +1,10 @@
 <?php
+// 1. FORÇAR A CHAVE DE APLICAÇÃO (Resolve o erro "Unable to set application key")
+if (!env('APP_KEY')) {
+    config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
+}
+
+// 2. HEADERS DE CORS (Resolve o erro de sumiço dos dados e canais)
 if (isset($_SERVER['REQUEST_METHOD'])) {
     header('Access-Control-Allow-Origin: https://lab-nic.mdradvocacia.com');
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
