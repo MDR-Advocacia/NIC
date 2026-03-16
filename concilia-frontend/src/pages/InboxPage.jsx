@@ -68,14 +68,14 @@ const InboxPage = () => {
     })
     .then(res => res.json())
     .then(response => {
-      console.log("Resposta Conversas:", response); // Olhe isso no F12 para ter certeza do formato
+  console.log("Resposta Conversas:", response);
       
       // O Chatwoot retorna um objeto. A lista real fica em response.data ou response.payload
-      const listaExtraida = response.data || response.payload || (Array.isArray(response) ? response : []);
-      
-      setConversas(Array.isArray(listaExtraida) ? listaExtraida : []);
-      setCarregando(false);
-    })
+      const listaExtraida = response.data?.payload || response.payload || (Array.isArray(response) ? response : []);
+  
+  setConversas(Array.isArray(listaExtraida) ? listaExtraida : []);
+  setCarregando(false);
+})
     .catch(e => {
       console.error("Erro ao buscar conversas:", e);
       setConversas([]);
