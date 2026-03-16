@@ -238,17 +238,20 @@ public function getMyInboxes(Request $request)
     $inboxId = $request->query('inbox_id');
     $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}";
     
-    // Tenta templates de WhatsApp primeiro
+    // Tenta WhatsApp Templates
     $response = Http::withHeaders(['api_access_token' => $this->apiToken])
         ->get($baseUrl . "/inboxes/{$inboxId}/whatsapp_templates", ['per_page' => 100]);
 
-    // Se falhar ou vier vazio, busca Respostas Rápidas (Canned)
-    if ($response->failed() || empty($response->json()['payload'])) {
+    $data = $response->json();
+    
+    // Se não vier nada no payload, tenta as Respostas Rápidas (Canned)
+    if (empty($data['payload'])) {
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->get($baseUrl . "/canned_responses", ['per_page' => 100]);
+        $data = $response->json();
     }
 
-    // Retorna o JSON puro para o Frontend "garimpar"
-    return response()->json($response->json());
+    // Retorna direto o payload ou o array puro para o React
+    return response()->json($data['payload'] ?? $data);
 }
 }

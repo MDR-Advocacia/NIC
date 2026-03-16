@@ -80,48 +80,31 @@ const InboxPage = () => {
 
   // 3. CARREGAR TEMPLATES (Agora buscando os 100+ configurados no Controller)
   const carregarTemplates = async () => {
-  const token = getCleanToken();
-  if (!token) return;
+    const token = getCleanToken();
+    if (!token) return;
 
-  // 1. Identifica a Inbox atual
-  const chatAtual = conversas.find(c => c.id === conversaSelecionada);
-  const inboxId = chatAtual?.inbox_id || "";
+    const chatAtual = conversas.find(c => c.id === conversaSelecionada);
+    const inboxId = chatAtual?.inbox_id || "";
 
-  // 2. Monta a URL (O Controller já está com per_page=100)
-  const url = `${API_BASE}/chat/templates?inbox_id=${inboxId}`;
+    const url = `${API_BASE}/chat/templates?inbox_id=${inboxId}`;
 
-  try {
-    const res = await fetch(url, {
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Accept': 'application/json' 
-      }
-    });
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+      
+      const response = await res.json();
+      console.log("Templates Processados:", response);
 
-    if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
+      // Como o Controller agora manda mastigado, pegamos o que vier
+      const listaFinal = response.payload || (Array.isArray(response) ? response : []);
 
-    const response = await res.json();
-    console.log("Templates Brutos recebidos:", response);
-
-    // 3. GARIMPAGEM DEFINITIVA
-    // O Laravel/Chatwoot pode estruturar de 3 formas diferentes, testamos todas:
-    const listaFinal = 
-      response.data?.payload || // Caso 1: Laravel encapsulando o payload do Chatwoot
-      response.payload ||        // Caso 2: Chatwoot direto
-      response.data ||           // Caso 3: Laravel mandando array direto em data
-      (Array.isArray(response) ? response : []); // Caso 4: Array puro
-
-    console.log("Lista de Templates Processada:", listaFinal);
-    setTemplates(Array.isArray(listaFinal) ? listaFinal : []);
-
-  } catch (e) {
-    // Ignora erros de comunicação de extensões (message channel closed)
-    if (!e.message.includes("listener")) {
-      console.error("Erro real nos templates:", e);
+      setTemplates(listaFinal);
+    } catch (e) {
+      console.error("Erro ao carregar templates:", e);
+      setTemplates([]);
     }
-    setTemplates([]);
-  }
-};
+  };
 
   // --- USE EFFECTS DE CONTROLE ---
   useEffect(() => {
