@@ -83,19 +83,31 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
+    // 1. Pega a conversa selecionada para saber qual é o Inbox ID
     const chatAtual = conversas.find(c => c.id === conversaSelecionada);
     const inboxId = chatAtual?.inbox_id || "";
 
+    // 2. Chama a rota que já configuramos com per_page=100 no Controller
+    const url = `${API_BASE}/chat/templates?inbox_id=${inboxId}`;
+
     try {
-      const res = await fetch(`${API_BASE}/chat/templates?inbox_id=${inboxId}`, {
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
       });
+      
       const response = await res.json();
-      // CORREÇÃO: Garante que os 100 itens do payload sejam lidos corretamente
-      const listaFinal = response.data?.payload || response.payload || (Array.isArray(response) ? response : []);
-      setTemplates(listaFinal);
+      console.log("Templates Brutos:", response);
+
+      // 3. O SEGREDO: O Chatwoot pode mandar em .payload ou .data.payload
+      const listaFinal = 
+        response.payload || 
+        response.data?.payload || 
+        (Array.isArray(response) ? response : []);
+
+      setTemplates(Array.isArray(listaFinal) ? listaFinal : []);
     } catch (e) {
-      console.error("Erro templates:", e);
+      console.error("Erro ao carregar templates:", e);
+      setTemplates([]);
     }
   };
 
