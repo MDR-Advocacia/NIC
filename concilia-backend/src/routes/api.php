@@ -4,17 +4,11 @@ if (!env('APP_KEY')) {
     config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
 }
 
-// 2. HEADERS DE CORS (Resolve o erro de sumiço dos dados e canais)
-if (isset($_SERVER['REQUEST_METHOD'])) {
-    header('Access-Control-Allow-Origin: https://lab-nic.mdradvocacia.com');
-    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
 
     if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
         header('HTTP/1.1 204 No Content');
         exit;
     }
-}
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
