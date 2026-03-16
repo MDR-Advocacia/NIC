@@ -34,15 +34,17 @@ const InboxPage = () => {
       const resInboxes = await fetch(`${API_BASE}/chat/inboxes`, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
       });
-      const dataInboxes = await resInboxes.json();
-      const listaInboxes = Array.isArray(dataInboxes) ? dataInboxes : (dataInboxes.payload || []);
+      const response = await resInboxes.json();
+      // Ajuste de mapeamento para Inboxes
+      const listaInboxes = response.data?.payload || response.payload || (Array.isArray(response) ? response : []);
       setInboxes(listaInboxes);
 
       const resContatos = await fetch(`${API_BASE}/chat/contacts`, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
       });
       const dataContatos = await resContatos.json();
-      setContatos(Array.isArray(dataContatos) ? dataContatos : (dataContatos.payload || []));
+      const listaContatos = dataContatos.data?.payload || dataContatos.payload || (Array.isArray(dataContatos) ? dataContatos : []);
+      setContatos(listaContatos);
     } catch (e) {
       console.error("Erro ao carregar dados iniciais:", e);
     }
@@ -64,11 +66,11 @@ const InboxPage = () => {
     })
     .then(res => res.json())
     .then(response => {
-      // AJUSTE AQUI: O log mostrou que o array está em response.data.payload ou response.payload
-      const listaExtraida = response.payload || (Array.isArray(response) ? response : []);
-  setConversas(listaExtraida);
-  setCarregando(false);
-})
+      // CORREÇÃO: Mapeia o caminho response.data.payload vindo do Laravel
+      const listaExtraida = response.data?.payload || response.payload || (Array.isArray(response) ? response : []);
+      setConversas(Array.isArray(listaExtraida) ? listaExtraida : []);
+      setCarregando(false);
+    })
     .catch(e => {
       console.error("Erro ao buscar conversas:", e);
       setConversas([]);
@@ -76,7 +78,7 @@ const InboxPage = () => {
     });
   };
 
-  // 3. CARREGAR TEMPLATES
+  // 3. CARREGAR TEMPLATES (Agora buscando os 100+ configurados no Controller)
   const carregarTemplates = async () => {
     const token = getCleanToken();
     if (!token) return;
@@ -88,10 +90,9 @@ const InboxPage = () => {
       const res = await fetch(`${API_BASE}/chat/templates?inbox_id=${inboxId}`, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
       });
-      const data = await res.json();
-      
-      // Se for WhatsApp (templates), vem em .payload. Se for Canned, vem na raiz.
-      const listaFinal = data.payload || (Array.isArray(data) ? data : []);
+      const response = await res.json();
+      // CORREÇÃO: Garante que os 100 itens do payload sejam lidos corretamente
+      const listaFinal = response.data?.payload || response.payload || (Array.isArray(response) ? response : []);
       setTemplates(listaFinal);
     } catch (e) {
       console.error("Erro templates:", e);
@@ -99,18 +100,14 @@ const InboxPage = () => {
   };
 
   // --- USE EFFECTS DE CONTROLE ---
-  
-  // Ao montar o componente: busca canais
   useEffect(() => {
     carregarDadosIniciais();
   }, []);
 
-  // Sempre que mudar aba ou canal: busca conversas
   useEffect(() => {
     buscarConversas(abaAtiva);
   }, [abaAtiva, inboxSelecionada]);
 
-  // Sempre que selecionar um chat: carrega templates específicos
   useEffect(() => {
     if (conversaSelecionada) {
       carregarTemplates();
@@ -129,7 +126,6 @@ const InboxPage = () => {
     })
     .then(res => res.json())
     .then(data => {
-      // Ajuste para pegar as mensagens corretamente
       const msgLista = data.data?.payload || data.payload || (Array.isArray(data) ? data : []);
       setMensagens([...msgLista].sort((a, b) => a.id - b.id));
       setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
@@ -226,7 +222,6 @@ const InboxPage = () => {
   return (
     <div style={{ display: 'flex', height: '88vh', backgroundColor: '#f8f9fa', margin: '-20px', fontFamily: 'Inter, sans-serif' }}>
       
-      {/* MODAL NOVO CONTATO */}
       {modalAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
@@ -256,7 +251,6 @@ const InboxPage = () => {
         </div>
       )}
       
-      {/* MENU LATERAL */}
       <div style={{ width: '240px', backgroundColor: '#fff', borderRight: '1px solid #e0e0e0', padding: '15px' }}>
         <div style={{ fontWeight: '800', color: '#1a73e8', marginBottom: '25px', padding: '12px', backgroundColor: '#f0f4ff', borderRadius: '10px', fontSize: '14px', textAlign: 'center' }}>
           NIC AGENT
@@ -268,7 +262,6 @@ const InboxPage = () => {
         </div>
       </div>
       
-      {/* COLUNA LISTAGEM */}
       <div style={{ width: '380px', backgroundColor: '#fff', borderRight: '1px solid #e0e0e0', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px', borderBottom: '1px solid #f0f0f0' }}>
           <select value={inboxSelecionada} onChange={(e) => setInboxSelecionada(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '8px', border: '1px solid #dcdcdc', backgroundColor: '#f9f9f9', outline: 'none', fontSize: '13px' }}>
@@ -288,23 +281,22 @@ const InboxPage = () => {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-           {(visaoAtiva === 'conversas' ? conversas : contatos.filter(c => c.name.toLowerCase().includes(buscaContato.toLowerCase()))).map(item => {
-             const nome = item.name || item.meta?.sender?.name || "Sem Nome";
-             const iniciais = nome.charAt(0).toUpperCase();
-             return (
-               <div key={item.id} onClick={() => visaoAtiva === 'conversas' ? abrirConversa(item.id) : setContatoParaDetalhar(item)} style={{ padding: '15px 20px', borderBottom: '1px solid #f8f8f8', cursor: 'pointer', backgroundColor: (conversaSelecionada === item.id) ? '#e8f0fe' : '#fff', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#dadce0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#5f6368', flexShrink: 0 }}>{iniciais}</div>
-                 <div style={{ flex: 1, minWidth: 0 }}>
-                   <div style={{ fontWeight: '700', fontSize: '14px', color: '#202124' }}>{nome}</div>
-                   <div style={{ fontSize: '12px', color: '#70757a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.phone_number || "Ver chat"}</div>
-                 </div>
-               </div>
-             );
-           })}
+            {(visaoAtiva === 'conversas' ? conversas : contatos.filter(c => c.name.toLowerCase().includes(buscaContato.toLowerCase()))).map(item => {
+              const nome = item.meta?.sender?.name || item.name || "Sem Nome";
+              const iniciais = nome.charAt(0).toUpperCase();
+              return (
+                <div key={item.id} onClick={() => visaoAtiva === 'conversas' ? abrirConversa(item.id) : setContatoParaDetalhar(item)} style={{ padding: '15px 20px', borderBottom: '1px solid #f8f8f8', cursor: 'pointer', backgroundColor: (conversaSelecionada === item.id) ? '#e8f0fe' : '#fff', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#dadce0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#5f6368', flexShrink: 0 }}>{iniciais}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: '700', fontSize: '14px', color: '#202124' }}>{nome}</div>
+                    <div style={{ fontSize: '12px', color: '#70757a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.phone_number || "Ver chat"}</div>
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </div>
 
-      {/* ÁREA CHAT */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#f0f2f5' }}>
         {conversaSelecionada ? (
           <>
@@ -345,25 +337,25 @@ const InboxPage = () => {
                 📋
               </button>
               {mostrarTemplates && (
-                <div style={{ position: 'absolute', bottom: '80px', left: '20px', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', width: '250px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', zIndex: 100 }}>
-                  <div style={{ padding: '10px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}>Templates</div>
-                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                    {templates.map(t => (
+                <div style={{ position: 'absolute', bottom: '80px', left: '20px', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', width: '280px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', zIndex: 100 }}>
+                  <div style={{ padding: '12px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px', backgroundColor: '#f8f9fa', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>Templates Disponíveis</div>
+                  <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                    {templates.length > 0 ? templates.map(t => (
                       <div 
                         key={t.id} 
                         onClick={() => enviarTemplateSelecionado(t)} 
-                        style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
-                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                        style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee', transition: '0.2s' }}
+                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#f1f3f4'}
                         onMouseOut={e => e.currentTarget.style.backgroundColor = '#fff'}
                       >
-                        <strong style={{ color: '#1a73e8', display: 'block' }}>
+                        <strong style={{ color: '#1a73e8', display: 'block', fontSize: '13px' }}>
                             {t.name || t.short_code || "Sem título"}
                         </strong>
-                        <span style={{ fontSize: '11px', color: '#666' }}>
+                        <span style={{ fontSize: '11px', color: '#5f6368', display: 'block', marginTop: '4px', maxHeight: '40px', overflow: 'hidden' }}>
                             {t.message || t.content || "Clique para enviar"}
                         </span>
                       </div>
-                    ))}
+                    )) : <div style={{padding: '20px', textAlign: 'center', fontSize: '12px', color: '#999'}}>Nenhum template encontrado</div>}
                   </div>
                 </div>
               )}
