@@ -137,10 +137,10 @@ const InboxPage = () => {
     })
     .then(res => res.json())
     .then(data => {
-      // O Chatwoot retorna as mensagens dentro de 'payload' nesta rota
-      const msgLista = data.payload || data.data || (Array.isArray(data) ? data : []);
+      // Ajuste para pegar as mensagens corretamente
+      const msgLista = data.data?.payload || data.payload || (Array.isArray(data) ? data : []);
       setMensagens([...msgLista].sort((a, b) => a.id - b.id));
-      setContatoParaDetalhar(data.meta?.sender || null);
+      setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
       setCarregandoChat(false);
     }).catch(() => setCarregandoChat(false));
   };
