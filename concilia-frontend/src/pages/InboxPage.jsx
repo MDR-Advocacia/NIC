@@ -54,27 +54,19 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    // Usando a URL da API para evitar o 502 do proxy
-    let url = `https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`;
-    
-    if (inboxSelecionada && inboxSelecionada !== 'all') {
+    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
+    if (inboxSelecionada !== 'all') {
       url += `&inbox_id=${inboxSelecionada}`;
     }
 
     fetch(url, {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
-      }
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
-    .then(res => {
-      if (!res.ok) throw new Error('Falha na rede');
-      return res.json();
-    })
+    .then(res => res.json())
     .then(response => {
-      // O Chatwoot pode mandar dentro de payload ou data
-      const lista = response.payload || response.data || response;
-      setConversas(Array.isArray(lista) ? lista : []);
+      // TRATAMENTO: Tenta pegar de qualquer lugar que o Chatwoot mande
+      const lista = response.payload || response.data || (Array.isArray(response) ? response : []);
+      setConversas(lista);
       setCarregando(false);
     })
     .catch(e => {
@@ -131,12 +123,14 @@ const InboxPage = () => {
     setConversaSelecionada(chatId);
     setCarregandoChat(true);
     const token = getCleanToken();
+    
     fetch(`${API_BASE}/chat/conversations/${chatId}`, {
       headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
     .then(res => res.json())
     .then(data => {
-      const msgLista = data.payload || data.data || data || [];
+      // O Chatwoot retorna as mensagens dentro de 'payload' nesta rota
+      const msgLista = data.payload || data.data || (Array.isArray(data) ? data : []);
       setMensagens([...msgLista].sort((a, b) => a.id - b.id));
       setContatoParaDetalhar(data.meta?.sender || null);
       setCarregandoChat(false);
