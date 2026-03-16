@@ -1,12 +1,23 @@
 <?php
-// 1. FORÇAR A CHAVE (Necessário para o Coolify não dar erro 500)
+// 1. FORÇAR APP_KEY (Caso o Coolify limpe o .env)
 if (!env('APP_KEY')) {
     config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
 }
 
-// 2. APENAS FECHAR A REQUISIÇÃO DE PREFLIGHT (Sem adicionar headers extras)
+// 2. CORS MANUAL AGRESSIVO (Executa antes de qualquer rota)
+if (isset($_SERVER['HTTP_ORIGIN'])) {
+    header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Max-Age: 86400');
+}
+
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    exit(0);
+    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD']))
+        header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");         
+    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
+        header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
+    header('HTTP/1.1 200 OK');
+    exit();
 }
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
