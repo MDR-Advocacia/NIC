@@ -54,27 +54,31 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
+    // Filtro por Inbox
     let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
-    if (inboxSelecionada !== 'all') {
+    if (inboxSelecionada && inboxSelecionada !== 'all') {
       url += `&inbox_id=${inboxSelecionada}`;
     }
 
     fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Accept': 'application/json' 
+      }
     })
     .then(res => res.json())
     .then(response => {
-      // CORREÇÃO: O Chatwoot no Lab pode estar enviando os dados dentro de 'data' ou 'payload'
-      // Se vier um objeto com 'data', pegamos o data. Se não, tentamos payload.
-      let lista = response.data || response.payload || response;
+      console.log("Resposta Conversas:", response); // Olhe isso no F12 para ter certeza do formato
       
-      // GARANTIA: Se não for um array, forçamos um array vazio para não quebrar o .map()
-      setConversas(Array.isArray(lista) ? lista : []);
+      // O Chatwoot retorna um objeto. A lista real fica em response.data ou response.payload
+      const listaExtraida = response.data || response.payload || (Array.isArray(response) ? response : []);
+      
+      setConversas(Array.isArray(listaExtraida) ? listaExtraida : []);
       setCarregando(false);
     })
     .catch(e => {
-      console.error("Erro Conversas:", e);
-      setConversas([]); // Evita tela branca em caso de erro
+      console.error("Erro ao buscar conversas:", e);
+      setConversas([]);
       setCarregando(false);
     });
   };
