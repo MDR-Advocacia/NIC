@@ -54,16 +54,25 @@ const InboxPage = () => {
     const token = getCleanToken();
     if (!token) return;
 
-    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
-    if (inboxSelecionada !== 'all') {
+    // Usando a URL da API para evitar o 502 do proxy
+    let url = `https://api-nic-lab.mdradvocacia.com/api/chat/conversations?assignee_type=${tipo}`;
+    
+    if (inboxSelecionada && inboxSelecionada !== 'all') {
       url += `&inbox_id=${inboxSelecionada}`;
     }
 
     fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
     })
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) throw new Error('Falha na rede');
+      return res.json();
+    })
     .then(response => {
+      // O Chatwoot pode mandar dentro de payload ou data
       const lista = response.payload || response.data || response;
       setConversas(Array.isArray(lista) ? lista : []);
       setCarregando(false);
