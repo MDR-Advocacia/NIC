@@ -1,21 +1,11 @@
 <?php
-// 1. FORÇAR A CHAVE DE APLICAÇÃO (Resolve o erro "Unable to set application key")
+// 1. FORÇAR A CHAVE (Necessário para o Coolify não dar erro 500)
 if (!env('APP_KEY')) {
     config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
 }
 
-// 2. SOLUÇÃO DEFINITIVA DE CORS (Força o header em todas as requisições)
-if (isset($_SERVER['HTTP_ORIGIN'])) {
-    header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
-    header('Access-Control-Allow-Credentials: true');
-    header('Access-Control-Max-Age: 86400');    
-}
-
+// 2. APENAS FECHAR A REQUISIÇÃO DE PREFLIGHT (Sem adicionar headers extras)
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD']))
-        header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");         
-    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
-        header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
     exit(0);
 }
 use Illuminate\Http\Request;
