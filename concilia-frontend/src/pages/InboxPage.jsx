@@ -19,6 +19,8 @@ const InboxPage = () => {
   const [templates, setTemplates] = useState([]);
   const [mostrarTemplates, setMostrarTemplates] = useState(false);
 
+  const API_BASE = "https://api-nic-lab.mdradvocacia.com/api";
+
   // Helper para pegar token limpo
   const getCleanToken = () => {
     const token = localStorage.getItem('authToken');
@@ -26,90 +28,42 @@ const InboxPage = () => {
   };
 
   // 1. CARREGAR DADOS INICIAIS (Canais e Contatos)
-  // Usando URLs relativas para passar pelo Proxy do Vite
   const carregarDadosIniciais = async () => {
-  const token = getCleanToken();
-  const API_BASE = "https://api-nic-lab.mdradvocacia.com/api";
+    const token = getCleanToken();
+    try {
+      const resInboxes = await fetch(`${API_BASE}/chat/inboxes`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+      const dataInboxes = await resInboxes.json();
+      const listaInboxes = Array.isArray(dataInboxes) ? dataInboxes : (dataInboxes.payload || []);
+      setInboxes(listaInboxes);
 
-  try {
-    const resInboxes = await fetch(`${API_BASE}/chat/inboxes`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-    });
-    const dataInboxes = await resInboxes.json();
-    
-    // TRATAMENTO CRÍTICO: Garante que 'inboxes' seja sempre um Array
-    const listaInboxes = Array.isArray(dataInboxes) ? dataInboxes : (dataInboxes.payload || []);
-    setInboxes(listaInboxes);
-    console.log("Canais carregados:", listaInboxes.length);
-
-  } catch (e) {
-    console.error("Erro ao carregar canais:", e);
-  }
-};
-// CHAMADA INICIAL: Faz os canais e contatos aparecerem ao carregar a página
-// 1. Faz os canais e contatos aparecerem ao abrir a página
-  useEffect(() => {
-    carregarDadosIniciais();
-  }, []);
-
-  const carregarTemplates = async () => {
-  console.log("Iniciando busca de templates..."); // Se isso não aparecer no F12, a função não foi chamada
-  const token = getCleanToken();
-  if (!token) return;
-
-  // Pegamos a inbox da conversa selecionada
-  const chatAtual = conversas.find(c => c.id === conversaSelecionada);
-  const inboxId = chatAtual?.inbox_id || "";
-
-  // URL da SUA API NIC
-  const url = `https://api-nic-lab.mdradvocacia.com/api/chat/templates?inbox_id=${inboxId}`;
-
-  try {
-    const res = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      console.log("Dados recebidos da API:", data); // Verifique o que chega aqui
-      const lista = data.payload || data || [];
-      setTemplates(lista);
-    } else {
-      console.error("Erro na resposta da API:", res.status);
+      const resContatos = await fetch(`${API_BASE}/chat/contacts`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+      const dataContatos = await resContatos.json();
+      setContatos(Array.isArray(dataContatos) ? dataContatos : (dataContatos.payload || []));
+    } catch (e) {
+      console.error("Erro ao carregar dados iniciais:", e);
     }
-  } catch (e) {
-    console.error("Erro na requisição de templates:", e);
-  }
-};
+  };
 
-
-  // 2. CORREÇÃO DO LOOP INFINITO
-  // Use este useEffect EXATAMENTE assim para parar o travamento do console
-  useEffect(() => {
-    if (inboxes.length > 0) {
-      carregarTemplates();
-    }
-  }, [inboxSelecionada, inboxes.length]); // Só dispara se mudar a inbox ou carregar a lista inicial
-
-  // 3. BUSCAR CONVERSAS
+  // 2. BUSCAR CONVERSAS (Com filtro de Inbox)
   const buscarConversas = (tipo) => {
     setCarregando(true);
     const token = getCleanToken();
     if (!token) return;
 
-    // Montamos a URL com os dois filtros: Tipo (Minhas/Todas) e Canal (Inbox)
-    let url = `/api/chat/conversations?assignee_type=${tipo}`;
-    
-    if (inboxSelecionada && inboxSelecionada !== 'all') {
+    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
+    if (inboxSelecionada !== 'all') {
       url += `&inbox_id=${inboxSelecionada}`;
     }
 
     fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
     .then(res => res.json())
     .then(response => {
-      // Ajuste para garantir que pega a lista independente do formato do objeto
       const lista = response.payload || response.data || response;
       setConversas(Array.isArray(lista) ? lista : []);
       setCarregando(false);
@@ -120,38 +74,76 @@ const InboxPage = () => {
     });
   };
 
-// 2. Atualiza a lista de conversas SEMPRE que mudar a aba OU o filtro de canal
+  // 3. CARREGAR TEMPLATES
+  const carregarTemplates = async () => {
+    const token = getCleanToken();
+    if (!token) return;
+
+    const chatAtual = conversas.find(c => c.id === conversaSelecionada);
+    const inboxId = chatAtual?.inbox_id || "";
+
+    const url = `${API_BASE}/chat/templates?inbox_id=${inboxId}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates(data.payload || data || []);
+      }
+    } catch (e) {
+      console.error("Erro templates:", e);
+    }
+  };
+
+  // --- USE EFFECTS DE CONTROLE ---
+  
+  // Ao montar o componente: busca canais
+  useEffect(() => {
+    carregarDadosIniciais();
+  }, []);
+
+  // Sempre que mudar aba ou canal: busca conversas
   useEffect(() => {
     buscarConversas(abaAtiva);
   }, [abaAtiva, inboxSelecionada]);
 
-  // 4. ABRIR CHAT
+  // Sempre que selecionar um chat: carrega templates específicos
+  useEffect(() => {
+    if (conversaSelecionada) {
+      carregarTemplates();
+    }
+  }, [conversaSelecionada]);
+
+  // --- FUNÇÕES DE AÇÃO ---
+
   const abrirConversa = (chatId) => {
     setConversaSelecionada(chatId);
     setCarregandoChat(true);
     const token = getCleanToken();
-    fetch(`/api/chat/conversations/${chatId}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+    fetch(`${API_BASE}/chat/conversations/${chatId}`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     })
     .then(res => res.json())
     .then(data => {
-      const msgLista = data.payload || data.data || [];
+      const msgLista = data.payload || data.data || data || [];
       setMensagens([...msgLista].sort((a, b) => a.id - b.id));
       setContatoParaDetalhar(data.meta?.sender || null);
       setCarregandoChat(false);
     }).catch(() => setCarregandoChat(false));
   };
 
-  // 5. ENVIAR MENSAGEM TEXTO
   const enviarMensagem = async () => {
     if (!novaMensagem.trim() || !conversaSelecionada) return;
     const token = getCleanToken();
     try {
-      const response = await fetch(`/api/chat/conversations/${conversaSelecionada}/messages`, {
+      const response = await fetch(`${API_BASE}/chat/conversations/${conversaSelecionada}/messages`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`, 
-          'Content-Type': 'application/json' 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ content: novaMensagem })
       });
@@ -162,69 +154,55 @@ const InboxPage = () => {
       }
     } catch (e) { console.error(e); }
   };
-  useEffect(() => {
-    if (conversaSelecionada) {
-      carregarTemplates();
-    }
-  }, [conversaSelecionada]);
 
-  // 6. ENVIAR TEMPLATE META (Payload oficial Chatwoot)
   const enviarTemplateSelecionado = async (template) => {
-  if (!conversaSelecionada) return;
-  const token = getCleanToken();
+    if (!conversaSelecionada) return;
+    const token = getCleanToken();
+    const textoParaEnviar = template.message || template.content || template.name;
 
-  const url = `https://api-nic-lab.mdradvocacia.com/api/chat/conversations/${conversaSelecionada}/messages`;
+    const payload = {
+      content: textoParaEnviar, 
+      message_type: 'outgoing',
+      content_type: 'text', 
+      content_attributes: {
+        template_name: template.name,
+        language_code: template.language || 'pt_BR'
+      }
+    };
 
-  // Pegamos o texto real do template. Se não tiver 'message', usamos 'content'.
-  const textoParaEnviar = template.message || template.content || template.name;
+    try {
+      const response = await fetch(`${API_BASE}/chat/conversations/${conversaSelecionada}/messages`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`, 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
-  const payload = {
-    content: textoParaEnviar, 
-    message_type: 'outgoing',
-    content_type: 'text', // MUDAMOS DE 'template' PARA 'text'
-    content_attributes: {
-      template_name: template.name,
-      language_code: template.language || 'pt_BR'
+      if (response.ok) {
+        setMostrarTemplates(false);
+        abrirConversa(conversaSelecionada);
+      } else {
+        const result = await response.json();
+        alert("Erro ao enviar: " + (result.error || "Erro desconhecido"));
+      }
+    } catch (e) {
+      console.error("Erro na requisição:", e);
     }
   };
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (response.ok) {
-      setMostrarTemplates(false);
-      abrirConversa(conversaSelecionada);
-    } else {
-      const result = await response.json();
-      alert("Erro ao enviar: " + (result.error || "Verifique a conexão."));
-    }
-  } catch (e) {
-    console.error("Erro na requisição:", e);
-  }
-};
-  // Carregar templates sempre que a Inbox selecionada mudar
-  useEffect(() => {
-    if (inboxes.length > 0) carregarTemplates();
-  }, [inboxSelecionada, inboxes]);
-
-  // 7. CRIAR CONTATO
   const handlesubmitNovoContato = async (e) => {
     e.preventDefault();
     const token = getCleanToken();
     try {
-      const response = await fetch('/api/chat/contacts', {
+      const response = await fetch(`${API_BASE}/chat/contacts`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`, 
-          'Content-Type': 'application/json' 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(novoContato)
       });
@@ -237,7 +215,7 @@ const InboxPage = () => {
     } catch (error) { console.error(error); }
   };
 
-  // Estilos permanecem os mesmos...
+  // Estilos
   const estiloInputWhite = { width: '100%', padding: '12px', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '8px', marginTop: '6px', fontSize: '14px', outline: 'none' };
   const estiloCampo = { marginBottom: '20px' };
   const estiloTab = (ativo) => ({ flex: 1, padding: '8px', fontSize: '12px', cursor: 'pointer', border: 'none', borderRadius: '6px', backgroundColor: ativo ? '#1a73e8' : '#f1f3f4', color: ativo ? '#fff' : '#5f6368', fontWeight: 'bold' });
@@ -355,35 +333,34 @@ const InboxPage = () => {
 
             <div style={{ padding: '20px', backgroundColor: '#fff', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '12px', position: 'relative' }}>
               <button 
-  onClick={() => {
-    setMostrarTemplates(!mostrarTemplates);
-    if (!mostrarTemplates) carregarTemplates(); // Busca os dados ao abrir
-  }} 
-  style={{ padding: '0 15px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '30px', cursor: 'pointer', fontSize: '18px' }}
->
-  📋
-</button>
+                onClick={() => {
+                  setMostrarTemplates(!mostrarTemplates);
+                  if (!mostrarTemplates) carregarTemplates(); 
+                }} 
+                style={{ padding: '0 15px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '30px', cursor: 'pointer', fontSize: '18px' }}
+              >
+                📋
+              </button>
               {mostrarTemplates && (
                 <div style={{ position: 'absolute', bottom: '80px', left: '20px', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', width: '250px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', zIndex: 100 }}>
                   <div style={{ padding: '10px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}>Templates</div>
-                  <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                     {templates.map(t => (
-  <div 
-    key={t.id} 
-    onClick={() => enviarTemplateSelecionado(t)} 
-    style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
-    onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-    onMouseOut={e => e.currentTarget.style.backgroundColor = '#fff'}
-  >
-    {/* Tenta mostrar o nome da Meta ou o atalho da Resposta Rápida */}
-    <strong style={{ color: '#1a73e8', display: 'block' }}>
-        {t.name || t.short_code || "Sem título"}
-    </strong>
-    <span style={{ fontSize: '11px', color: '#666' }}>
-        {t.message || t.content || "Clique para enviar"}
-    </span>
-  </div>
-))}
+                      <div 
+                        key={t.id} 
+                        onClick={() => enviarTemplateSelecionado(t)} 
+                        style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
+                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                        onMouseOut={e => e.currentTarget.style.backgroundColor = '#fff'}
+                      >
+                        <strong style={{ color: '#1a73e8', display: 'block' }}>
+                            {t.name || t.short_code || "Sem título"}
+                        </strong>
+                        <span style={{ fontSize: '11px', color: '#666' }}>
+                            {t.message || t.content || "Clique para enviar"}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

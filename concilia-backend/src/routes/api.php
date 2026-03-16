@@ -15,7 +15,13 @@ use App\Http\Controllers\Api\OpposingLawyerController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\PlaintiffController;
 use App\Http\Controllers\Api\DefendantController;
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
 
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    exit;
+}
 /*
 |--------------------------------------------------------------------------
 | Public Routes
