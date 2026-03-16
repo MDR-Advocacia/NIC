@@ -4,10 +4,19 @@ if (!env('APP_KEY')) {
     config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
 }
 
-// 2. APENAS TRATAR O PREFLIGHT (Sem enviar headers manuais de origin)
+// 2. SOLUÇÃO DEFINITIVA DE CORS (Força o header em todas as requisições)
+if (isset($_SERVER['HTTP_ORIGIN'])) {
+    header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Max-Age: 86400');    
+}
+
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    header('HTTP/1.1 204 No Content');
-    exit;
+    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD']))
+        header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");         
+    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
+        header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
+    exit(0);
 }
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
