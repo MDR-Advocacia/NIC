@@ -236,18 +236,19 @@ public function getMyInboxes(Request $request)
     public function getTemplates(Request $request)
 {
     $inboxId = $request->query('inbox_id');
-    
-    // Se não tiver inbox_id, pegamos de uma URL geral ou da primeira inbox
     $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}";
-    $endpoint = $inboxId 
-        ? "/inboxes/{$inboxId}/whatsapp_templates" 
-        : "/canned_responses"; // Fallback para respostas rápidas se não houver inbox
-
+    
+    // Tenta templates de WhatsApp primeiro
     $response = Http::withHeaders(['api_access_token' => $this->apiToken])
-        ->get($baseUrl . $endpoint, [
-            'per_page' => 100 // Isso força o Chatwoot a mandar todos
-        ]);
+        ->get($baseUrl . "/inboxes/{$inboxId}/whatsapp_templates", ['per_page' => 100]);
 
+    // Se falhar ou vier vazio, busca Respostas Rápidas (Canned)
+    if ($response->failed() || empty($response->json()['payload'])) {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get($baseUrl . "/canned_responses", ['per_page' => 100]);
+    }
+
+    // Retorna o JSON puro para o Frontend "garimpar"
     return response()->json($response->json());
 }
 }
