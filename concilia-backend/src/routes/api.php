@@ -4,17 +4,10 @@ if (!env('APP_KEY')) {
     config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
 }
 
-// 2. LIBERAÇÃO DE CORS PARA TODOS OS MÉTODOS (GET, POST, etc)
-if (isset($_SERVER['REQUEST_METHOD'])) {
-    header('Access-Control-Allow-Origin: https://lab-nic.mdradvocacia.com');
-    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
-
-    // Se for apenas uma checagem do navegador (OPTIONS), responde e para aqui
-    if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-        header('HTTP/1.1 204 No Content');
-        exit;
-    }
+// 2. APENAS TRATAR O PREFLIGHT (Sem enviar headers manuais de origin)
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    header('HTTP/1.1 204 No Content');
+    exit;
 }
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
