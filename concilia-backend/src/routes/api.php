@@ -4,11 +4,18 @@ if (!env('APP_KEY')) {
     config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
 }
 
-
+// 2. PROTEÇÃO DE HEADERS (Tudo que usa $_SERVER deve estar aqui dentro)
+if (isset($_SERVER['REQUEST_METHOD'])) {
+    // Se o seu Laravel já lida com CORS, você pode até remover essas linhas de header abaixo
+    // Mas se mantiver, elas precisam estar protegidas pelo isset
     if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+        header('Access-Control-Allow-Origin: https://lab-nic.mdradvocacia.com');
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
         header('HTTP/1.1 204 No Content');
         exit;
     }
+}
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
