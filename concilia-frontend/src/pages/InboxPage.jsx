@@ -81,10 +81,18 @@ const InboxPage = () => {
   // 3. CARREGAR TEMPLATES (Agora buscando os 100+ configurados no Controller)
   const carregarTemplates = async () => {
     const token = getCleanToken();
-    if (!token) return;
+    if (!token || !conversaSelecionada) return;
 
-    const chatAtual = conversas.find(c => c.id === conversaSelecionada);
-    const inboxId = chatAtual?.inbox_id || "";
+    // 1. Pega a conversa ativa direto do estado de conversas
+    const conversaAtiva = conversas.find(c => c.id === conversaSelecionada);
+    const inboxId = conversaAtiva?.inbox_id;
+
+    console.log("Buscando templates para Inbox:", inboxId);
+
+    if (!inboxId) {
+        console.error("Erro: inboxId não encontrado para esta conversa.");
+        return;
+    }
 
     const url = `${API_BASE}/chat/templates?inbox_id=${inboxId}`;
 
@@ -92,20 +100,19 @@ const InboxPage = () => {
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
       });
-      
       const response = await res.json();
-      console.log("DADO REAL DA API:", response);
+      
+      console.log("DADO BRUTO DA META:", response);
 
-      // Tenta pegar o payload (padrão Meta) ou o data (padrão Laravel)
+      // 2. Tenta extrair a lista de templates (Estrutura da Meta via Chatwoot)
       const listaFinal = 
         response.payload || 
         response.data?.payload || 
-        (Array.isArray(response) ? response : (response.data || []));
+        (Array.isArray(response) ? response : []);
 
-      setTemplates(Array.isArray(listaFinal) ? listaFinal : []);
+      setTemplates(listaFinal);
     } catch (e) {
       console.error("Erro ao carregar templates:", e);
-      setTemplates([]);
     }
   };
 
