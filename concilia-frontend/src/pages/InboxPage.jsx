@@ -94,12 +94,15 @@ const InboxPage = () => {
       });
       
       const response = await res.json();
-      console.log("Templates Processados:", response);
+      console.log("DADO REAL DA API:", response);
 
-      // Como o Controller agora manda mastigado, pegamos o que vier
-      const listaFinal = response.payload || (Array.isArray(response) ? response : []);
+      // Tenta pegar o payload (padrão Meta) ou o data (padrão Laravel)
+      const listaFinal = 
+        response.payload || 
+        response.data?.payload || 
+        (Array.isArray(response) ? response : (response.data || []));
 
-      setTemplates(listaFinal);
+      setTemplates(Array.isArray(listaFinal) ? listaFinal : []);
     } catch (e) {
       console.error("Erro ao carregar templates:", e);
       setTemplates([]);

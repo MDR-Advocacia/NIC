@@ -236,23 +236,26 @@ public function getMyInboxes(Request $request)
     public function getTemplates(Request $request)
 {
     $inboxId = $request->query('inbox_id');
-    
-    // Se não tiver inbox_id, não conseguimos buscar templates da Meta
+    $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}";
+
     if (!$inboxId) {
         return response()->json(['payload' => []]);
     }
 
-    $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
+    // 1. Tenta buscar os Templates Oficiais da META (WhatsApp)
+    $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        ->get($baseUrl . "/inboxes/{$inboxId}/whatsapp_templates");
 
-    try {
-        $response = Http::withHeaders([
-            'api_access_token' => $this->apiToken,
-        ])->get($baseUrl);
+    $data = $response->json();
 
-        // O Chatwoot retorna os templates da Meta dentro de 'payload'
-        return response()->json($response->json());
-    } catch (\Exception $e) {
-        return response()->json(['error' => 'Erro ao conectar com a Meta via Chatwoot'], 500);
+    // 2. Se a Meta não retornar nada (ou não for canal WA), tenta as Respostas Rápidas
+    if (empty($data['payload'])) {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get($baseUrl . "/canned_responses", ['per_page' => 100]);
+        $data = $response->json();
     }
+
+    // Retorna o payload (que é onde os templates da Meta ficam)
+    return response()->json($data);
 }
 }
