@@ -354,26 +354,24 @@ const InboxPage = () => {
       Templates Meta (WhatsApp)
     </div>
     <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-      {templates.length > 0 ? templates.map(t => (
-        <div 
-          key={t.id || t.name} 
-          onClick={() => enviarTemplateSelecionado(t)} 
-          style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee', transition: '0.2s' }}
-          onMouseOver={e => e.currentTarget.style.backgroundColor = '#f1f3f4'}
-          onMouseOut={e => e.currentTarget.style.backgroundColor = '#fff'}
-        >
-          <strong style={{ color: '#1a73e8', display: 'block', fontSize: '13px' }}>
-              {t.name} {/* Nome técnico aprovado na Meta */}
-          </strong>
-          <span style={{ fontSize: '11px', color: '#5f6368', display: 'block', marginTop: '4px' }}>
-              Categoria: {t.category} | {t.language}
-          </span>
-        </div>
-      )) : (
-        <div style={{padding: '20px', textAlign: 'center', fontSize: '12px', color: '#999'}}>
-          Nenhum template aprovado encontrado.
-        </div>
-      )}
+      {templates.length > 0 ? templates.map((t, index) => (
+  <div 
+    key={t.id || t.name || index} 
+    onClick={() => enviarTemplateSelecionado(t)} 
+    style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
+  >
+    <strong style={{ color: '#1a73e8', display: 'block', fontSize: '13px', textTransform: 'uppercase' }}>
+        {t.name?.replace(/_/g, ' ') || "Template sem nome"}
+    </strong>
+    <span style={{ fontSize: '11px', color: '#666', display: 'block', marginTop: '2px' }}>
+        Categoria: {t.category || 'N/A'} | Idioma: {t.language || 'pt_BR'}
+    </span>
+  </div>
+)) : (
+  <div style={{padding: '20px', textAlign: 'center', fontSize: '12px', color: '#999'}}>
+    Nenhum template encontrado
+  </div>
+)}
     </div>
   </div>
 )}
