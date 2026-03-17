@@ -238,19 +238,14 @@ public function getMyInboxes(Request $request)
     $inboxId = $request->query('inbox_id');
     $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
 
-    try {
-        $response = Http::withHeaders([
-            'api_access_token' => $this->apiToken,
-        ])->get($baseUrl);
+    $response = Http::withHeaders(['api_access_token' => $this->apiToken])->get($baseUrl);
+    
+    // Se o Chatwoot retornar erro, mandamos um array vazio para não quebrar o map
+    if ($response->failed()) return response()->json([]);
 
-        $data = $response->json();
+    $data = $response->json();
 
-        // IMPORTANTE: Se o Chatwoot retornar os templates dentro de ['payload'], 
-        // nós enviamos apenas o conteúdo do payload para o React não se perder.
-        return response()->json($data['payload'] ?? $data);
-        
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
+    // Retornamos apenas o conteúdo do payload (onde estão os modelos da Meta)
+    return response()->json($data['payload'] ?? []);
 }
 }

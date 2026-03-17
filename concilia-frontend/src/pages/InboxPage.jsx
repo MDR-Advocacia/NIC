@@ -360,16 +360,22 @@ const InboxPage = () => {
     onClick={() => enviarTemplateSelecionado(t)} 
     style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
   >
-    <strong style={{ color: '#1a73e8', display: 'block', fontSize: '13px', textTransform: 'uppercase' }}>
-        {t.name?.replace(/_/g, ' ') || "Template sem nome"}
+    <strong style={{ color: '#1a73e8', display: 'block', fontSize: '12px', textTransform: 'uppercase' }}>
+        {/* Substitui underlines por espaços para ficar legível */}
+        {t.name?.replace(/_/g, ' ') || "MODELO SEM NOME"}
     </strong>
-    <span style={{ fontSize: '11px', color: '#666', display: 'block', marginTop: '2px' }}>
-        Categoria: {t.category || 'N/A'} | Idioma: {t.language || 'pt_BR'}
-    </span>
+    <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>
+        <span style={{ backgroundColor: '#e8f0fe', padding: '2px 6px', borderRadius: '4px' }}>
+            {t.category || 'MARKETING'}
+        </span>
+        <span style={{ marginLeft: '8px' }}>
+            {t.language || 'pt_BR'}
+        </span>
+    </div>
   </div>
 )) : (
   <div style={{padding: '20px', textAlign: 'center', fontSize: '12px', color: '#999'}}>
-    Nenhum template encontrado
+    Nenhum template aprovado na Meta.
   </div>
 )}
     </div>
