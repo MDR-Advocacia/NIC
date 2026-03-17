@@ -1,14 +1,21 @@
 <?php
-// 1. FORÇAR APP_KEY (Caso o Coolify limpe o .env)
-if (!env('APP_KEY')) {
-    config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
-}
+// // 1. FORÇAR APP_KEY (Caso o Coolify limpe o .env)
+// if (!env('APP_KEY')) {
+//     config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
+// }
 
-// 2. TRATAR APENAS O 'OPTIONS' SEM ADICIONAR ORIGIN MANUAL
-// Isso vai permitir que o Nginx do Coolify mande o header dele sozinho
+// // 2. TRATAR APENAS O 'OPTIONS' SEM ADICIONAR ORIGIN MANUAL
+// // Isso vai permitir que o Nginx do Coolify mande o header dele sozinho
+// if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+//     header('HTTP/1.1 204 No Content');
+//     exit;
+// }
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    header('HTTP/1.1 204 No Content');
-    exit;
+    header("Access-Control-Allow-Origin: https://lab-nic.mdradvocacia.com");
+    header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+    header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+    header('HTTP/1.1 200 OK'); // Mude de 204 para 200 para testar
+    exit();
 }
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;

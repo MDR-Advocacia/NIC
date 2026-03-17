@@ -238,24 +238,26 @@ public function getMyInboxes(Request $request)
     $inboxId = $request->query('inbox_id');
     $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}";
 
-    if (!$inboxId) {
-        return response()->json(['payload' => []]);
-    }
-
-    // 1. Tenta buscar os Templates Oficiais da META (WhatsApp)
-    $response = Http::withHeaders(['api_access_token' => $this->apiToken])
-        ->get($baseUrl . "/inboxes/{$inboxId}/whatsapp_templates");
+    // 1. Tenta buscar os Templates Oficiais da META (WhatsApp Cloud API)
+    // Esse é o endpoint exato para o que você gerencia no Business Manager
+    $response = Http::withHeaders([
+        'api_access_token' => $this->apiToken,
+    ])->get($baseUrl . "/inboxes/{$inboxId}/whatsapp_templates");
 
     $data = $response->json();
 
-    // 2. Se a Meta não retornar nada (ou não for canal WA), tenta as Respostas Rápidas
+    // 2. LOG PARA O COOLIFY (Veja nos logs do container se isso imprime algo)
+    \Log::info("Busca de Templates Meta - Inbox {$inboxId}: ", $data);
+
+    // 3. Se a Meta não retornar nada, buscamos as Respostas Prontas (Fallback)
     if (empty($data['payload'])) {
-        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
-            ->get($baseUrl . "/canned_responses", ['per_page' => 100]);
+        $response = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])->get($baseUrl . "/canned_responses", ['per_page' => 100]);
         $data = $response->json();
     }
 
-    // Retorna o payload (que é onde os templates da Meta ficam)
-    return response()->json($data);
+    // Retorna garantindo que o cabeçalho de aplicação/json está lá
+    return response()->json($data, 200, [], JSON_UNESCAPED_UNICODE);
 }
 }
