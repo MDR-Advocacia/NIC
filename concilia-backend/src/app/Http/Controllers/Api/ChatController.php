@@ -236,16 +236,24 @@ public function getMyInboxes(Request $request)
     public function getTemplates(Request $request)
 {
     $inboxId = $request->query('inbox_id');
-    $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
+    $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}";
 
-    $response = Http::withHeaders(['api_access_token' => $this->apiToken])->get($baseUrl);
+    // TENTATIVA 1: Templates Oficiais da Meta vinculados à Inbox
+    $resMeta = Http::withHeaders(['api_access_token' => $this->apiToken])
+        ->get("{$baseUrl}/inboxes/{$inboxId}/whatsapp_templates");
     
-    // Se o Chatwoot retornar erro, mandamos um array vazio para não quebrar o map
-    if ($response->failed()) return response()->json([]);
+    $dataMeta = $resMeta->json();
 
-    $data = $response->json();
+    // Se a Meta retornou algo, manda bala
+    if (!empty($dataMeta['payload'])) {
+        return response()->json($dataMeta['payload']);
+    }
 
-    // Retornamos apenas o conteúdo do payload (onde estão os modelos da Meta)
-    return response()->json($data['payload'] ?? []);
+    // TENTATIVA 2: Canned Responses (Respostas Rápidas) - Aquelas que você cria no Chatwoot
+    $resCanned = Http::withHeaders(['api_access_token' => $this->apiToken])
+        ->get("{$baseUrl}/canned_responses");
+
+    // TENTATIVA 3: Se tudo falhar, manda o que o Chatwoot respondeu por último para debug
+    return response()->json($resCanned->json());
 }
 }
