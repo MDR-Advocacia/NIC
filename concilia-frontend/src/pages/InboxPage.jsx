@@ -175,13 +175,14 @@ const InboxPage = () => {
   if (!conversaSelecionada) return;
   const token = getCleanToken();
 
+  // O payload para Meta PRECISA ser assim para não dar erro 422
   const payload = {
-    message_type: 'outgoing',
-    content_type: 'template', // Indica que é um template da Meta
-    content: template.name,   // O Chatwoot usa o nome para identificar
+    content: "", // Meta ignora o content se for template oficial
+    message_type: "outgoing",
+    content_type: "template",
     content_attributes: {
       template_name: template.name,
-      language_code: template.language || 'pt_BR'
+      language_code: template.language || "pt_BR"
     }
   };
 
@@ -190,17 +191,21 @@ const InboxPage = () => {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${token}`, 
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify(payload)
     });
 
     if (response.ok) {
       setMostrarTemplates(false);
-      abrirConversa(conversaSelecionada); // Atualiza o chat
+      abrirConversa(conversaSelecionada);
+    } else {
+      const erro = await response.json();
+      console.error("Erro Meta 422:", erro);
     }
   } catch (e) {
-    console.error("Erro ao enviar template:", e);
+    console.error(e);
   }
 };
 
@@ -354,30 +359,29 @@ const InboxPage = () => {
       Templates Meta (WhatsApp)
     </div>
     <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-      {templates.length > 0 ? templates.map((t, index) => (
-  <div 
-    key={t.id || t.name || index} 
-    onClick={() => enviarTemplateSelecionado(t)} 
-    style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
-  >
-    <strong style={{ color: '#1a73e8', display: 'block', fontSize: '12px', textTransform: 'uppercase' }}>
-        {/* Substitui underlines por espaços para ficar legível */}
-        {t.name?.replace(/_/g, ' ') || "MODELO SEM NOME"}
-    </strong>
-    <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>
-        <span style={{ backgroundColor: '#e8f0fe', padding: '2px 6px', borderRadius: '4px' }}>
-            {t.category || 'MARKETING'}
-        </span>
-        <span style={{ marginLeft: '8px' }}>
-            {t.language || 'pt_BR'}
-        </span>
+      {templates.map((t, index) => {
+  // A Meta usa 'name'. Vamos garantir que pegamos o valor certo
+  const nomeExibicao = t.name || t.template_name || "Sem Nome";
+  
+  return (
+    <div 
+      key={index} 
+      onClick={() => enviarTemplateSelecionado(t)} 
+      style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
+    >
+      <strong style={{ color: '#1a73e8', display: 'block', fontSize: '11px' }}>
+          {nomeExibicao.toUpperCase().replace(/_/g, ' ')}
+      </strong>
+      <div style={{ fontSize: '9px', color: '#666', marginTop: '2px' }}>
+          <span style={{ backgroundColor: '#f0f0f0', padding: '1px 4px', borderRadius: '3px' }}>
+            {t.category}
+          </span>
+          <span style={{ marginLeft: '5px' }}>{t.language}</span>
+      </div>
     </div>
-  </div>
-)) : (
-  <div style={{padding: '20px', textAlign: 'center', fontSize: '12px', color: '#999'}}>
-    Nenhum template aprovado na Meta.
-  </div>
-)}
+  );
+})}
+
     </div>
   </div>
 )}
