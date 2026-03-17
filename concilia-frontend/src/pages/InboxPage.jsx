@@ -162,42 +162,37 @@ const InboxPage = () => {
   };
 
   const enviarTemplateSelecionado = async (template) => {
-    if (!conversaSelecionada) return;
-    const token = getCleanToken();
-    const textoParaEnviar = template.message || template.content || template.name;
+  if (!conversaSelecionada) return;
+  const token = getCleanToken();
 
-    const payload = {
-      content: textoParaEnviar, 
-      message_type: 'outgoing',
-      content_type: 'text', 
-      content_attributes: {
-        template_name: template.name,
-        language_code: template.language || 'pt_BR'
-      }
-    };
-
-    try {
-      const response = await fetch(`${API_BASE}/chat/conversations/${conversaSelecionada}/messages`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`, 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok) {
-        setMostrarTemplates(false);
-        abrirConversa(conversaSelecionada);
-      } else {
-        const result = await response.json();
-        alert("Erro ao enviar: " + (result.error || "Erro desconhecido"));
-      }
-    } catch (e) {
-      console.error("Erro na requisição:", e);
+  const payload = {
+    message_type: 'outgoing',
+    content_type: 'template', // Indica que é um template da Meta
+    content: template.name,   // O Chatwoot usa o nome para identificar
+    content_attributes: {
+      template_name: template.name,
+      language_code: template.language || 'pt_BR'
     }
   };
+
+  try {
+    const response = await fetch(`${API_BASE}/chat/conversations/${conversaSelecionada}/messages`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      setMostrarTemplates(false);
+      abrirConversa(conversaSelecionada); // Atualiza o chat
+    }
+  } catch (e) {
+    console.error("Erro ao enviar template:", e);
+  }
+};
 
   const handlesubmitNovoContato = async (e) => {
     e.preventDefault();
@@ -344,28 +339,34 @@ const InboxPage = () => {
                 📋
               </button>
               {mostrarTemplates && (
-                <div style={{ position: 'absolute', bottom: '80px', left: '20px', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', width: '280px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', zIndex: 100 }}>
-                  <div style={{ padding: '12px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px', backgroundColor: '#f8f9fa', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>Templates Disponíveis</div>
-                  <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                    {templates.length > 0 ? templates.map(t => (
-                      <div 
-                        key={t.id} 
-                        onClick={() => enviarTemplateSelecionado(t)} 
-                        style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee', transition: '0.2s' }}
-                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#f1f3f4'}
-                        onMouseOut={e => e.currentTarget.style.backgroundColor = '#fff'}
-                      >
-                        <strong style={{ color: '#1a73e8', display: 'block', fontSize: '13px' }}>
-                            {t.name || t.short_code || "Sem título"}
-                        </strong>
-                        <span style={{ fontSize: '11px', color: '#5f6368', display: 'block', marginTop: '4px', maxHeight: '40px', overflow: 'hidden' }}>
-                            {t.message || t.content || "Clique para enviar"}
-                        </span>
-                      </div>
-                    )) : <div style={{padding: '20px', textAlign: 'center', fontSize: '12px', color: '#999'}}>Nenhum template encontrado</div>}
-                  </div>
-                </div>
-              )}
+  <div style={{ position: 'absolute', bottom: '80px', left: '20px', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', width: '280px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', zIndex: 100 }}>
+    <div style={{ padding: '12px', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0', fontSize: '13px', backgroundColor: '#f8f9fa', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+      Templates Meta (WhatsApp)
+    </div>
+    <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+      {templates.length > 0 ? templates.map(t => (
+        <div 
+          key={t.id || t.name} 
+          onClick={() => enviarTemplateSelecionado(t)} 
+          style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee', transition: '0.2s' }}
+          onMouseOver={e => e.currentTarget.style.backgroundColor = '#f1f3f4'}
+          onMouseOut={e => e.currentTarget.style.backgroundColor = '#fff'}
+        >
+          <strong style={{ color: '#1a73e8', display: 'block', fontSize: '13px' }}>
+              {t.name} {/* Nome técnico aprovado na Meta */}
+          </strong>
+          <span style={{ fontSize: '11px', color: '#5f6368', display: 'block', marginTop: '4px' }}>
+              Categoria: {t.category} | {t.language}
+          </span>
+        </div>
+      )) : (
+        <div style={{padding: '20px', textAlign: 'center', fontSize: '12px', color: '#999'}}>
+          Nenhum template aprovado encontrado.
+        </div>
+      )}
+    </div>
+  </div>
+)}
 
               <input type="text" value={novaMensagem} onChange={(e) => setNovaMensagem(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && enviarMensagem()} placeholder="Mensagem..." style={{ flex: 1, padding: '12px 18px', borderRadius: '30px', border: '1px solid #dadce0', backgroundColor: '#f1f3f4', outline: 'none' }} />
               <button onClick={enviarMensagem} style={{ padding: '0 25px', backgroundColor: '#1a73e8', color: '#fff', border: 'none', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer' }}>Enviar</button>
@@ -374,6 +375,7 @@ const InboxPage = () => {
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9aa0a6' }}>Selecione um atendimento</div>
         )}
+       
       </div>
     </div>
   );

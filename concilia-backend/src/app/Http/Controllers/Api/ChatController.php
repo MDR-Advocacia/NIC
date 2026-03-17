@@ -235,19 +235,24 @@ public function getMyInboxes(Request $request)
     }
     public function getTemplates(Request $request)
 {
-    $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}";
-
-    // Vamos buscar as respostas rápidas GERAIS da conta, sem filtrar por inbox
-    $response = Http::withHeaders(['api_access_token' => $this->apiToken])
-        ->get($baseUrl . "/canned_responses", [
-            'per_page' => 100 // Força 100 itens
-        ]);
-
-    $data = $response->json();
+    $inboxId = $request->query('inbox_id');
     
-    // Log para você ver no Coolify se o Chatwoot está enviando mais de 6
-    \Log::info("Quantidade de templates retornados: " . count($data));
+    // Se não tiver inbox_id, não conseguimos buscar templates da Meta
+    if (!$inboxId) {
+        return response()->json(['payload' => []]);
+    }
 
-    return response()->json($data);
+    $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
+
+    try {
+        $response = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])->get($baseUrl);
+
+        // O Chatwoot retorna os templates da Meta dentro de 'payload'
+        return response()->json($response->json());
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Erro ao conectar com a Meta via Chatwoot'], 500);
+    }
 }
 }
