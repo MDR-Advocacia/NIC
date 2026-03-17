@@ -236,15 +236,22 @@ public function getMyInboxes(Request $request)
     public function getTemplates(Request $request)
 {
     $inboxId = $request->query('inbox_id');
+    
+    // IMPORTANTE: Esse endpoint é EXCLUSIVO para templates da Meta sincronizados
     $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
 
-    // Adicionamos explicitamente que queremos muitos itens por página
-    $response = Http::withHeaders(['api_access_token' => $this->apiToken])
-        ->get($baseUrl, ['per_page' => 100]); 
+    try {
+        $response = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])->timeout(15)->get($baseUrl);
 
-    $data = $response->json();
-    
-    // Retornamos apenas o array de modelos
-    return response()->json($data['payload'] ?? []);
-}
+        $data = $response->json();
+
+        // Aqui nós enviamos APENAS o payload da Meta. 
+        // Removi qualquer fallback para canned_responses.
+        return response()->json($data['payload'] ?? []);
+        
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Falha na API da Meta'], 500);
+    }
 }
