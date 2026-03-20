@@ -81,40 +81,24 @@ const InboxPage = () => {
   // 3. CARREGAR TEMPLATES (Agora buscando os 100+ configurados no Controller)
   const carregarTemplates = async () => {
     const token = getCleanToken();
-    if (!token || !conversaSelecionada) return;
+    const chatAtual = conversas.find(c => c.id === conversaSelecionada);
+    const inboxId = chatAtual?.inbox_id;
 
-    // 1. Pega a conversa ativa direto do estado de conversas
-    const conversaAtiva = conversas.find(c => c.id === conversaSelecionada);
-    const inboxId = conversaAtiva?.inbox_id;
-
-    console.log("Buscando templates para Inbox:", inboxId);
-
-    if (!inboxId) {
-        console.error("Erro: inboxId não encontrado para esta conversa.");
-        return;
-    }
-
-    const url = `${API_BASE}/chat/templates?inbox_id=${inboxId}`;
+    if (!inboxId) return;
 
     try {
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-      });
-      const response = await res.json();
-      
-      console.log("DADO BRUTO DA META:", response);
-
-      // 2. Tenta extrair a lista de templates (Estrutura da Meta via Chatwoot)
-      const listaFinal = 
-        response.payload || 
-        response.data?.payload || 
-        (Array.isArray(response) ? response : []);
-
-      setTemplates(listaFinal);
+        const res = await fetch(`${API_BASE}/chat/templates?inbox_id=${inboxId}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+        
+        // Se for template da Meta, os dados costumam vir em data.payload ou direto no array
+        const lista = data.payload || (Array.isArray(data) ? data : []);
+        setTemplates(lista);
     } catch (e) {
-      console.error("Erro ao carregar templates:", e);
+        console.error("Erro ao carregar templates da Meta:", e);
     }
-  };
+};
 
   // --- USE EFFECTS DE CONTROLE ---
   useEffect(() => {
@@ -359,27 +343,25 @@ const InboxPage = () => {
       Templates Meta (WhatsApp)
     </div>
     <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-      {templates.map((t, index) => {
-  // A Meta usa 'name'. Vamos garantir que pegamos o valor certo
-  const nomeExibicao = t.name || t.template_name || "Sem Nome";
-  
-  return (
-    <div 
-      key={index} 
-      onClick={() => enviarTemplateSelecionado(t)} 
-      style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
-    >
-      <strong style={{ color: '#1a73e8', display: 'block', fontSize: '11px' }}>
-          {nomeExibicao.toUpperCase().replace(/_/g, ' ')}
-      </strong>
-      <div style={{ fontSize: '9px', color: '#666', marginTop: '2px' }}>
-          <span style={{ backgroundColor: '#f0f0f0', padding: '1px 4px', borderRadius: '3px' }}>
-            {t.category}
-          </span>
-          <span style={{ marginLeft: '5px' }}>{t.language}</span>
-      </div>
-    </div>
-  );
+      {templates.map(t => {
+    // Tenta achar o texto dentro dos componentes da Meta
+    const bodyComponent = t.components?.find(c => c.type === 'BODY');
+    const textoPreview = bodyComponent?.text || t.content || "Template sem preview";
+
+    return (
+        <div 
+            key={t.id || t.name} 
+            onClick={() => enviarTemplateSelecionado(t)} 
+            style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
+        >
+            <strong style={{ color: '#1a73e8', display: 'block', fontSize: '13px' }}>
+                {t.name} 
+            </strong>
+            <span style={{ fontSize: '11px', color: '#5f6368', display: 'block', marginTop: '4px' }}>
+                {textoPreview.substring(0, 60)}...
+            </span>
+        </div>
+    );
 })}
 
     </div>

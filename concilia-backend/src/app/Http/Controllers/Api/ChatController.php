@@ -236,22 +236,30 @@ public function getMyInboxes(Request $request)
     public function getTemplates(Request $request)
 {
     $inboxId = $request->query('inbox_id');
-    
-    // IMPORTANTE: Esse endpoint é EXCLUSIVO para templates da Meta sincronizados
-    $baseUrl = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
+
+    if (!$inboxId) {
+        return response()->json(['error' => 'inbox_id é obrigatório para templates Meta'], 400);
+    }
+
+    // O endpoint CORRETO para templates da Meta aprovados no Chatwoot é este:
+    $url = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
 
     try {
         $response = Http::withHeaders([
             'api_access_token' => $this->apiToken,
-        ])->timeout(15)->get($baseUrl);
+        ])->get($url);
 
-        $data = $response->json();
+        if ($response->failed()) {
+            // Se falhar o de WhatsApp, tentamos o de respostas rápidas como fallback
+            $fallback = Http::withHeaders(['api_access_token' => $this->apiToken])
+                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/canned_responses");
+            return response()->json($fallback->json());
+        }
 
-        // Aqui nós enviamos APENAS o payload da Meta. 
-        // Removi qualquer fallback para canned_responses.
-        return response()->json($data['payload'] ?? []);
-        
+        return response()->json($response->json());
+
     } catch (\Exception $e) {
-        return response()->json(['error' => 'Falha na API da Meta'], 500);
+        return response()->json(['error' => $e->getMessage()], 500);
     }
+}
 }
