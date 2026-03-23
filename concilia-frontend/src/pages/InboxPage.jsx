@@ -201,6 +201,7 @@ const InboxPage = () => {
   if (!conversaSelecionada) return;
   const token = getCleanToken();
   const telefoneDestino = getTelefoneDestino();
+  const chatAtual = conversas.find((c) => c.id === conversaSelecionada);
 
   // O payload para Meta PRECISA ser assim para não dar erro 422
   const payload = {
@@ -211,7 +212,8 @@ const InboxPage = () => {
       template_name: template.name,
       language_code: template.language || "pt_BR"
     },
-    to_phone_number: telefoneDestino
+    to_phone_number: telefoneDestino,
+    inbox_id: chatAtual?.inbox_id || null
   };
 
   try {
