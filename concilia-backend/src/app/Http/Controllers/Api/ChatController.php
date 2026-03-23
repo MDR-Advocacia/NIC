@@ -285,7 +285,7 @@ class ChatController extends Controller
                 return 'A inbox parece nao ser WhatsApp Cloud. O endpoint de templates da Meta no Chatwoot pode nao existir para esse provider.';
             }
 
-            return 'O Chatwoot respondeu 404 para whatsapp_templates. Isso normalmente indica versao sem suporte a esse endpoint ou inbox incompatível. Verifique a versao do Chatwoot e use o botao "Sincronizar Modelos" na inbox.';
+            return 'O Chatwoot respondeu 404 para whatsapp_templates. Isso normalmente indica versao sem suporte a esse endpoint ou inbox incompativel. Verifique a versao do Chatwoot e use o botao "Sincronizar Modelos" na inbox.';
         }
 
         return 'Confirme se a inbox e do WhatsApp e se os modelos foram sincronizados no painel administrativo do Chatwoot.';
