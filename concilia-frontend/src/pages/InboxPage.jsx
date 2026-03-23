@@ -45,6 +45,18 @@ const InboxPage = () => {
     return bodyComponent?.text || 'Template da Meta';
   };
 
+  const getTelefoneDestino = () => {
+    const chatAtual = conversas.find((c) => c.id === conversaSelecionada);
+
+    return (
+      contatoParaDetalhar?.phone_number ||
+      contatoParaDetalhar?.phoneNumber ||
+      chatAtual?.meta?.sender?.phone_number ||
+      chatAtual?.meta?.sender?.identifier ||
+      ''
+    );
+  };
+
   // 1. CARREGAR DADOS INICIAIS (Canais e Contatos)
   const carregarDadosIniciais = async () => {
     const token = getCleanToken();
@@ -188,6 +200,7 @@ const InboxPage = () => {
   const enviarTemplateSelecionado = async (template) => {
   if (!conversaSelecionada) return;
   const token = getCleanToken();
+  const telefoneDestino = getTelefoneDestino();
 
   // O payload para Meta PRECISA ser assim para não dar erro 422
   const payload = {
@@ -197,7 +210,8 @@ const InboxPage = () => {
     content_attributes: {
       template_name: template.name,
       language_code: template.language || "pt_BR"
-    }
+    },
+    to_phone_number: telefoneDestino
   };
 
   try {
