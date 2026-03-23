@@ -186,7 +186,8 @@ class ChatController extends Controller
             'inbox_id' => 'required|integer',
         ]);
 
-        $url = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$validated['inbox_id']}/whatsapp_templates";
+        $inboxId = $validated['inbox_id'];
+        $url = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
 
         try {
             $response = Http::withHeaders([
@@ -194,10 +195,13 @@ class ChatController extends Controller
             ])->get($url);
 
             if ($response->failed()) {
+                $inbox = $this->findInboxById($inboxId);
+
                 return response()->json([
                     'message' => 'Nao foi possivel carregar os templates do WhatsApp no Chatwoot.',
+                    'inbox' => $inbox,
                     'details' => $response->json() ?? ['body' => $response->body()],
-                    'hint' => 'Confirme se a inbox e do WhatsApp e se os modelos foram sincronizados no painel administrativo do Chatwoot.',
+                    'hint' => $this->buildTemplateFailureHint($response->status(), $inbox),
                 ], $response->status());
             }
 
@@ -240,5 +244,50 @@ class ChatController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function findInboxById(int $inboxId): ?array
+    {
+        try {
+            $response = Http::withHeaders([
+                'api_access_token' => $this->apiToken,
+            ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
+
+            $inboxes = $response->json('payload', []);
+
+            if (!is_array($inboxes)) {
+                return null;
+            }
+
+            foreach ($inboxes as $inbox) {
+                if ((int) ($inbox['id'] ?? 0) === $inboxId) {
+                    return $inbox;
+                }
+            }
+        } catch (\Exception $e) {
+            return null;
+        }
+
+        return null;
+    }
+
+    private function buildTemplateFailureHint(int $status, ?array $inbox): string
+    {
+        $channelType = Str::lower((string) ($inbox['channel_type'] ?? ''));
+        $provider = Str::lower((string) ($inbox['provider'] ?? ''));
+
+        if ($status === 404) {
+            if ($channelType !== '' && !Str::contains($channelType, 'whatsapp')) {
+                return 'A inbox selecionada nao e um canal do WhatsApp. Templates da Meta so aparecem em inboxes de WhatsApp.';
+            }
+
+            if ($provider !== '' && !Str::contains($provider, 'cloud')) {
+                return 'A inbox parece nao ser WhatsApp Cloud. O endpoint de templates da Meta no Chatwoot pode nao existir para esse provider.';
+            }
+
+            return 'O Chatwoot respondeu 404 para whatsapp_templates. Isso normalmente indica versao sem suporte a esse endpoint ou inbox incompatível. Verifique a versao do Chatwoot e use o botao "Sincronizar Modelos" na inbox.';
+        }
+
+        return 'Confirme se a inbox e do WhatsApp e se os modelos foram sincronizados no painel administrativo do Chatwoot.';
     }
 }

@@ -18,6 +18,7 @@ const InboxPage = () => {
   const [contatoParaDetalhar, setContatoParaDetalhar] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [mostrarTemplates, setMostrarTemplates] = useState(false);
+  const [erroTemplates, setErroTemplates] = useState('');
 
   const API_BASE = import.meta.env.VITE_API_URL || "https://api-nic-lab.mdradvocacia.com/api";
 
@@ -103,6 +104,7 @@ const InboxPage = () => {
 
     if (!inboxId) {
       setTemplates([]);
+      setErroTemplates('A conversa selecionada nao possui inbox compativel para carregar templates.');
       return;
     }
 
@@ -115,13 +117,16 @@ const InboxPage = () => {
         if (!res.ok) {
           console.error("Erro ao carregar templates da Meta:", data);
           setTemplates([]);
+          setErroTemplates(data?.hint || data?.message || 'Nao foi possivel carregar os templates desta inbox.');
           return;
         }
 
         setTemplates(extrairLista(data));
+        setErroTemplates('');
     } catch (e) {
         console.error("Erro ao carregar templates da Meta:", e);
         setTemplates([]);
+        setErroTemplates('Falha de comunicacao ao consultar templates da Meta.');
     }
 };
 
@@ -356,7 +361,8 @@ const InboxPage = () => {
               <button 
                 onClick={() => {
                   setMostrarTemplates(!mostrarTemplates);
-                  if (!mostrarTemplates) carregarTemplates(); 
+                  if (!mostrarTemplates) carregarTemplates();
+                  if (mostrarTemplates) setErroTemplates('');
                 }} 
                 style={{ padding: '0 15px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '30px', cursor: 'pointer', fontSize: '18px' }}
               >
@@ -368,7 +374,11 @@ const InboxPage = () => {
       Templates Meta (WhatsApp)
     </div>
     <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-      {templates.length > 0 ? templates.map(t => {
+      {erroTemplates ? (
+        <div style={{ padding: '12px', fontSize: '12px', color: '#b3261e', lineHeight: 1.5 }}>
+          {erroTemplates}
+        </div>
+      ) : templates.length > 0 ? templates.map(t => {
     const corpo = getTextoTemplate(t);
 
     return (
@@ -385,7 +395,7 @@ const InboxPage = () => {
             </span>
         </div>
     );
-}) : <div>Nenhum template aprovado. Clique em 'Sincronizar' no Chatwoot.</div>}
+}) : <div style={{ padding: '12px', fontSize: '12px', lineHeight: 1.5 }}>Nenhum template aprovado. Clique em "Sincronizar Modelos" no Chatwoot.</div>}
 
     </div>
   </div>
