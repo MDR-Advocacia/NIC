@@ -19,12 +19,29 @@ const InboxPage = () => {
   const [templates, setTemplates] = useState([]);
   const [mostrarTemplates, setMostrarTemplates] = useState(false);
 
-  const API_BASE = "https://api-nic-lab.mdradvocacia.com/api";
+  const API_BASE = import.meta.env.VITE_API_URL || "https://api-nic-lab.mdradvocacia.com/api";
 
   // Helper para pegar token limpo
   const getCleanToken = () => {
     const token = localStorage.getItem('authToken');
     return token ? token.replace(/"/g, '').trim() : null;
+  };
+
+  const extrairLista = (response) => {
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response?.payload)) return response.payload;
+    if (Array.isArray(response?.data?.payload)) return response.data.payload;
+    return [];
+  };
+
+  const getTextoTemplate = (template) => {
+    if (template?.body_text) return template.body_text;
+
+    const bodyComponent = template?.components?.find(
+      (component) => String(component?.type || '').toUpperCase() === 'BODY'
+    );
+
+    return bodyComponent?.text || 'Template da Meta';
   };
 
   // 1. CARREGAR DADOS INICIAIS (Canais e Contatos)
@@ -36,14 +53,14 @@ const InboxPage = () => {
       });
       const response = await resInboxes.json();
       // Ajuste de mapeamento para Inboxes
-      const listaInboxes = response.data?.payload || response.payload || (Array.isArray(response) ? response : []);
+      const listaInboxes = extrairLista(response);
       setInboxes(listaInboxes);
 
       const resContatos = await fetch(`${API_BASE}/chat/contacts`, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
       });
       const dataContatos = await resContatos.json();
-      const listaContatos = dataContatos.data?.payload || dataContatos.payload || (Array.isArray(dataContatos) ? dataContatos : []);
+      const listaContatos = extrairLista(dataContatos);
       setContatos(listaContatos);
     } catch (e) {
       console.error("Erro ao carregar dados iniciais:", e);
@@ -67,7 +84,7 @@ const InboxPage = () => {
     .then(res => res.json())
     .then(response => {
       // CORREÇÃO: Mapeia o caminho response.data.payload vindo do Laravel
-      const listaExtraida = response.data?.payload || response.payload || (Array.isArray(response) ? response : []);
+      const listaExtraida = extrairLista(response);
       setConversas(Array.isArray(listaExtraida) ? listaExtraida : []);
       setCarregando(false);
     })
@@ -84,19 +101,27 @@ const InboxPage = () => {
     const chatAtual = conversas.find(c => c.id === conversaSelecionada);
     const inboxId = chatAtual?.inbox_id;
 
-    if (!inboxId) return;
+    if (!inboxId) {
+      setTemplates([]);
+      return;
+    }
 
     try {
         const res = await fetch(`${API_BASE}/chat/templates?inbox_id=${inboxId}`, {
             headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
         });
         const data = await res.json();
-        
-        // Se for template da Meta, os dados costumam vir em data.payload ou direto no array
-        const lista = data.payload || (Array.isArray(data) ? data : []);
-        setTemplates(lista);
+
+        if (!res.ok) {
+          console.error("Erro ao carregar templates da Meta:", data);
+          setTemplates([]);
+          return;
+        }
+
+        setTemplates(extrairLista(data));
     } catch (e) {
         console.error("Erro ao carregar templates da Meta:", e);
+        setTemplates([]);
     }
 };
 
@@ -127,7 +152,7 @@ const InboxPage = () => {
     })
     .then(res => res.json())
     .then(data => {
-      const msgLista = data.data?.payload || data.payload || (Array.isArray(data) ? data : []);
+      const msgLista = extrairLista(data);
       setMensagens([...msgLista].sort((a, b) => a.id - b.id));
       setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
       setCarregandoChat(false);
@@ -344,8 +369,7 @@ const InboxPage = () => {
     </div>
     <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
       {templates.length > 0 ? templates.map(t => {
-    // Tenta achar o texto principal (BODY) do template da Meta
-    const corpo = t.components?.find(c => c.type === 'BODY')?.text || "Template da Meta";
+    const corpo = getTextoTemplate(t);
 
     return (
         <div 
@@ -357,7 +381,7 @@ const InboxPage = () => {
                 {t.name} {/* Aqui vai aparecer 'recbb_megafeira_cor', etc */}
             </strong>
             <span style={{ fontSize: '11px', color: '#5f6368', display: 'block' }}>
-                {corpo.substring(0, 50)}...
+                {corpo.length > 50 ? `${corpo.substring(0, 50)}...` : corpo}
             </span>
         </div>
     );
