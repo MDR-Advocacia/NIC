@@ -343,10 +343,9 @@ const InboxPage = () => {
       Templates Meta (WhatsApp)
     </div>
     <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-      {templates.map(t => {
-    // Tenta achar o texto dentro dos componentes da Meta
-    const bodyComponent = t.components?.find(c => c.type === 'BODY');
-    const textoPreview = bodyComponent?.text || t.content || "Template sem preview";
+      {templates.length > 0 ? templates.map(t => {
+    // Tenta achar o texto principal (BODY) do template da Meta
+    const corpo = t.components?.find(c => c.type === 'BODY')?.text || "Template da Meta";
 
     return (
         <div 
@@ -355,14 +354,14 @@ const InboxPage = () => {
             style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
         >
             <strong style={{ color: '#1a73e8', display: 'block', fontSize: '13px' }}>
-                {t.name} 
+                {t.name} {/* Aqui vai aparecer 'recbb_megafeira_cor', etc */}
             </strong>
-            <span style={{ fontSize: '11px', color: '#5f6368', display: 'block', marginTop: '4px' }}>
-                {textoPreview.substring(0, 60)}...
+            <span style={{ fontSize: '11px', color: '#5f6368', display: 'block' }}>
+                {corpo.substring(0, 50)}...
             </span>
         </div>
     );
-})}
+}) : <div>Nenhum template aprovado. Clique em 'Sincronizar' no Chatwoot.</div>}
 
     </div>
   </div>

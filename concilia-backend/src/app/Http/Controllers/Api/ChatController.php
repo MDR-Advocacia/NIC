@@ -238,26 +238,19 @@ public function getMyInboxes(Request $request)
     $inboxId = $request->query('inbox_id');
 
     if (!$inboxId) {
-        return response()->json(['error' => 'inbox_id é obrigatório para templates Meta'], 400);
+        return response()->json(['error' => 'Inbox ID é necessário'], 400);
     }
 
-    // O endpoint CORRETO para templates da Meta aprovados no Chatwoot é este:
+    // ENDPOINT CORRETO PARA WHATSAPP BUSINESS API NO CHATWOOT
     $url = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
 
     try {
         $response = Http::withHeaders([
-            'api_access_token' => $this->apiToken,
+            'api_access_token' => $this->apiToken, // Token do Administrador
         ])->get($url);
 
-        if ($response->failed()) {
-            // Se falhar o de WhatsApp, tentamos o de respostas rápidas como fallback
-            $fallback = Http::withHeaders(['api_access_token' => $this->apiToken])
-                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/canned_responses");
-            return response()->json($fallback->json());
-        }
-
+        // O Chatwoot retorna os templates da Meta dentro de um array "payload"
         return response()->json($response->json());
-
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
