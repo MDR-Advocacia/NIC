@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
+const TEMPLATE_FALLBACK_STORAGE_KEY = 'nic_template_fallback_messages_v1';
+
 const styles = {
   page: {
     display: 'grid',
@@ -327,6 +329,16 @@ const InboxPage = () => {
   const audioInputRef = useRef(null);
   const knownActivityRef = useRef(new Map());
   const notificacoesInicializadasRef = useRef(false);
+  const fallbackMessagesRef = useRef((() => {
+    try {
+      if (typeof window === 'undefined') return {};
+      const rawValue = window.sessionStorage.getItem(TEMPLATE_FALLBACK_STORAGE_KEY);
+      const parsedValue = rawValue ? JSON.parse(rawValue) : {};
+      return parsedValue && typeof parsedValue === 'object' ? parsedValue : {};
+    } catch (error) {
+      return {};
+    }
+  })());
 
   const API_BASE = import.meta.env.VITE_API_URL || 'https://api-nic-lab.mdradvocacia.com/api';
 
@@ -392,6 +404,24 @@ const InboxPage = () => {
     return Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
   };
 
+  const persistirFallbacksLocais = (proximoMapa) => {
+    fallbackMessagesRef.current = proximoMapa;
+
+    try {
+      if (typeof window === 'undefined') return;
+      window.sessionStorage.setItem(TEMPLATE_FALLBACK_STORAGE_KEY, JSON.stringify(proximoMapa));
+    } catch (error) {
+      console.warn('Nao foi possivel persistir os templates locais:', error);
+    }
+  };
+
+  const getFallbacksLocaisConversa = (conversationId) => {
+    if (!conversationId) return [];
+
+    const lista = fallbackMessagesRef.current?.[String(conversationId)];
+    return Array.isArray(lista) ? lista.filter(Boolean) : [];
+  };
+
   const getStatusMensagem = (status) => {
     const mapa = {
       sent: 'Enviado',
@@ -433,6 +463,88 @@ const InboxPage = () => {
 
     return '';
   };
+
+  const getTipoNormalizadoMensagem = (mensagem) => {
+    if (mensagem?.message_type === 1 || mensagem?.message_type === 'outgoing') return 'outgoing';
+    if (mensagem?.message_type === 0 || mensagem?.message_type === 'incoming') return 'incoming';
+    return String(mensagem?.message_type || '');
+  };
+
+  const getNomeTemplateMensagem = (mensagem) =>
+    mensagem?.content_attributes?.template_name || mensagem?.template_params?.name || mensagem?.content_attributes?.name || '';
+
+  const mensagensSaoEquivalentes = (left, right) => {
+    if (getTipoNormalizadoMensagem(left) !== getTipoNormalizadoMensagem(right)) {
+      return false;
+    }
+
+    if (getTipoNormalizadoMensagem(left) !== 'outgoing') {
+      return false;
+    }
+
+    const proximidade = Math.abs(getMessageTimestamp(left) - getMessageTimestamp(right)) <= 300;
+    const nomeTemplateLeft = getNomeTemplateMensagem(left);
+    const nomeTemplateRight = getNomeTemplateMensagem(right);
+
+    if (nomeTemplateLeft && nomeTemplateRight && nomeTemplateLeft === nomeTemplateRight && proximidade) {
+      return true;
+    }
+
+    const conteudoLeft = getConteudoVisivelMensagem(left);
+    const conteudoRight = getConteudoVisivelMensagem(right);
+
+    return !!conteudoLeft && conteudoLeft === conteudoRight && proximidade;
+  };
+
+  const registrarFallbackLocal = (conversationId, mensagem) => {
+    if (!conversationId || !mensagem?.meta_fallback) return;
+
+    const chave = String(conversationId);
+    const anteriores = getFallbacksLocaisConversa(conversationId);
+    const proximaLista = [...anteriores.filter((item) => !mensagensSaoEquivalentes(item, mensagem)), mensagem];
+
+    persistirFallbacksLocais({
+      ...fallbackMessagesRef.current,
+      [chave]: proximaLista,
+    });
+  };
+
+  const sincronizarFallbacksLocais = (conversationId, mensagensServidor) => {
+    if (!conversationId) return mensagensServidor;
+
+    const locais = getFallbacksLocaisConversa(conversationId);
+    if (locais.length === 0) return mensagensServidor;
+
+    const restantes = locais.filter((mensagemLocal) => !mensagensServidor.some((mensagemServidor) => mensagensSaoEquivalentes(mensagemLocal, mensagemServidor)));
+
+    if (restantes.length !== locais.length) {
+      persistirFallbacksLocais({
+        ...fallbackMessagesRef.current,
+        [String(conversationId)]: restantes,
+      });
+    }
+
+    return [...mensagensServidor, ...restantes].sort((left, right) => getMessageTimestamp(left) - getMessageTimestamp(right));
+  };
+
+  const aplicarPreviewFallbackNasConversas = (listaConversas) =>
+    listaConversas.map((conversa) => {
+      const fallbacks = getFallbacksLocaisConversa(conversa?.id);
+      if (!fallbacks.length) return conversa;
+
+      const ultimoFallback = [...fallbacks].sort((left, right) => getMessageTimestamp(right) - getMessageTimestamp(left))[0];
+      const ultimaMensagemServidor = conversa?.last_non_activity_message;
+
+      if (getMessageTimestamp(ultimoFallback) <= getMessageTimestamp(ultimaMensagemServidor)) {
+        return conversa;
+      }
+
+      return {
+        ...conversa,
+        last_non_activity_message: ultimoFallback,
+        timestamp: getMessageTimestamp(ultimoFallback),
+      };
+    });
 
   const formatarHorarioConversa = (timestamp) => {
     if (!timestamp) return '';
@@ -585,8 +697,9 @@ const InboxPage = () => {
       const data = await response.json();
       const lista = extrairLista(data);
 
-      setConversas(lista);
-      return lista;
+      const listaComFallback = aplicarPreviewFallbackNasConversas(lista);
+      setConversas(listaComFallback);
+      return listaComFallback;
     } catch (error) {
       console.error('Erro ao buscar conversas:', error);
       if (!silent) {
@@ -749,7 +862,8 @@ const InboxPage = () => {
       });
       const data = await response.json();
       const msgLista = extrairLista(data);
-      setMensagens([...msgLista].sort((left, right) => getMessageTimestamp(left) - getMessageTimestamp(right)));
+      const mensagensOrdenadas = [...msgLista].sort((left, right) => getMessageTimestamp(left) - getMessageTimestamp(right));
+      setMensagens(sincronizarFallbacksLocais(chatId, mensagensOrdenadas));
       setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
     } catch (error) {
       console.error('Erro ao carregar conversa:', error);
@@ -923,10 +1037,17 @@ const InboxPage = () => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
+        const mensagemEnviada = normalizarMensagemRetorno(data, { content: payload.content });
+
+        if (data?.meta_fallback) {
+          registrarFallbackLocal(conversaSelecionada, mensagemEnviada);
+        }
+
         setMensagens((anterior) => [
           ...anterior,
-          normalizarMensagemRetorno(data, { content: payload.content }),
+          mensagemEnviada,
         ]);
+        setConversas((anterior) => aplicarPreviewFallbackNasConversas(anterior));
         setModalTemplatesAberto(false);
         definirFeedback(`Template "${templateSelecionado.name}" enviado com sucesso.`);
       } else {
