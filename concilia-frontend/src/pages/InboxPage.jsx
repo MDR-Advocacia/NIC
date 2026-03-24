@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const styles = {
   page: {
     display: 'grid',
     gridTemplateColumns: '220px 360px minmax(0, 1fr)',
-    minHeight: '100dvh',
+    height: 'calc(100dvh - 40px)',
     margin: '-20px',
     backgroundColor: '#f3f6fb',
     color: '#10233f',
@@ -18,10 +18,11 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '18px',
+    minHeight: 0,
+    overflowY: 'auto',
   },
   railTitle: { margin: '6px 0 0', fontSize: '26px', fontWeight: 800, lineHeight: 1.1 },
   railKicker: { fontSize: '12px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#5f7291' },
-  railText: { margin: 0, fontSize: '14px', lineHeight: 1.6, color: '#5f7291' },
   railSection: { display: 'flex', flexDirection: 'column', gap: '10px' },
   railButton: (active) => ({
     padding: '14px 16px',
@@ -174,6 +175,49 @@ const styles = {
     border: '1px solid #dbe3ee',
     boxShadow: '0 8px 18px rgba(16, 35, 63, 0.05)',
   }),
+  attachmentCard: {
+    marginBottom: '10px',
+    borderRadius: '14px',
+    overflow: 'hidden',
+    border: '1px solid #dbe3ee',
+    backgroundColor: '#fff',
+  },
+  imageAttachment: {
+    display: 'block',
+    width: '100%',
+    maxHeight: '320px',
+    objectFit: 'cover',
+    cursor: 'pointer',
+  },
+  documentLink: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '12px 14px',
+    color: '#1d4ed8',
+    fontWeight: 700,
+    textDecoration: 'none',
+  },
+  audioPlayer: {
+    width: '100%',
+    display: 'block',
+  },
+  statusTag: (status) => ({
+    padding: '3px 8px',
+    borderRadius: '999px',
+    backgroundColor:
+      status === 'failed' ? '#fee2e2'
+      : status === 'read' ? '#dcfce7'
+      : status === 'delivered' ? '#dbeafe'
+      : '#eef2f7',
+    color:
+      status === 'failed' ? '#b42318'
+      : status === 'read' ? '#166534'
+      : status === 'delivered' ? '#1d4ed8'
+      : '#5f7291',
+    fontWeight: 700,
+    fontSize: '11px',
+  }),
   composer: {
     padding: '18px 24px 22px',
     backgroundColor: '#ffffff',
@@ -275,8 +319,12 @@ const InboxPage = () => {
   const [templateSelecionado, setTemplateSelecionado] = useState(null);
   const [variaveisTemplate, setVariaveisTemplate] = useState({});
   const [enviandoTemplate, setEnviandoTemplate] = useState(false);
+  const [enviandoArquivo, setEnviandoArquivo] = useState(false);
   const [feedbackEnvio, setFeedbackEnvio] = useState('');
   const [tipoFeedback, setTipoFeedback] = useState('success');
+  const [imagemAberta, setImagemAberta] = useState(null);
+  const fileInputRef = useRef(null);
+  const audioInputRef = useRef(null);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'https://api-nic-lab.mdradvocacia.com/api';
 
@@ -328,6 +376,47 @@ const InboxPage = () => {
 
     return new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  const getStatusMensagem = (status) => {
+    const mapa = {
+      sent: 'Enviado',
+      delivered: 'Entregue',
+      read: 'Lido',
+      failed: 'Falhou',
+      pending: 'Enviando',
+    };
+
+    return mapa[status] || 'Enviado';
+  };
+
+  const getMessageAttachments = (mensagem) => {
+    if (Array.isArray(mensagem?.attachments)) return mensagem.attachments.filter(Boolean);
+    if (Array.isArray(mensagem?.attachment)) return mensagem.attachment.filter(Boolean);
+    if (mensagem?.attachment) return [mensagem.attachment];
+    return [];
+  };
+
+  const getAttachmentUrl = (attachment) =>
+    attachment?.data_url || attachment?.download_url || attachment?.external_url || attachment?.file_url || attachment?.thumb_url || '';
+
+  const detectarTipoArquivo = (arquivo) => {
+    const mime = arquivo?.type || '';
+
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('audio/')) return 'audio';
+    if (mime.startsWith('video/')) return 'video';
+    return 'file';
+  };
+
+  const normalizarMensagemRetorno = (mensagem, fallback = {}) => ({
+    ...mensagem,
+    content: mensagem?.content ?? fallback.content ?? '',
+    sender: mensagem?.sender || fallback.sender || { name: 'NIC Agent' },
+    message_type: mensagem?.message_type || fallback.message_type || 'outgoing',
+    created_at: mensagem?.created_at || fallback.created_at || Math.floor(Date.now() / 1000),
+    status: mensagem?.status || fallback.status || 'sent',
+    attachments: getMessageAttachments(mensagem).length > 0 ? getMessageAttachments(mensagem) : fallback.attachments || [],
+  });
 
   const conversaAtual = useMemo(
     () => conversas.find((conversa) => conversa.id === conversaSelecionada) || null,
@@ -510,6 +599,76 @@ const InboxPage = () => {
     await carregarTemplates();
   };
 
+  const abrirSeletorArquivo = (tipo) => {
+    if (tipo === 'audio') {
+      audioInputRef.current?.click();
+      return;
+    }
+
+    fileInputRef.current?.click();
+  };
+
+  const enviarArquivos = async (arquivos, tipoForcado = null) => {
+    if (!conversaSelecionada || !arquivos?.length || enviandoArquivo) return;
+
+    const token = getCleanToken();
+    const formData = new FormData();
+    const tipoArquivo = tipoForcado || detectarTipoArquivo(arquivos[0]);
+
+    formData.append('content', novaMensagem.trim());
+    formData.append('file_type', tipoArquivo);
+    arquivos.forEach((arquivo) => formData.append('attachments[]', arquivo));
+
+    try {
+      setEnviandoArquivo(true);
+
+      const response = await fetch(`${API_BASE}/chat/conversations/${conversaSelecionada}/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        setMensagens((anterior) => [
+          ...anterior,
+          normalizarMensagemRetorno(data, {
+            content: novaMensagem.trim(),
+            attachments: arquivos.map((arquivo) => ({
+              file_type: detectarTipoArquivo(arquivo),
+              data_url: URL.createObjectURL(arquivo),
+            })),
+          }),
+        ]);
+        setNovaMensagem('');
+        definirFeedback('Arquivo enviado com sucesso.');
+      } else {
+        console.error('Erro ao enviar arquivo:', data);
+        definirFeedback(data?.message || 'Nao foi possivel enviar o arquivo.', 'error');
+      }
+    } catch (error) {
+      console.error(error);
+      definirFeedback('Falha de comunicacao ao enviar o arquivo.', 'error');
+    } finally {
+      setEnviandoArquivo(false);
+    }
+  };
+
+  const handleArquivoSelecionado = async (event, tipoForcado = null) => {
+    const arquivos = Array.from(event.target.files || []);
+    event.target.value = '';
+
+    if (arquivos.length === 0) {
+      return;
+    }
+
+    await enviarArquivos(arquivos, tipoForcado);
+  };
+
   const enviarMensagem = async () => {
     if (!novaMensagem.trim() || !conversaSelecionada) return;
     const token = getCleanToken();
@@ -525,14 +684,18 @@ const InboxPage = () => {
         body: JSON.stringify({ content: novaMensagem }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
-        const enviada = await response.json();
-        setMensagens((anterior) => [...anterior, enviada]);
+        setMensagens((anterior) => [...anterior, normalizarMensagemRetorno(data, { content: novaMensagem.trim() })]);
         setNovaMensagem('');
         setFeedbackEnvio('');
+      } else {
+        definirFeedback(data?.message || 'Nao foi possivel enviar a mensagem.', 'error');
       }
     } catch (error) {
       console.error(error);
+      definirFeedback('Falha de comunicacao ao enviar a mensagem.', 'error');
     }
   };
 
@@ -583,19 +746,12 @@ const InboxPage = () => {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
         setMensagens((anterior) => [
           ...anterior,
-          {
-            ...data,
-            content: data.content || payload.content,
-            sender: data.sender || { name: 'NIC Agent' },
-            message_type: data.message_type || 'outgoing',
-            created_at: data.created_at || Math.floor(Date.now() / 1000),
-            status: data.status || 'sent',
-          },
+          normalizarMensagemRetorno(data, { content: payload.content }),
         ]);
         setModalTemplatesAberto(false);
         definirFeedback(`Template "${templateSelecionado.name}" enviado com sucesso.`);
@@ -636,8 +792,69 @@ const InboxPage = () => {
     }
   };
 
+  const renderizarAnexos = (mensagem) => {
+    const anexos = getMessageAttachments(mensagem);
+
+    if (anexos.length === 0) {
+      return null;
+    }
+
+    return anexos.map((anexo, index) => {
+      const tipo = anexo?.file_type || 'file';
+      const url = getAttachmentUrl(anexo);
+
+      if (!url) {
+        return null;
+      }
+
+      if (tipo === 'image') {
+        return (
+          <div key={`${mensagem.id || 'mensagem'}-anexo-${index}`} style={styles.attachmentCard}>
+            <img src={anexo.thumb_url || url} alt="imagem enviada" style={styles.imageAttachment} onClick={() => setImagemAberta(url)} />
+          </div>
+        );
+      }
+
+      if (tipo === 'audio') {
+        return (
+          <div key={`${mensagem.id || 'mensagem'}-anexo-${index}`} style={styles.attachmentCard}>
+            <audio controls preload="metadata" src={url} style={styles.audioPlayer} />
+          </div>
+        );
+      }
+
+      if (tipo === 'video') {
+        return (
+          <div key={`${mensagem.id || 'mensagem'}-anexo-${index}`} style={styles.attachmentCard}>
+            <video controls preload="metadata" src={url} style={{ width: '100%', display: 'block', maxHeight: '340px', backgroundColor: '#000' }} />
+          </div>
+        );
+      }
+
+      return (
+        <div key={`${mensagem.id || 'mensagem'}-anexo-${index}`} style={styles.attachmentCard}>
+          <a href={url} target="_blank" rel="noreferrer" style={styles.documentLink}>
+            <span>Arquivo</span>
+            <span style={{ color: '#5f7291', fontWeight: 500 }}>{anexo?.file_size ? `${Math.round(anexo.file_size / 1024)} KB` : 'Abrir / baixar'}</span>
+          </a>
+        </div>
+      );
+    });
+  };
+
   return (
     <div style={styles.page}>
+      <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar" style={{ display: 'none' }} onChange={(event) => handleArquivoSelecionado(event)} />
+      <input ref={audioInputRef} type="file" accept="audio/*" style={{ display: 'none' }} onChange={(event) => handleArquivoSelecionado(event, 'audio')} />
+
+      {imagemAberta ? (
+        <div style={styles.modalOverlay} onClick={() => setImagemAberta(null)}>
+          <div style={{ maxWidth: 'min(1100px, calc(100vw - 48px))', maxHeight: 'calc(100vh - 48px)' }} onClick={(event) => event.stopPropagation()}>
+            <img src={imagemAberta} alt="visualizacao ampliada" style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 48px)', borderRadius: '20px', display: 'block', boxShadow: '0 24px 70px rgba(6, 17, 34, 0.45)' }} />
+          </div>
+        </div>
+      ) : null}
+
       {modalAberto ? (
         <div style={styles.modalOverlay}>
           <div style={{ width: '420px', borderRadius: '24px', backgroundColor: '#ffffff', padding: '28px', boxShadow: '0 28px 80px rgba(6, 17, 34, 0.22)' }}>
@@ -840,8 +1057,7 @@ const InboxPage = () => {
       <div style={styles.rail}>
         <div>
           <div style={styles.railKicker}>Central de atendimento</div>
-          <h1 style={styles.railTitle}>Inbox</h1>
-          <p style={styles.railText}>Gerencie conversas, contatos e templates do WhatsApp sem repetir elementos do layout principal do sistema.</p>
+          <h1 style={styles.railTitle}>MDR Advocacia</h1>
         </div>
 
         <div style={styles.railSection}>
@@ -948,11 +1164,12 @@ const InboxPage = () => {
                           iniciais
                         )}
                       </div>
-                      <div style={styles.bubble(minha)}>
-                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{mensagem.content || '[Template enviado]'}</div>
+                      <div style={{ ...styles.bubble(minha), borderColor: mensagem.status === 'failed' ? '#fca5a5' : '#dbe3ee' }}>
+                        {renderizarAnexos(mensagem)}
+                        {mensagem.content ? <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{mensagem.content}</div> : null}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
                           {formatarHorario(mensagem.created_at)}
-                          {minha ? <span>{mensagem.status === 'read' ? 'vv' : 'v'}</span> : null}
+                          {minha ? <span style={styles.statusTag(mensagem.status)}>{getStatusMensagem(mensagem.status)}</span> : null}
                         </div>
                       </div>
                     </div>
@@ -971,6 +1188,12 @@ const InboxPage = () => {
                 <button type="button" style={styles.secondaryButton} onClick={abrirModalTemplates}>
                   Templates
                 </button>
+                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('arquivo')} disabled={enviandoArquivo}>
+                  Arquivo
+                </button>
+                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('audio')} disabled={enviandoArquivo}>
+                  Audio
+                </button>
                 <input
                   type="text"
                   value={novaMensagem}
@@ -979,8 +1202,8 @@ const InboxPage = () => {
                   placeholder="Digite uma mensagem..."
                   style={styles.composerInput}
                 />
-                <button type="button" style={styles.primaryButton} onClick={enviarMensagem}>
-                  Enviar
+                <button type="button" style={styles.primaryButton} onClick={enviarMensagem} disabled={enviandoArquivo || enviandoTemplate}>
+                  {enviandoArquivo ? 'Enviando arquivo...' : 'Enviar'}
                 </button>
               </div>
             </div>

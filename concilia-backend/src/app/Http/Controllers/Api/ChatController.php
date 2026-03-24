@@ -158,6 +158,16 @@ class ChatController extends Controller
     public function sendMessage(Request $request, $conversationId)
     {
         $data = $request->all();
+        $attachments = $request->file('attachments', []);
+
+        if (!is_array($attachments)) {
+            $attachments = $attachments ? [$attachments] : [];
+        }
+
+        if (count(array_filter($attachments)) > 0) {
+            return $this->sendAttachmentMessage($conversationId, $data, $attachments);
+        }
+
         $templateParams = is_array($data['template_params'] ?? null) ? $data['template_params'] : null;
         $contentAttributes = is_array($data['content_attributes'] ?? null) ? $data['content_attributes'] : [];
 
@@ -218,6 +228,41 @@ class ChatController extends Controller
             'chatwoot_error' => $response->json(),
             'meta_error' => $metaResponse['error'] ?? null,
         ], $metaResponse['status'] ?? $response->status());
+    }
+
+    private function sendAttachmentMessage($conversationId, array $data, array $attachments)
+    {
+        $requestBuilder = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])->acceptJson();
+
+        foreach ($attachments as $attachment) {
+            if (!$attachment || !$attachment->isValid()) {
+                continue;
+            }
+
+            $requestBuilder = $requestBuilder->attach(
+                'attachments[]',
+                file_get_contents($attachment->getRealPath()),
+                $attachment->getClientOriginalName()
+            );
+        }
+
+        $payload = [
+            'content' => $data['content'] ?? '',
+            'message_type' => 'outgoing',
+        ];
+
+        if (filled($data['file_type'] ?? null)) {
+            $payload['file_type'] = $data['file_type'];
+        }
+
+        $response = $requestBuilder->post(
+            "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages",
+            $payload
+        );
+
+        return response()->json($response->json(), $response->status());
     }
 
     public function getConversationByCase(LegalCase $legal_case)
