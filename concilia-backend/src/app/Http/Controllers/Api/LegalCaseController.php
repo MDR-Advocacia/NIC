@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Plaintiff;       
 use App\Models\Defendant;       
 use App\Models\OpposingLawyer;  
+use App\Models\ActionObject;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -36,7 +37,7 @@ class LegalCaseController extends Controller
         $user = Auth::user();
         
         // Começa a query base, carregando todos os relacionamentos importantes
-        $query = LegalCase::with(['client', 'lawyer', 'opposingLawyer', 'plaintiff', 'defendantRel']);
+        $query = LegalCase::with(['client', 'lawyer', 'opposingLawyer', 'plaintiff', 'defendantRel', 'actionObject']);
 
         // --- LÓGICA DE PERMISSÃO (RBAC) ---
         if ($user->role === 'operador') {
@@ -148,6 +149,8 @@ class LegalCaseController extends Controller
             $request->merge(['user_id' => $request->input('lawyer_id')]);
         }
 
+        $request->merge($this->resolveActionObjectPayload($request->all()));
+
         $validatedData = $request->validate([
             'case_number' => 'required|string|max:255',
             'start_date' => 'nullable|date',
@@ -164,6 +167,7 @@ class LegalCaseController extends Controller
             'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
 
             'action_object' => 'required|string|max:255',
+            'action_object_id' => 'nullable|exists:action_objects,id',
             'description' => 'nullable|string',
             'status' => 'required|string',
             'priority' => 'required|string',
@@ -181,7 +185,7 @@ class LegalCaseController extends Controller
             
             'tags' => 'nullable|array',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
-            'pcond_probability' => 'nullable|numeric',
+            'pcond_probability' => 'nullable|numeric|min:0',
             'updated_condemnation_value' => 'nullable|numeric',
             'agreement_checklist_data' => 'nullable|array',
         ]);
@@ -216,6 +220,7 @@ class LegalCaseController extends Controller
             'client', 
             'lawyer', 
             'opposingLawyer', 
+            'actionObject',
             'plaintiff', 
             'defendantRel', 
             'histories', 
@@ -235,6 +240,8 @@ class LegalCaseController extends Controller
             $request->merge(['user_id' => $request->input('lawyer_id')]);
         }
 
+        $request->merge($this->resolveActionObjectPayload($request->all()));
+
         // Salva o status ANTIGO para o log de auditoria
         $oldStatus = $case->status;
 
@@ -253,6 +260,7 @@ class LegalCaseController extends Controller
             'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
 
             'action_object' => 'sometimes|required|string|max:255',
+            'action_object_id' => 'nullable|exists:action_objects,id',
             'description' => 'nullable|string',
             'status' => 'sometimes|required|string',
             'priority' => 'sometimes|required|string',
@@ -270,7 +278,7 @@ class LegalCaseController extends Controller
             
             'tags' => 'nullable|array',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
-            'pcond_probability' => 'nullable|numeric',
+            'pcond_probability' => 'nullable|numeric|min:0',
             'updated_condemnation_value' => 'nullable|numeric',
             'agreement_checklist_data' => 'nullable|array',
         ]);
@@ -324,7 +332,7 @@ class LegalCaseController extends Controller
         }
         // ----------------------------------------------------
 
-        return response()->json($case->fresh(['client', 'lawyer', 'opposingLawyer', 'plaintiff', 'defendantRel']));
+        return response()->json($case->fresh(['client', 'lawyer', 'opposingLawyer', 'actionObject', 'plaintiff', 'defendantRel']));
     }
 
     /**
@@ -431,7 +439,10 @@ class LegalCaseController extends Controller
         $casesToImport = $validatedData['cases'];
         $clientId = $validatedData['client_id'];
         $successCount = 0;
+        $createdCount = 0;
+        $updatedCount = 0;
         $errors = [];
+        $authenticatedUserId = Auth::id();
 
         // Mensagens de erro personalizadas
         $messages = [
@@ -460,8 +471,10 @@ class LegalCaseController extends Controller
             'cause_value' => 'Valor da Causa',
             'original_value' => 'Valor de Alçada',
             'agreement_value' => 'Proposta Inicial',
+            'pcond_probability' => 'Valor da PCOND',
             'updated_condemnation_value' => 'Condenação Atualizada',
-            'pcond_probability' => 'Probabilidade de Condenação',
+            'portal_agreement_offers' => 'Propostas Portal Acordos',
+            'campaign_observations' => 'Observações Campanhas',
             'priority' => 'Prioridade',
             'description' => 'Observações',
             'opposing_lawyer' => 'Advogado Adverso',
@@ -471,91 +484,105 @@ class LegalCaseController extends Controller
 
         try {
             foreach ($casesToImport as $index => $caseData) {
-                
-                // 1. Sanitização e FORMATAÇÃO do Número do Processo (CNJ)
-                if (isset($caseData['case_number'])) {
-                    $cleanNumber = preg_replace('/\D/', '', $caseData['case_number']); // Remove tudo
-                    
-                    // Se tiver 20 dígitos, reaplica a máscara padrão CNJ: 0000000-00.2000.0.00.0000
-                    if (strlen($cleanNumber) === 20) {
-                        $caseData['case_number'] = preg_replace(
-                            "/(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{4})/",
-                            "\$1-\$2.\$3.\$4.\$5.\$6",
-                            $cleanNumber
-                        );
-                    } else {
-                        // Se não tiver 20 digitos, mantém só os números para salvar (melhor que nada)
-                        $caseData['case_number'] = $cleanNumber;
-                    }
-                }
+                $caseData = $this->sanitizeImportCaseData($caseData);
+                $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
 
-                // 2. Sanitização INTELIGENTE de Dinheiro (PT-BR e US)
-                $moneyFields = ['cause_value', 'original_value', 'agreement_value', 'updated_condemnation_value', 'pcond_probability'];
-                foreach ($moneyFields as $field) {
-                    if (isset($caseData[$field])) {
-                        $val = $caseData[$field];
-                        // Se for string, tenta limpar
-                        if (is_string($val)) {
-                            // Se tiver vírgula, assumimos padrão BR (ex: 1.200,50 ou 10,00)
-                            if (strpos($val, ',') !== false) {
-                                $val = str_replace('.', '', $val); // Remove milhar (1.200 -> 1200)
-                                $val = str_replace(',', '.', $val); // Troca decimal (1200,50 -> 1200.50)
-                            } 
-                            // Remove R$ e espaços
-                            $val = preg_replace('/[^\d.]/', '', $val);
-                        }
-                        // Se ficou vazio, define null temporariamente
-                        $caseData[$field] = ($val === '' || $val === null) ? null : $val;
-                    }
-                }
-
-                // 3. Preenchimento de VALORES PADRÃO (Evita erro "Column cannot be null")
                 if (empty($caseData['original_value'])) {
-                    $caseData['original_value'] = 0; // Default seguro
+                    $caseData['original_value'] = $existingCase?->original_value ?? 0;
                 }
                 if (empty($caseData['cause_value'])) {
-                    $caseData['cause_value'] = 0;
-                }
-                if (empty($caseData['agreement_value'])) {
-                    $caseData['agreement_value'] = 0;
+                    $caseData['cause_value'] = $caseData['original_value'] ?? 0;
                 }
 
-                // 4. Resolver Advogado
-                if (isset($caseData['lawyer_name']) && !empty($caseData['lawyer_name'])) {
-                    $lawyer = \App\Models\User::where('name', 'LIKE', '%' . trim($caseData['lawyer_name']) . '%')->first();
-                    if ($lawyer) $caseData['user_id'] = $lawyer->id;
+                unset($caseData['updated_condemnation_value']);
+
+                $responsibleUser = $this->resolveResponsibleUserFromImport($caseData);
+                if ($responsibleUser) {
+                    $caseData['user_id'] = $responsibleUser->id;
+                    $caseData['lawyer_name'] = $responsibleUser->name;
                 }
                 if (!isset($caseData['user_id']) && isset($caseData['lawyer_id'])) {
                     $caseData['user_id'] = $caseData['lawyer_id'];
                 }
 
-                // Limpeza geral
-                foreach ($caseData as $key => $value) {
-                    if ($value === '' || $value === null) $caseData[$key] = null;
+                $caseData['user_id'] = $caseData['user_id']
+                    ?? $existingCase?->user_id
+                    ?? $authenticatedUserId;
+
+                $caseData['client_id'] = $clientId;
+                $caseData['status'] = $existingCase?->status ?? 'initial_analysis';
+                $caseData['priority'] = !empty($caseData['priority'])
+                    ? strtolower($caseData['priority'])
+                    : ($existingCase?->priority ?? 'media');
+
+                if (isset($caseData['special_court'])) {
+                    $sc = strtolower((string) $caseData['special_court']);
+                    $caseData['special_court'] = (
+                        $sc === 's' ||
+                        $sc === 'sim' ||
+                        $sc === 'yes' ||
+                        str_contains($sc, 'juizado')
+                    )
+                        ? 'Sim'
+                        : 'Não';
+                } else {
+                    $caseData['special_court'] = $existingCase?->special_court ?? 'Não';
                 }
 
-                // 5. Validação
-                $validator = Validator::make($caseData, [
+                $caseData['start_date'] = $this->normalizeImportDate($caseData['start_date'] ?? null);
+
+                if (!empty($caseData['opposing_party'])) {
+                    $plaintiff = Plaintiff::firstOrCreate(['name' => trim($caseData['opposing_party'])]);
+                    $caseData['plaintiff_id'] = $plaintiff->id;
+                } elseif ($existingCase?->plaintiff_id) {
+                    $caseData['plaintiff_id'] = $existingCase->plaintiff_id;
+                }
+
+                if (!empty($caseData['defendant'])) {
+                    $defendant = Defendant::firstOrCreate(['name' => trim($caseData['defendant'])]);
+                    $caseData['defendant_id'] = $defendant->id;
+                } elseif ($existingCase?->defendant_id) {
+                    $caseData['defendant_id'] = $existingCase->defendant_id;
+                }
+
+                if (!empty($caseData['opposing_lawyer'])) {
+                    $opLawyer = OpposingLawyer::firstOrCreate(['name' => trim($caseData['opposing_lawyer'])]);
+                    $caseData['opposing_lawyer_id'] = $opLawyer->id;
+                } elseif ($existingCase?->opposing_lawyer_id) {
+                    $caseData['opposing_lawyer_id'] = $existingCase->opposing_lawyer_id;
+                }
+
+                $caseData = $this->resolveActionObjectPayload($caseData);
+
+                $payload = $this->mergeImportPayloadWithExistingCase($caseData, $existingCase);
+
+                $validator = Validator::make($payload, [
                     'case_number' => 'required|string|max:255',
                     'opposing_party' => 'required|string|max:255',
-                    'defendant' => 'required|string|max:255',
+                    'defendant' => 'nullable|string|max:255',
                     'user_id' => 'required|exists:users,id',
-                    'action_object' => 'required|string|max:255',
-                    'internal_number' => 'nullable|numeric', 
-                    'start_date' => 'nullable', 
+                    'action_object' => 'nullable|string|max:255',
+                    'action_object_id' => 'nullable|exists:action_objects,id',
+                    'internal_number' => 'nullable|string|max:255',
+                    'start_date' => 'nullable|date',
                     'comarca' => 'nullable|string|max:255',
                     'city' => 'nullable|string|max:255',
                     'state' => 'nullable|string|max:2',
                     'special_court' => 'nullable|string',
                     'cause_value' => 'nullable|numeric',
-                    'original_value' => 'required|numeric', 
+                    'original_value' => 'required|numeric',
                     'agreement_value' => 'nullable|numeric',
+                    'pcond_probability' => 'nullable|numeric|min:0',
                     'updated_condemnation_value' => 'nullable|numeric',
-                    'pcond_probability' => 'nullable|numeric',
                     'priority' => 'nullable|string',
                     'description' => 'nullable|string',
                     'opposing_lawyer' => 'nullable|string',
                     'opposing_contact' => 'nullable|string',
+                    'client_id' => 'required|exists:clients,id',
+                    'status' => 'required|string',
+                    'plaintiff_id' => 'nullable|exists:plaintiffs,id',
+                    'defendant_id' => 'nullable|exists:defendants,id',
+                    'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
                 ], $messages, $customAttributes);
 
                 if ($validator->fails()) {
@@ -564,51 +591,21 @@ class LegalCaseController extends Controller
                         'errors' => $validator->errors()->all()
                     ];
                 } else {
-                    
-                    // Checagem de Duplicidade
-                    if (LegalCase::where('case_number', $caseData['case_number'])->exists()) {
-                         $errors[] = [
-                            'line' => "Registro " . ($index + 1), 
-                            'errors' => ["O Número do Processo '{$caseData['case_number']}' já existe."]
-                        ];
-                        continue;
-                    }
-
-                    $caseData['client_id'] = $clientId;
-                    $caseData['status'] = 'initial_analysis';
-                    $caseData['priority'] = !empty($caseData['priority']) ? strtolower($caseData['priority']) : 'media';
-                    
-                    if (isset($caseData['special_court'])) {
-                        $sc = strtolower($caseData['special_court']);
-                        $caseData['special_court'] = ($sc == 's' || $sc == 'sim' || $sc == 'yes') ? 'Sim' : 'Não';
-                    } else {
-                        $caseData['special_court'] = 'Não';
-                    }
-
-                    if (!empty($caseData['start_date'])) {
-                        try {
-                            $date = \Carbon\Carbon::createFromFormat('d/m/Y', $caseData['start_date']);
-                            $caseData['start_date'] = $date ? $date->format('Y-m-d') : null;
-                        } catch (\Exception $e) {}
-                    }
-
-                    // --- FIND OR CREATE RELACIONAMENTOS ---
-                    if (!empty($caseData['opposing_party'])) {
-                        $plaintiff = Plaintiff::firstOrCreate(['name' => trim($caseData['opposing_party'])]);
-                        $caseData['plaintiff_id'] = $plaintiff->id;
-                    }
-                    if (!empty($caseData['defendant'])) {
-                        $defendant = Defendant::firstOrCreate(['name' => trim($caseData['defendant'])]);
-                        $caseData['defendant_id'] = $defendant->id;
-                    }
-                    if (!empty($caseData['opposing_lawyer'])) {
-                        $opLawyer = OpposingLawyer::firstOrCreate(['name' => trim($caseData['opposing_lawyer'])]);
-                        $caseData['opposing_lawyer_id'] = $opLawyer->id;
-                    }
-
-                    // 6. TENTATIVA DE SALVAR COM CAPTURA DE ERRO DE BANCO
                     try {
-                        LegalCase::create($caseData);
+                        if ($existingCase) {
+                            $originalCaseId = $existingCase->id;
+                            $existingCase->fill($payload);
+                            $existingCase->save();
+
+                            if ((int) $existingCase->id !== (int) $originalCaseId) {
+                                throw new \RuntimeException('O identificador do processo foi alterado durante a atualização.');
+                            }
+
+                            $updatedCount++;
+                        } else {
+                            LegalCase::create($payload);
+                            $createdCount++;
+                        }
                         $successCount++;
                     } catch (\Exception $e) {
                          $errors[] = [
@@ -624,14 +621,18 @@ class LegalCaseController extends Controller
                 return response()->json([
                     'message' => 'A importação falhou. Corrija os erros listados abaixo e tente novamente.',
                     'success_count' => 0,
+                    'created_count' => 0,
+                    'updated_count' => 0,
                     'errors' => $errors,
                 ], 422);
             }
 
             DB::commit();
             return response()->json([
-                'message' => "Importação concluída! $successCount casos criados.",
+                'message' => "Importação concluída! {$successCount} processos processados.",
                 'success_count' => $successCount,
+                'created_count' => $createdCount,
+                'updated_count' => $updatedCount,
                 'errors' => [],
             ], 201);
 
@@ -731,5 +732,433 @@ class LegalCaseController extends Controller
             DB::rollBack();
             return response()->json(['message' => 'Erro ao processar lote: ' . $e->getMessage()], 500);
         }
+    }
+
+    private function sanitizeImportCaseData(array $caseData): array
+    {
+        unset(
+            $caseData['id'],
+            $caseData['created_at'],
+            $caseData['updated_at'],
+            $caseData['deleted_at']
+        );
+
+        if (isset($caseData['case_number'])) {
+            $caseData['case_number'] = $this->normalizeImportedCaseNumber((string) $caseData['case_number']);
+        }
+
+        if (
+            (empty($caseData['original_value']) || $caseData['original_value'] === '0')
+            && !empty($caseData['portal_agreement_offers'])
+        ) {
+            $pendingAgreementValue = $this->extractPendingPortalAgreementValue(
+                (string) $caseData['portal_agreement_offers']
+            );
+
+            if ($pendingAgreementValue !== null) {
+                $caseData['original_value'] = $pendingAgreementValue;
+            }
+        }
+
+        $moneyFields = ['cause_value', 'original_value', 'agreement_value', 'pcond_probability', 'updated_condemnation_value'];
+        foreach ($moneyFields as $field) {
+            if (!array_key_exists($field, $caseData)) {
+                continue;
+            }
+
+            $value = $caseData[$field];
+            if (is_string($value)) {
+                $value = trim($value);
+                if (strpos($value, ',') !== false) {
+                    $value = str_replace('.', '', $value);
+                    $value = str_replace(',', '.', $value);
+                }
+                $value = preg_replace('/[^\d.\-]/', '', $value);
+            }
+
+            $caseData[$field] = ($value === '' || $value === null) ? null : $value;
+        }
+
+        foreach (['opposing_party', 'defendant', 'opposing_lawyer'] as $partyField) {
+            if (!empty($caseData[$partyField])) {
+                $caseData[$partyField] = $this->extractPrimaryParticipantName((string) $caseData[$partyField]);
+            }
+        }
+
+        foreach ([
+            'opposing_party' => 255,
+            'defendant' => 255,
+            'action_object' => 255,
+            'comarca' => 255,
+            'city' => 255,
+            'state' => 2,
+            'opposing_lawyer' => 255,
+            'internal_number' => 255,
+            'portal_agreement_offers' => 65535,
+            'campaign_observations' => 65535,
+            'description' => 65535,
+        ] as $field => $limit) {
+            if (!empty($caseData[$field]) && is_string($caseData[$field])) {
+                $caseData[$field] = mb_substr(trim($caseData[$field]), 0, $limit);
+            }
+        }
+
+        foreach ($caseData as $key => $value) {
+            if ($value === '' || $value === null) {
+                $caseData[$key] = null;
+            }
+        }
+
+        return $caseData;
+    }
+
+    private function findExistingCaseForImport(?string $caseNumber): ?LegalCase
+    {
+        if (empty($caseNumber)) {
+            return null;
+        }
+
+        $normalizedCaseNumber = $this->normalizeImportedCaseNumber($caseNumber);
+        $cleanCaseNumber = preg_replace('/\D/', '', $normalizedCaseNumber);
+        $formattedCaseNumber = $this->formatCnJCaseNumber($cleanCaseNumber);
+        $candidates = array_values(array_filter(array_unique([
+            $caseNumber,
+            $normalizedCaseNumber,
+            $cleanCaseNumber,
+            $formattedCaseNumber,
+        ])));
+
+        return LegalCase::query()
+            ->where(function ($query) use ($candidates, $cleanCaseNumber) {
+                if (!empty($candidates)) {
+                    $query->whereIn('case_number', $candidates);
+                }
+
+                if ($cleanCaseNumber !== '') {
+                    $query->orWhereRaw(
+                        "REPLACE(REPLACE(REPLACE(REPLACE(case_number, '-', ''), '.', ''), '/', ''), ' ', '') = ?",
+                        [$cleanCaseNumber]
+                    );
+                }
+            })
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function normalizeImportDate(mixed $dateValue): ?string
+    {
+        if ($dateValue === null || $dateValue === '') {
+            return null;
+        }
+
+        if (is_numeric($dateValue)) {
+            try {
+                return \Carbon\Carbon::create(1899, 12, 30)
+                    ->addDays((int) floor((float) $dateValue))
+                    ->format('Y-m-d');
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $formats = [
+            'd/m/Y',
+            'd-m-Y',
+            'Y-m-d',
+            'Y-m-d H:i:s',
+            'm/d/Y',
+            'm/d/y',
+            'd/m/Y H:i:s',
+        ];
+
+        foreach ($formats as $format) {
+            try {
+                return \Carbon\Carbon::createFromFormat($format, (string) $dateValue)->format('Y-m-d');
+            } catch (\Throwable $e) {
+            }
+        }
+
+        try {
+            return \Carbon\Carbon::parse((string) $dateValue)->format('Y-m-d');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function mergeImportPayloadWithExistingCase(array $caseData, ?LegalCase $existingCase): array
+    {
+        $payload = [
+            'case_number' => $existingCase?->case_number ?? $caseData['case_number'],
+            'internal_number' => $caseData['internal_number'] ?? $existingCase?->internal_number,
+            'client_id' => $caseData['client_id'] ?? $existingCase?->client_id,
+            'user_id' => $caseData['user_id'] ?? $existingCase?->user_id,
+            'opposing_party' => $caseData['opposing_party'] ?? $existingCase?->opposing_party,
+            'plaintiff_id' => $caseData['plaintiff_id'] ?? $existingCase?->plaintiff_id,
+            'defendant' => $caseData['defendant'] ?? $existingCase?->defendant,
+            'defendant_id' => $caseData['defendant_id'] ?? $existingCase?->defendant_id,
+            'action_object' => $caseData['action_object'] ?? $existingCase?->action_object ?? $existingCase?->actionObject?->name,
+            'action_object_id' => $caseData['action_object_id'] ?? $existingCase?->action_object_id,
+            'description' => $caseData['description'] ?? $existingCase?->description,
+            'status' => $caseData['status'] ?? $existingCase?->status ?? 'initial_analysis',
+            'priority' => $caseData['priority'] ?? $existingCase?->priority ?? 'media',
+            'original_value' => $caseData['original_value'] ?? $existingCase?->original_value ?? 0,
+            'agreement_value' => $caseData['agreement_value'] ?? $existingCase?->agreement_value,
+            'cause_value' => $caseData['cause_value'] ?? $existingCase?->cause_value ?? 0,
+            'pcond_probability' => $caseData['pcond_probability'] ?? $existingCase?->pcond_probability,
+            'updated_condemnation_value' => $caseData['updated_condemnation_value'] ?? $existingCase?->updated_condemnation_value,
+            'opposing_lawyer_id' => $caseData['opposing_lawyer_id'] ?? $existingCase?->opposing_lawyer_id,
+            'comarca' => $caseData['comarca'] ?? $existingCase?->comarca,
+            'state' => $caseData['state'] ?? $existingCase?->state,
+            'city' => $caseData['city'] ?? $existingCase?->city,
+            'special_court' => $caseData['special_court'] ?? $existingCase?->special_court ?? 'Não',
+            'opposing_lawyer' => $caseData['opposing_lawyer'] ?? $existingCase?->opposing_lawyer,
+            'opposing_contact' => $caseData['opposing_contact'] ?? $existingCase?->opposing_contact,
+            'tags' => $existingCase?->tags,
+            'agreement_probability' => $caseData['agreement_probability'] ?? $existingCase?->agreement_probability,
+            'agreement_checklist_data' => $existingCase?->agreement_checklist_data,
+            'start_date' => $caseData['start_date'] ?? $existingCase?->start_date,
+        ];
+
+        return array_filter(
+            $payload,
+            static fn ($value) => $value !== ''
+        );
+    }
+
+    private function extractPendingPortalAgreementValue(string $rawValue): ?string
+    {
+        if (trim($rawValue) === '') {
+            return null;
+        }
+
+        preg_match_all('/R\\$\\s*([0-9.,]+)\\s*\\|\\s*Pendente/i', $rawValue, $matches);
+
+        if (empty($matches[1])) {
+            return null;
+        }
+
+        $pendingValues = array_values(array_filter($matches[1], static fn ($value) => trim((string) $value) !== ''));
+
+        if (empty($pendingValues)) {
+            return null;
+        }
+
+        return end($pendingValues) ?: null;
+    }
+
+    private function resolveResponsibleUserFromImport(array $caseData): ?User
+    {
+        $candidates = array_values(array_filter([
+            is_string($caseData['lawyer_name'] ?? null) ? trim((string) $caseData['lawyer_name']) : null,
+            is_string($caseData['campaign_observations'] ?? null) ? trim((string) $caseData['campaign_observations']) : null,
+        ], static fn ($value) => !empty($value)));
+
+        foreach ($candidates as $candidate) {
+            $matchedUser = $this->findUserByImportedResponsible($candidate);
+            if ($matchedUser) {
+                return $matchedUser;
+            }
+        }
+
+        return null;
+    }
+
+    private function findUserByImportedResponsible(string $candidate): ?User
+    {
+        $trimmedCandidate = trim($candidate);
+        if ($trimmedCandidate === '') {
+            return null;
+        }
+
+        $directMatch = User::query()
+            ->where('status', 'ativo')
+            ->where('name', 'LIKE', '%' . $trimmedCandidate . '%')
+            ->orderBy('id')
+            ->first();
+
+        if ($directMatch) {
+            return $directMatch;
+        }
+
+        $normalizedCandidate = $this->normalizeImportedResponsibleText($trimmedCandidate);
+        if ($normalizedCandidate === '') {
+            return null;
+        }
+
+        $bestMatch = null;
+        $bestScore = 0;
+
+        foreach ($this->getResponsibleUserDirectory() as $entry) {
+            $score = 0;
+
+            foreach ($entry['aliases'] as $alias) {
+                if ($alias !== '' && str_contains($normalizedCandidate, $alias)) {
+                    $score = max($score, strlen($alias));
+                }
+            }
+
+            if ($score > $bestScore) {
+                $bestMatch = $entry['user'];
+                $bestScore = $score;
+                continue;
+            }
+
+            if ($score !== 0 && $score === $bestScore) {
+                $bestMatch = null;
+            }
+        }
+
+        return $bestScore >= 4 ? $bestMatch : null;
+    }
+
+    private function getResponsibleUserDirectory(): array
+    {
+        static $directory = null;
+
+        if ($directory !== null) {
+            return $directory;
+        }
+
+        $users = User::query()
+            ->where('status', 'ativo')
+            ->orderBy('id')
+            ->get(['id', 'name', 'status']);
+
+        $tokenFrequency = [];
+        foreach ($users as $user) {
+            foreach ($this->extractResponsibleNameTokens($user->name) as $token) {
+                $tokenFrequency[$token] = ($tokenFrequency[$token] ?? 0) + 1;
+            }
+        }
+
+        $directory = [];
+        foreach ($users as $user) {
+            $normalizedName = $this->normalizeImportedResponsibleText($user->name);
+            $nameParts = array_values(array_filter(explode(' ', $normalizedName)));
+            $aliases = [$normalizedName];
+
+            if (count($nameParts) >= 2) {
+                $aliases[] = $nameParts[0] . ' ' . $nameParts[1];
+            }
+
+            foreach ($this->extractResponsibleNameTokens($user->name) as $token) {
+                if (($tokenFrequency[$token] ?? 0) === 1) {
+                    $aliases[] = $token;
+                }
+            }
+
+            $directory[] = [
+                'user' => $user,
+                'aliases' => array_values(array_unique(array_filter($aliases))),
+            ];
+        }
+
+        return $directory;
+    }
+
+    private function extractResponsibleNameTokens(string $value): array
+    {
+        $normalizedValue = $this->normalizeImportedResponsibleText($value);
+        if ($normalizedValue === '') {
+            return [];
+        }
+
+        $stopWords = ['da', 'das', 'de', 'do', 'dos', 'e'];
+        $parts = preg_split('/\s+/', $normalizedValue) ?: [];
+
+        return array_values(array_filter(array_unique($parts), static function ($part) use ($stopWords) {
+            return strlen($part) >= 4 && !in_array($part, $stopWords, true);
+        }));
+    }
+
+    private function normalizeImportedResponsibleText(?string $value): string
+    {
+        $normalizedValue = mb_strtolower(trim((string) $value));
+
+        if ($normalizedValue === '') {
+            return '';
+        }
+
+        $asciiValue = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $normalizedValue);
+        if ($asciiValue !== false) {
+            $normalizedValue = $asciiValue;
+        }
+
+        $normalizedValue = preg_replace('/[^a-z0-9\s]/', ' ', $normalizedValue);
+        $normalizedValue = preg_replace('/\s+/', ' ', $normalizedValue);
+
+        return trim((string) $normalizedValue);
+    }
+
+    private function resolveActionObjectPayload(array $payload): array
+    {
+        $actionObjectId = $payload['action_object_id'] ?? null;
+
+        if (!empty($actionObjectId)) {
+            $actionObject = ActionObject::find($actionObjectId);
+
+            if ($actionObject) {
+                $payload['action_object_id'] = $actionObject->id;
+                $payload['action_object'] = $actionObject->name;
+
+                return $payload;
+            }
+        }
+
+        if (!array_key_exists('action_object', $payload)) {
+            return $payload;
+        }
+
+        $actionObjectName = trim((string) ($payload['action_object'] ?? ''));
+
+        if ($actionObjectName === '') {
+            $payload['action_object'] = null;
+
+            if (empty($payload['action_object_id'])) {
+                $payload['action_object_id'] = null;
+            }
+
+            return $payload;
+        }
+
+        $actionObject = ActionObject::firstOrCreate([
+            'name' => mb_substr($actionObjectName, 0, 255),
+        ]);
+
+        $payload['action_object_id'] = $actionObject->id;
+        $payload['action_object'] = $actionObject->name;
+
+        return $payload;
+    }
+
+    private function normalizeImportedCaseNumber(string $caseNumber): string
+    {
+        $cleanNumber = preg_replace('/\D/', '', $caseNumber);
+
+        if ($cleanNumber === '') {
+            return '';
+        }
+
+        return $this->formatCnJCaseNumber($cleanNumber);
+    }
+
+    private function formatCnJCaseNumber(string $cleanNumber): string
+    {
+        if (strlen($cleanNumber) === 20) {
+            return preg_replace(
+                "/(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{4})/",
+                "\$1-\$2.\$3.\$4.\$5.\$6",
+                $cleanNumber
+            );
+        }
+
+        return $cleanNumber;
+    }
+
+    private function extractPrimaryParticipantName(string $rawValue): string
+    {
+        $firstParticipant = trim(explode('||', $rawValue)[0] ?? '');
+        $name = trim(explode('|', $firstParticipant)[0] ?? $firstParticipant);
+
+        return $name !== '' ? $name : trim($rawValue);
     }
 }

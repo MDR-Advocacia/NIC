@@ -1,8 +1,12 @@
 <?php
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+
+use App\Http\Controllers\Api\ActionObjectController;
 use App\Http\Controllers\Api\AggressorLawyerController;
-use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AuditLogController;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CaseHistoryController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ClientController;
@@ -14,8 +18,6 @@ use App\Http\Controllers\Api\OpposingLawyerController;
 use App\Http\Controllers\Api\PlaintiffController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WebhookController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 
 Route::post('/webhooks/chatwoot', [WebhookController::class, 'receive']);
 Route::post('/chat/conversations/{conversationId}/resolve', [ChatController::class, 'resolveConversation']);
@@ -63,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('aggressor-lawyers', AggressorLawyerController::class);
     Route::apiResource('opposing-lawyers', OpposingLawyerController::class);
+    Route::apiResource('action-objects', ActionObjectController::class)->only(['index', 'store', 'update']);
 
     Route::get('/plaintiffs', [PlaintiffController::class, 'index']);
     Route::post('/plaintiffs', [PlaintiffController::class, 'store']);

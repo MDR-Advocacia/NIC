@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # --- APLICAÇÃO (LARAVEL) ---
   app:
@@ -73,11 +71,11 @@ services:
         limits:
           memory: 1024M
     environment:
-      - VITE_API_URL=${VITE_API_URL:-https://api-nic-lab.mdradvocacia.com/api}
+      VITE_API_URL: http://localhost:8123/api
 
 networks:
   concilia_network:
     driver: bridge
 
 volumes:
-  db_data_v2:
+  db_data:
