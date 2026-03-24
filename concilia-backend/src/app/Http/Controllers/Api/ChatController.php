@@ -97,13 +97,37 @@ class ChatController extends Controller
     public function getInboxAgents($inboxId)
     {
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
-            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inbox_members", [
-                'inbox_id' => $inboxId,
-            ]);
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inbox_members/{$inboxId}");
 
         $data = $response->json();
 
         return response()->json($data['payload'] ?? $data, $response->status());
+    }
+
+    public function getAccountAgents()
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/agents");
+
+        $data = $response->json();
+
+        return response()->json($data['payload'] ?? $data, $response->status());
+    }
+
+    public function addAgentToInbox(Request $request, $inboxId)
+    {
+        $validated = $request->validate([
+            'user_ids' => 'required|array|min:1',
+            'user_ids.*' => 'integer',
+        ]);
+
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inbox_members", [
+                'inbox_id' => (int) $inboxId,
+                'user_ids' => array_values($validated['user_ids']),
+            ]);
+
+        return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
     }
 
     public function assignConversation(Request $request, $conversationId)

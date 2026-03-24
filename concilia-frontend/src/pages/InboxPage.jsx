@@ -401,8 +401,13 @@ const InboxPage = () => {
   const [salvandoContato, setSalvandoContato] = useState(false);
   const [agentesInbox, setAgentesInbox] = useState([]);
   const [carregandoAgentes, setCarregandoAgentes] = useState(false);
+  const [agentesConta, setAgentesConta] = useState([]);
+  const [carregandoAgentesConta, setCarregandoAgentesConta] = useState(false);
+  const [buscaAgente, setBuscaAgente] = useState('');
   const [assigneeSelecionado, setAssigneeSelecionado] = useState('');
   const [atribuindoConversa, setAtribuindoConversa] = useState(false);
+  const [agenteParaAdicionar, setAgenteParaAdicionar] = useState('');
+  const [adicionandoAgente, setAdicionandoAgente] = useState(false);
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const knownActivityRef = useRef(new Map());
@@ -731,6 +736,30 @@ const InboxPage = () => {
     [conversaAtual]
   );
 
+  const agentesInboxFiltrados = useMemo(() => {
+    const termo = buscaAgente.trim().toLowerCase();
+    if (!termo) return agentesInbox;
+
+    return agentesInbox.filter((agente) => `${agente.name} ${agente.email}`.toLowerCase().includes(termo));
+  }, [agentesInbox, buscaAgente]);
+
+  const agentesDisponiveisParaInbox = useMemo(() => {
+    const idsNaInbox = new Set(agentesInbox.map((agente) => String(agente.id)));
+    const termo = buscaAgente.trim().toLowerCase();
+
+    return agentesConta.filter((agente) => {
+      if (idsNaInbox.has(String(agente.id))) {
+        return false;
+      }
+
+      if (!termo) {
+        return true;
+      }
+
+      return `${agente.name} ${agente.email}`.toLowerCase().includes(termo);
+    });
+  }, [agentesConta, agentesInbox, buscaAgente]);
+
   const telefoneDestino = useMemo(
     () =>
       contatoAtual?.phone_number ||
@@ -835,6 +864,59 @@ const InboxPage = () => {
       setAgentesInbox([]);
     } finally {
       setCarregandoAgentes(false);
+    }
+  };
+
+  const carregarAgentesConta = async () => {
+    const token = getCleanToken();
+
+    try {
+      setCarregandoAgentesConta(true);
+      const response = await fetch(`${API_BASE}/chat/agents`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+      const data = await response.json().catch(() => ({}));
+      const lista = extrairLista(data).map(normalizarAgente).filter(Boolean);
+      setAgentesConta(lista);
+    } catch (error) {
+      console.error('Erro ao carregar agentes da conta:', error);
+      setAgentesConta([]);
+    } finally {
+      setCarregandoAgentesConta(false);
+    }
+  };
+
+  const adicionarAgenteNaInbox = async () => {
+    if (!conversaAtual?.inbox_id || !agenteParaAdicionar || adicionandoAgente) return;
+
+    const token = getCleanToken();
+
+    try {
+      setAdicionandoAgente(true);
+      const response = await fetch(`${API_BASE}/chat/inboxes/${conversaAtual.inbox_id}/agents`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ user_ids: [Number(agenteParaAdicionar)] }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        await carregarAgentesInbox(conversaAtual.inbox_id);
+        setAssigneeSelecionado(String(agenteParaAdicionar));
+        setAgenteParaAdicionar('');
+        definirFeedback('Agente adicionado a inbox com sucesso.');
+      } else {
+        definirFeedback(data?.message || 'Nao foi possivel adicionar o agente a inbox.', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar agente na inbox:', error);
+      definirFeedback('Falha de comunicacao ao adicionar o agente.', 'error');
+    } finally {
+      setAdicionandoAgente(false);
     }
   };
 
@@ -1046,6 +1128,9 @@ const InboxPage = () => {
     }
 
     carregarAgentesInbox(conversaAtual.inbox_id);
+    carregarAgentesConta();
+    setBuscaAgente('');
+    setAgenteParaAdicionar('');
   }, [painelContatoAberto, conversaAtual?.inbox_id]);
 
   useEffect(() => {
@@ -1878,12 +1963,23 @@ const InboxPage = () => {
                 </div>
 
                 <div>
+                  <label style={styles.fieldLabel}>Pesquisar agentes</label>
+                  <input
+                    type="text"
+                    style={styles.input}
+                    value={buscaAgente}
+                    onChange={(event) => setBuscaAgente(event.target.value)}
+                    placeholder="Pesquisar por nome ou e-mail"
+                  />
+                </div>
+
+                <div>
                   <label style={styles.fieldLabel}>Selecionar agente</label>
                   <select style={styles.select} value={assigneeSelecionado} onChange={(event) => setAssigneeSelecionado(event.target.value)}>
                     <option value="">Nenhum</option>
-                    {agentesInbox.map((agente) => (
+                    {agentesInboxFiltrados.map((agente) => (
                       <option key={agente.id} value={agente.id}>
-                        {agente.name}
+                        {agente.name}{agente.email ? ` - ${agente.email}` : ''}
                       </option>
                     ))}
                   </select>
@@ -1895,6 +1991,30 @@ const InboxPage = () => {
 
                 <button type="button" style={styles.primaryButton} onClick={atribuirConversaAtual} disabled={atribuindoConversa || carregandoAgentes}>
                   {atribuindoConversa ? 'Atualizando...' : 'Salvar atribuicao'}
+                </button>
+
+                <div style={{ height: '1px', backgroundColor: '#dbe3ee' }} />
+
+                <div>
+                  <label style={styles.fieldLabel}>Adicionar agente a inbox</label>
+                  <select style={styles.select} value={agenteParaAdicionar} onChange={(event) => setAgenteParaAdicionar(event.target.value)}>
+                    <option value="">{carregandoAgentesConta ? 'Carregando agentes da conta...' : 'Selecione um colaborador'}</option>
+                    {agentesDisponiveisParaInbox.map((agente) => (
+                      <option key={agente.id} value={agente.id}>
+                        {agente.name}{agente.email ? ` - ${agente.email}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={styles.helperText}>
+                  {agentesDisponiveisParaInbox.length > 0
+                    ? 'Escolha um colaborador da conta para liberar a atribuicao nesta inbox.'
+                    : 'Nenhum outro agente disponivel para adicionar com o filtro atual.'}
+                </div>
+
+                <button type="button" style={styles.secondaryButton} onClick={adicionarAgenteNaInbox} disabled={adicionandoAgente || !agenteParaAdicionar}>
+                  {adicionandoAgente ? 'Adicionando...' : 'Adicionar agente'}
                 </button>
               </div>
             ) : null}
