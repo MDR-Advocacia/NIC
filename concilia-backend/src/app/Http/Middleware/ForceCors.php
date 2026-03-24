@@ -9,31 +9,46 @@ class ForceCors
 {
     public function handle(Request $request, Closure $next)
     {
-        $allowedOrigins = [
+        $allowedOrigins = array_values(array_filter(config('cors.allowed_origins', [
             'https://lab-nic.mdradvocacia.com',
             'http://localhost:3000',
             'http://localhost:5173',
-        ];
+        ])));
 
         $origin = $request->headers->get('Origin');
-        $allowOrigin = in_array($origin, $allowedOrigins, true) ? $origin : $allowedOrigins[0];
+        $allowOrigin = in_array($origin, $allowedOrigins, true)
+            ? $origin
+            : ($allowedOrigins[0] ?? 'https://lab-nic.mdradvocacia.com');
+        $allowHeaders = $request->headers->get(
+            'Access-Control-Request-Headers',
+            'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-XSRF-TOKEN, X-CSRF-TOKEN'
+        );
+
+        $headers = [
+            'Access-Control-Allow-Origin' => $allowOrigin,
+            'Access-Control-Allow-Methods' => 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers' => $allowHeaders,
+            'Access-Control-Allow-Credentials' => 'true',
+            'Access-Control-Max-Age' => '86400',
+            'Vary' => 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+        ];
 
         if ($request->isMethod('OPTIONS')) {
-            return response('', 204)
-                ->header('Access-Control-Allow-Origin', $allowOrigin)
-                ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-                ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin')
-                ->header('Access-Control-Allow-Credentials', 'true')
-                ->header('Vary', 'Origin');
+            $response = response('', 204);
+
+            foreach ($headers as $header => $value) {
+                $response->headers->set($header, $value);
+            }
+
+            return $response;
         }
 
         $response = $next($request);
 
-        return $response
-            ->header('Access-Control-Allow-Origin', $allowOrigin)
-            ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-            ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin')
-            ->header('Access-Control-Allow-Credentials', 'true')
-            ->header('Vary', 'Origin');
+        foreach ($headers as $header => $value) {
+            $response->headers->set($header, $value);
+        }
+
+        return $response;
     }
 }
