@@ -6,7 +6,8 @@ return [
     // 'allowed_origins' => [env('CORS_ALLOWED_ORIGINS', 'https://lab-nic.mdradvocacia.com')],
     'allowed_origins' => [
         'https://lab-nic.mdradvocacia.com',
-        'http://localhost:3000'
+        'http://localhost:3000',
+        'http://localhost:5173',
     ],
     'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],
@@ -14,4 +15,3 @@ return [
     'max_age' => 0,
     'supports_credentials' => true,
 ];
-

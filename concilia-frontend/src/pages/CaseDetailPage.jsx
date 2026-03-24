@@ -240,7 +240,7 @@ const CaseDetailPage = () => {
                     </div>
                     {/* AQUI ESTAVA O PROBLEMA: Usamos helpers agora para extrair o nome se for Objeto */}
                     <p>
-                        {legalCase.action_object || 'Ação'} - {getPartyName(legalCase.opposing_party)} x {getPartyName(legalCase.defendant)}
+                        {legalCase.actionObject?.name || legalCase.action_object || 'Ação'} - {getPartyName(legalCase.opposing_party)} x {getPartyName(legalCase.defendant)}
                     </p>
                 </div>
                 
@@ -271,7 +271,7 @@ const CaseDetailPage = () => {
             <div className={styles.kpiGrid}>
                 <DetailKpiCard icon={<FaDollarSign />} title="Valor da Causa" value={formatCurrency(legalCase.cause_value)} color="#3b82f6" />
                 <DetailKpiCard icon={<FaHandshake />} title="Proposta Inicial" value={formatCurrency(legalCase.agreement_value)} color="#16a34a" />
-                <DetailKpiCard icon={<FaTasks />} title="PCOND (Risco)" value={legalCase.pcond_probability ? `${legalCase.pcond_probability}%` : '-'} color="#9333ea">
+                <DetailKpiCard icon={<FaTasks />} title="Valor da PCOND" value={formatCurrency(legalCase.pcond_probability)} color="#9333ea">
                     {legalCase.updated_condemnation_value ? `Cond. Atual: ${formatCurrency(legalCase.updated_condemnation_value)}` : 'Sem estimativa'}
                 </DetailKpiCard>
                 {/* Usa helper para advogado também */}

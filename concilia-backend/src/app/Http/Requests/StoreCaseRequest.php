@@ -27,6 +27,7 @@ class StoreCaseRequest extends FormRequest
             // Dados do Processo
             'case_number' => ['required', 'string', 'max:255', 'unique:legal_cases,case_number'],
             'action_object' => ['required', 'string', 'max:255'],
+            'action_object_id' => ['nullable', 'integer', 'exists:action_objects,id'],
             'start_date' => ['required', 'date'],
             'internal_number' => ['nullable', 'string', 'max:255'],
 
@@ -49,7 +50,7 @@ class StoreCaseRequest extends FormRequest
             'original_value' => ['required', 'numeric', 'min:0'],   // Alçada Required*
             'agreement_value' => ['nullable', 'numeric', 'min:0'],  // Proposta Inicial
             'updated_condemnation_value' => ['nullable', 'numeric', 'min:0'],
-            'pcond_probability' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'pcond_probability' => ['nullable', 'numeric', 'min:0'],
 
             // Outros
             'status' => ['required', 'string'],

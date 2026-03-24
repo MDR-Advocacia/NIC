@@ -17,8 +17,12 @@ COPY src/composer.json src/composer.lock ./
 # Copiar o código da subpasta src para a raiz do WORKDIR
 COPY src/. .
 
+# Remove caches do Laravel gerados fora da imagem para evitar
+# referências a providers de dependências de desenvolvimento.
+RUN rm -f bootstrap/cache/*.php
+
 # Instalar dependências
-RUN cp .env.example .env
+RUN [ -f .env ] || cp .env.example .env
 RUN composer install --no-interaction --no-plugins --no-scripts --prefer-dist --no-dev
 # Mudamos o dono de TUDO para www-data antes de trocar de usuário
 RUN chown -R www-data:www-data /var/www/html \

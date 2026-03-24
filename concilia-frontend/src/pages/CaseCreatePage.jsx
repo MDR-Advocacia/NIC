@@ -6,6 +6,8 @@ import styles from '../styles/CaseCreatePage.module.css';
 import AgreementChecklist from '../components/AgreementChecklist';
 import AddEditOpposingLawyerModal from '../components/AddEditOpposingLawyerModal';
 import OpposingLawyerListModal from '../components/OpposingLawyerListModal';
+import AddEditActionObjectModal from '../components/AddEditActionObjectModal';
+import ActionObjectListModal from '../components/ActionObjectListModal';
 import AddEditPlaintiffModal from '../components/AddEditPlaintiffModal';
 import AddEditDefendantModal from '../components/AddEditDefendantModal';
 import { FaExclamationTriangle } from 'react-icons/fa';
@@ -24,18 +26,6 @@ const IconSearch = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="n
 
 // --- Constantes ---
 const BRAZILIAN_STATES = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
-const ACTION_OBJECTS = [
-    "Contrato de Empréstimo - Juros Abusivos", 
-    "Cartão de Crédito - Cobrança Indevida", 
-    "Financiamento Imobiliário - Revisional", 
-    "Conta Corrente - Tarifas Abusivas", 
-    "Consignado - Desconto Indevido", 
-    "Cheque Especial - Juros Excessivos", 
-    "Seguro - Cobrança Indevida", 
-    "CDC - Venda Casada",
-    "Outros"
-];
-
 const availableColors = ['#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
 
 const CaseCreatePage = () => {
@@ -46,18 +36,24 @@ const CaseCreatePage = () => {
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
     const [opposingLawyersList, setOpposingLawyersList] = useState([]);
+    const [actionObjectsList, setActionObjectsList] = useState([]);
     const [plaintiffsList, setPlaintiffsList] = useState([]); // Nova Lista
     const [defendantsList, setDefendantsList] = useState([]); // Nova Lista
     
     // Controle dos Modais
     const [isLawyerModalOpen, setIsLawyerModalOpen] = useState(false);
     const [isListModalOpen, setIsListModalOpen] = useState(false);
+    const [isActionObjectModalOpen, setIsActionObjectModalOpen] = useState(false);
+    const [isActionObjectListModalOpen, setIsActionObjectListModalOpen] = useState(false);
     const [isPlaintiffModalOpen, setIsPlaintiffModalOpen] = useState(false); // Novo Modal Autor
     const [isDefendantModalOpen, setIsDefendantModalOpen] = useState(false); // Novo Modal Réu
     
     // Estados de Busca e Dropdown
     const [lawyerSearchTerm, setLawyerSearchTerm] = useState('');
     const [showLawyerDropdown, setShowLawyerDropdown] = useState(false);
+
+    const [actionObjectSearchTerm, setActionObjectSearchTerm] = useState('');
+    const [showActionObjectDropdown, setShowActionObjectDropdown] = useState(false);
 
     const [plaintiffSearchTerm, setPlaintiffSearchTerm] = useState(''); // Busca Autor
     const [showPlaintiffDropdown, setShowPlaintiffDropdown] = useState(false);
@@ -78,6 +74,7 @@ const CaseCreatePage = () => {
     const [formData, setFormData] = useState({
         case_number: '',
         action_object: '',
+        action_object_id: '',
         start_date: new Date().toISOString().split('T')[0],
         internal_number: '',
         
@@ -113,16 +110,18 @@ const CaseCreatePage = () => {
         const fetchDependencies = async () => {
             if (!token) return;
             try {
-                const [clientsRes, usersRes, lawyersRes, plaintiffsRes, defendantsRes] = await Promise.all([
+                const [clientsRes, usersRes, lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes] = await Promise.all([
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/action-objects', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/plaintiffs', { headers: { Authorization: `Bearer ${token}` } }), // Fetch Autores
                     apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } })  // Fetch Réus
                 ]);
                 setClients(Array.isArray(clientsRes.data) ? clientsRes.data : []);
                 setLawyers(Array.isArray(usersRes.data?.data) ? usersRes.data.data : []);
                 setOpposingLawyersList(Array.isArray(lawyersRes.data) ? lawyersRes.data : []);
+                setActionObjectsList(Array.isArray(actionObjectsRes.data) ? actionObjectsRes.data : []);
                 setPlaintiffsList(Array.isArray(plaintiffsRes.data) ? plaintiffsRes.data : []);
                 setDefendantsList(Array.isArray(defendantsRes.data) ? defendantsRes.data : []);
             } catch (error) {
@@ -151,7 +150,13 @@ const CaseCreatePage = () => {
             value = masked;
         }
 
-        setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'action_object') {
+            setFormData(prev => ({ ...prev, action_object: value, action_object_id: '' }));
+            setActionObjectSearchTerm(value);
+            setShowActionObjectDropdown(true);
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
 
         // Lógica Advogado
         if (name === 'opposing_lawyer_name') {
@@ -179,12 +184,17 @@ const CaseCreatePage = () => {
             setErrors(prev => {
                 const newErrors = { ...prev };
                 delete newErrors[name];
+                if (name === 'action_object') delete newErrors.action_object_id;
                 return newErrors;
             });
         }
     };
 
     // --- FILTROS DE PESQUISA ---
+    const filteredActionObjects = actionObjectsList.filter(actionObject =>
+        (actionObject.name || '').toLowerCase().includes(actionObjectSearchTerm.toLowerCase())
+    );
+
     const filteredLawyers = opposingLawyersList.filter(l => 
         l.name.toLowerCase().includes(lawyerSearchTerm.toLowerCase()) || 
         (l.oab && l.oab.toLowerCase().includes(lawyerSearchTerm.toLowerCase()))
@@ -201,6 +211,16 @@ const CaseCreatePage = () => {
     );
 
     // --- SELEÇÃO ---
+    const handleSelectActionObject = (actionObject) => {
+        setFormData(prev => ({
+            ...prev,
+            action_object_id: actionObject.id,
+            action_object: actionObject.name
+        }));
+        setActionObjectSearchTerm(actionObject.name);
+        setShowActionObjectDropdown(false);
+    };
+
     const handleSelectLawyer = (lawyer) => {
         setFormData(prev => ({
             ...prev,
@@ -238,6 +258,18 @@ const CaseCreatePage = () => {
         handleSelectLawyer(newLawyer);
     };
 
+    const handleActionObjectSaved = (savedActionObject) => {
+        setActionObjectsList(prev => {
+            const alreadyExists = prev.some(actionObject => actionObject.id === savedActionObject.id);
+            const nextList = alreadyExists
+                ? prev.map(actionObject => actionObject.id === savedActionObject.id ? savedActionObject : actionObject)
+                : [...prev, savedActionObject];
+
+            return nextList.sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+        });
+        handleSelectActionObject(savedActionObject);
+    };
+
     const handlePlaintiffCreated = (newPlaintiff) => {
         setPlaintiffsList(prev => [...prev, newPlaintiff]);
         handleSelectPlaintiff(newPlaintiff);
@@ -250,6 +282,8 @@ const CaseCreatePage = () => {
 
     // --- ABRIR MODAIS ---
     const handleCreateLawyer = () => { setIsLawyerModalOpen(true); setShowLawyerDropdown(false); };
+    const handleCreateActionObject = () => { setIsActionObjectModalOpen(true); setShowActionObjectDropdown(false); };
+    const handleOpenActionObjectListModal = () => { setIsActionObjectListModalOpen(true); setShowActionObjectDropdown(false); };
     const handleCreatePlaintiff = () => { setIsPlaintiffModalOpen(true); setShowPlaintiffDropdown(false); };
     const handleCreateDefendant = () => { setIsDefendantModalOpen(true); setShowDefendantDropdown(false); };
     
@@ -289,7 +323,7 @@ const CaseCreatePage = () => {
         const newErrors = {};
         if (!formData.case_number.trim()) newErrors.case_number = "Obrigatório.";
         else if (formData.case_number.length < 20) newErrors.case_number = "Incompleto.";
-        if (!formData.action_object) newErrors.action_object = "Obrigatório.";
+        if (!formData.action_object.trim()) newErrors.action_object = "Obrigatório.";
         if (!formData.start_date) newErrors.start_date = "Obrigatório.";
         if (!formData.opposing_party.trim()) newErrors.opposing_party = "Obrigatório.";
         if (!formData.defendant.trim()) newErrors.defendant = "Obrigatório.";
@@ -323,6 +357,7 @@ const CaseCreatePage = () => {
             const payload = {
                 ...formData,
                 opposing_lawyer: formData.opposing_lawyer_name,
+                action_object: formData.action_object.trim(),
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,
                 cause_value: parseFloat(formData.cause_value),
                 agreement_value: formData.agreement_value ? parseFloat(formData.agreement_value) : null,
@@ -402,11 +437,36 @@ const CaseCreatePage = () => {
                         </div>
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Objeto da Ação <span className={styles.required}>*</span></label>
-                            <select className={`${styles.select} ${errors.action_object ? styles.errorInput : ''}`} name="action_object" value={formData.action_object} onChange={handleChange}>
-                                <option value="">Selecione...</option>
-                                {ACTION_OBJECTS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
-                            {errors.action_object && <span className={styles.errorMessage}>{errors.action_object}</span>}
+                            <div className={styles.inputGroupWithButtons}>
+                                <div className={styles.inputWrapper}>
+                                    <input
+                                        className={`${styles.input} ${(errors.action_object || errors.action_object_id) ? styles.errorInput : ''}`}
+                                        type="text"
+                                        name="action_object"
+                                        value={formData.action_object}
+                                        onChange={handleChange}
+                                        onFocus={() => setShowActionObjectDropdown(true)}
+                                        placeholder="Pesquisar objeto da ação..."
+                                        autoComplete="off"
+                                    />
+                                    {showActionObjectDropdown && actionObjectSearchTerm && (
+                                        <ul className={styles.dropdownList}>
+                                            {filteredActionObjects.map(actionObject => (
+                                                <li key={actionObject.id} className={styles.dropdownItem} onClick={() => handleSelectActionObject(actionObject)}>
+                                                    <strong>{actionObject.name}</strong>
+                                                </li>
+                                            ))}
+                                            <li className={styles.dropdownItemNew} onClick={handleCreateActionObject}>
+                                                <IconPlus /> Cadastrar Novo: "{actionObjectSearchTerm}"
+                                            </li>
+                                        </ul>
+                                    )}
+                                    {showActionObjectDropdown && <div style={{position: 'fixed', inset:0, zIndex: 90}} onClick={() => setShowActionObjectDropdown(false)} />}
+                                </div>
+                                <button type="button" onClick={handleOpenActionObjectListModal} className={`${styles.iconButton} ${styles.searchButton}`} title="Buscar e gerenciar objetos da ação"><IconSearch /></button>
+                                <button type="button" onClick={handleCreateActionObject} className={`${styles.iconButton} ${styles.addButtonIcon}`} title="Cadastrar novo objeto da ação"><IconPlus /></button>
+                            </div>
+                            {(errors.action_object || errors.action_object_id) && <span className={styles.errorMessage}>{errors.action_object || errors.action_object_id}</span>}
                         </div>
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Data de Distribuição <span className={styles.required}>*</span></label>
@@ -613,9 +673,9 @@ const CaseCreatePage = () => {
                             <label className={styles.label}>Proposta Inicial (R$)</label>
                             <input className={styles.input} type="number" step="0.01" name="agreement_value" value={formData.agreement_value} onChange={handleChange} />
                         </div>
-                         <div className={styles.formGroup}>
-                            <label className={styles.label}>PCOND (Probabilidade %)</label>
-                            <input className={styles.input} type="number" step="0.01" max="100" name="pcond_probability" value={formData.pcond_probability} onChange={handleChange} />
+                        <div className={styles.formGroup}>
+                            <label className={styles.label}>Valor da PCOND (R$)</label>
+                            <input className={styles.input} type="number" step="0.01" name="pcond_probability" value={formData.pcond_probability} onChange={handleChange} />
                         </div>
                          <div className={styles.formGroup}>
                             <label className={styles.label}>Condenação Atualizada (R$)</label>
@@ -704,6 +764,21 @@ const CaseCreatePage = () => {
                 <OpposingLawyerListModal
                     onClose={() => setIsListModalOpen(false)}
                     onSelect={handleSelectLawyer}
+                />
+            )}
+
+            {isActionObjectModalOpen && (
+                <AddEditActionObjectModal
+                    onClose={() => setIsActionObjectModalOpen(false)}
+                    onSuccess={handleActionObjectSaved}
+                    initialName={actionObjectSearchTerm}
+                />
+            )}
+
+            {isActionObjectListModalOpen && (
+                <ActionObjectListModal
+                    onClose={() => setIsActionObjectListModalOpen(false)}
+                    onSelect={handleSelectActionObject}
                 />
             )}
 

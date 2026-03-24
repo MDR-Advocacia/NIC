@@ -1,22 +1,5 @@
 <?php
-// // 1. FORÇAR APP_KEY (Caso o Coolify limpe o .env)
-// if (!env('APP_KEY')) {
-//     config(['app.key' => 'base64:qMkktrXan9beMLstxLELl4g9uzftVF3HBETiDo+Beko=']);
-// }
 
-// // 2. TRATAR APENAS O 'OPTIONS' SEM ADICIONAR ORIGIN MANUAL
-// // Isso vai permitir que o Nginx do Coolify mande o header dele sozinho
-// if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-//     header('HTTP/1.1 204 No Content');
-//     exit;
-// }
-if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    header("Access-Control-Allow-Origin: https://lab-nic.mdradvocacia.com");
-    header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-    header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept");
-    header('HTTP/1.1 200 OK');
-    exit();
-}
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
@@ -33,6 +16,7 @@ use App\Http\Controllers\Api\OpposingLawyerController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\PlaintiffController;
 use App\Http\Controllers\Api\DefendantController;
+use App\Http\Controllers\Api\ActionObjectController;
 
 
 // Webhook do Chatwoot (Sem autenticação pois vem do Chatwoot)
@@ -95,6 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- AUXILIARES (ADVOGADOS, AUTORES, RÉUS) ---
     Route::apiResource('aggressor-lawyers', AggressorLawyerController::class);
     Route::apiResource('opposing-lawyers', OpposingLawyerController::class);
+    Route::apiResource('action-objects', ActionObjectController::class)->only(['index', 'store', 'update']);
     
     Route::get('/plaintiffs', [PlaintiffController::class, 'index']);
     Route::post('/plaintiffs', [PlaintiffController::class, 'store']);

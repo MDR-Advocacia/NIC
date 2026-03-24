@@ -10,6 +10,8 @@ import ChatPreview from './ChatPreview';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditOpposingLawyerModal from './AddEditOpposingLawyerModal';
 import OpposingLawyerListModal from './OpposingLawyerListModal';
+import AddEditActionObjectModal from './AddEditActionObjectModal';
+import ActionObjectListModal from './ActionObjectListModal';
 import AddEditPlaintiffModal from './AddEditPlaintiffModal'; 
 import AddEditDefendantModal from './AddEditDefendantModal'; 
 
@@ -30,7 +32,8 @@ const HistoryItem = ({ entry }) => {
         case_number: 'Nº do Processo', status: 'Status', priority: 'Prioridade',
         description: 'Descrição', opposing_party: 'Autor', defendant: 'Réu',
         original_value: 'Valor de Alçada', agreement_value: 'Valor do Acordo', cause_value: 'Valor da Causa',
-        internal_number: 'Nº Interno', city: 'Cidade', pcond_probability: 'PCOND', updated_condemnation_value: 'Condenação Atualizada'
+        internal_number: 'Nº Interno', city: 'Cidade', action_object: 'Objeto da Ação',
+        pcond_probability: 'Valor da PCOND', updated_condemnation_value: 'Condenação Atualizada'
     };
 
     const renderChanges = () => {
@@ -170,6 +173,16 @@ const DetailsTab = ({
     handleCreateLawyer,
     handleOpenListModal,
 
+    // Props Objeto da Ação
+    actionObjectsList,
+    actionObjectSearchTerm,
+    setActionObjectSearchTerm,
+    showActionObjectDropdown,
+    setShowActionObjectDropdown,
+    handleSelectActionObject,
+    handleCreateActionObject,
+    handleOpenActionObjectListModal,
+
     // Props Autor
     plaintiffsList,
     plaintiffSearchTerm,
@@ -189,15 +202,18 @@ const DetailsTab = ({
     handleCreateDefendant
 }) => {
     const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
-    const actionObjects = ["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada", "Outros"];
     const availableColors = ['#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
     
     // --- FILTROS SEGUROS (CORREÇÃO DO CRASH TO_LOWER_CASE) ---
     // Garante que o termo seja string antes de chamar toLowerCase()
+    const safeActionObjectTerm = (actionObjectSearchTerm || '').toString().toLowerCase();
     const safeLawyerTerm = (lawyerSearchTerm || '').toString().toLowerCase();
     const safePlaintiffTerm = (plaintiffSearchTerm || '').toString().toLowerCase();
     const safeDefendantTerm = (defendantSearchTerm || '').toString().toLowerCase();
 
+    const filteredActionObjects = actionObjectsList.filter(actionObject =>
+        (actionObject.name || '').toLowerCase().includes(safeActionObjectTerm)
+    );
     const filteredLawyers = opposingLawyersList.filter(l => 
         (l.name || '').toLowerCase().includes(safeLawyerTerm) || 
         (l.oab && l.oab.toLowerCase().includes(safeLawyerTerm))
@@ -241,10 +257,57 @@ const DetailsTab = ({
                     </div>
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Objeto da Ação</label>
-                        <select className={styles.select} name="action_object" value={formData.action_object || ''} onChange={handleChange} required>
-                            <option value="">Selecione...</option>
-                            {actionObjects.map(obj => <option key={obj} value={obj}>{obj}</option>)}
-                        </select>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                            <div style={{ position: 'relative', flex: 1 }}>
+                                <input
+                                    className={styles.input}
+                                    type="text"
+                                    name="action_object"
+                                    value={formData.action_object || ''}
+                                    onChange={(e) => {
+                                        setActionObjectSearchTerm(e.target.value);
+                                        setShowActionObjectDropdown(true);
+                                        if (e.target.value === '') handleChange({ target: { name: 'action_object_id', value: '' } });
+                                        handleChange(e);
+                                    }}
+                                    onFocus={() => setShowActionObjectDropdown(true)}
+                                    placeholder="Pesquisar objeto da ação..."
+                                    autoComplete="off"
+                                />
+                                {showActionObjectDropdown && actionObjectSearchTerm && (
+                                    <ul style={dropdownStyle}>
+                                        {filteredActionObjects.map(actionObject => (
+                                            <li key={actionObject.id} style={itemStyle} onClick={() => handleSelectActionObject(actionObject)}
+                                                onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
+                                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}>
+                                                <strong>{actionObject.name}</strong>
+                                            </li>
+                                        ))}
+                                        <li style={{ ...itemStyle, backgroundColor: '#2a4365', color: '#90cdf4', fontWeight: 'bold' }}
+                                            onClick={handleCreateActionObject}>
+                                            <IconPlus /> Cadastrar Novo: "{actionObjectSearchTerm}"
+                                        </li>
+                                    </ul>
+                                )}
+                                {showActionObjectDropdown && <div style={{position: 'fixed', inset:0, zIndex: 40}} onClick={() => setShowActionObjectDropdown(false)} />}
+                            </div>
+                            <button type="button" onClick={handleOpenActionObjectListModal} title="Buscar e gerenciar objetos da ação"
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: '#4a5568', color: 'white', border: 'none',
+                                    borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
+                                }}>
+                                <IconSearch />
+                            </button>
+                            <button type="button" onClick={handleCreateActionObject} title="Cadastrar novo objeto da ação"
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: '#3182ce', color: 'white', border: 'none',
+                                    borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
+                                }}>
+                                <IconPlus />
+                            </button>
+                        </div>
                     </div>
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Data Distribuição</label>
@@ -499,8 +562,8 @@ const DetailsTab = ({
                         <input className={styles.input} type="number" step="0.01" name="updated_condemnation_value" value={formData.updated_condemnation_value || ''} onChange={handleChange} />
                     </div>
                     <div className={styles.formGroup}>
-                        <label className={styles.label}>PCOND (%)</label>
-                        <input className={styles.input} type="number" step="0.01" max="100" name="pcond_probability" value={formData.pcond_probability || ''} onChange={handleChange} placeholder="0-100" />
+                        <label className={styles.label}>Valor da PCOND (R$)</label>
+                        <input className={styles.input} type="number" step="0.01" name="pcond_probability" value={formData.pcond_probability || ''} onChange={handleChange} />
                     </div>
                 </div>
             </div>
@@ -570,12 +633,16 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     
     // Listas de Dados
     const [opposingLawyersList, setOpposingLawyersList] = useState([]);
+    const [actionObjectsList, setActionObjectsList] = useState([]);
     const [plaintiffsList, setPlaintiffsList] = useState([]);
     const [defendantsList, setDefendantsList] = useState([]);
     
     // Estados de Busca e Dropdown
     const [lawyerSearchTerm, setLawyerSearchTerm] = useState('');
     const [showLawyerDropdown, setShowLawyerDropdown] = useState(false);
+
+    const [actionObjectSearchTerm, setActionObjectSearchTerm] = useState('');
+    const [showActionObjectDropdown, setShowActionObjectDropdown] = useState(false);
 
     const [plaintiffSearchTerm, setPlaintiffSearchTerm] = useState('');
     const [showPlaintiffDropdown, setShowPlaintiffDropdown] = useState(false);
@@ -586,6 +653,8 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     // Controle dos Modais
     const [isLawyerModalOpen, setIsLawyerModalOpen] = useState(false);
     const [isListModalOpen, setIsListModalOpen] = useState(false);
+    const [isActionObjectModalOpen, setIsActionObjectModalOpen] = useState(false);
+    const [isActionObjectListModalOpen, setIsActionObjectListModalOpen] = useState(false);
     const [isPlaintiffModalOpen, setIsPlaintiffModalOpen] = useState(false);
     const [isDefendantModalOpen, setIsDefendantModalOpen] = useState(false);
 
@@ -599,12 +668,14 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         const fetchData = async () => {
             if (!token) return;
             try {
-                const [lawyersRes, plaintiffsRes, defendantsRes] = await Promise.all([
+                const [lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes] = await Promise.all([
                     apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/action-objects', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/plaintiffs', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } })
                 ]);
                 setOpposingLawyersList(Array.isArray(lawyersRes.data) ? lawyersRes.data : []);
+                setActionObjectsList(Array.isArray(actionObjectsRes.data) ? actionObjectsRes.data : []);
                 setPlaintiffsList(Array.isArray(plaintiffsRes.data) ? plaintiffsRes.data : []);
                 setDefendantsList(Array.isArray(defendantsRes.data) ? defendantsRes.data : []);
             } catch (err) {
@@ -636,11 +707,13 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 pcond_probability: legalCase.pcond_probability || '',
                 
                 // Mapeamento IDs
+                action_object_id: legalCase.action_object_id || legalCase.actionObject?.id || '',
                 opposing_lawyer_id: legalCase.opposing_lawyer_id || '',
                 plaintiff_id: legalCase.plaintiff_id || '',
                 defendant_id: legalCase.defendant_id || '',
                 
                 // Mapeamento Nomes Visuais (Extrai nome se for objeto)
+                action_object: getStringValue(legalCase.action_object || legalCase.actionObject),
                 opposing_lawyer: getStringValue(legalCase.opposing_lawyer || legalCase.opposingLawyer),
                 opposing_party: getStringValue(legalCase.opposing_party || legalCase.plaintiff),
                 defendant: getStringValue(legalCase.defendant || legalCase.defendantRel),
@@ -649,6 +722,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
             });
             
             // Inicializar buscas com string segura
+            setActionObjectSearchTerm(getStringValue(legalCase.action_object || legalCase.actionObject));
             setLawyerSearchTerm(getStringValue(legalCase.opposing_lawyer || legalCase.opposingLawyer));
             setPlaintiffSearchTerm(getStringValue(legalCase.opposing_party || legalCase.plaintiff));
             setDefendantSearchTerm(getStringValue(legalCase.defendant || legalCase.defendantRel));
@@ -658,6 +732,31 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
             setActiveTab('details');
         }
     }, [legalCase]);
+
+    // --- HANDLERS OBJETO DA AÇÃO ---
+    const handleSelectActionObject = (actionObject) => {
+        setFormData(prev => ({
+            ...prev,
+            action_object_id: actionObject.id,
+            action_object: actionObject.name
+        }));
+        setActionObjectSearchTerm(actionObject.name);
+        setShowActionObjectDropdown(false);
+    };
+
+    const handleCreateActionObject = () => { setIsActionObjectModalOpen(true); setShowActionObjectDropdown(false); };
+    const handleOpenActionObjectListModal = () => { setIsActionObjectListModalOpen(true); setShowActionObjectDropdown(false); };
+    const handleActionObjectSaved = (savedActionObject) => {
+        setActionObjectsList(prev => {
+            const alreadyExists = prev.some(actionObject => actionObject.id === savedActionObject.id);
+            const nextList = alreadyExists
+                ? prev.map(actionObject => actionObject.id === savedActionObject.id ? savedActionObject : actionObject)
+                : [...prev, savedActionObject];
+
+            return nextList.sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+        });
+        handleSelectActionObject(savedActionObject);
+    };
 
     // --- HANDLERS ADVOGADO ---
     const handleSelectLawyer = (lawyer) => {
@@ -742,7 +841,13 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     
     const handleChange = (e) => { 
         const { name, value } = e.target; 
-        setFormData(prevState => ({ ...prevState, [name]: value })); 
+        if (name === 'action_object') {
+            setFormData(prevState => ({ ...prevState, action_object: value, action_object_id: '' })); 
+            setActionObjectSearchTerm(value);
+            setShowActionObjectDropdown(true);
+        } else {
+            setFormData(prevState => ({ ...prevState, [name]: value })); 
+        }
     };
     
     const handleChecklistChange = (checklistData) => {
@@ -760,6 +865,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         try { 
             const payload = {
                 ...formData,
+                action_object: (formData.action_object || '').trim(),
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,
                 cause_value: formData.cause_value ? parseFloat(formData.cause_value) : null,
                 agreement_value: formData.agreement_value ? parseFloat(formData.agreement_value) : null,
@@ -823,6 +929,16 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     handleCreateLawyer={handleCreateLawyer}
                                     handleOpenListModal={handleOpenListModal}
 
+                                    // Props Objeto da Ação
+                                    actionObjectsList={actionObjectsList}
+                                    actionObjectSearchTerm={actionObjectSearchTerm}
+                                    setActionObjectSearchTerm={setActionObjectSearchTerm}
+                                    showActionObjectDropdown={showActionObjectDropdown}
+                                    setShowActionObjectDropdown={setShowActionObjectDropdown}
+                                    handleSelectActionObject={handleSelectActionObject}
+                                    handleCreateActionObject={handleCreateActionObject}
+                                    handleOpenActionObjectListModal={handleOpenActionObjectListModal}
+
                                     // Props Autor
                                     plaintiffsList={plaintiffsList}
                                     plaintiffSearchTerm={plaintiffSearchTerm}
@@ -877,6 +993,13 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                     initialName={lawyerSearchTerm}
                 />
             )}
+            {isActionObjectModalOpen && (
+                <AddEditActionObjectModal
+                    onClose={() => setIsActionObjectModalOpen(false)}
+                    onSuccess={handleActionObjectSaved}
+                    initialName={actionObjectSearchTerm}
+                />
+            )}
             {isPlaintiffModalOpen && (
                 <AddEditPlaintiffModal 
                     onClose={() => setIsPlaintiffModalOpen(false)}
@@ -897,6 +1020,12 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 <OpposingLawyerListModal
                     onClose={() => setIsListModalOpen(false)}
                     onSelect={handleSelectLawyer}
+                />
+            )}
+            {isActionObjectListModalOpen && (
+                <ActionObjectListModal
+                    onClose={() => setIsActionObjectListModalOpen(false)}
+                    onSelect={handleSelectActionObject}
                 />
             )}
         </>
