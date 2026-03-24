@@ -17,6 +17,8 @@ class ChatController extends Controller
     private $metaAccessToken;
     private $metaBusinessAccountId;
     private $metaPhoneNumberId;
+    private $metaBusinessAccountIdMap;
+    private $metaPhoneNumberIdMap;
     private $metaApiVersion;
 
     public function __construct()
@@ -27,6 +29,8 @@ class ChatController extends Controller
         $this->metaAccessToken = config('services.meta_whatsapp.access_token');
         $this->metaBusinessAccountId = config('services.meta_whatsapp.business_account_id');
         $this->metaPhoneNumberId = config('services.meta_whatsapp.phone_number_id');
+        $this->metaBusinessAccountIdMap = $this->parseEnvMap(config('services.meta_whatsapp.business_account_id_map'));
+        $this->metaPhoneNumberIdMap = $this->parseEnvMap(config('services.meta_whatsapp.phone_number_id_map'));
         $this->metaApiVersion = config('services.meta_whatsapp.api_version', 'v22.0');
     }
 
@@ -66,6 +70,55 @@ class ChatController extends Controller
             ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", $validated);
 
         return response()->json($response->json());
+    }
+
+    public function updateContact(Request $request, $contactId)
+    {
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string',
+            'email' => 'nullable|email',
+            'phone_number' => 'nullable|string',
+        ]);
+
+        $payload = [];
+
+        foreach (['name', 'email', 'phone_number'] as $field) {
+            if ($request->exists($field)) {
+                $payload[$field] = $validated[$field] ?? null;
+            }
+        }
+
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->put("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}", $payload);
+
+        return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
+    }
+
+    public function getInboxAgents($inboxId)
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inbox_members", [
+                'inbox_id' => $inboxId,
+            ]);
+
+        $data = $response->json();
+
+        return response()->json($data['payload'] ?? $data, $response->status());
+    }
+
+    public function assignConversation(Request $request, $conversationId)
+    {
+        $validated = $request->validate([
+            'assignee_id' => 'nullable|integer',
+        ]);
+
+        $response = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/assignments", [
+            'assignee_id' => $validated['assignee_id'] ?? null,
+        ]);
+
+        return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
     }
 
     public function getConversations(Request $request)
@@ -154,29 +207,46 @@ class ChatController extends Controller
     public function sendMessage(Request $request, $conversationId)
     {
         $data = $request->all();
+        $attachments = $request->file('attachments', []);
+
+        if (!is_array($attachments)) {
+            $attachments = $attachments ? [$attachments] : [];
+        }
+
+        if (count(array_filter($attachments)) > 0) {
+            return $this->sendAttachmentMessage($conversationId, $data, $attachments);
+        }
+
+        $templateParams = is_array($data['template_params'] ?? null) ? $data['template_params'] : null;
+        $contentAttributes = is_array($data['content_attributes'] ?? null) ? $data['content_attributes'] : [];
 
         $payload = [
             'content' => $data['content'] ?? '',
             'message_type' => 'outgoing',
         ];
 
-        $isTemplateMessage = ($data['content_type'] ?? null) === 'template';
+        $isTemplateMessage = ($data['content_type'] ?? null) === 'template' || filled($templateParams);
 
         if ($isTemplateMessage) {
             $payload['content_type'] = 'template';
-            $payload['content_attributes'] = $data['content_attributes'] ?? [];
+            $payload['content_attributes'] = $this->buildTemplateContentAttributes($contentAttributes, $templateParams);
+
+            if ($templateParams) {
+                $payload['template_params'] = $templateParams;
+            }
         }
 
         $response = Http::withHeaders([
             'api_access_token' => $this->apiToken,
         ])->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages", $payload);
 
-        if ($response->successful() || !$isTemplateMessage || !$this->hasMetaMessagingConfig()) {
+        $inboxId = isset($data['inbox_id']) ? (int) $data['inbox_id'] : null;
+
+        if ($response->successful() || !$isTemplateMessage || !$this->hasMetaMessagingConfig($inboxId)) {
             return response()->json($response->json(), $response->status());
         }
 
         $phoneNumber = $data['to_phone_number'] ?? null;
-        $contentAttributes = $data['content_attributes'] ?? [];
 
         if (!$phoneNumber) {
             return response()->json([
@@ -186,19 +256,22 @@ class ChatController extends Controller
             ], $response->status());
         }
 
-        $metaResponse = $this->sendTemplateViaMeta($phoneNumber, $contentAttributes);
+        $metaResponse = $this->sendTemplateViaMeta($phoneNumber, $payload['content_attributes'], $templateParams, $inboxId);
 
         if ($metaResponse['ok']) {
-            return response()->json([
+            $fallbackMessage = [
                 'id' => $metaResponse['message_id'] ?? ('meta-template-' . time()),
-                'content' => '[Template Meta enviado] ' . ($contentAttributes['template_name'] ?? 'template'),
+                'content' => $data['content'] ?? ('[Template Meta enviado] ' . ($payload['content_attributes']['template_name'] ?? 'template')),
                 'message_type' => 'outgoing',
                 'status' => 'sent',
                 'created_at' => time(),
                 'content_type' => 'template',
-                'content_attributes' => $contentAttributes,
+                'content_attributes' => $payload['content_attributes'],
+                'template_params' => $templateParams,
                 'meta_fallback' => true,
-            ], 200);
+            ];
+
+            return response()->json($fallbackMessage, 200);
         }
 
         return response()->json([
@@ -206,6 +279,41 @@ class ChatController extends Controller
             'chatwoot_error' => $response->json(),
             'meta_error' => $metaResponse['error'] ?? null,
         ], $metaResponse['status'] ?? $response->status());
+    }
+
+    private function sendAttachmentMessage($conversationId, array $data, array $attachments)
+    {
+        $requestBuilder = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])->acceptJson();
+
+        foreach ($attachments as $attachment) {
+            if (!$attachment || !$attachment->isValid()) {
+                continue;
+            }
+
+            $requestBuilder = $requestBuilder->attach(
+                'attachments[]',
+                file_get_contents($attachment->getRealPath()),
+                $attachment->getClientOriginalName()
+            );
+        }
+
+        $payload = [
+            'content' => $data['content'] ?? '',
+            'message_type' => 'outgoing',
+        ];
+
+        if (filled($data['file_type'] ?? null)) {
+            $payload['file_type'] = $data['file_type'];
+        }
+
+        $response = $requestBuilder->post(
+            "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages",
+            $payload
+        );
+
+        return response()->json($response->json(), $response->status());
     }
 
     public function getConversationByCase(LegalCase $legal_case)
@@ -230,7 +338,7 @@ class ChatController extends Controller
             'inbox_id' => 'required|integer',
         ]);
 
-        $inboxId = $validated['inbox_id'];
+        $inboxId = (int) $validated['inbox_id'];
         $url = "{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes/{$inboxId}/whatsapp_templates";
 
         try {
@@ -247,8 +355,8 @@ class ChatController extends Controller
 
             $inbox = $this->findInboxById($inboxId);
 
-            if ($this->hasMetaTemplateConfig()) {
-                $metaResponse = $this->fetchMetaTemplates();
+            if ($this->hasMetaTemplateConfig($inboxId)) {
+                $metaResponse = $this->fetchMetaTemplates($inboxId);
 
                 if ($metaResponse['ok']) {
                     return response()->json([
@@ -263,7 +371,7 @@ class ChatController extends Controller
                     'inbox' => $inbox,
                     'chatwoot_error' => $response->json() ?? ['body' => $response->body()],
                     'meta_error' => $metaResponse['error'] ?? null,
-                    'hint' => 'Confira as credenciais META_WHATSAPP_ACCESS_TOKEN e META_WHATSAPP_BUSINESS_ACCOUNT_ID no Coolify.',
+                    'hint' => 'Confira as credenciais META_WHATSAPP_ACCESS_TOKEN e o mapeamento do inbox_id no Coolify.',
                 ], $metaResponse['status'] ?? 502);
             }
 
@@ -271,7 +379,7 @@ class ChatController extends Controller
                 'message' => 'Nao foi possivel carregar os templates do WhatsApp no Chatwoot.',
                 'inbox' => $inbox,
                 'details' => $response->json() ?? ['body' => $response->body()],
-                'hint' => $this->buildTemplateFailureHint($response->status(), $inbox),
+                'hint' => $this->buildTemplateFailureHint($response->status(), $inbox, $inboxId),
             ], $response->status());
         } catch (\Exception $e) {
             return response()->json([
@@ -309,12 +417,14 @@ class ChatController extends Controller
             ->all();
     }
 
-    private function fetchMetaTemplates(): array
+    private function fetchMetaTemplates(?int $inboxId): array
     {
+        $businessAccountId = $this->resolveMetaBusinessAccountId($inboxId);
+
         try {
             $response = Http::withToken($this->metaAccessToken)
                 ->acceptJson()
-                ->get($this->metaGraphUrl("{$this->metaBusinessAccountId}/message_templates"), [
+                ->get($this->metaGraphUrl("{$businessAccountId}/message_templates"), [
                     'limit' => 100,
                     'fields' => 'name,status,category,language,components',
                 ]);
@@ -340,33 +450,53 @@ class ChatController extends Controller
         }
     }
 
-    private function sendTemplateViaMeta(string $phoneNumber, array $contentAttributes): array
+    private function sendTemplateViaMeta(string $phoneNumber, array $contentAttributes, ?array $templateParams, ?int $inboxId): array
     {
+        $phoneNumberId = $this->resolveMetaPhoneNumberId($inboxId);
+
         try {
             $normalizedPhone = preg_replace('/\D+/', '', $phoneNumber);
-            $languageCode = $contentAttributes['language_code'] ?? 'pt_BR';
-            $templateName = $contentAttributes['template_name'] ?? null;
+            $languageCode = data_get($templateParams, 'language')
+                ?? data_get($templateParams, 'language_code')
+                ?? ($contentAttributes['language_code'] ?? 'pt_BR');
+            $templateName = data_get($templateParams, 'name') ?? ($contentAttributes['template_name'] ?? null);
+            $bodyParameters = $this->normalizeTemplateBodyParameters(data_get($templateParams, 'processed_params.body', []));
 
-            if (!$normalizedPhone || !$templateName) {
+            if (!$normalizedPhone || !$templateName || !$phoneNumberId) {
                 return [
                     'ok' => false,
                     'status' => 422,
-                    'error' => ['message' => 'Numero de destino ou nome do template ausente para o envio via Meta.'],
+                    'error' => ['message' => 'Numero de destino, nome do template ou phone_number_id ausente para o envio via Meta.'],
                 ];
+            }
+
+            $templatePayload = [
+                'name' => $templateName,
+                'language' => [
+                    'code' => $languageCode,
+                ],
+            ];
+
+            if (!empty($bodyParameters)) {
+                $templatePayload['components'] = [[
+                    'type' => 'body',
+                    'parameters' => collect($bodyParameters)
+                        ->map(fn ($value) => [
+                            'type' => 'text',
+                            'text' => (string) $value,
+                        ])
+                        ->values()
+                        ->all(),
+                ]];
             }
 
             $response = Http::withToken($this->metaAccessToken)
                 ->acceptJson()
-                ->post($this->metaGraphUrl("{$this->metaPhoneNumberId}/messages"), [
+                ->post($this->metaGraphUrl("{$phoneNumberId}/messages"), [
                     'messaging_product' => 'whatsapp',
                     'to' => $normalizedPhone,
                     'type' => 'template',
-                    'template' => [
-                        'name' => $templateName,
-                        'language' => [
-                            'code' => $languageCode,
-                        ],
-                    ],
+                    'template' => $templatePayload,
                 ]);
 
             if ($response->failed()) {
@@ -388,6 +518,41 @@ class ChatController extends Controller
                 'error' => ['message' => $e->getMessage()],
             ];
         }
+    }
+
+    private function buildTemplateContentAttributes(array $contentAttributes, ?array $templateParams): array
+    {
+        if (!$templateParams) {
+            return $contentAttributes;
+        }
+
+        return array_filter([
+            'template_name' => data_get($templateParams, 'name') ?? ($contentAttributes['template_name'] ?? null),
+            'language_code' => data_get($templateParams, 'language')
+                ?? data_get($templateParams, 'language_code')
+                ?? ($contentAttributes['language_code'] ?? null),
+        ], fn ($value) => filled($value));
+    }
+
+    private function normalizeTemplateBodyParameters($bodyParameters): array
+    {
+        if (!is_array($bodyParameters) || empty($bodyParameters)) {
+            return [];
+        }
+
+        if (array_is_list($bodyParameters)) {
+            return array_values(array_map(fn ($value) => (string) $value, $bodyParameters));
+        }
+
+        uksort($bodyParameters, function ($left, $right) {
+            return (int) $left <=> (int) $right;
+        });
+
+        return collect($bodyParameters)
+            ->map(fn ($value) => is_scalar($value) ? (string) $value : '')
+            ->filter(fn ($value) => $value !== '')
+            ->values()
+            ->all();
     }
 
     private function findInboxById(int $inboxId): ?array
@@ -415,14 +580,43 @@ class ChatController extends Controller
         return null;
     }
 
-    private function hasMetaTemplateConfig(): bool
+    private function hasMetaTemplateConfig(?int $inboxId): bool
     {
-        return filled($this->metaAccessToken) && filled($this->metaBusinessAccountId);
+        return filled($this->metaAccessToken) && filled($this->resolveMetaBusinessAccountId($inboxId));
     }
 
-    private function hasMetaMessagingConfig(): bool
+    private function hasMetaMessagingConfig(?int $inboxId): bool
     {
-        return $this->hasMetaTemplateConfig() && filled($this->metaPhoneNumberId);
+        return $this->hasMetaTemplateConfig($inboxId) && filled($this->resolveMetaPhoneNumberId($inboxId));
+    }
+
+    private function resolveMetaBusinessAccountId(?int $inboxId): ?string
+    {
+        if ($inboxId !== null && isset($this->metaBusinessAccountIdMap[(string) $inboxId])) {
+            return (string) $this->metaBusinessAccountIdMap[(string) $inboxId];
+        }
+
+        return filled($this->metaBusinessAccountId) ? (string) $this->metaBusinessAccountId : null;
+    }
+
+    private function resolveMetaPhoneNumberId(?int $inboxId): ?string
+    {
+        if ($inboxId !== null && isset($this->metaPhoneNumberIdMap[(string) $inboxId])) {
+            return (string) $this->metaPhoneNumberIdMap[(string) $inboxId];
+        }
+
+        return filled($this->metaPhoneNumberId) ? (string) $this->metaPhoneNumberId : null;
+    }
+
+    private function parseEnvMap($rawValue): array
+    {
+        if (!is_string($rawValue) || trim($rawValue) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($rawValue, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     private function metaGraphUrl(string $path): string
@@ -430,7 +624,7 @@ class ChatController extends Controller
         return "https://graph.facebook.com/{$this->metaApiVersion}/{$path}";
     }
 
-    private function buildTemplateFailureHint(int $status, ?array $inbox): string
+    private function buildTemplateFailureHint(int $status, ?array $inbox, ?int $inboxId): string
     {
         $channelType = Str::lower((string) ($inbox['channel_type'] ?? ''));
         $provider = Str::lower((string) ($inbox['provider'] ?? ''));
@@ -444,11 +638,11 @@ class ChatController extends Controller
                 return 'A inbox parece nao ser WhatsApp Cloud. O endpoint de templates da Meta no Chatwoot pode nao existir para esse provider.';
             }
 
-            if (!$this->hasMetaTemplateConfig()) {
-                return 'O Chatwoot respondeu 404 para whatsapp_templates e o fallback direto da Meta ainda nao foi configurado. Adicione META_WHATSAPP_ACCESS_TOKEN e META_WHATSAPP_BUSINESS_ACCOUNT_ID no Coolify.';
+            if (!$this->hasMetaTemplateConfig($inboxId)) {
+                return 'O Chatwoot respondeu 404 para whatsapp_templates e o fallback direto da Meta ainda nao foi configurado para esta inbox. Adicione META_WHATSAPP_ACCESS_TOKEN e o mapa META_WHATSAPP_BUSINESS_ACCOUNT_ID_MAP no Coolify.';
             }
 
-            return 'O Chatwoot respondeu 404 para whatsapp_templates. O NIC pode usar os templates direto da Meta se as credenciais estiverem configuradas no Coolify.';
+            return 'O Chatwoot respondeu 404 para whatsapp_templates. O NIC pode usar os templates direto da Meta se as credenciais e o mapeamento desta inbox estiverem configurados no Coolify.';
         }
 
         return 'Confirme se a inbox e do WhatsApp e se os modelos foram sincronizados no painel administrativo do Chatwoot.';
