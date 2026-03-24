@@ -72,6 +72,55 @@ class ChatController extends Controller
         return response()->json($response->json());
     }
 
+    public function updateContact(Request $request, $contactId)
+    {
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string',
+            'email' => 'nullable|email',
+            'phone_number' => 'nullable|string',
+        ]);
+
+        $payload = [];
+
+        foreach (['name', 'email', 'phone_number'] as $field) {
+            if ($request->exists($field)) {
+                $payload[$field] = $validated[$field] ?? null;
+            }
+        }
+
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->put("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}", $payload);
+
+        return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
+    }
+
+    public function getInboxAgents($inboxId)
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inbox_members", [
+                'inbox_id' => $inboxId,
+            ]);
+
+        $data = $response->json();
+
+        return response()->json($data['payload'] ?? $data, $response->status());
+    }
+
+    public function assignConversation(Request $request, $conversationId)
+    {
+        $validated = $request->validate([
+            'assignee_id' => 'nullable|integer',
+        ]);
+
+        $response = Http::withHeaders([
+            'api_access_token' => $this->apiToken,
+        ])->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/assignments", [
+            'assignee_id' => $validated['assignee_id'] ?? null,
+        ]);
+
+        return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
+    }
+
     public function getConversations(Request $request)
     {
         $status = $request->query('status', 'open');

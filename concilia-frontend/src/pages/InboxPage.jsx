@@ -137,6 +137,7 @@ const styles = {
     flexDirection: 'column',
     minHeight: 0,
     background: 'linear-gradient(180deg, #f9fbff 0%, #edf2f8 100%)',
+    position: 'relative',
   },
   chatHeader: {
     padding: '22px 28px',
@@ -146,6 +147,8 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerInfo: { cursor: 'pointer' },
+  headerActions: { display: 'flex', alignItems: 'center', gap: '10px' },
   badge: {
     padding: '10px 14px',
     borderRadius: '999px',
@@ -295,6 +298,74 @@ const styles = {
     padding: '24px',
     zIndex: 9999,
   },
+  contactDrawer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '360px',
+    backgroundColor: '#ffffff',
+    borderLeft: '1px solid #dbe3ee',
+    boxShadow: '-18px 0 40px rgba(16, 35, 63, 0.12)',
+    zIndex: 40,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  contactDrawerHeader: {
+    padding: '20px 22px',
+    borderBottom: '1px solid #dbe3ee',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '12px',
+  },
+  contactDrawerBody: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '20px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '18px',
+  },
+  contactHero: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+  },
+  fieldCard: {
+    padding: '16px',
+    borderRadius: '18px',
+    backgroundColor: '#f8fbff',
+    border: '1px solid #dbe3ee',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  fieldLabel: {
+    display: 'block',
+    marginBottom: '6px',
+    fontSize: '11px',
+    fontWeight: 800,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: '#5f7291',
+  },
+  drawerClose: {
+    border: 'none',
+    backgroundColor: '#f1f5f9',
+    color: '#475569',
+    width: '36px',
+    height: '36px',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontSize: '18px',
+    flexShrink: 0,
+  },
+  helperText: {
+    fontSize: '12px',
+    lineHeight: 1.6,
+    color: '#6b7d96',
+  },
 };
 
 const InboxPage = () => {
@@ -325,6 +396,13 @@ const InboxPage = () => {
   const [feedbackEnvio, setFeedbackEnvio] = useState('');
   const [tipoFeedback, setTipoFeedback] = useState('success');
   const [imagemAberta, setImagemAberta] = useState(null);
+  const [painelContatoAberto, setPainelContatoAberto] = useState(false);
+  const [formContato, setFormContato] = useState({ id: '', name: '', email: '', phone_number: '' });
+  const [salvandoContato, setSalvandoContato] = useState(false);
+  const [agentesInbox, setAgentesInbox] = useState([]);
+  const [carregandoAgentes, setCarregandoAgentes] = useState(false);
+  const [assigneeSelecionado, setAssigneeSelecionado] = useState('');
+  const [atribuindoConversa, setAtribuindoConversa] = useState(false);
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const knownActivityRef = useRef(new Map());
@@ -618,19 +696,49 @@ const InboxPage = () => {
     attachments: getMessageAttachments(mensagem).length > 0 ? getMessageAttachments(mensagem) : fallback.attachments || [],
   });
 
+  const normalizarAgente = (agente) => {
+    const usuario = agente?.user || agente?.agent || agente;
+
+    if (!usuario?.id) return null;
+
+    return {
+      id: usuario.id,
+      name: usuario.name || usuario.available_name || 'Sem nome',
+      email: usuario.email || '',
+      avatar_url: usuario.thumbnail || usuario.avatar_url || '',
+    };
+  };
+
+  const extrairContatoResposta = (data) => {
+    if (data?.payload?.contact) return data.payload.contact;
+    if (data?.payload) return data.payload;
+    if (data?.contact) return data.contact;
+    return data;
+  };
+
   const conversaAtual = useMemo(
     () => conversas.find((conversa) => conversa.id === conversaSelecionada) || null,
     [conversas, conversaSelecionada]
   );
 
+  const contatoAtual = useMemo(
+    () => contatoParaDetalhar || conversaAtual?.meta?.sender || null,
+    [contatoParaDetalhar, conversaAtual]
+  );
+
+  const agenteAtual = useMemo(
+    () => normalizarAgente(conversaAtual?.meta?.assignee) || null,
+    [conversaAtual]
+  );
+
   const telefoneDestino = useMemo(
     () =>
-      contatoParaDetalhar?.phone_number ||
-      contatoParaDetalhar?.phoneNumber ||
+      contatoAtual?.phone_number ||
+      contatoAtual?.phoneNumber ||
       conversaAtual?.meta?.sender?.phone_number ||
       conversaAtual?.meta?.sender?.identifier ||
       '',
-    [conversaAtual, contatoParaDetalhar]
+    [conversaAtual, contatoAtual]
   );
 
   const registrosVisiveis = useMemo(() => {
@@ -656,6 +764,152 @@ const InboxPage = () => {
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
     setTipoFeedback(tipo);
+  };
+
+  const aplicarContatoAtualizado = (contatoAtualizado) => {
+    if (!contatoAtualizado) return;
+
+    setContatoParaDetalhar((anterior) => ({ ...(anterior || {}), ...contatoAtualizado }));
+    setContatos((anterior) => anterior.map((contato) => (String(contato.id) === String(contatoAtualizado.id) ? { ...contato, ...contatoAtualizado } : contato)));
+    setConversas((anterior) =>
+      anterior.map((conversa) => {
+        const senderId = conversa?.meta?.sender?.id;
+
+        if (String(senderId) !== String(contatoAtualizado.id)) {
+          return conversa;
+        }
+
+        return {
+          ...conversa,
+          meta: {
+            ...(conversa.meta || {}),
+            sender: {
+              ...(conversa.meta?.sender || {}),
+              ...contatoAtualizado,
+            },
+          },
+        };
+      })
+    );
+  };
+
+  const aplicarAgenteAtribuido = (agente) => {
+    if (!conversaSelecionada) return;
+
+    setConversas((anterior) =>
+      anterior.map((conversa) => {
+        if (conversa.id !== conversaSelecionada) {
+          return conversa;
+        }
+
+        return {
+          ...conversa,
+          assignee_id: agente?.id || null,
+          meta: {
+            ...(conversa.meta || {}),
+            assignee: agente || null,
+          },
+        };
+      })
+    );
+  };
+
+  const carregarAgentesInbox = async (inboxId) => {
+    if (!inboxId) {
+      setAgentesInbox([]);
+      return;
+    }
+
+    const token = getCleanToken();
+
+    try {
+      setCarregandoAgentes(true);
+      const response = await fetch(`${API_BASE}/chat/inboxes/${inboxId}/agents`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+      const data = await response.json().catch(() => ({}));
+      const lista = extrairLista(data).map(normalizarAgente).filter(Boolean);
+      setAgentesInbox(lista);
+    } catch (error) {
+      console.error('Erro ao carregar agentes da inbox:', error);
+      setAgentesInbox([]);
+    } finally {
+      setCarregandoAgentes(false);
+    }
+  };
+
+  const salvarContatoAtual = async () => {
+    if (!formContato.id) {
+      definirFeedback('Este contato nao possui identificador editavel no Chatwoot.', 'error');
+      return;
+    }
+
+    const token = getCleanToken();
+
+    try {
+      setSalvandoContato(true);
+      const response = await fetch(`${API_BASE}/chat/contacts/${formContato.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          name: formContato.name,
+          email: formContato.email || null,
+          phone_number: formContato.phone_number || null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        aplicarContatoAtualizado(extrairContatoResposta(data));
+        definirFeedback('Contato atualizado com sucesso.');
+      } else {
+        definirFeedback(data?.message || 'Nao foi possivel atualizar o contato.', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar contato:', error);
+      definirFeedback('Falha de comunicacao ao atualizar o contato.', 'error');
+    } finally {
+      setSalvandoContato(false);
+    }
+  };
+
+  const atribuirConversaAtual = async () => {
+    if (!conversaSelecionada || atribuindoConversa) return;
+
+    const token = getCleanToken();
+    const assigneeId = assigneeSelecionado ? Number(assigneeSelecionado) : null;
+
+    try {
+      setAtribuindoConversa(true);
+      const response = await fetch(`${API_BASE}/chat/conversations/${conversaSelecionada}/assign`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ assignee_id: assigneeId }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        const agente = assigneeId ? agentesInbox.find((item) => Number(item.id) === assigneeId) || null : null;
+        aplicarAgenteAtribuido(agente);
+        await buscarConversas(abaAtiva, { silent: true });
+        definirFeedback(agente ? `Conversa atribuida para ${agente.name}.` : 'A conversa ficou sem agente atribuido.');
+      } else {
+        definirFeedback(data?.message || 'Nao foi possivel atribuir a conversa.', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao atribuir conversa:', error);
+      definirFeedback('Falha de comunicacao ao atribuir a conversa.', 'error');
+    } finally {
+      setAtribuindoConversa(false);
+    }
   };
 
   const carregarDadosIniciais = async () => {
@@ -772,6 +1026,27 @@ const InboxPage = () => {
   useEffect(() => {
     carregarDadosIniciais();
   }, []);
+
+  useEffect(() => {
+    setFormContato({
+      id: contatoAtual?.id || '',
+      name: contatoAtual?.name || '',
+      email: contatoAtual?.email || '',
+      phone_number: contatoAtual?.phone_number || contatoAtual?.phoneNumber || '',
+    });
+  }, [contatoAtual?.id, contatoAtual?.name, contatoAtual?.email, contatoAtual?.phone_number, contatoAtual?.phoneNumber]);
+
+  useEffect(() => {
+    setAssigneeSelecionado(agenteAtual?.id ? String(agenteAtual.id) : '');
+  }, [agenteAtual?.id]);
+
+  useEffect(() => {
+    if (!painelContatoAberto || !conversaAtual?.inbox_id) {
+      return;
+    }
+
+    carregarAgentesInbox(conversaAtual.inbox_id);
+  }, [painelContatoAberto, conversaAtual?.inbox_id]);
 
   useEffect(() => {
     buscarConversas(abaAtiva);
@@ -1416,7 +1691,15 @@ const InboxPage = () => {
                 <div
                   key={item.id}
                   style={styles.listCard(ativo)}
-                  onClick={() => (visaoAtiva === 'conversas' ? abrirConversa(item.id) : setContatoParaDetalhar(item))}
+                  onClick={() => {
+                    if (visaoAtiva === 'conversas') {
+                      abrirConversa(item.id);
+                      return;
+                    }
+
+                    setContatoParaDetalhar(item);
+                    setPainelContatoAberto(true);
+                  }}
                 >
                   <div style={styles.avatar(ativo)}>{nome.charAt(0).toUpperCase()}</div>
                   <div style={{ minWidth: 0, flex: 1 }}>
@@ -1445,11 +1728,16 @@ const InboxPage = () => {
         {conversaSelecionada ? (
           <>
             <div style={styles.chatHeader}>
-              <div>
+              <div style={styles.headerInfo} onClick={() => setPainelContatoAberto(true)}>
                 <div style={{ fontSize: '30px', fontWeight: 800, lineHeight: 1.1 }}>{contatoParaDetalhar?.name || 'Atendimento'}</div>
                 <div style={{ marginTop: '6px', color: '#6b7d96' }}>{telefoneDestino || 'Sem telefone identificado'}</div>
               </div>
-              <div style={styles.badge}>WhatsApp</div>
+              <div style={styles.headerActions}>
+                <button type="button" style={styles.secondaryButton} onClick={() => setPainelContatoAberto(true)}>
+                  Contato
+                </button>
+                <div style={styles.badge}>WhatsApp</div>
+              </div>
             </div>
 
             <div style={styles.chatBody}>
@@ -1524,6 +1812,95 @@ const InboxPage = () => {
           </div>
         )}
       </div>
+
+      {painelContatoAberto && (contatoAtual || conversaAtual) ? (
+        <aside style={styles.contactDrawer}>
+          <div style={styles.contactDrawerHeader}>
+            <div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: '#10233f' }}>Contato</div>
+              <div style={{ marginTop: '6px', color: '#6b7d96', fontSize: '13px' }}>
+                Edite os dados do cliente e atribua este atendimento para um colaborador.
+              </div>
+            </div>
+            <button type="button" style={styles.drawerClose} onClick={() => setPainelContatoAberto(false)}>
+              x
+            </button>
+          </div>
+
+          <div style={styles.contactDrawerBody}>
+            <div style={styles.fieldCard}>
+              <div style={styles.contactHero}>
+                <div style={{ ...styles.avatar(Boolean(contatoAtual)), width: '52px', height: '52px', fontSize: '18px' }}>
+                  {(formContato.name || contatoAtual?.name || 'C').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#10233f' }}>{formContato.name || 'Contato sem nome'}</div>
+                  <div style={{ marginTop: '4px', color: '#6b7d96', fontSize: '13px' }}>{formContato.phone_number || 'Telefone indisponivel'}</div>
+                </div>
+              </div>
+
+              <div>
+                <label style={styles.fieldLabel}>Nome</label>
+                <input type="text" style={styles.input} value={formContato.name} onChange={(event) => setFormContato((anterior) => ({ ...anterior, name: event.target.value }))} />
+              </div>
+
+              <div>
+                <label style={styles.fieldLabel}>E-mail</label>
+                <input type="email" style={styles.input} value={formContato.email} onChange={(event) => setFormContato((anterior) => ({ ...anterior, email: event.target.value }))} placeholder="cliente@empresa.com" />
+              </div>
+
+              <div>
+                <label style={styles.fieldLabel}>Telefone</label>
+                <input type="text" style={styles.input} value={formContato.phone_number} onChange={(event) => setFormContato((anterior) => ({ ...anterior, phone_number: event.target.value }))} placeholder="+5584..." />
+              </div>
+
+              <div style={styles.helperText}>
+                {formContato.id ? `ID do contato no Chatwoot: ${formContato.id}` : 'Este registro ainda nao expoe o ID do contato para edicao direta.'}
+              </div>
+
+              <button type="button" style={styles.primaryButton} onClick={salvarContatoAtual} disabled={salvandoContato}>
+                {salvandoContato ? 'Salvando...' : 'Salvar contato'}
+              </button>
+            </div>
+
+            {visaoAtiva === 'conversas' && conversaSelecionada ? (
+              <div style={styles.fieldCard}>
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#10233f' }}>Atribuicao da conversa</div>
+                  <div style={{ marginTop: '6px', color: '#6b7d96', fontSize: '13px' }}>
+                    Depois de atribuir, esta conversa passa a aparecer para o agente na aba "Minhas".
+                  </div>
+                </div>
+
+                <div>
+                  <label style={styles.fieldLabel}>Agente atual</label>
+                  <div style={{ fontWeight: 700, color: '#10233f' }}>{agenteAtual?.name || 'Nenhum agente atribuido'}</div>
+                </div>
+
+                <div>
+                  <label style={styles.fieldLabel}>Selecionar agente</label>
+                  <select style={styles.select} value={assigneeSelecionado} onChange={(event) => setAssigneeSelecionado(event.target.value)}>
+                    <option value="">Nenhum</option>
+                    {agentesInbox.map((agente) => (
+                      <option key={agente.id} value={agente.id}>
+                        {agente.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={styles.helperText}>
+                  {carregandoAgentes ? 'Carregando agentes da inbox...' : `Canal da conversa: ${conversaAtual?.inbox_id || 'nao identificado'}`}
+                </div>
+
+                <button type="button" style={styles.primaryButton} onClick={atribuirConversaAtual} disabled={atribuindoConversa || carregandoAgentes}>
+                  {atribuindoConversa ? 'Atualizando...' : 'Salvar atribuicao'}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </aside>
+      ) : null}
     </div>
   );
 };

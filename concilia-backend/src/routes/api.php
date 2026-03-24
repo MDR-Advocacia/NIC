@@ -30,9 +30,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/chat/templates', [ChatController::class, 'getTemplates']);
     Route::get('/chat/conversations/{conversationId}', [ChatController::class, 'getConversationMessages']);
     Route::post('/chat/conversations/{conversationId}/messages', [ChatController::class, 'sendMessage']);
+    Route::post('/chat/conversations/{conversationId}/assign', [ChatController::class, 'assignConversation']);
     Route::post('/chat/conversations/{conversationId}/link', [ChatController::class, 'linkConversation']);
+    Route::get('/chat/inboxes/{inboxId}/agents', [ChatController::class, 'getInboxAgents']);
     Route::get('/chat/contacts', [ChatController::class, 'getContacts']);
     Route::post('/chat/contacts', [ChatController::class, 'createContact']);
+    Route::put('/chat/contacts/{contactId}', [ChatController::class, 'updateContact']);
 
     Route::get('/cases/{legal_case}/conversation', [ChatController::class, 'getConversationByCase']);
 
