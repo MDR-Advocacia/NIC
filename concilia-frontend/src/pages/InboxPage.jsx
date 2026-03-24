@@ -391,6 +391,36 @@ const InboxPage = () => {
     return mapa[status] || 'Enviado';
   };
 
+  const getConteudoVisivelMensagem = (mensagem) => {
+    if (mensagem?.content && mensagem.content.trim()) {
+      return mensagem.content.trim();
+    }
+
+    if (mensagem?.content_type === 'template') {
+      const atributos = mensagem?.content_attributes || {};
+      const corpoTemplate =
+        atributos.processed_message_content ||
+        atributos.template_message ||
+        atributos.template_body ||
+        atributos.message ||
+        '';
+
+      if (typeof corpoTemplate === 'string' && corpoTemplate.trim()) {
+        return corpoTemplate.trim();
+      }
+
+      const nomeTemplate =
+        atributos.template_name ||
+        atributos.name ||
+        mensagem?.template_params?.name ||
+        'template';
+
+      return `Template enviado: ${nomeTemplate}`;
+    }
+
+    return '';
+  };
+
   const formatarHorarioConversa = (timestamp) => {
     if (!timestamp) return '';
 
@@ -404,8 +434,10 @@ const InboxPage = () => {
     if (!mensagem) return 'Nenhuma mensagem ainda';
 
     const anexos = getMessageAttachments(mensagem);
-    if (mensagem.content && mensagem.content.trim()) {
-      return mensagem.content.trim();
+    const conteudoVisivel = getConteudoVisivelMensagem(mensagem);
+
+    if (conteudoVisivel) {
+      return conteudoVisivel;
     }
 
     if (anexos.length > 0) {
@@ -1305,7 +1337,7 @@ const InboxPage = () => {
                       </div>
                       <div style={{ ...styles.bubble(minha), borderColor: mensagem.status === 'failed' ? '#fca5a5' : '#dbe3ee' }}>
                         {renderizarAnexos(mensagem)}
-                        {mensagem.content ? <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{mensagem.content}</div> : null}
+                        {getConteudoVisivelMensagem(mensagem) ? <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{getConteudoVisivelMensagem(mensagem)}</div> : null}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
                           {formatarHorario(mensagem.created_at)}
                           {minha ? <span style={styles.statusTag(mensagem.status)}>{getStatusMensagem(mensagem.status)}</span> : null}
