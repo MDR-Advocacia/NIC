@@ -379,6 +379,19 @@ const InboxPage = () => {
     return new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const getMessageTimestamp = (mensagem) => {
+    const createdAt = mensagem?.created_at || mensagem?.timestamp;
+
+    if (!createdAt) return 0;
+
+    if (typeof createdAt === 'number') {
+      return createdAt > 9999999999 ? Math.floor(createdAt / 1000) : createdAt;
+    }
+
+    const parsed = Date.parse(createdAt);
+    return Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+  };
+
   const getStatusMensagem = (status) => {
     const mapa = {
       sent: 'Enviado',
@@ -736,7 +749,7 @@ const InboxPage = () => {
       });
       const data = await response.json();
       const msgLista = extrairLista(data);
-      setMensagens([...msgLista].sort((left, right) => left.id - right.id));
+      setMensagens([...msgLista].sort((left, right) => getMessageTimestamp(left) - getMessageTimestamp(right)));
       setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
     } catch (error) {
       console.error('Erro ao carregar conversa:', error);

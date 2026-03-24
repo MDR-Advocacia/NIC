@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\LegalCase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -92,8 +93,16 @@ class ChatController extends Controller
             }
 
             $data = $response->json();
+            $payload = $data['payload'] ?? $data;
 
-            return response()->json($data['payload'] ?? $data);
+            if (is_array($payload)) {
+                $payload = collect($payload)
+                    ->map(fn ($conversation) => is_array($conversation) ? $this->mergeFallbackPreviewIntoConversation($conversation) : $conversation)
+                    ->values()
+                    ->all();
+            }
+
+            return response()->json($payload);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Timeout'], 504);
         }
@@ -152,7 +161,16 @@ class ChatController extends Controller
             return response()->json(['error' => 'Nao foi possivel carregar as mensagens'], 500);
         }
 
-        return response()->json($response->json());
+        $body = $response->json();
+        $conversationId = (int) $conversationId;
+
+        if (is_array($body) && isset($body['payload']) && is_array($body['payload'])) {
+            $body['payload'] = $this->mergeFallbackMessagesIntoConversation($conversationId, $body['payload']);
+        } elseif (is_array($body) && array_is_list($body)) {
+            $body = $this->mergeFallbackMessagesIntoConversation($conversationId, $body);
+        }
+
+        return response()->json($body);
     }
 
     public function sendMessage(Request $request, $conversationId)
@@ -210,7 +228,7 @@ class ChatController extends Controller
         $metaResponse = $this->sendTemplateViaMeta($phoneNumber, $payload['content_attributes'], $templateParams, $inboxId);
 
         if ($metaResponse['ok']) {
-            return response()->json([
+            $fallbackMessage = [
                 'id' => $metaResponse['message_id'] ?? ('meta-template-' . time()),
                 'content' => $data['content'] ?? ('[Template Meta enviado] ' . ($payload['content_attributes']['template_name'] ?? 'template')),
                 'message_type' => 'outgoing',
@@ -220,7 +238,11 @@ class ChatController extends Controller
                 'content_attributes' => $payload['content_attributes'],
                 'template_params' => $templateParams,
                 'meta_fallback' => true,
-            ], 200);
+            ];
+
+            $this->cacheFallbackMessage((int) $conversationId, $fallbackMessage);
+
+            return response()->json($fallbackMessage, 200);
         }
 
         return response()->json([
@@ -502,6 +524,175 @@ class ChatController extends Controller
             ->filter(fn ($value) => $value !== '')
             ->values()
             ->all();
+    }
+
+    private function cacheFallbackMessage(int $conversationId, array $message): void
+    {
+        if ($conversationId <= 0) {
+            return;
+        }
+
+        $messages = collect($this->getCachedFallbackMessages($conversationId))
+            ->reject(fn ($cachedMessage) => ($cachedMessage['id'] ?? null) === ($message['id'] ?? null))
+            ->push($message)
+            ->values()
+            ->all();
+
+        Cache::put($this->fallbackMessagesCacheKey($conversationId), $messages, now()->addDay());
+    }
+
+    private function getCachedFallbackMessages(int $conversationId): array
+    {
+        $cached = Cache::get($this->fallbackMessagesCacheKey($conversationId), []);
+
+        return is_array($cached) ? array_values(array_filter($cached, 'is_array')) : [];
+    }
+
+    private function mergeFallbackMessagesIntoConversation(int $conversationId, array $messages): array
+    {
+        $fallbackMessages = collect($this->getCachedFallbackMessages($conversationId));
+
+        if ($fallbackMessages->isEmpty()) {
+            return $messages;
+        }
+
+        $realMessages = collect($messages)->filter(fn ($message) => is_array($message))->values();
+
+        $remainingFallback = $fallbackMessages
+            ->reject(function ($fallbackMessage) use ($realMessages) {
+                return $realMessages->contains(fn ($realMessage) => $this->messagesRepresentSameContent($fallbackMessage, $realMessage));
+            })
+            ->values();
+
+        Cache::put($this->fallbackMessagesCacheKey($conversationId), $remainingFallback->all(), now()->addDay());
+
+        return $realMessages
+            ->concat($remainingFallback)
+            ->sortBy(fn ($message) => $this->extractMessageTimestamp($message))
+            ->values()
+            ->all();
+    }
+
+    private function mergeFallbackPreviewIntoConversation(array $conversation): array
+    {
+        $conversationId = (int) ($conversation['id'] ?? 0);
+
+        if ($conversationId <= 0) {
+            return $conversation;
+        }
+
+        $latestFallbackMessage = collect($this->getCachedFallbackMessages($conversationId))
+            ->sortByDesc(fn ($message) => $this->extractMessageTimestamp($message))
+            ->first();
+
+        if (!$latestFallbackMessage) {
+            return $conversation;
+        }
+
+        $lastRealMessage = $conversation['last_non_activity_message'] ?? null;
+        $fallbackTimestamp = $this->extractMessageTimestamp($latestFallbackMessage);
+        $realTimestamp = $this->extractMessageTimestamp($lastRealMessage);
+
+        if ($fallbackTimestamp <= $realTimestamp) {
+            return $conversation;
+        }
+
+        $conversation['last_non_activity_message'] = $latestFallbackMessage;
+        $conversation['timestamp'] = $fallbackTimestamp;
+
+        return $conversation;
+    }
+
+    private function fallbackMessagesCacheKey(int $conversationId): string
+    {
+        return "chat:fallback_messages:{$conversationId}";
+    }
+
+    private function messagesRepresentSameContent(array $leftMessage, array $rightMessage): bool
+    {
+        if ($this->normalizeMessageType($leftMessage['message_type'] ?? null) !== $this->normalizeMessageType($rightMessage['message_type'] ?? null)) {
+            return false;
+        }
+
+        if ($this->normalizeMessageType($leftMessage['message_type'] ?? null) !== 'outgoing') {
+            return false;
+        }
+
+        $leftTemplate = $this->extractTemplateName($leftMessage);
+        $rightTemplate = $this->extractTemplateName($rightMessage);
+        $timestampsAreClose = abs($this->extractMessageTimestamp($leftMessage) - $this->extractMessageTimestamp($rightMessage)) <= 300;
+
+        if ($leftTemplate && $rightTemplate && $leftTemplate === $rightTemplate && $timestampsAreClose) {
+            return true;
+        }
+
+        $leftContent = $this->extractComparableMessageContent($leftMessage);
+        $rightContent = $this->extractComparableMessageContent($rightMessage);
+
+        return $leftContent !== '' && $leftContent === $rightContent && $timestampsAreClose;
+    }
+
+    private function normalizeMessageType($messageType): string
+    {
+        if ($messageType === 1 || $messageType === 'outgoing') {
+            return 'outgoing';
+        }
+
+        if ($messageType === 0 || $messageType === 'incoming') {
+            return 'incoming';
+        }
+
+        return (string) $messageType;
+    }
+
+    private function extractTemplateName(array $message): ?string
+    {
+        $templateName = data_get($message, 'content_attributes.template_name')
+            ?? data_get($message, 'template_params.name')
+            ?? data_get($message, 'content_attributes.name');
+
+        return filled($templateName) ? (string) $templateName : null;
+    }
+
+    private function extractComparableMessageContent(?array $message): string
+    {
+        if (!$message) {
+            return '';
+        }
+
+        $content = $message['content'] ?? null;
+
+        if (is_string($content) && trim($content) !== '') {
+            return trim($content);
+        }
+
+        $fallbackContent = data_get($message, 'content_attributes.processed_message_content')
+            ?? data_get($message, 'content_attributes.template_message')
+            ?? data_get($message, 'content_attributes.template_body')
+            ?? data_get($message, 'content_attributes.message');
+
+        return is_string($fallbackContent) ? trim($fallbackContent) : '';
+    }
+
+    private function extractMessageTimestamp($message): int
+    {
+        if (!is_array($message)) {
+            return 0;
+        }
+
+        $createdAt = $message['created_at'] ?? $message['timestamp'] ?? null;
+
+        if (is_numeric($createdAt)) {
+            $timestamp = (int) $createdAt;
+            return $timestamp > 9999999999 ? (int) floor($timestamp / 1000) : $timestamp;
+        }
+
+        if (is_string($createdAt)) {
+            $timestamp = strtotime($createdAt);
+            return $timestamp ?: 0;
+        }
+
+        return 0;
     }
 
     private function findInboxById(int $inboxId): ?array
