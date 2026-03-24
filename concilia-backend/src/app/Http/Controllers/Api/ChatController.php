@@ -158,17 +158,23 @@ class ChatController extends Controller
     public function sendMessage(Request $request, $conversationId)
     {
         $data = $request->all();
+        $templateParams = is_array($data['template_params'] ?? null) ? $data['template_params'] : null;
+        $contentAttributes = is_array($data['content_attributes'] ?? null) ? $data['content_attributes'] : [];
 
         $payload = [
             'content' => $data['content'] ?? '',
             'message_type' => 'outgoing',
         ];
 
-        $isTemplateMessage = ($data['content_type'] ?? null) === 'template';
+        $isTemplateMessage = ($data['content_type'] ?? null) === 'template' || filled($templateParams);
 
         if ($isTemplateMessage) {
             $payload['content_type'] = 'template';
-            $payload['content_attributes'] = $data['content_attributes'] ?? [];
+            $payload['content_attributes'] = $this->buildTemplateContentAttributes($contentAttributes, $templateParams);
+
+            if ($templateParams) {
+                $payload['template_params'] = $templateParams;
+            }
         }
 
         $response = Http::withHeaders([
@@ -182,7 +188,6 @@ class ChatController extends Controller
         }
 
         $phoneNumber = $data['to_phone_number'] ?? null;
-        $contentAttributes = $data['content_attributes'] ?? [];
 
         if (!$phoneNumber) {
             return response()->json([
@@ -192,17 +197,18 @@ class ChatController extends Controller
             ], $response->status());
         }
 
-        $metaResponse = $this->sendTemplateViaMeta($phoneNumber, $contentAttributes, $inboxId);
+        $metaResponse = $this->sendTemplateViaMeta($phoneNumber, $payload['content_attributes'], $templateParams, $inboxId);
 
         if ($metaResponse['ok']) {
             return response()->json([
                 'id' => $metaResponse['message_id'] ?? ('meta-template-' . time()),
-                'content' => '[Template Meta enviado] ' . ($contentAttributes['template_name'] ?? 'template'),
+                'content' => $data['content'] ?? ('[Template Meta enviado] ' . ($payload['content_attributes']['template_name'] ?? 'template')),
                 'message_type' => 'outgoing',
                 'status' => 'sent',
                 'created_at' => time(),
                 'content_type' => 'template',
-                'content_attributes' => $contentAttributes,
+                'content_attributes' => $payload['content_attributes'],
+                'template_params' => $templateParams,
                 'meta_fallback' => true,
             ], 200);
         }
@@ -348,14 +354,17 @@ class ChatController extends Controller
         }
     }
 
-    private function sendTemplateViaMeta(string $phoneNumber, array $contentAttributes, ?int $inboxId): array
+    private function sendTemplateViaMeta(string $phoneNumber, array $contentAttributes, ?array $templateParams, ?int $inboxId): array
     {
         $phoneNumberId = $this->resolveMetaPhoneNumberId($inboxId);
 
         try {
             $normalizedPhone = preg_replace('/\D+/', '', $phoneNumber);
-            $languageCode = $contentAttributes['language_code'] ?? 'pt_BR';
-            $templateName = $contentAttributes['template_name'] ?? null;
+            $languageCode = data_get($templateParams, 'language')
+                ?? data_get($templateParams, 'language_code')
+                ?? ($contentAttributes['language_code'] ?? 'pt_BR');
+            $templateName = data_get($templateParams, 'name') ?? ($contentAttributes['template_name'] ?? null);
+            $bodyParameters = $this->normalizeTemplateBodyParameters(data_get($templateParams, 'processed_params.body', []));
 
             if (!$normalizedPhone || !$templateName || !$phoneNumberId) {
                 return [
@@ -365,18 +374,33 @@ class ChatController extends Controller
                 ];
             }
 
+            $templatePayload = [
+                'name' => $templateName,
+                'language' => [
+                    'code' => $languageCode,
+                ],
+            ];
+
+            if (!empty($bodyParameters)) {
+                $templatePayload['components'] = [[
+                    'type' => 'body',
+                    'parameters' => collect($bodyParameters)
+                        ->map(fn ($value) => [
+                            'type' => 'text',
+                            'text' => (string) $value,
+                        ])
+                        ->values()
+                        ->all(),
+                ]];
+            }
+
             $response = Http::withToken($this->metaAccessToken)
                 ->acceptJson()
                 ->post($this->metaGraphUrl("{$phoneNumberId}/messages"), [
                     'messaging_product' => 'whatsapp',
                     'to' => $normalizedPhone,
                     'type' => 'template',
-                    'template' => [
-                        'name' => $templateName,
-                        'language' => [
-                            'code' => $languageCode,
-                        ],
-                    ],
+                    'template' => $templatePayload,
                 ]);
 
             if ($response->failed()) {
@@ -398,6 +422,41 @@ class ChatController extends Controller
                 'error' => ['message' => $e->getMessage()],
             ];
         }
+    }
+
+    private function buildTemplateContentAttributes(array $contentAttributes, ?array $templateParams): array
+    {
+        if (!$templateParams) {
+            return $contentAttributes;
+        }
+
+        return array_filter([
+            'template_name' => data_get($templateParams, 'name') ?? ($contentAttributes['template_name'] ?? null),
+            'language_code' => data_get($templateParams, 'language')
+                ?? data_get($templateParams, 'language_code')
+                ?? ($contentAttributes['language_code'] ?? null),
+        ], fn ($value) => filled($value));
+    }
+
+    private function normalizeTemplateBodyParameters($bodyParameters): array
+    {
+        if (!is_array($bodyParameters) || empty($bodyParameters)) {
+            return [];
+        }
+
+        if (array_is_list($bodyParameters)) {
+            return array_values(array_map(fn ($value) => (string) $value, $bodyParameters));
+        }
+
+        uksort($bodyParameters, function ($left, $right) {
+            return (int) $left <=> (int) $right;
+        });
+
+        return collect($bodyParameters)
+            ->map(fn ($value) => is_scalar($value) ? (string) $value : '')
+            ->filter(fn ($value) => $value !== '')
+            ->values()
+            ->all();
     }
 
     private function findInboxById(int $inboxId): ?array

@@ -1,5 +1,256 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+const styles = {
+  page: {
+    display: 'grid',
+    gridTemplateColumns: '220px 360px minmax(0, 1fr)',
+    minHeight: '100dvh',
+    margin: '-20px',
+    backgroundColor: '#f3f6fb',
+    color: '#10233f',
+    overflow: 'hidden',
+    fontFamily: '"Segoe UI", "Helvetica Neue", sans-serif',
+  },
+  rail: {
+    backgroundColor: '#ffffff',
+    borderRight: '1px solid #dbe3ee',
+    padding: '24px 18px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '18px',
+  },
+  railTitle: { margin: '6px 0 0', fontSize: '26px', fontWeight: 800, lineHeight: 1.1 },
+  railKicker: { fontSize: '12px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#5f7291' },
+  railText: { margin: 0, fontSize: '14px', lineHeight: 1.6, color: '#5f7291' },
+  railSection: { display: 'flex', flexDirection: 'column', gap: '10px' },
+  railButton: (active) => ({
+    padding: '14px 16px',
+    borderRadius: '14px',
+    border: active ? '1px solid #c7d8fb' : '1px solid #dbe3ee',
+    backgroundColor: active ? '#eaf1ff' : '#fff',
+    color: active ? '#1d4ed8' : '#213656',
+    fontWeight: 700,
+    fontSize: '14px',
+    textAlign: 'left',
+    cursor: 'pointer',
+  }),
+  addButton: {
+    padding: '14px 16px',
+    borderRadius: '14px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+    color: '#fff',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  railHint: {
+    marginTop: 'auto',
+    padding: '16px',
+    borderRadius: '18px',
+    backgroundColor: '#eaf1ff',
+    border: '1px solid #d7e5ff',
+  },
+  railHintLabel: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#5f7291' },
+  railHintValue: { marginTop: '8px', fontSize: '15px', fontWeight: 700, lineHeight: 1.4, color: '#10233f' },
+  panel: {
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: '#fbfcfe',
+    borderRight: '1px solid #dbe3ee',
+    minHeight: 0,
+  },
+  panelHeader: {
+    padding: '22px',
+    borderBottom: '1px solid #dbe3ee',
+    backgroundColor: '#ffffff',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  select: {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: '14px',
+    border: '1px solid #dbe3ee',
+    backgroundColor: '#fff',
+    fontSize: '14px',
+    color: '#10233f',
+    outline: 'none',
+  },
+  search: {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: '14px',
+    border: '1px solid #dbe3ee',
+    backgroundColor: '#fff',
+    fontSize: '14px',
+    color: '#10233f',
+    outline: 'none',
+  },
+  tabs: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' },
+  tab: (active) => ({
+    padding: '11px 10px',
+    borderRadius: '12px',
+    border: '1px solid transparent',
+    backgroundColor: active ? '#2563eb' : '#eef2f8',
+    color: active ? '#fff' : '#54657f',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+  }),
+  list: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  listCard: (active) => ({
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'center',
+    padding: '14px',
+    borderRadius: '16px',
+    border: active ? '1px solid #c7d8fb' : '1px solid #dbe3ee',
+    backgroundColor: active ? '#edf3ff' : '#fff',
+    boxShadow: active ? '0 14px 28px rgba(37, 99, 235, 0.10)' : '0 8px 18px rgba(16, 35, 63, 0.04)',
+    cursor: 'pointer',
+  }),
+  avatar: (active) => ({
+    width: '42px',
+    height: '42px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: active ? '#dbeafe' : '#e7edf5',
+    color: active ? '#1d4ed8' : '#54657f',
+    fontWeight: 700,
+    flexShrink: 0,
+  }),
+  chat: {
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
+    background: 'linear-gradient(180deg, #f9fbff 0%, #edf2f8 100%)',
+  },
+  chatHeader: {
+    padding: '22px 28px',
+    backgroundColor: '#ffffff',
+    borderBottom: '1px solid #dbe3ee',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  badge: {
+    padding: '10px 14px',
+    borderRadius: '999px',
+    backgroundColor: '#eef4ff',
+    color: '#1d4ed8',
+    fontWeight: 700,
+    fontSize: '12px',
+  },
+  chatBody: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '28px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+    minHeight: 0,
+  },
+  messageRow: (mine) => ({
+    display: 'flex',
+    flexDirection: mine ? 'row-reverse' : 'row',
+    alignItems: 'flex-end',
+    gap: '10px',
+  }),
+  bubble: (mine) => ({
+    maxWidth: '72%',
+    padding: '14px 16px',
+    borderRadius: mine ? '18px 18px 6px 18px' : '18px 18px 18px 6px',
+    backgroundColor: mine ? '#dbeafe' : '#ffffff',
+    border: '1px solid #dbe3ee',
+    boxShadow: '0 8px 18px rgba(16, 35, 63, 0.05)',
+  }),
+  composer: {
+    padding: '18px 24px 22px',
+    backgroundColor: '#ffffff',
+    borderTop: '1px solid #dbe3ee',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  composerRow: { display: 'flex', alignItems: 'center', gap: '12px' },
+  secondaryButton: {
+    padding: '14px 18px',
+    borderRadius: '14px',
+    border: '1px solid #dbe3ee',
+    backgroundColor: '#f8fbff',
+    color: '#213656',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  input: {
+    width: '100%',
+    padding: '13px 14px',
+    borderRadius: '14px',
+    border: '1px solid #dbe3ee',
+    backgroundColor: '#fff',
+    fontSize: '14px',
+    color: '#10233f',
+    outline: 'none',
+  },
+  composerInput: {
+    flex: 1,
+    padding: '14px 16px',
+    borderRadius: '16px',
+    border: '1px solid #dbe3ee',
+    backgroundColor: '#f8fbff',
+    fontSize: '14px',
+    color: '#10233f',
+    outline: 'none',
+  },
+  primaryButton: {
+    padding: '14px 24px',
+    borderRadius: '16px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+    color: '#fff',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  feedback: (type) => ({
+    padding: '11px 14px',
+    borderRadius: '12px',
+    border: type === 'error' ? '1px solid #fecaca' : '1px solid #bbf7d0',
+    backgroundColor: type === 'error' ? '#fff1f2' : '#ecfdf3',
+    color: type === 'error' ? '#b42318' : '#166534',
+    fontSize: '13px',
+    lineHeight: 1.5,
+  }),
+  empty: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '40px',
+    color: '#6b7d96',
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(6, 17, 34, 0.52)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '24px',
+    zIndex: 9999,
+  },
+};
+
 const InboxPage = () => {
   const [conversas, setConversas] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -17,10 +268,15 @@ const InboxPage = () => {
   const [buscaContato, setBuscaContato] = useState('');
   const [contatoParaDetalhar, setContatoParaDetalhar] = useState(null);
   const [templates, setTemplates] = useState([]);
-  const [mostrarTemplates, setMostrarTemplates] = useState(false);
   const [erroTemplates, setErroTemplates] = useState('');
+  const [modalTemplatesAberto, setModalTemplatesAberto] = useState(false);
+  const [carregandoTemplates, setCarregandoTemplates] = useState(false);
+  const [buscaTemplate, setBuscaTemplate] = useState('');
+  const [templateSelecionado, setTemplateSelecionado] = useState(null);
+  const [variaveisTemplate, setVariaveisTemplate] = useState({});
   const [enviandoTemplate, setEnviandoTemplate] = useState(false);
   const [feedbackEnvio, setFeedbackEnvio] = useState('');
+  const [tipoFeedback, setTipoFeedback] = useState('success');
 
   const API_BASE = import.meta.env.VITE_API_URL || 'https://api-nic-lab.mdradvocacia.com/api';
 
@@ -38,33 +294,80 @@ const InboxPage = () => {
 
   const getTextoTemplate = (template) => {
     if (template?.body_text) return template.body_text;
-
-    const bodyComponent = template?.components?.find(
-      (component) => String(component?.type || '').toUpperCase() === 'BODY'
-    );
-
+    const bodyComponent = template?.components?.find((component) => String(component?.type || '').toUpperCase() === 'BODY');
     return bodyComponent?.text || 'Template da Meta';
   };
 
-  const getTelefoneDestino = () => {
-    const chatAtual = conversas.find((c) => c.id === conversaSelecionada);
+  const extrairVariaveisTemplate = (template) => {
+    const textos = [template?.body_text, ...(template?.components || []).map((component) => component?.text)].filter(Boolean);
+    const encontradas = new Set();
 
-    return (
-      contatoParaDetalhar?.phone_number ||
-      contatoParaDetalhar?.phoneNumber ||
-      chatAtual?.meta?.sender?.phone_number ||
-      chatAtual?.meta?.sender?.identifier ||
-      ''
-    );
+    textos.forEach((texto) => {
+      const regex = /\{\{(\d+)\}\}/g;
+      let match = regex.exec(texto);
+
+      while (match) {
+        encontradas.add(Number(match[1]));
+        match = regex.exec(texto);
+      }
+    });
+
+    return Array.from(encontradas).sort((left, right) => left - right);
   };
 
-  const conversasOuContatos = useMemo(() => {
-    if (visaoAtiva === 'conversas') return conversas;
+  const formatarPreviewTemplate = (template, valores = {}) =>
+    getTextoTemplate(template).replace(/\{\{(\d+)\}\}/g, (_, indice) => valores[indice]?.trim() || `{{${indice}}}`);
 
-    return contatos.filter((contato) =>
-      contato.name?.toLowerCase().includes(buscaContato.toLowerCase())
-    );
+  const formatarHorario = (createdAt) => {
+    if (!createdAt) return '--:--';
+
+    if (typeof createdAt === 'number') {
+      const normalized = createdAt > 9999999999 ? createdAt : createdAt * 1000;
+      return new Date(normalized).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    return new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const conversaAtual = useMemo(
+    () => conversas.find((conversa) => conversa.id === conversaSelecionada) || null,
+    [conversas, conversaSelecionada]
+  );
+
+  const telefoneDestino = useMemo(
+    () =>
+      contatoParaDetalhar?.phone_number ||
+      contatoParaDetalhar?.phoneNumber ||
+      conversaAtual?.meta?.sender?.phone_number ||
+      conversaAtual?.meta?.sender?.identifier ||
+      '',
+    [conversaAtual, contatoParaDetalhar]
+  );
+
+  const registrosVisiveis = useMemo(() => {
+    if (visaoAtiva === 'conversas') return conversas;
+    return contatos.filter((contato) => (contato?.name || '').toLowerCase().includes(buscaContato.toLowerCase()));
   }, [visaoAtiva, conversas, contatos, buscaContato]);
+
+  const templatesFiltrados = useMemo(
+    () => templates.filter((template) => template?.name?.toLowerCase().includes(buscaTemplate.toLowerCase())),
+    [templates, buscaTemplate]
+  );
+
+  const variaveisDetectadas = useMemo(
+    () => (templateSelecionado ? extrairVariaveisTemplate(templateSelecionado) : []),
+    [templateSelecionado]
+  );
+
+  const variaveisPendentes = useMemo(
+    () => variaveisDetectadas.filter((indice) => !(variaveisTemplate[indice] || '').trim()),
+    [variaveisDetectadas, variaveisTemplate]
+  );
+
+  const definirFeedback = (mensagem, tipo = 'success') => {
+    setFeedbackEnvio(mensagem);
+    setTipoFeedback(tipo);
+  };
 
   const carregarDadosIniciais = async () => {
     const token = getCleanToken();
@@ -73,16 +376,16 @@ const InboxPage = () => {
       const resInboxes = await fetch(`${API_BASE}/chat/inboxes`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
-      const response = await resInboxes.json();
-      setInboxes(extrairLista(response));
+      const dataInboxes = await resInboxes.json();
+      setInboxes(extrairLista(dataInboxes));
 
       const resContatos = await fetch(`${API_BASE}/chat/contacts`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
       const dataContatos = await resContatos.json();
       setContatos(extrairLista(dataContatos));
-    } catch (e) {
-      console.error('Erro ao carregar dados iniciais:', e);
+    } catch (error) {
+      console.error('Erro ao carregar dados iniciais:', error);
     }
   };
 
@@ -96,25 +399,34 @@ const InboxPage = () => {
       url += `&inbox_id=${inboxSelecionada}`;
     }
 
-    fetch(url, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-    })
+    fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } })
       .then((res) => res.json())
       .then((response) => {
         setConversas(extrairLista(response));
         setCarregando(false);
       })
-      .catch((e) => {
-        console.error('Erro ao buscar conversas:', e);
+      .catch((error) => {
+        console.error('Erro ao buscar conversas:', error);
         setConversas([]);
         setCarregando(false);
       });
   };
 
+  const prepararTemplate = (template) => {
+    const indices = extrairVariaveisTemplate(template);
+    setTemplateSelecionado(template);
+    setVariaveisTemplate((anterior) => {
+      const proximo = {};
+      indices.forEach((indice) => {
+        proximo[indice] = anterior[indice] || '';
+      });
+      return proximo;
+    });
+  };
+
   const carregarTemplates = async () => {
     const token = getCleanToken();
-    const chatAtual = conversas.find((c) => c.id === conversaSelecionada);
-    const inboxId = chatAtual?.inbox_id;
+    const inboxId = conversaAtual?.inbox_id;
 
     if (!inboxId) {
       setTemplates([]);
@@ -123,6 +435,7 @@ const InboxPage = () => {
     }
 
     try {
+      setCarregandoTemplates(true);
       const res = await fetch(`${API_BASE}/chat/templates?inbox_id=${inboxId}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
@@ -131,16 +444,27 @@ const InboxPage = () => {
       if (!res.ok) {
         console.error('Erro ao carregar templates da Meta:', data);
         setTemplates([]);
+        setTemplateSelecionado(null);
         setErroTemplates(data?.hint || data?.message || 'Nao foi possivel carregar os templates desta inbox.');
         return;
       }
 
-      setTemplates(extrairLista(data));
+      const lista = extrairLista(data);
+      setTemplates(lista);
       setErroTemplates('');
-    } catch (e) {
-      console.error('Erro ao carregar templates da Meta:', e);
+
+      if (lista.length > 0) {
+        prepararTemplate(lista[0]);
+      } else {
+        setTemplateSelecionado(null);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar templates da Meta:', error);
       setTemplates([]);
+      setTemplateSelecionado(null);
       setErroTemplates('Falha de comunicacao ao consultar templates da Meta.');
+    } finally {
+      setCarregandoTemplates(false);
     }
   };
 
@@ -153,9 +477,11 @@ const InboxPage = () => {
   }, [abaAtiva, inboxSelecionada]);
 
   useEffect(() => {
-    if (conversaSelecionada) {
-      carregarTemplates();
-    }
+    setModalTemplatesAberto(false);
+    setTemplateSelecionado(null);
+    setVariaveisTemplate({});
+    setBuscaTemplate('');
+    setErroTemplates('');
   }, [conversaSelecionada]);
 
   const abrirConversa = (chatId) => {
@@ -170,11 +496,18 @@ const InboxPage = () => {
       .then((res) => res.json())
       .then((data) => {
         const msgLista = extrairLista(data);
-        setMensagens([...msgLista].sort((a, b) => a.id - b.id));
+        setMensagens([...msgLista].sort((left, right) => left.id - right.id));
         setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
         setCarregandoChat(false);
       })
       .catch(() => setCarregandoChat(false));
+  };
+
+  const abrirModalTemplates = async () => {
+    if (!conversaSelecionada) return;
+    setModalTemplatesAberto(true);
+    setBuscaTemplate('');
+    await carregarTemplates();
   };
 
   const enviarMensagem = async () => {
@@ -194,38 +527,52 @@ const InboxPage = () => {
 
       if (response.ok) {
         const enviada = await response.json();
-        setMensagens((prev) => [...prev, enviada]);
+        setMensagens((anterior) => [...anterior, enviada]);
         setNovaMensagem('');
         setFeedbackEnvio('');
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     }
   };
 
-  const enviarTemplateSelecionado = async (template) => {
-    if (!conversaSelecionada || enviandoTemplate) return;
+  const enviarTemplateSelecionado = async () => {
+    if (!conversaSelecionada || !templateSelecionado || enviandoTemplate) return;
+
+    if (variaveisPendentes.length > 0) {
+      definirFeedback('Preencha todas as variaveis do template antes de enviar.', 'error');
+      return;
+    }
 
     const token = getCleanToken();
-    const telefoneDestino = getTelefoneDestino();
-    const chatAtual = conversas.find((c) => c.id === conversaSelecionada);
-
-    setEnviandoTemplate(true);
-    setFeedbackEnvio('');
+    const bodyParams = variaveisDetectadas.reduce((accumulator, indice) => {
+      accumulator[String(indice)] = (variaveisTemplate[indice] || '').trim();
+      return accumulator;
+    }, {});
 
     const payload = {
-      content: '',
+      content: formatarPreviewTemplate(templateSelecionado, variaveisTemplate),
       message_type: 'outgoing',
       content_type: 'template',
       content_attributes: {
-        template_name: template.name,
-        language_code: template.language || 'pt_BR',
+        template_name: templateSelecionado.name,
+        language_code: templateSelecionado.language || 'pt_BR',
+      },
+      template_params: {
+        name: templateSelecionado.name,
+        category: templateSelecionado.category || 'UTILITY',
+        language: templateSelecionado.language || 'pt_BR',
+        processed_params: {
+          body: bodyParams,
+        },
       },
       to_phone_number: telefoneDestino,
-      inbox_id: chatAtual?.inbox_id || null,
+      inbox_id: conversaAtual?.inbox_id || null,
     };
 
     try {
+      setEnviandoTemplate(true);
+
       const response = await fetch(`${API_BASE}/chat/conversations/${conversaSelecionada}/messages`, {
         method: 'POST',
         headers: {
@@ -239,32 +586,33 @@ const InboxPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        setMensagens((prev) => [
-          ...prev,
+        setMensagens((anterior) => [
+          ...anterior,
           {
             ...data,
-            content: data.content || `[Template enviado] ${template.name}`,
+            content: data.content || payload.content,
             sender: data.sender || { name: 'NIC Agent' },
             message_type: data.message_type || 'outgoing',
             created_at: data.created_at || Math.floor(Date.now() / 1000),
+            status: data.status || 'sent',
           },
         ]);
-        setMostrarTemplates(false);
-        setFeedbackEnvio(`Template "${template.name}" enviado com sucesso.`);
+        setModalTemplatesAberto(false);
+        definirFeedback(`Template "${templateSelecionado.name}" enviado com sucesso.`);
       } else {
         console.error('Erro ao enviar template:', data);
-        setFeedbackEnvio(data?.message || 'Nao foi possivel enviar o template selecionado.');
+        definirFeedback(data?.message || data?.meta_error?.error?.message || 'Nao foi possivel enviar o template.', 'error');
       }
-    } catch (e) {
-      console.error(e);
-      setFeedbackEnvio('Falha de comunicacao ao enviar o template.');
+    } catch (error) {
+      console.error(error);
+      definirFeedback('Falha de comunicacao ao enviar o template.', 'error');
     } finally {
       setEnviandoTemplate(false);
     }
   };
 
-  const handlesubmitNovoContato = async (e) => {
-    e.preventDefault();
+  const handleSubmitNovoContato = async (event) => {
+    event.preventDefault();
     const token = getCleanToken();
 
     try {
@@ -288,508 +636,364 @@ const InboxPage = () => {
     }
   };
 
-  const styles = {
-    page: {
-      display: 'grid',
-      gridTemplateColumns: '320px 360px minmax(520px, 1fr)',
-      height: 'calc(100vh - 40px)',
-      margin: '-20px',
-      background: 'linear-gradient(180deg, #f6f8fb 0%, #edf2f7 100%)',
-      color: '#1f2937',
-      overflow: 'hidden',
-      fontFamily: '"Segoe UI", "Helvetica Neue", sans-serif',
-    },
-    sidebar: {
-      backgroundColor: '#ffffff',
-      borderRight: '1px solid #d8e0eb',
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: 0,
-    },
-    sidebarInner: {
-      padding: '24px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '18px',
-      minHeight: 0,
-      flex: 1,
-    },
-    brandCard: {
-      padding: '20px',
-      borderRadius: '18px',
-      background: 'linear-gradient(135deg, #f7fafc 0%, #edf2ff 100%)',
-      border: '1px solid #e2e8f0',
-      boxShadow: '0 10px 30px rgba(15, 23, 42, 0.04)',
-    },
-    agentCard: {
-      padding: '18px',
-      borderRadius: '18px',
-      textAlign: 'center',
-      fontWeight: 700,
-      letterSpacing: '0.04em',
-      color: '#1f4ed8',
-      background: 'linear-gradient(135deg, #eef4ff 0%, #e0eaff 100%)',
-      border: '1px solid #dbe6ff',
-    },
-    navItem: (ativo) => ({
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '14px 16px',
-      borderRadius: '14px',
-      cursor: 'pointer',
-      fontWeight: 600,
-      fontSize: '15px',
-      color: ativo ? '#0f172a' : '#475569',
-      background: ativo ? '#eef4ff' : 'transparent',
-      border: ativo ? '1px solid #dbe6ff' : '1px solid transparent',
-      transition: 'all 0.2s ease',
-    }),
-    middlePanel: {
-      backgroundColor: '#fdfefe',
-      borderRight: '1px solid #d8e0eb',
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: 0,
-    },
-    panelHeader: {
-      padding: '24px',
-      borderBottom: '1px solid #e2e8f0',
-      background: '#ffffff',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '14px',
-    },
-    select: {
-      width: '100%',
-      padding: '12px 14px',
-      borderRadius: '14px',
-      border: '1px solid #d8e0eb',
-      backgroundColor: '#fff',
-      fontSize: '14px',
-      outline: 'none',
-      color: '#0f172a',
-    },
-    search: {
-      width: '100%',
-      padding: '12px 14px',
-      borderRadius: '14px',
-      border: '1px solid #d8e0eb',
-      backgroundColor: '#fff',
-      fontSize: '14px',
-      outline: 'none',
-      color: '#0f172a',
-    },
-    tabsRow: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr 1fr',
-      gap: '8px',
-    },
-    tab: (ativo) => ({
-      padding: '10px 12px',
-      borderRadius: '12px',
-      border: '1px solid transparent',
-      background: ativo ? '#2563eb' : '#f1f5f9',
-      color: ativo ? '#ffffff' : '#475569',
-      fontWeight: 700,
-      fontSize: '13px',
-      cursor: 'pointer',
-    }),
-    listArea: {
-      flex: 1,
-      overflowY: 'auto',
-      padding: '10px 14px 18px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-      backgroundColor: '#f8fafc',
-    },
-    listCard: (ativo) => ({
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-      padding: '14px',
-      borderRadius: '16px',
-      border: ativo ? '1px solid #bfd4ff' : '1px solid #e2e8f0',
-      backgroundColor: ativo ? '#eef4ff' : '#ffffff',
-      boxShadow: ativo ? '0 14px 30px rgba(37, 99, 235, 0.10)' : '0 6px 20px rgba(15, 23, 42, 0.04)',
-      cursor: 'pointer',
-    }),
-    avatar: (ativo) => ({
-      width: '42px',
-      height: '42px',
-      borderRadius: '50%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontWeight: 700,
-      color: ativo ? '#1d4ed8' : '#475569',
-      background: ativo ? '#dbeafe' : '#e2e8f0',
-      flexShrink: 0,
-    }),
-    chatPanel: {
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: 0,
-      background: 'linear-gradient(180deg, #f8fbff 0%, #eef3f8 100%)',
-    },
-    chatHeader: {
-      padding: '22px 28px',
-      backgroundColor: '#ffffff',
-      borderBottom: '1px solid #d8e0eb',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      boxShadow: '0 10px 24px rgba(15, 23, 42, 0.03)',
-    },
-    chatBody: {
-      flex: 1,
-      overflowY: 'auto',
-      padding: '28px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '14px',
-      minHeight: 0,
-    },
-    bubbleWrap: (minha) => ({
-      display: 'flex',
-      flexDirection: minha ? 'row-reverse' : 'row',
-      alignItems: 'flex-end',
-      gap: '10px',
-    }),
-    bubble: (minha) => ({
-      maxWidth: '72%',
-      padding: '14px 16px',
-      borderRadius: minha ? '18px 18px 6px 18px' : '18px 18px 18px 6px',
-      background: minha ? 'linear-gradient(135deg, #dcecff 0%, #cfe5ff 100%)' : '#ffffff',
-      border: '1px solid #d8e0eb',
-      boxShadow: '0 10px 20px rgba(15, 23, 42, 0.04)',
-    }),
-    composer: {
-      padding: '20px 24px',
-      backgroundColor: '#ffffff',
-      borderTop: '1px solid #d8e0eb',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '12px',
-    },
-    composerRow: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-      position: 'relative',
-    },
-    iconButton: {
-      width: '48px',
-      height: '48px',
-      borderRadius: '14px',
-      border: '1px solid #d8e0eb',
-      backgroundColor: '#f8fafc',
-      cursor: 'pointer',
-      fontSize: '18px',
-      flexShrink: 0,
-    },
-    input: {
-      flex: 1,
-      padding: '14px 18px',
-      borderRadius: '16px',
-      border: '1px solid #d8e0eb',
-      backgroundColor: '#f8fafc',
-      outline: 'none',
-      fontSize: '14px',
-    },
-    primaryButton: {
-      padding: '14px 22px',
-      borderRadius: '16px',
-      border: 'none',
-      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-      color: '#ffffff',
-      fontWeight: 700,
-      cursor: 'pointer',
-      boxShadow: '0 12px 22px rgba(37, 99, 235, 0.22)',
-    },
-    templatePopover: {
-      position: 'absolute',
-      bottom: '64px',
-      left: 0,
-      width: '320px',
-      borderRadius: '18px',
-      border: '1px solid #d8e0eb',
-      backgroundColor: '#ffffff',
-      boxShadow: '0 22px 48px rgba(15, 23, 42, 0.16)',
-      overflow: 'hidden',
-      zIndex: 100,
-    },
-    feedbackBox: {
-      padding: '10px 14px',
-      borderRadius: '12px',
-      backgroundColor: '#ecfdf3',
-      color: '#166534',
-      fontSize: '13px',
-      border: '1px solid #bbf7d0',
-    },
-    emptyState: {
-      flex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#94a3b8',
-      fontSize: '18px',
-    },
-    footerCard: {
-      paddingTop: '18px',
-      marginTop: 'auto',
-      borderTop: '1px solid #e2e8f0',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '14px',
-    },
-  };
-
   return (
     <div style={styles.page}>
-      {modalAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.35)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#fff', padding: '28px', borderRadius: '22px', width: '420px', boxShadow: '0 26px 60px rgba(15, 23, 42, 0.20)' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#0f172a' }}>Novo Contato</h3>
-            <form onSubmit={handlesubmitNovoContato}>
-              <div style={{ marginBottom: '18px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>NOME</label>
-                <input required style={styles.input} placeholder="Nome do cliente" value={novoContato.name} onChange={(e) => setNovoContato({ ...novoContato, name: e.target.value })} />
+      {modalAberto ? (
+        <div style={styles.modalOverlay}>
+          <div style={{ width: '420px', borderRadius: '24px', backgroundColor: '#ffffff', padding: '28px', boxShadow: '0 28px 80px rgba(6, 17, 34, 0.22)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#10233f' }}>Novo Contato</h3>
+            <form onSubmit={handleSubmitNovoContato}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 700, color: '#5f7291' }}>NOME</label>
+                <input required style={styles.input} placeholder="Nome do cliente" value={novoContato.name} onChange={(event) => setNovoContato({ ...novoContato, name: event.target.value })} />
               </div>
-              <div style={{ marginBottom: '18px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>TELEFONE</label>
-                <input style={styles.input} placeholder="+55849..." value={novoContato.phone_number} onChange={(e) => setNovoContato({ ...novoContato, phone_number: e.target.value })} />
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 700, color: '#5f7291' }}>TELEFONE</label>
+                <input style={styles.input} placeholder="+55849..." value={novoContato.phone_number} onChange={(event) => setNovoContato({ ...novoContato, phone_number: event.target.value })} />
               </div>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>CANAL</label>
-                <select required style={styles.select} value={novoContato.inbox_id} onChange={(e) => setNovoContato({ ...novoContato, inbox_id: e.target.value })}>
+              <div style={{ marginBottom: '22px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 700, color: '#5f7291' }}>CANAL</label>
+                <select required style={styles.select} value={novoContato.inbox_id} onChange={(event) => setNovoContato({ ...novoContato, inbox_id: event.target.value })}>
                   <option value="">Selecione o canal...</option>
-                  {inboxes.map((ib) => (
-                    <option key={ib.id} value={ib.id}>
-                      {ib.name}
+                  {inboxes.map((inbox) => (
+                    <option key={inbox.id} value={inbox.id}>
+                      {inbox.name}
                     </option>
                   ))}
                 </select>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="button" onClick={() => setModalAberto(false)} style={{ ...styles.iconButton, width: '100%', fontSize: '14px', fontWeight: 700 }}>
+                <button type="button" onClick={() => setModalAberto(false)} style={{ ...styles.secondaryButton, flex: 1 }}>
                   Cancelar
                 </button>
-                <button type="submit" style={{ ...styles.primaryButton, width: '100%' }}>
+                <button type="submit" style={{ ...styles.primaryButton, flex: 1 }}>
                   Criar Contato
                 </button>
               </div>
             </form>
           </div>
         </div>
-      )}
+      ) : null}
 
-      <div style={styles.sidebar}>
-        <div style={styles.sidebarInner}>
-          <div style={styles.brandCard}>
-            <img src="/logo.png" alt="NIC" style={{ maxWidth: '100%', height: 'auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ fontSize: '56px', fontWeight: 800, letterSpacing: '-0.06em', color: '#0f172a' }}>NIC</div>
-              <div style={{ width: '1px', height: '46px', backgroundColor: '#cbd5e1' }} />
-              <div style={{ fontSize: '15px', lineHeight: 1.2, color: '#334155', fontWeight: 600 }}>
-                Nucleo
-                <br />
-                Integrado de
-                <br />
-                Conciliacoes
-              </div>
-            </div>
-          </div>
-
-          <div style={styles.agentCard}>NIC AGENT</div>
-
-          <div style={styles.navItem(visaoAtiva === 'conversas')} onClick={() => setVisaoAtiva('conversas')}>
-            <span>Mensagens</span>
-            <span style={{ color: '#2563eb' }}>◦</span>
-          </div>
-
-          <div style={styles.navItem(visaoAtiva === 'contatos')} onClick={() => setVisaoAtiva('contatos')}>
-            <span>Contatos</span>
-            <span onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} style={{ color: '#22c55e', fontSize: '22px', fontWeight: 800 }}>
-              +
-            </span>
-          </div>
-
-          <div style={styles.footerCard}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {modalTemplatesAberto ? (
+        <div style={styles.modalOverlay}>
+          <div
+            style={{
+              width: 'min(1020px, calc(100vw - 48px))',
+              maxHeight: '86vh',
+              borderRadius: '24px',
+              backgroundColor: '#101820',
+              color: '#f8fafc',
+              boxShadow: '0 28px 80px rgba(6, 17, 34, 0.45)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding: '22px 24px',
+                borderBottom: '1px solid rgba(148, 163, 184, 0.18)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: '18px',
+              }}
+            >
               <div>
-                <div style={{ fontSize: '30px', fontWeight: 700, color: '#0f172a' }}>Murilo</div>
-                <div style={{ fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 700 }}>Administrador</div>
+                <div style={{ fontSize: '34px', fontWeight: 800, lineHeight: 1.1 }}>Templates do WhatsApp</div>
+                <div style={{ marginTop: '8px', color: '#94a3b8' }}>Selecione um template, preencha as variaveis e envie quando estiver pronto.</div>
               </div>
-              <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-                ◐
+              <button type="button" style={{ border: 'none', background: 'transparent', color: '#cbd5e1', fontSize: '28px', lineHeight: 1, cursor: 'pointer' }} onClick={() => setModalTemplatesAberto(false)}>
+                x
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', minHeight: 0, flex: 1 }}>
+              <div
+                style={{
+                  padding: '20px',
+                  borderRight: '1px solid rgba(148, 163, 184, 0.16)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  minHeight: 0,
+                }}
+              >
+                <input
+                  type="text"
+                  value={buscaTemplate}
+                  onChange={(event) => setBuscaTemplate(event.target.value)}
+                  placeholder="Pesquisar modelos"
+                  style={{
+                    width: '100%',
+                    padding: '13px 14px',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(148, 163, 184, 0.16)',
+                    backgroundColor: '#17212b',
+                    color: '#f8fafc',
+                    outline: 'none',
+                    fontSize: '14px',
+                  }}
+                />
+
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {carregandoTemplates ? <div style={{ color: '#94a3b8' }}>Carregando templates...</div> : null}
+                  {!carregandoTemplates && erroTemplates ? <div style={{ color: '#fda4af', lineHeight: 1.6 }}>{erroTemplates}</div> : null}
+                  {!carregandoTemplates && !erroTemplates && templatesFiltrados.length === 0 ? <div style={{ color: '#94a3b8' }}>Nenhum template encontrado para esta inbox.</div> : null}
+
+                  {!carregandoTemplates && !erroTemplates
+                    ? templatesFiltrados.map((template) => {
+                        const ativo = templateSelecionado?.name === template.name;
+
+                        return (
+                          <div
+                            key={template.id || template.name}
+                            style={{
+                              padding: '14px',
+                              borderRadius: '16px',
+                              border: ativo ? '1px solid rgba(96, 165, 250, 0.75)' : '1px solid rgba(148, 163, 184, 0.12)',
+                              backgroundColor: ativo ? '#162235' : '#141d26',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => prepararTemplate(template)}
+                          >
+                            <div style={{ fontWeight: 700, fontSize: '15px', color: '#f8fafc' }}>{template.name}</div>
+                            <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.6, color: '#94a3b8' }}>
+                              {getTextoTemplate(template).slice(0, 132)}
+                              {getTextoTemplate(template).length > 132 ? '...' : ''}
+                            </div>
+                          </div>
+                        );
+                      })
+                    : null}
+                </div>
+              </div>
+
+              <div style={{ padding: '20px 24px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {templateSelecionado ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '18px', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontSize: '26px', fontWeight: 800 }}>{templateSelecionado.name}</div>
+                        <div style={{ marginTop: '6px', color: '#94a3b8' }}>Idioma: {templateSelecionado.language || 'pt_BR'}</div>
+                      </div>
+                      <div style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#162235', color: '#93c5fd', fontSize: '12px', fontWeight: 700 }}>
+                        {templateSelecionado.category || 'UTILITY'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ marginBottom: '8px', color: '#94a3b8', fontSize: '13px', fontWeight: 700 }}>PREVIEW</div>
+                      <div style={{ padding: '18px', borderRadius: '18px', backgroundColor: '#141d26', border: '1px solid rgba(148, 163, 184, 0.12)', whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '15px', color: '#e2e8f0' }}>
+                        {formatarPreviewTemplate(templateSelecionado, variaveisTemplate)}
+                      </div>
+                    </div>
+
+                    {variaveisDetectadas.length > 0 ? (
+                      <div>
+                        <div style={{ marginBottom: '10px', color: '#94a3b8', fontSize: '13px', fontWeight: 700 }}>VARIAVEIS</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          {variaveisDetectadas.map((indice) => (
+                            <div key={indice}>
+                              <label style={{ display: 'block', marginBottom: '6px', color: '#cbd5e1', fontSize: '12px', fontWeight: 700 }}>{`Valor ${indice}`}</label>
+                              <input
+                                type="text"
+                                value={variaveisTemplate[indice] || ''}
+                                onChange={(event) => setVariaveisTemplate((anterior) => ({ ...anterior, [indice]: event.target.value }))}
+                                placeholder={`Insira o valor para ${indice}`}
+                                style={{ width: '100%', padding: '13px 14px', borderRadius: '14px', border: '1px solid rgba(148, 163, 184, 0.16)', backgroundColor: '#17212b', color: '#f8fafc', outline: 'none', fontSize: '14px' }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '14px 16px', borderRadius: '14px', backgroundColor: '#141d26', color: '#94a3b8' }}>
+                        Este template nao possui variaveis editaveis.
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginTop: 'auto' }}>
+                      <div style={{ color: variaveisPendentes.length > 0 ? '#fca5a5' : '#94a3b8', fontSize: '13px' }}>
+                        {variaveisPendentes.length > 0 ? 'Preencha todas as variaveis para liberar o envio.' : `Destino: ${telefoneDestino || 'sem telefone identificado'}`}
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button type="button" style={{ ...styles.secondaryButton, color: '#10233f' }} onClick={() => setModalTemplatesAberto(false)}>
+                          Voltar
+                        </button>
+                        <button type="button" style={styles.primaryButton} onClick={enviarTemplateSelecionado} disabled={enviandoTemplate} aria-busy={enviandoTemplate}>
+                          {enviandoTemplate ? 'Enviando...' : 'Enviar Template'}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: '#94a3b8' }}>Selecione um template para visualizar os detalhes.</div>
+                )}
               </div>
             </div>
-            <button style={{ ...styles.iconButton, width: '100%', justifyContent: 'center', fontWeight: 700, fontSize: '14px', color: '#ef4444' }}>Sair</button>
+          </div>
+        </div>
+      ) : null}
+
+      <div style={styles.rail}>
+        <div>
+          <div style={styles.railKicker}>Central de atendimento</div>
+          <h1 style={styles.railTitle}>Inbox</h1>
+          <p style={styles.railText}>Gerencie conversas, contatos e templates do WhatsApp sem repetir elementos do layout principal do sistema.</p>
+        </div>
+
+        <div style={styles.railSection}>
+          <button type="button" style={styles.railButton(visaoAtiva === 'conversas')} onClick={() => setVisaoAtiva('conversas')}>
+            Mensagens
+          </button>
+          <button type="button" style={styles.railButton(visaoAtiva === 'contatos')} onClick={() => setVisaoAtiva('contatos')}>
+            Contatos
+          </button>
+          <button type="button" style={styles.addButton} onClick={() => setModalAberto(true)}>
+            Novo contato
+          </button>
+        </div>
+
+        <div style={styles.railHint}>
+          <div style={styles.railHintLabel}>Inbox selecionada</div>
+          <div style={styles.railHintValue}>
+            {inboxSelecionada === 'all' ? 'Todos os canais' : inboxes.find((inbox) => String(inbox.id) === String(inboxSelecionada))?.name || 'Selecione um canal'}
           </div>
         </div>
       </div>
 
-      <div style={styles.middlePanel}>
+      <div style={styles.panel}>
         <div style={styles.panelHeader}>
-          <select value={inboxSelecionada} onChange={(e) => setInboxSelecionada(e.target.value)} style={styles.select}>
+          <select value={inboxSelecionada} onChange={(event) => setInboxSelecionada(event.target.value)} style={styles.select}>
             <option value="all">Todos os Canais</option>
-            {inboxes.map((ib) => (
-              <option key={ib.id} value={ib.id}>
-                {ib.name}
+            {inboxes.map((inbox) => (
+              <option key={inbox.id} value={inbox.id}>
+                {inbox.name}
               </option>
             ))}
           </select>
 
           {visaoAtiva === 'conversas' ? (
-            <div style={styles.tabsRow}>
-              <button onClick={() => setAbaAtiva('me')} style={styles.tab(abaAtiva === 'me')}>Minhas</button>
-              <button onClick={() => setAbaAtiva('unassigned')} style={styles.tab(abaAtiva === 'unassigned')}>Nao atribuidas</button>
-              <button onClick={() => setAbaAtiva('all')} style={styles.tab(abaAtiva === 'all')}>Todas</button>
+            <div style={styles.tabs}>
+              <button type="button" style={styles.tab(abaAtiva === 'me')} onClick={() => setAbaAtiva('me')}>
+                Minhas
+              </button>
+              <button type="button" style={styles.tab(abaAtiva === 'unassigned')} onClick={() => setAbaAtiva('unassigned')}>
+                Nao atribuidas
+              </button>
+              <button type="button" style={styles.tab(abaAtiva === 'all')} onClick={() => setAbaAtiva('all')}>
+                Todas
+              </button>
             </div>
           ) : (
-            <input type="text" placeholder="Pesquisar por nome..." value={buscaContato} onChange={(e) => setBuscaContato(e.target.value)} style={styles.search} />
+            <input type="text" value={buscaContato} onChange={(event) => setBuscaContato(event.target.value)} placeholder="Pesquisar por nome..." style={styles.search} />
           )}
         </div>
 
-        <div style={styles.listArea}>
+        <div style={styles.list}>
           {carregando ? (
-            <div style={{ padding: '20px', color: '#64748b' }}>Carregando atendimentos...</div>
-          ) : conversasOuContatos.length > 0 ? (
-            conversasOuContatos.map((item) => {
+            <div style={{ padding: '16px', color: '#6b7d96' }}>Carregando atendimentos...</div>
+          ) : registrosVisiveis.length > 0 ? (
+            registrosVisiveis.map((item) => {
               const nome = item.meta?.sender?.name || item.name || 'Sem Nome';
-              const subtitulo = item.phone_number || item.meta?.sender?.phone_number || 'Ver conversa';
+              const subtitulo = item.phone_number || item.meta?.sender?.phone_number || 'Abrir conversa';
               const ativo = conversaSelecionada === item.id;
 
               return (
                 <div
                   key={item.id}
-                  onClick={() => (visaoAtiva === 'conversas' ? abrirConversa(item.id) : setContatoParaDetalhar(item))}
                   style={styles.listCard(ativo)}
+                  onClick={() => (visaoAtiva === 'conversas' ? abrirConversa(item.id) : setContatoParaDetalhar(item))}
                 >
                   <div style={styles.avatar(ativo)}>{nome.charAt(0).toUpperCase()}</div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>{nome}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitulo}</div>
+                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#10233f' }}>{nome}</div>
+                    <div style={{ fontSize: '12px', color: '#6b7d96', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitulo}</div>
                   </div>
                 </div>
               );
             })
           ) : (
-            <div style={{ padding: '20px', color: '#94a3b8' }}>Nenhum registro encontrado.</div>
+            <div style={{ padding: '16px', color: '#6b7d96' }}>Nenhum registro encontrado.</div>
           )}
         </div>
       </div>
-
-      <div style={styles.chatPanel}>
+      <div style={styles.chat}>
         {conversaSelecionada ? (
           <>
             <div style={styles.chatHeader}>
               <div>
-                <div style={{ fontWeight: 800, fontSize: '20px', color: '#0f172a' }}>{contatoParaDetalhar?.name || 'Atendimento'}</div>
-                <div style={{ fontSize: '13px', color: '#64748b' }}>{getTelefoneDestino() || 'Sem telefone identificado'}</div>
+                <div style={{ fontSize: '30px', fontWeight: 800, lineHeight: 1.1 }}>{contatoParaDetalhar?.name || 'Atendimento'}</div>
+                <div style={{ marginTop: '6px', color: '#6b7d96' }}>{telefoneDestino || 'Sem telefone identificado'}</div>
               </div>
-              <div style={{ padding: '10px 14px', borderRadius: '999px', backgroundColor: '#eff6ff', color: '#1d4ed8', fontWeight: 700, fontSize: '12px' }}>
-                WhatsApp
-              </div>
+              <div style={styles.badge}>WhatsApp</div>
             </div>
 
             <div style={styles.chatBody}>
               {carregandoChat ? (
-                <div style={{ color: '#64748b' }}>Carregando conversa...</div>
+                <div style={{ color: '#6b7d96' }}>Carregando conversa...</div>
               ) : mensagens.length > 0 ? (
-                mensagens.map((m, i) => {
-                  const eMinha = m.message_type === 'outgoing' || m.message_type === 1;
-                  const iniciaisM = m.sender?.name?.charAt(0).toUpperCase() || 'C';
+                mensagens.map((mensagem, index) => {
+                  const minha = mensagem.message_type === 'outgoing' || mensagem.message_type === 1;
+                  const iniciais = mensagem.sender?.name?.charAt(0).toUpperCase() || 'C';
 
                   return (
-                    <div key={i} style={styles.bubbleWrap(eMinha)}>
-                      <div style={{ ...styles.avatar(eMinha), width: '34px', height: '34px', fontSize: '12px' }}>
-                        {m.sender?.avatar_url ? <img src={m.sender.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt="avatar" /> : iniciaisM}
+                    <div key={mensagem.id || index} style={styles.messageRow(minha)}>
+                      <div style={{ ...styles.avatar(minha), width: '34px', height: '34px', fontSize: '12px' }}>
+                        {mensagem.sender?.avatar_url ? (
+                          <img src={mensagem.sender.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                        ) : (
+                          iniciais
+                        )}
                       </div>
-                      <div style={styles.bubble(eMinha)}>
-                        <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.5, color: '#0f172a' }}>{m.content || '[Template enviado]'}</p>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '8px', fontSize: '11px', color: '#64748b' }}>
-                          {m.created_at ? new Date(m.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                          {eMinha && <span>{m.status === 'read' ? '✓✓' : '✓'}</span>}
+                      <div style={styles.bubble(minha)}>
+                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{mensagem.content || '[Template enviado]'}</div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
+                          {formatarHorario(mensagem.created_at)}
+                          {minha ? <span>{mensagem.status === 'read' ? 'vv' : 'v'}</span> : null}
                         </div>
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <div style={{ color: '#94a3b8' }}>Nenhuma mensagem encontrada para este atendimento.</div>
+                <div style={{ color: '#6b7d96' }}>Nenhuma mensagem encontrada para este atendimento.</div>
               )}
-              <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
+              <div ref={(element) => element?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
 
             <div style={styles.composer}>
-              {feedbackEnvio ? <div style={styles.feedbackBox}>{feedbackEnvio}</div> : null}
+              {feedbackEnvio ? <div style={styles.feedback(tipoFeedback)}>{feedbackEnvio}</div> : null}
 
               <div style={styles.composerRow}>
-                <button
-                  onClick={() => {
-                    setMostrarTemplates(!mostrarTemplates);
-                    if (!mostrarTemplates) carregarTemplates();
-                    if (mostrarTemplates) setErroTemplates('');
-                  }}
-                  style={styles.iconButton}
-                  title="Abrir templates"
-                >
-                  📋
+                <button type="button" style={styles.secondaryButton} onClick={abrirModalTemplates}>
+                  Templates
                 </button>
-
-                {mostrarTemplates && (
-                  <div style={styles.templatePopover}>
-                    <div style={{ padding: '14px 16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>
-                      Templates Meta (WhatsApp)
-                    </div>
-                    <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
-                      {erroTemplates ? (
-                        <div style={{ padding: '14px 16px', fontSize: '12px', color: '#b91c1c', lineHeight: 1.6 }}>{erroTemplates}</div>
-                      ) : templates.length > 0 ? (
-                        templates.map((t) => {
-                          const corpo = getTextoTemplate(t);
-
-                          return (
-                            <div
-                              key={t.id || t.name}
-                              onClick={() => enviarTemplateSelecionado(t)}
-                              style={{ padding: '14px 16px', cursor: enviandoTemplate ? 'wait' : 'pointer', borderBottom: '1px solid #eef2f7', opacity: enviandoTemplate ? 0.6 : 1 }}
-                            >
-                              <strong style={{ color: '#1d4ed8', display: 'block', fontSize: '13px', marginBottom: '4px' }}>{t.name}</strong>
-                              <span style={{ fontSize: '12px', color: '#64748b', display: 'block', lineHeight: 1.5 }}>
-                                {corpo.length > 72 ? `${corpo.substring(0, 72)}...` : corpo}
-                              </span>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div style={{ padding: '14px 16px', fontSize: '12px', lineHeight: 1.5, color: '#64748b' }}>
-                          Nenhum template aprovado. Clique em "Sincronizar Modelos" no Chatwoot.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 <input
                   type="text"
                   value={novaMensagem}
-                  onChange={(e) => setNovaMensagem(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && enviarMensagem()}
+                  onChange={(event) => setNovaMensagem(event.target.value)}
+                  onKeyDown={(event) => (event.key === 'Enter' ? enviarMensagem() : null)}
                   placeholder="Digite uma mensagem..."
-                  style={styles.input}
+                  style={styles.composerInput}
                 />
-                <button onClick={enviarMensagem} style={styles.primaryButton}>
+                <button type="button" style={styles.primaryButton} onClick={enviarMensagem}>
                   Enviar
                 </button>
               </div>
             </div>
           </>
         ) : (
-          <div style={styles.emptyState}>Selecione um atendimento para abrir o chat.</div>
+          <div style={styles.empty}>
+            <div>
+              <div style={{ fontSize: '28px', fontWeight: 800, marginBottom: '10px', color: '#10233f' }}>Selecione um atendimento</div>
+              <div style={{ maxWidth: '420px', lineHeight: 1.6 }}>
+                Abra uma conversa na lista ao lado para carregar o historico e usar templates do WhatsApp com preenchimento de variaveis.
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
