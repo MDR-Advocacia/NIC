@@ -325,6 +325,8 @@ const InboxPage = () => {
   const [imagemAberta, setImagemAberta] = useState(null);
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const knownActivityRef = useRef(new Map());
+  const notificacoesInicializadasRef = useRef(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'https://api-nic-lab.mdradvocacia.com/api';
 
@@ -387,6 +389,47 @@ const InboxPage = () => {
     };
 
     return mapa[status] || 'Enviado';
+  };
+
+  const formatarHorarioConversa = (timestamp) => {
+    if (!timestamp) return '';
+
+    const data = new Date(typeof timestamp === 'number' ? timestamp * 1000 : timestamp);
+    if (Number.isNaN(data.getTime())) return '';
+
+    return data.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getMessagePreview = (mensagem) => {
+    if (!mensagem) return 'Nenhuma mensagem ainda';
+
+    const anexos = getMessageAttachments(mensagem);
+    if (mensagem.content && mensagem.content.trim()) {
+      return mensagem.content.trim();
+    }
+
+    if (anexos.length > 0) {
+      const tipo = anexos[0]?.file_type || 'file';
+      const mapa = {
+        image: 'Imagem enviada',
+        audio: 'Audio enviado',
+        video: 'Video enviado',
+        file: 'Arquivo enviado',
+      };
+
+      return mapa[tipo] || 'Midia enviada';
+    }
+
+    if (mensagem.content_type === 'template') {
+      return 'Template do WhatsApp';
+    }
+
+    return 'Nova mensagem';
+  };
+
+  const getConversationPreview = (conversa) => {
+    const ultimaMensagem = conversa?.last_non_activity_message || conversa?.messages?.[0] || null;
+    return getMessagePreview(ultimaMensagem);
   };
 
   const getMessageAttachments = (mensagem) => {
@@ -478,27 +521,38 @@ const InboxPage = () => {
     }
   };
 
-  const buscarConversas = (tipo) => {
-    setCarregando(true);
+  const buscarConversas = async (tipo, options = {}) => {
+    const silent = options.silent === true;
+    if (!silent) {
+      setCarregando(true);
+    }
+
     const token = getCleanToken();
-    if (!token) return;
+    if (!token) return [];
 
     let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
     if (inboxSelecionada && inboxSelecionada !== 'all') {
       url += `&inbox_id=${inboxSelecionada}`;
     }
 
-    fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } })
-      .then((res) => res.json())
-      .then((response) => {
-        setConversas(extrairLista(response));
-        setCarregando(false);
-      })
-      .catch((error) => {
-        console.error('Erro ao buscar conversas:', error);
+    try {
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+      const data = await response.json();
+      const lista = extrairLista(data);
+
+      setConversas(lista);
+      return lista;
+    } catch (error) {
+      console.error('Erro ao buscar conversas:', error);
+      if (!silent) {
         setConversas([]);
+      }
+      return [];
+    } finally {
+      if (!silent) {
         setCarregando(false);
-      });
+      }
+    }
   };
 
   const prepararTemplate = (template) => {
@@ -566,6 +620,69 @@ const InboxPage = () => {
   }, [abaAtiva, inboxSelecionada]);
 
   useEffect(() => {
+    const intervaloConversas = window.setInterval(async () => {
+      const lista = await buscarConversas(abaAtiva, { silent: true });
+
+      if (!lista.length) {
+        return;
+      }
+
+      const totalNaoLidas = lista.reduce((total, conversa) => total + Number(conversa?.unread_count || 0), 0);
+      document.title = totalNaoLidas > 0 ? `(${totalNaoLidas}) NIC` : 'NIC';
+
+      const novasAtividades = [];
+
+      lista.forEach((conversa) => {
+        const ultimoId = conversa?.last_non_activity_message?.id || conversa?.last_non_activity_message?.source_id || conversa?.timestamp || conversa?.updated_at;
+        const chave = String(conversa.id);
+        const ultimoRegistrado = knownActivityRef.current.get(chave);
+
+        if (ultimoId) {
+          knownActivityRef.current.set(chave, ultimoId);
+        }
+
+        if (!notificacoesInicializadasRef.current || !ultimoId || !ultimoRegistrado || ultimoRegistrado === ultimoId) {
+          return;
+        }
+
+        if (Number(conversa?.unread_count || 0) > 0) {
+          novasAtividades.push(conversa);
+        }
+      });
+
+      if (!notificacoesInicializadasRef.current) {
+        notificacoesInicializadasRef.current = true;
+      }
+
+      novasAtividades.forEach((conversa) => {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(conversa?.meta?.sender?.name || conversa?.contact_inbox?.contact?.name || 'Nova mensagem', {
+            body: getConversationPreview(conversa),
+            tag: `nic-conversa-${conversa.id}`,
+          });
+        }
+      });
+    }, 8000);
+
+    return () => {
+      window.clearInterval(intervaloConversas);
+      document.title = 'NIC';
+    };
+  }, [abaAtiva, inboxSelecionada]);
+
+  useEffect(() => {
+    if (!conversaSelecionada) {
+      return undefined;
+    }
+
+    const intervaloMensagens = window.setInterval(() => {
+      carregarMensagensConversa(conversaSelecionada, { silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(intervaloMensagens);
+  }, [conversaSelecionada]);
+
+  useEffect(() => {
     setModalTemplatesAberto(false);
     setTemplateSelecionado(null);
     setVariaveisTemplate({});
@@ -573,23 +690,35 @@ const InboxPage = () => {
     setErroTemplates('');
   }, [conversaSelecionada]);
 
-  const abrirConversa = (chatId) => {
-    setConversaSelecionada(chatId);
-    setCarregandoChat(true);
-    setFeedbackEnvio('');
+  const carregarMensagensConversa = async (chatId, options = {}) => {
+    const silent = options.silent === true;
     const token = getCleanToken();
 
-    fetch(`${API_BASE}/chat/conversations/${chatId}`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        const msgLista = extrairLista(data);
-        setMensagens([...msgLista].sort((left, right) => left.id - right.id));
-        setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
+    if (!silent) {
+      setCarregandoChat(true);
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/chat/conversations/${chatId}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+      const data = await response.json();
+      const msgLista = extrairLista(data);
+      setMensagens([...msgLista].sort((left, right) => left.id - right.id));
+      setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
+    } catch (error) {
+      console.error('Erro ao carregar conversa:', error);
+    } finally {
+      if (!silent) {
         setCarregandoChat(false);
-      })
-      .catch(() => setCarregandoChat(false));
+      }
+    }
+  };
+
+  const abrirConversa = (chatId) => {
+    setConversaSelecionada(chatId);
+    setFeedbackEnvio('');
+    carregarMensagensConversa(chatId);
   };
 
   const abrirModalTemplates = async () => {
@@ -817,9 +946,7 @@ const InboxPage = () => {
 
       if (tipo === 'audio') {
         return (
-          <div key={`${mensagem.id || 'mensagem'}-anexo-${index}`} style={styles.attachmentCard}>
-            <audio controls preload="metadata" src={url} style={styles.audioPlayer} />
-          </div>
+          <audio key={`${mensagem.id || 'mensagem'}-anexo-${index}`} controls preload="metadata" src={url} style={{ ...styles.audioPlayer, marginBottom: '10px', minWidth: '260px' }} />
         );
       }
 
@@ -1114,7 +1241,9 @@ const InboxPage = () => {
           ) : registrosVisiveis.length > 0 ? (
             registrosVisiveis.map((item) => {
               const nome = item.meta?.sender?.name || item.name || 'Sem Nome';
-              const subtitulo = item.phone_number || item.meta?.sender?.phone_number || 'Abrir conversa';
+              const subtitulo = visaoAtiva === 'conversas' ? getConversationPreview(item) : item.phone_number || 'Abrir conversa';
+              const horario = visaoAtiva === 'conversas' ? formatarHorarioConversa(item.last_non_activity_message?.created_at || item.timestamp || item.updated_at) : '';
+              const naoLidas = Number(item.unread_count || 0);
               const ativo = conversaSelecionada === item.id;
 
               return (
@@ -1124,9 +1253,19 @@ const InboxPage = () => {
                   onClick={() => (visaoAtiva === 'conversas' ? abrirConversa(item.id) : setContatoParaDetalhar(item))}
                 >
                   <div style={styles.avatar(ativo)}>{nome.charAt(0).toUpperCase()}</div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#10233f' }}>{nome}</div>
-                    <div style={{ fontSize: '12px', color: '#6b7d96', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitulo}</div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
+                      <div style={{ fontWeight: 700, fontSize: '15px', color: '#10233f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome}</div>
+                      {horario ? <div style={{ fontSize: '11px', color: '#6b7d96', flexShrink: 0 }}>{horario}</div> : null}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
+                      <div style={{ fontSize: '12px', color: '#6b7d96', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitulo}</div>
+                      {naoLidas > 0 ? (
+                        <div style={{ minWidth: '22px', height: '22px', borderRadius: '999px', backgroundColor: '#2563eb', color: '#fff', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {naoLidas > 99 ? '99+' : naoLidas}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               );
