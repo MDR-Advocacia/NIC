@@ -1072,11 +1072,20 @@ class LegalCaseController extends Controller
 
     private function normalizeImportedResponsibleText(?string $value): string
     {
-        $normalizedValue = mb_strtolower(trim((string) $value));
+        $normalizedValue = trim((string) $value);
 
         if ($normalizedValue === '') {
             return '';
         }
+
+        if (preg_match('/[ÃÂ]/u', $normalizedValue)) {
+            $repairedValue = @mb_convert_encoding($normalizedValue, 'ISO-8859-1', 'UTF-8');
+            if (is_string($repairedValue) && trim($repairedValue) !== '') {
+                $normalizedValue = $repairedValue;
+            }
+        }
+
+        $normalizedValue = mb_strtolower($normalizedValue);
 
         $asciiValue = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $normalizedValue);
         if ($asciiValue !== false) {
