@@ -19,6 +19,7 @@ import {
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
 import { FaExclamationTriangle } from 'react-icons/fa';
+import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants/legalCaseStatus';
 
 const PipelinePage = () => {
     const { token, user } = useAuth();
@@ -42,11 +43,10 @@ const PipelinePage = () => {
     };
 
     const groupCasesByStatus = useCallback((cases) => {
-        const initialGroups = {
-            'initial_analysis': 'Análise Inicial', 'proposal_sent': 'Proposta Enviada',
-            'in_negotiation': 'Em Negociação', 'awaiting_draft': 'Aguardando Minuta',
-            'closed_deal': 'Acordo Fechado', 'failed_deal': 'Acordo Frustrado',
-        };
+        const initialGroups = LEGAL_CASE_STATUS_ORDER.reduce((acc, statusKey) => {
+            acc[statusKey] = LEGAL_CASE_STATUS_DETAILS[statusKey].name;
+            return acc;
+        }, {});
         const grouped = Object.keys(initialGroups).reduce((acc, key) => ({ ...acc, [key]: [] }), {});
         (cases || []).forEach(currentCase => {
             if (grouped[currentCase.status]) {

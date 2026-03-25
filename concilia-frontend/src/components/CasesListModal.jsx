@@ -6,16 +6,7 @@ import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/CasesListModal.module.css'; // O CSS que acabamos de criar
 import { Link } from 'react-router-dom';
-
-// O mesmo mapa de status que usamos no CasesTable
-const STATUS_DETAILS = {
-    'initial_analysis': { name: 'Análise Inicial', color: '#4299E1', textColor: '#FFFFFF' },
-    'proposal_sent': { name: 'Proposta Enviada', color: '#48BB78', textColor: '#FFFFFF' },
-    'in_negotiation': { name: 'Em Negociação', color: '#ECC94B', textColor: '#1A202C' },
-    'awaiting_draft': { name: 'Aguardando Minuta', color: '#ED8936', textColor: '#FFFFFF' },
-    'closed_deal': { name: 'Acordo Fechado', color: '#38B2AC', textColor: '#FFFFFF' },
-    'failed_deal': { name: 'Acordo Frustrado', color: '#E53E3E', textColor: '#FFFFFF' },
-};
+import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 // O mesmo estilo de tag
 const tagStyle = {
     padding: '4px 10px',
@@ -69,7 +60,7 @@ const CasesListModal = ({ isOpen, onClose, statusKey, statusName }) => {
     }
 
     // Busca a cor para o título
-    const titleColor = STATUS_DETAILS[statusKey]?.color || '#A0AEC0';
+    const titleColor = getLegalCaseStatusDetails(statusKey).color;
 
     return (
         <div className={styles.modalOverlay} onClick={onClose}>

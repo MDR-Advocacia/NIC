@@ -11,6 +11,30 @@ class LegalCase extends Model
     use HasFactory;
     protected $table = 'legal_cases';
 
+    public const STATUS_INITIAL_ANALYSIS = 'initial_analysis';
+    public const STATUS_CONTRA_INDICATED = 'contra_indicated';
+    public const STATUS_PROPOSAL_SENT = 'proposal_sent';
+    public const STATUS_IN_NEGOTIATION = 'in_negotiation';
+    public const STATUS_AWAITING_DRAFT = 'awaiting_draft';
+    public const STATUS_CLOSED_DEAL = 'closed_deal';
+    public const STATUS_FAILED_DEAL = 'failed_deal';
+
+    public const STATUSES = [
+        self::STATUS_INITIAL_ANALYSIS,
+        self::STATUS_CONTRA_INDICATED,
+        self::STATUS_PROPOSAL_SENT,
+        self::STATUS_IN_NEGOTIATION,
+        self::STATUS_AWAITING_DRAFT,
+        self::STATUS_CLOSED_DEAL,
+        self::STATUS_FAILED_DEAL,
+    ];
+
+    public const TERMINAL_STATUSES = [
+        self::STATUS_CONTRA_INDICATED,
+        self::STATUS_CLOSED_DEAL,
+        self::STATUS_FAILED_DEAL,
+    ];
+
     /**
      * Get the history records for the legal case.
      */

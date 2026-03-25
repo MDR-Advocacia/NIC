@@ -11,16 +11,9 @@ import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, F
 import { ImSpinner2 } from 'react-icons/im';
 import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
+import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 
 // --- DICIONÁRIOS ---
-const STATUS_DETAILS = {
-    'initial_analysis': { name: 'Análise Inicial', color: '#4299E1', textColor: '#FFFFFF' },
-    'proposal_sent': { name: 'Proposta Enviada', color: '#48BB78', textColor: '#FFFFFF' },
-    'in_negotiation': { name: 'Em Negociação', color: '#ECC94B', textColor: '#1A202C' },
-    'awaiting_draft': { name: 'Aguardando Minuta', color: '#ED8936', textColor: '#FFFFFF' },
-    'closed_deal': { name: 'Acordo Fechado', color: '#38B2AC', textColor: '#FFFFFF' },
-    'failed_deal': { name: 'Acordo Frustrado', color: '#E53E3E', textColor: '#FFFFFF' },
-};
 const PRIORITY_DETAILS = {
     'baixa': { name: 'Prioridade Baixa', color: '#22c55e', textColor: '#FFFFFF' },
     'media': { name: 'Prioridade Média', color: '#f59e0b', textColor: '#FFFFFF' },
@@ -221,7 +214,7 @@ const CaseDetailPage = () => {
     };
 
     // Segurança no Status/Prioridade (evita erro se vier nulo da importação)
-    const currentStatus = STATUS_DETAILS[legalCase.status] || { name: legalCase.status || 'Sem Status', color: '#CBD5E0', textColor: '#1A202C' };
+    const currentStatus = getLegalCaseStatusDetails(legalCase.status);
     const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority || 'Normal', color: '#CBD5E0', textColor: '#1A202C' };
 
     return (

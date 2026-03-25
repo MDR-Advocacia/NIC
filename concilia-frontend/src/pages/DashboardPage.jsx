@@ -15,6 +15,7 @@ import CasesListModal from '../components/CasesListModal';
 import { FaTrophy, FaArrowRight, FaBriefcase } from 'react-icons/fa'; 
 import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
+import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 
 const DashboardPage = () => {
     
@@ -151,12 +152,9 @@ const DashboardPage = () => {
                     <label>Status:</label>
                     <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
                         <option value="">Todos</option>
-                        <option value="initial_analysis">Análise Inicial</option>
-                        <option value="proposal_sent">Proposta Enviada</option>
-                        <option value="in_negotiation">Em Negociação</option>
-                        <option value="awaiting_draft">Aguardando Minuta</option>
-                        <option value="closed_deal">Acordo Fechado</option>
-                        <option value="failed_deal">Acordo Frustrado</option>
+                        {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
+                            <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
+                        ))}
                     </select>
                     <button onClick={handleApplyFilters} className={styles.filterButton}>
                         Aplicar Filtros

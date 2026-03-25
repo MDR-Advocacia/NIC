@@ -7,6 +7,7 @@ import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
 // ADICIONADO: FaClock para o ícone de atraso
 import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaCalendarAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
+import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 
 const CaseCard = ({ id, legalCase, onClick }) => {
     const {
@@ -43,6 +44,7 @@ const CaseCard = ({ id, legalCase, onClick }) => {
     // -----------------------------
 
     const priorityInfo = priorities[legalCase.priority] || {};
+    const statusInfo = getLegalCaseStatusDetails(legalCase.status);
 
     let economyPercentage = null;
     const originalValue = parseFloat(legalCase.original_value);
@@ -63,19 +65,28 @@ const CaseCard = ({ id, legalCase, onClick }) => {
             >
                 <div className={styles.header} {...listeners}>
                     <span className={styles.caseNumber}>{legalCase.case_number}</span>
-                    
-                    {/*  Mostra Alerta se atrasado, senão mostra Prioridade */}
-                    {isDelayed ? (
-                        <span className={styles.delayedTag} title={`Este caso não é atualizado há ${daysSinceUpdate} dias`}>
-                            <FaExclamationTriangle /> {daysSinceUpdate}d parado
-                        </span>
-                    ) : (
-                        priorityInfo.text && (
-                            <span className={`${styles.priorityTag} ${priorityInfo.tagClass || ''}`}>
-                                {priorityInfo.text}
+
+                    <div className={styles.headerMeta}>
+                        {isDelayed ? (
+                            <span className={styles.delayedTag} title={`Este caso não é atualizado há ${daysSinceUpdate} dias`}>
+                                <FaExclamationTriangle /> {daysSinceUpdate}d parado
                             </span>
-                        )
-                    )}
+                        ) : (
+                            priorityInfo.text && (
+                                <span className={`${styles.priorityTag} ${priorityInfo.tagClass || ''}`}>
+                                    {priorityInfo.text}
+                                </span>
+                            )
+                        )}
+
+                        <span
+                            className={styles.statusTag}
+                            style={{ backgroundColor: statusInfo.color, color: statusInfo.textColor }}
+                            title={`Etapa atual: ${statusInfo.name}`}
+                        >
+                            {statusInfo.name}
+                        </span>
+                    </div>
                 </div>
 
                 <div className={styles.body}>

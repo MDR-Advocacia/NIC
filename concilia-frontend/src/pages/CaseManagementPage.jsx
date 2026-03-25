@@ -14,17 +14,12 @@ import EditCaseModal from '../components/EditCaseModal';
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
+import {
+    LEGAL_CASE_STATUS_OPTIONS,
+    getLegalCaseStatusDetails,
+} from '../constants/legalCaseStatus';
 
 // --- COMPONENTES AUXILIARES ---
-
-const STATUS_DETAILS = {
-    'initial_analysis': { name: 'Análise Inicial', color: '#4299E1', textColor: '#FFFFFF' },
-    'proposal_sent': { name: 'Proposta Enviada', color: '#48BB78', textColor: '#FFFFFF' },
-    'in_negotiation': { name: 'Em Negociação', color: '#ECC94B', textColor: '#1A202C' },
-    'awaiting_draft': { name: 'Aguardando Minuta', color: '#ED8936', textColor: '#FFFFFF' },
-    'closed_deal': { name: 'Acordo Fechado', color: '#38B2AC', textColor: '#FFFFFF' },
-    'failed_deal': { name: 'Acordo Frustrado', color: '#E53E3E', textColor: '#FFFFFF' },
-};
 
 const PRIORITY_DETAILS = {
     'alta': { name: 'Alta', color: '#e53e3e', textColor: '#FFFFFF' },
@@ -33,7 +28,7 @@ const PRIORITY_DETAILS = {
 };
 
 const StatusTag = ({ status }) => {
-    const currentStatus = STATUS_DETAILS[status] || { name: status, color: '#A0AEC0', textColor: '#1A202C' };
+    const currentStatus = getLegalCaseStatusDetails(status);
     return <span className={styles.statusTag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>;
 };
 
@@ -253,7 +248,7 @@ const CaseManagementPage = () => {
                     <input type="text" placeholder="Buscar..." className={styles.searchInput} name="search" value={filters.search} onChange={handleFilterChange} />
                     <select className={styles.filterSelect} name="status" value={filters.status} onChange={handleFilterChange}>
                         <option value="">Status: Todos</option>
-                        {Object.entries(STATUS_DETAILS).map(([key, val]) => <option key={key} value={key}>{val.name}</option>)}
+                        {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>)}
                     </select>
                     <select className={styles.filterSelect} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
                         <option value="">Advogado: Todos</option>
@@ -422,7 +417,7 @@ const CaseManagementPage = () => {
                                 {batchActionType === 'status' && (
                                     <select className={styles.batchSelect} onChange={(e) => executeBatchUpdate('update_status', e.target.value)} defaultValue="">
                                         <option value="" disabled>Novo Status...</option>
-                                        {Object.entries(STATUS_DETAILS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
+                        {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>)}
                                     </select>
                                 )}
 

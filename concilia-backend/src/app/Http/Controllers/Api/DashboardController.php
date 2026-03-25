@@ -35,8 +35,10 @@ class DashboardController extends Controller
         $totalAgreementValue = $allCases->sum('agreement_value');
         $totalOriginalValue = $allCases->sum('original_value');
         
-        $closedCases = $allCases->where('status', 'closed_deal');
-        $activeCases = $allCases->where('status', '!=', 'closed_deal')->where('status', '!=', 'failed_deal');
+        $closedCases = $allCases->where('status', LegalCase::STATUS_CLOSED_DEAL);
+        $activeCases = $allCases->reject(
+            fn ($case) => in_array($case->status, LegalCase::TERMINAL_STATUSES, true)
+        );
         
         $totalEconomy = 0;
         foreach ($closedCases as $case) {
@@ -66,10 +68,10 @@ class DashboardController extends Controller
         $teamPerformance = $lawyers->map(function ($lawyer) {
             $myCases = $lawyer->cases;
             $myTotal = $myCases->count();
-            $myClosed = $myCases->where('status', 'closed_deal')->count();
+            $myClosed = $myCases->where('status', LegalCase::STATUS_CLOSED_DEAL)->count();
             
             $myEconomy = 0;
-            foreach ($myCases->where('status', 'closed_deal') as $c) {
+            foreach ($myCases->where('status', LegalCase::STATUS_CLOSED_DEAL) as $c) {
                 $myEconomy += ($c->original_value - $c->agreement_value);
             }
 
@@ -116,7 +118,7 @@ class DashboardController extends Controller
             $createdData->push($cQuery->count());
 
             // Query Fechamento
-            $clQuery = LegalCase::where('status', 'closed_deal')
+            $clQuery = LegalCase::where('status', LegalCase::STATUS_CLOSED_DEAL)
                                 ->whereYear('updated_at', $date->year)
                                 ->whereMonth('updated_at', $date->month);
             // Filtro de Segurança no Gráfico
@@ -134,12 +136,13 @@ class DashboardController extends Controller
 
         // --- DISTRIBUIÇÃO DE STATUS ---
         $statusDistribution = [
-            'initial_analysis' => $allCases->where('status', 'initial_analysis')->count(),
-            'proposal_sent' => $allCases->where('status', 'proposal_sent')->count(),
-            'in_negotiation' => $allCases->where('status', 'in_negotiation')->count(),
-            'awaiting_draft' => $allCases->where('status', 'awaiting_draft')->count(),
-            'closed_deal' => $allCases->where('status', 'closed_deal')->count(),
-            'failed_deal' => $allCases->where('status', 'failed_deal')->count(),
+            LegalCase::STATUS_INITIAL_ANALYSIS => $allCases->where('status', LegalCase::STATUS_INITIAL_ANALYSIS)->count(),
+            LegalCase::STATUS_CONTRA_INDICATED => $allCases->where('status', LegalCase::STATUS_CONTRA_INDICATED)->count(),
+            LegalCase::STATUS_PROPOSAL_SENT => $allCases->where('status', LegalCase::STATUS_PROPOSAL_SENT)->count(),
+            LegalCase::STATUS_IN_NEGOTIATION => $allCases->where('status', LegalCase::STATUS_IN_NEGOTIATION)->count(),
+            LegalCase::STATUS_AWAITING_DRAFT => $allCases->where('status', LegalCase::STATUS_AWAITING_DRAFT)->count(),
+            LegalCase::STATUS_CLOSED_DEAL => $allCases->where('status', LegalCase::STATUS_CLOSED_DEAL)->count(),
+            LegalCase::STATUS_FAILED_DEAL => $allCases->where('status', LegalCase::STATUS_FAILED_DEAL)->count(),
         ];
 
         return response()->json([

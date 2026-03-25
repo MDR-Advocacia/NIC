@@ -61,7 +61,7 @@
 .header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 1rem;
     cursor: grab;
     background-color: var(--border-color-dark); 
@@ -76,6 +76,13 @@
 .header:active {
     cursor: grabbing;
     background-color: var(--bg-page); 
+}
+
+.headerMeta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.35rem;
 }
 
 .caseNumber { 
@@ -106,6 +113,16 @@
 .priorityTagAlta { background-color: #e53e3e; }
 .priorityTagMedia { background-color: #dd6b20; }
 .priorityTagBaixa { background-color: #38a169; }
+
+.statusTag {
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
 
 .body {
     display: flex;
