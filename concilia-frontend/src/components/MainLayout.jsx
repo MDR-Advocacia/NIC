@@ -4,10 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import styles from '../styles/MainLayout.module.css';
 import { FaUserCog } from 'react-icons/fa';
-import { 
-    FaTachometerAlt, FaInbox, FaStream, FaSuitcase, 
-    FaFileUpload, FaUsers, FaSignOutAlt, FaHandshake, 
-    FaSun, FaMoon, FaShieldAlt 
+import {
+    FaTachometerAlt, FaInbox, FaStream, FaSuitcase,
+    FaFileUpload, FaUsers, FaSignOutAlt, FaHandshake,
+    FaSun, FaMoon, FaShieldAlt, FaDatabase
 } from 'react-icons/fa';
 
 const MainLayout = () => {
@@ -69,6 +69,14 @@ const MainLayout = () => {
                                 <FaFileUpload /> <span>Importar Dados</span>
                             </NavLink>
                         </li>
+
+                        {canManageUsers && (
+                            <li className={styles.navItem}>
+                                <NavLink to="/base-geral" className={getNavLinkClass}>
+                                    <FaDatabase /> <span>Base Geral</span>
+                                </NavLink>
+                            </li>
+                        )}
 
                         {canManageUsers && (
                             <li className={styles.navItem}>

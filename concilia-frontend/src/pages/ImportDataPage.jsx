@@ -9,6 +9,7 @@ import {
   FaSave,
   FaTrashAlt,
   FaUpload,
+  FaSync,
 } from 'react-icons/fa';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -170,6 +171,10 @@ const createRowDraft = (row, index) => ({
 
 const ImportDataPage = () => {
   const { token } = useAuth();
+
+  // --- TAB ---
+  const [activeTab, setActiveTab] = useState('import');
+
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedClientName, setSelectedClientName] = useState('');
@@ -182,6 +187,13 @@ const ImportDataPage = () => {
   const [filterCode, setFilterCode] = useState('');
   const [selectedRowIds, setSelectedRowIds] = useState([]);
   const [uploadProgress, setUploadProgress] = useState('');
+
+  // --- SYNC ALÇADA ---
+  const [alcadaFileName, setAlcadaFileName] = useState('');
+  const [alcadaParsedRows, setAlcadaParsedRows] = useState([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [alcadaError, setAlcadaError] = useState('');
+  const [alcadaResult, setAlcadaResult] = useState(null);
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -645,6 +657,55 @@ const ImportDataPage = () => {
     });
   };
 
+  const handleAlcadaFileChange = async (event) => {
+    const [file] = event.target.files || [];
+    if (!file) return;
+    setAlcadaError('');
+    setAlcadaResult(null);
+    try {
+      const parsedRows = await parseSpreadsheetFile(file);
+      setAlcadaFileName(file.name);
+      setAlcadaParsedRows(parsedRows);
+    } catch (error) {
+      event.target.value = '';
+      setAlcadaFileName('');
+      setAlcadaParsedRows([]);
+      setAlcadaError(error.message || 'Não foi possível ler o arquivo selecionado.');
+    }
+  };
+
+  const runSyncAlcada = async () => {
+    if (!selectedClient) {
+      setAlcadaError('Nenhum cliente de destino foi encontrado.');
+      return;
+    }
+    if (!alcadaParsedRows.length) {
+      setAlcadaError('Selecione uma planilha antes de sincronizar.');
+      return;
+    }
+    setIsSyncing(true);
+    setAlcadaError('');
+    setAlcadaResult(null);
+    try {
+      const response = await apiClient.post(
+        '/cases/sync-alcada',
+        { client_id: selectedClient, cases: alcadaParsedRows },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setAlcadaResult(response.data);
+    } catch (error) {
+      if (error.response?.status === 422) {
+        const errs = (error.response.data?.errors || []).flatMap((e) => e.errors || []);
+        setAlcadaError(`Erros de validação: ${errs.join('; ')}`);
+      } else {
+        setAlcadaError('Erro ao sincronizar. Tente novamente.');
+      }
+      console.error(error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleExportLegalOne = async () => {
     setIsExporting(true);
     setPageError('');
@@ -685,6 +746,131 @@ const ImportDataPage = () => {
         </button>
       </header>
 
+      {/* --- TABS --- */}
+      <div className={styles.tabBar}>
+        <button
+          type="button"
+          className={`${styles.tabBtn} ${activeTab === 'import' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('import')}
+        >
+          <FaFileUpload /> Importar Casos
+        </button>
+        <button
+          type="button"
+          className={`${styles.tabBtn} ${activeTab === 'alcada' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('alcada')}
+        >
+          <FaSync /> Sincronizar Alçada
+        </button>
+      </div>
+
+      {/* ========== ABA: SINCRONIZAR ALÇADA ========== */}
+      {activeTab === 'alcada' && (
+        <div>
+          <div className={styles.alcadaWarningBanner}>
+            <FaExclamationTriangle style={{ flexShrink: 0 }} />
+            <span>
+              <strong>Atenção:</strong> casos que já possuem alçada e <strong>não aparecerem</strong> nesta planilha
+              terão a alçada removida e sairão do pipeline automaticamente.
+            </span>
+          </div>
+
+          <section className={styles.panelCard} style={{ marginBottom: '1.5rem' }}>
+            <div className={styles.cardHeader}>
+              <div>
+                <h2>Sincronização semanal de alçada</h2>
+                <p>Envie a planilha BASE BB com os valores de alçada. O sistema atualiza quem entra e quem sai do pipeline.</p>
+              </div>
+              <span className={styles.clientBadge}>{selectedClientName || 'Cliente não definido'}</span>
+            </div>
+
+            <label className={styles.fieldLabel} htmlFor="alcada-upload">Selecionar planilha de alçada</label>
+            <div className={styles.fileRow}>
+              <input
+                id="alcada-upload"
+                type="file"
+                className={styles.hiddenInput}
+                accept=".csv,.xlsx,.xls"
+                onChange={handleAlcadaFileChange}
+              />
+              <label htmlFor="alcada-upload" className={styles.filePicker}>
+                <span className={styles.filePickerButton}>Escolher arquivo</span>
+                <span className={styles.filePickerName}>{alcadaFileName || 'Nenhum arquivo selecionado'}</span>
+              </label>
+            </div>
+
+            {alcadaParsedRows.length > 0 && (
+              <div className={styles.helpBox} style={{ marginTop: '0.75rem' }}>
+                <FaCheckCircle style={{ color: '#38a169', marginRight: '0.4rem' }} />
+                <strong>{alcadaParsedRows.length}</strong> registros lidos da planilha. Clique em "Sincronizar" para processar.
+              </div>
+            )}
+
+            {alcadaError && (
+              <div className={styles.errorBox} style={{ marginTop: '0.75rem' }}>
+                <FaExclamationTriangle />
+                <span>{alcadaError}</span>
+              </div>
+            )}
+
+            <div className={styles.actionRow} style={{ marginTop: '1rem' }}>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={runSyncAlcada}
+                disabled={!alcadaParsedRows.length || isSyncing || !selectedClient}
+              >
+                <FaSync />
+                {isSyncing ? 'Sincronizando...' : 'Sincronizar Alçada'}
+              </button>
+              {alcadaFileName && (
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={() => { setAlcadaFileName(''); setAlcadaParsedRows([]); setAlcadaResult(null); setAlcadaError(''); }}
+                  disabled={isSyncing}
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+          </section>
+
+          {alcadaResult && (
+            <section className={styles.summaryCard}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <h2>Resultado da sincronização</h2>
+                  <p>{alcadaResult.message}</p>
+                </div>
+                <span className={`${styles.statusBadge} ${styles.statusCONCLUIDO}`}>CONCLUÍDO</span>
+              </div>
+              <div className={styles.summaryGrid}>
+                <div className={styles.metricCard}>
+                  <span>Processados com sucesso</span>
+                  <strong>{alcadaResult.success_count ?? 0}</strong>
+                </div>
+                <div className={styles.metricCard}>
+                  <span>Novos processos</span>
+                  <strong>{alcadaResult.created_count ?? 0}</strong>
+                </div>
+                <div className={styles.metricCard}>
+                  <span>Processos atualizados</span>
+                  <strong>{alcadaResult.updated_count ?? 0}</strong>
+                </div>
+                <div className={styles.metricCard} style={{ borderColor: '#E53E3E' }}>
+                  <span>Removidos da alçada</span>
+                  <strong style={{ color: '#E53E3E' }}>{alcadaResult.zeroed_count ?? 0}</strong>
+                </div>
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+
+      {/* ========== ABA: IMPORTAR CASOS ========== */}
+      {activeTab === 'import' && (
+        <>
       {pageError && (
         <div className={styles.errorBox}>
           <FaExclamationTriangle />
@@ -974,6 +1160,8 @@ const ImportDataPage = () => {
           </div>
         )}
       </section>
+        </>
+      )}
     </div>
   );
 };

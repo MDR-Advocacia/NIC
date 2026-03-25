@@ -58,6 +58,7 @@ class LegalCase extends Model
         'status',
         'priority',
         'original_value',
+        'has_alcada',
         'agreement_value',
         'cause_value',
         'updated_condemnation_value', 
@@ -75,7 +76,7 @@ class LegalCase extends Model
         'start_date'
     ];
 
-    protected $casts = ['tags' => 'array', 'agreement_checklist_data' => 'array'];
+    protected $casts = ['tags' => 'array', 'agreement_checklist_data' => 'array', 'has_alcada' => 'boolean'];
 
     public function client()
     {

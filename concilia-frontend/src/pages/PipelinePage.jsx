@@ -208,6 +208,15 @@ const PipelinePage = () => {
         const isStatusChange = movedCase.status !== overContainer;
 
         if (isStatusChange) {
+            // Confirmação ao mover para Contra Indicado
+            if (overContainer === 'contra_indicated') {
+                if (!window.confirm('Tem certeza que deseja marcar este caso como Contra Indicado? O caso sairá da visualização do pipeline.')) {
+                    setActiveId(null);
+                    fetchAllData(); // Reverte animação visual
+                    return;
+                }
+            }
+
             console.log(`🔄 Movendo card ${movedCase.id}: ${movedCase.status} -> ${overContainer}`);
 
             // Prepara o objeto para enviar ao Backend
@@ -287,7 +296,7 @@ const PipelinePage = () => {
     if (error) return <p style={{ color: 'red' }}>{error}</p>;
 
     return (
-        <div>
+        <div className={styles.pageContainer}>
             <div className={styles.header}>
                 <h1>Pipeline de Acordos</h1>
                 <div className={styles.headerActions}>
@@ -353,16 +362,20 @@ const PipelinePage = () => {
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
             >
-                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', padding: '1rem', paddingBottom: '100px' }}>
-                    {pipelineData?.titles && Object.entries(pipelineData.titles).map(([statusKey, statusTitle]) => (
-                        <PipelineColumn 
-                            key={statusKey} 
-                            id={statusKey} 
-                            title={statusTitle} 
-                            cases={pipelineData.grouped[statusKey] || []} 
-                            onCardClick={handleOpenEditModal} 
-                        />
-                    ))}
+                <div className={styles.boardShell}>
+                    <div className={styles.boardGrid}>
+                    {pipelineData?.titles && Object.entries(pipelineData.titles)
+                        .filter(([statusKey]) => statusKey !== 'contra_indicated')
+                        .map(([statusKey, statusTitle]) => (
+                            <PipelineColumn
+                                key={statusKey}
+                                id={statusKey}
+                                title={statusTitle}
+                                cases={pipelineData.grouped[statusKey] || []}
+                                onCardClick={handleOpenEditModal}
+                            />
+                        ))}
+                    </div>
                 </div>
                 {/* Overlay opcional para feedback visual melhorado durante o arraste */}
                 {/* <DragOverlay> ... </DragOverlay> */}

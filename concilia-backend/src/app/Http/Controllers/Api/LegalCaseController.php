@@ -39,6 +39,18 @@ class LegalCaseController extends Controller
         // Começa a query base, carregando todos os relacionamentos importantes
         $query = LegalCase::with(['client', 'lawyer', 'opposingLawyer', 'plaintiff', 'defendantRel', 'actionObject']);
 
+        // --- FILTRO POR SCOPE (ALÇADA) ---
+        $scope = $request->input('scope', 'pipeline');
+        if ($scope === 'pipeline') {
+            $query->where('has_alcada', true);
+        } elseif ($scope === 'general_base') {
+            if (!in_array($user->role, ['administrador', 'supervisor'])) {
+                return response()->json(['message' => 'Acesso negado.'], 403);
+            }
+            $query->where('has_alcada', false);
+        }
+        // scope=all → sem filtro de alçada
+
         // --- LÓGICA DE PERMISSÃO (RBAC) ---
         if ($user->role === 'operador') {
             $query->where('user_id', $user->id);
@@ -372,6 +384,14 @@ class LegalCaseController extends Controller
         $user = Auth::user();
         $query = LegalCase::with(['client', 'lawyer']);
 
+        // --- FILTRO POR SCOPE (ALÇADA) ---
+        $scope = $request->input('scope', 'pipeline');
+        if ($scope === 'pipeline') {
+            $query->where('has_alcada', true);
+        } elseif ($scope === 'general_base') {
+            $query->where('has_alcada', false);
+        }
+
         // --- LÓGICA DE PERMISSÃO (Mantida) ---
         if ($user->role === 'operador') {
             $query->where('user_id', $user->id); 
@@ -635,6 +655,226 @@ class LegalCaseController extends Controller
                 'updated_count' => $updatedCount,
                 'errors' => [],
             ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erro interno crítico no servidor.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Importa casos da planilha e remove alçada dos que não aparecem.
+     */
+    public function syncAlcada(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        if (!in_array($user->role, ['administrador', 'supervisor'])) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $validatedData = $request->validate([
+            'client_id' => 'required|exists:clients,id',
+            'cases' => 'required|array|min:1',
+        ]);
+
+        $casesToImport = $validatedData['cases'];
+        $clientId = $validatedData['client_id'];
+        $successCount = 0;
+        $createdCount = 0;
+        $updatedCount = 0;
+        $errors = [];
+        $processedCaseIds = [];
+        $authenticatedUserId = Auth::id();
+
+        $messages = [
+            'required' => 'O campo :attribute é obrigatório.',
+            'exists' => 'O :attribute não foi encontrado no sistema.',
+            'date' => 'Data inválida.',
+            'numeric' => 'Deve ser um número válido.',
+            'string' => 'Deve ser texto.',
+            'max' => 'Valor muito longo.',
+        ];
+
+        $customAttributes = [
+            'case_number' => 'Número do Processo',
+            'original_value' => 'Valor de Alçada',
+            'opposing_party' => 'Autor',
+            'defendant' => 'Réu',
+            'user_id' => 'Advogado Responsável',
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($casesToImport as $index => $caseData) {
+                $caseData = $this->sanitizeImportCaseData($caseData);
+                $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
+
+                // Para sync de alçada, SEMPRE recalcular original_value do portal_agreement_offers
+                if (!empty($caseData['portal_agreement_offers'])) {
+                    $pendingValue = $this->extractPendingPortalAgreementValue(
+                        (string) $caseData['portal_agreement_offers']
+                    );
+                    if ($pendingValue !== null) {
+                        $caseData['original_value'] = $pendingValue;
+                    }
+                }
+
+                // Determinar has_alcada com base no original_value
+                $originalValue = $caseData['original_value'] ?? $existingCase?->original_value ?? 0;
+                if (is_string($originalValue)) {
+                    $originalValue = (float) preg_replace('/[^\d.\-]/', '', str_replace(',', '.', str_replace('.', '', $originalValue)));
+                }
+                $hasAlcada = $originalValue > 0;
+
+                if (empty($caseData['original_value'])) {
+                    $caseData['original_value'] = $existingCase?->original_value ?? 0;
+                }
+                if (empty($caseData['cause_value'])) {
+                    $caseData['cause_value'] = $caseData['original_value'] ?? 0;
+                }
+
+                unset($caseData['updated_condemnation_value']);
+
+                $responsibleUser = $this->resolveResponsibleUserFromImport($caseData);
+                if ($responsibleUser) {
+                    $caseData['user_id'] = $responsibleUser->id;
+                    $caseData['lawyer_name'] = $responsibleUser->name;
+                }
+                if (!isset($caseData['user_id']) && isset($caseData['lawyer_id'])) {
+                    $caseData['user_id'] = $caseData['lawyer_id'];
+                }
+
+                $caseData['user_id'] = $caseData['user_id']
+                    ?? $existingCase?->user_id
+                    ?? $authenticatedUserId;
+
+                $caseData['client_id'] = $clientId;
+                $caseData['status'] = $existingCase?->status ?? 'initial_analysis';
+                $caseData['priority'] = !empty($caseData['priority'])
+                    ? strtolower($caseData['priority'])
+                    : ($existingCase?->priority ?? 'media');
+
+                if (isset($caseData['special_court'])) {
+                    $sc = strtolower((string) $caseData['special_court']);
+                    $caseData['special_court'] = (
+                        $sc === 's' || $sc === 'sim' || $sc === 'yes' || str_contains($sc, 'juizado')
+                    ) ? 'Sim' : 'Não';
+                } else {
+                    $caseData['special_court'] = $existingCase?->special_court ?? 'Não';
+                }
+
+                $caseData['start_date'] = $this->normalizeImportDate($caseData['start_date'] ?? null);
+
+                if (!empty($caseData['opposing_party'])) {
+                    $plaintiff = Plaintiff::firstOrCreate(['name' => trim($caseData['opposing_party'])]);
+                    $caseData['plaintiff_id'] = $plaintiff->id;
+                } elseif ($existingCase?->plaintiff_id) {
+                    $caseData['plaintiff_id'] = $existingCase->plaintiff_id;
+                }
+
+                if (!empty($caseData['defendant'])) {
+                    $defendant = Defendant::firstOrCreate(['name' => trim($caseData['defendant'])]);
+                    $caseData['defendant_id'] = $defendant->id;
+                } elseif ($existingCase?->defendant_id) {
+                    $caseData['defendant_id'] = $existingCase->defendant_id;
+                }
+
+                if (!empty($caseData['opposing_lawyer'])) {
+                    $opLawyer = OpposingLawyer::firstOrCreate(['name' => trim($caseData['opposing_lawyer'])]);
+                    $caseData['opposing_lawyer_id'] = $opLawyer->id;
+                } elseif ($existingCase?->opposing_lawyer_id) {
+                    $caseData['opposing_lawyer_id'] = $existingCase->opposing_lawyer_id;
+                }
+
+                $caseData = $this->resolveActionObjectPayload($caseData);
+                $payload = $this->mergeImportPayloadWithExistingCase($caseData, $existingCase);
+                $payload['has_alcada'] = $hasAlcada;
+
+                $validator = Validator::make($payload, [
+                    'case_number' => 'required|string|max:255',
+                    'opposing_party' => 'required|string|max:255',
+                    'defendant' => 'nullable|string|max:255',
+                    'user_id' => 'required|exists:users,id',
+                    'action_object' => 'nullable|string|max:255',
+                    'action_object_id' => 'nullable|exists:action_objects,id',
+                    'internal_number' => 'nullable|string|max:255',
+                    'start_date' => 'nullable|date',
+                    'comarca' => 'nullable|string|max:255',
+                    'cause_value' => 'nullable|numeric',
+                    'original_value' => 'nullable|numeric',
+                    'agreement_value' => 'nullable|numeric',
+                    'pcond_probability' => 'nullable|numeric|min:0',
+                    'priority' => 'nullable|string',
+                    'description' => 'nullable|string',
+                    'opposing_lawyer' => 'nullable|string',
+                    'client_id' => 'required|exists:clients,id',
+                    'status' => 'required|string',
+                    'plaintiff_id' => 'nullable|exists:plaintiffs,id',
+                    'defendant_id' => 'nullable|exists:defendants,id',
+                    'opposing_lawyer_id' => 'nullable|exists:opposing_lawyers,id',
+                ], $messages, $customAttributes);
+
+                if ($validator->fails()) {
+                    $errors[] = [
+                        'line' => "Registro " . ($index + 1),
+                        'errors' => $validator->errors()->all()
+                    ];
+                } else {
+                    try {
+                        if ($existingCase) {
+                            $existingCase->fill($payload);
+                            $existingCase->save();
+                            $processedCaseIds[] = $existingCase->id;
+                            $updatedCount++;
+                        } else {
+                            $newCase = LegalCase::create($payload);
+                            $processedCaseIds[] = $newCase->id;
+                            $createdCount++;
+                        }
+                        $successCount++;
+                    } catch (\Exception $e) {
+                        $errors[] = [
+                            'line' => "Registro " . ($index + 1),
+                            'errors' => ["Erro ao salvar: " . $e->getMessage()]
+                        ];
+                    }
+                }
+            }
+
+            if (!empty($errors)) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'A sincronização falhou. Corrija os erros e tente novamente.',
+                    'success_count' => 0,
+                    'created_count' => 0,
+                    'updated_count' => 0,
+                    'zeroed_count' => 0,
+                    'errors' => $errors,
+                ], 422);
+            }
+
+            // --- PASSO DE SINCRONIZAÇÃO ---
+            // Zerar alçada dos casos que NÃO vieram na planilha
+            $zeroedCount = LegalCase::where('client_id', $clientId)
+                ->where('has_alcada', true)
+                ->whereNotIn('id', $processedCaseIds)
+                ->update(['has_alcada' => false, 'original_value' => 0]);
+
+            DB::commit();
+
+            try {
+                AuditService::log('sync_alcada', "Sincronização de alçada: {$updatedCount} atualizados, {$createdCount} criados, {$zeroedCount} removidos da alçada.");
+            } catch (\Exception $e) {}
+
+            return response()->json([
+                'message' => "Sincronização concluída! {$successCount} processos processados, {$zeroedCount} removidos da alçada.",
+                'success_count' => $successCount,
+                'created_count' => $createdCount,
+                'updated_count' => $updatedCount,
+                'zeroed_count' => $zeroedCount,
+                'errors' => [],
+            ], 200);
 
         } catch (\Exception $e) {
             DB::rollBack();
