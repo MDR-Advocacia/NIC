@@ -10,6 +10,14 @@ class ChatMessage extends Model
 {
     use HasFactory;
 
+    
+    protected $fillable = [
+        'conversation_id',
+        'content',
+        'sender_type',
+        'timestamp'
+    ];
+
     /**
      * Get the conversation that the message belongs to.
      */

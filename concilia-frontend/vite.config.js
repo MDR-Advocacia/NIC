@@ -4,11 +4,26 @@ import react from '@vitejs/plugin-react-swc'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: '0.0.0.0', // Permite conexões externas ao container
-    port: 5173,
     allowedHosts: [
-      'nic.mdradvocacia.com', // Adicione o seu domínio aqui
-      '.mdradvocacia.com'     // O ponto no início permite qualquer subdomínio
-    ]
-  }
+      'localhost',
+      'lab-nic.mdradvocacia.com',
+      'api-nic-lab.mdradvocacia.com',
+      'nic.mdradvocacia.com',
+      'api-nic-mdradvocacia.com'
+    ],
+    proxy: {
+      // Isso redireciona qualquer chamada para /api/v1 para o servidor correto
+      '/api/v1': {
+        target: 'https://api-nic-lab.mdradvocacia.com',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Isso garante que as rotas antigas /api/chat continuem funcionando
+      '/api/chat': {
+        target: 'https://api-nic-lab.mdradvocacia.com',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  },
 })

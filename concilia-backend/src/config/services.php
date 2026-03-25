@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'meta_whatsapp' => [
+        'access_token' => env('META_WHATSAPP_ACCESS_TOKEN'),
+        'business_account_id' => env('META_WHATSAPP_BUSINESS_ACCOUNT_ID'),
+        'phone_number_id' => env('META_WHATSAPP_PHONE_NUMBER_ID'),
+        'business_account_id_map' => env('META_WHATSAPP_BUSINESS_ACCOUNT_ID_MAP'),
+        'phone_number_id_map' => env('META_WHATSAPP_PHONE_NUMBER_ID_MAP'),
+        'api_version' => env('META_WHATSAPP_API_VERSION', 'v22.0'),
+    ],
+
 ];

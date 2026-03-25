@@ -22,7 +22,7 @@ class LegalCaseFactory extends Factory
 
             'opposing_party' => $this->faker->name(),
             'defendant' => $this->faker->company(),
-            'action_object' => $this->faker->randomElement(["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada"]),
+            'action_object' => ucfirst($this->faker->words(3, true)),
             'description' => $this->faker->sentence(),
             'status' => $this->faker->randomElement(['initial_analysis', 'proposal_sent', 'in_negotiation', 'awaiting_draft', 'closed_deal', 'failed_deal']),
             'priority' => $this->faker->randomElement(['baixa', 'media', 'alta']),

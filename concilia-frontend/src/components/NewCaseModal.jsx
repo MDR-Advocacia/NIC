@@ -7,7 +7,6 @@ import AgreementChecklist from './AgreementChecklist';
 import AddEditLitigantModal from './AddEditLitigantModal'; // Importando para criar rápido
 
 const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
-const actionObjects = ["Contrato de Empréstimo - Juros Abusivos", "Cartão de Crédito - Cobrança Indevida", "Financiamento Imobiliário - Revisional", "Conta Corrente - Tarifas Abusivas", "Consignado - Desconto Indevido", "Cheque Especial - Juros Excessivos", "Seguro - Cobrança Indevida", "CDC - Venda Casada"];
 const availableColors = ['#EF4444', '#F97316', '#FBBF24', ' #84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
 
 const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
@@ -167,10 +166,7 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.label} htmlFor="action_object">Objeto da Ação</label>
-                <select className={styles.select} id="action_object" name="action_object" value={formData.action_object} onChange={handleChange} required>
-                  <option value="">Selecione o objeto</option>
-                  {actionObjects.map(obj => <option key={obj} value={obj}>{obj}</option>)}
-                </select>
+                <input className={styles.input} type="text" id="action_object" name="action_object" value={formData.action_object} onChange={handleChange} required placeholder="Digite o objeto da ação" />
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.label} htmlFor="start_date">Data de Distribuição</label>

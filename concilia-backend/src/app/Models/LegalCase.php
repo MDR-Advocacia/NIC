@@ -29,6 +29,7 @@ class LegalCase extends Model
         'defendant',      // Mantemos string
         'defendant_id',   // NOVO: ID do Réu
         'action_object',
+        'action_object_id',
         'description',
         'status',
         'priority',
@@ -65,6 +66,11 @@ class LegalCase extends Model
     public function opposingLawyer()
     {
         return $this->belongsTo(OpposingLawyer::class, 'opposing_lawyer_id');
+    }
+
+    public function actionObject()
+    {
+        return $this->belongsTo(ActionObject::class, 'action_object_id');
     }
 
     // NOVOS RELACIONAMENTOS

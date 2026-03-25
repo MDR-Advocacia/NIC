@@ -19,21 +19,28 @@ import UserManagementPage from './pages/UserManagementPage';
 import InboxPage from './pages/InboxPage';
 import ConversationDetailPage from './pages/ConversationDetailPage';
 import ForceChangePassword from './pages/ForceChangePassword';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 
 
 // Nossos Componentes de Layout/Proteção
 import MainLayout from './components/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
-
 function App() {
   const { user } = useAuth();
 
   return (
     <Routes>
       <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
-      <Route path="/login" element={<LoginPage />} />
       
+      {/* --- ÁREA PÚBLICA (Qualquer um pode acessar) --- */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/password-reset/:token" element={<ResetPassword />} />
+      {/* ----------------------------------------------- */}
+      
+      {/* --- ÁREA PROTEGIDA (Só logado entra) --- */}
       <Route 
         element={
           <ProtectedRoute>
@@ -51,9 +58,8 @@ function App() {
         <Route path="cases/:caseId" element={<CaseDetailPage />} />
         <Route path="cases/:caseId/edit" element={<CaseEditPage />} />
         <Route path="users" element={<UserManagementPage />} />
-        <Route path="inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
+        <Route path="inbox" element={<InboxPage />} />
         <Route path="inbox/:conversationId" element={<ConversationDetailPage />} />
-        
       </Route>
     </Routes>
   );

@@ -5,25 +5,28 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // ADICIONE ESTA LINHA
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Conversation extends Model
 {
     use HasFactory;
 
     /**
-     * ADICIONADO: Atributos que podem ser preenchidos em massa.
+     * Atributos que podem ser preenchidos em massa.
+     * Unificamos todos os campos necessários aqui.
      */
     protected $fillable = [
+        'chatwoot_id',      // Essencial para o Webhook identificar a conversa
         'contact_name',
         'contact_phone',
         'last_message',
+        'status',
         'timestamp',
-        'legal_case_id', // <-- O CAMPO MAIS IMPORTANTE PARA A CORREÇÃO
+        'legal_case_id',    // Essencial para o vínculo jurídico
     ];
 
     /**
-     * Get the chat messages for the conversation.
+     * Relação: Uma conversa tem muitas mensagens.
      */
     public function chatMessages(): HasMany
     {
@@ -31,8 +34,7 @@ class Conversation extends Model
     }
 
     /**
-     * ADICIONADO (Opcional, mas recomendado): Define a relação inversa
-     * Uma conversa pertence a um caso jurídico.
+     * Relação: Uma conversa pertence a um caso jurídico (LegalCase).
      */
     public function legalCase(): BelongsTo
     {

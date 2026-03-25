@@ -3,6 +3,8 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use App\Http\Middleware\ForceCors;
+use Illuminate\Http\Middleware\HandleCors;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,10 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // --- AQUI ESTÁ A SOLUÇÃO DO CORS ---
-        // Adicionamos o middleware manual que força a aceitação do Frontend
-        // Certifique-se de que o arquivo app/Http/Middleware/ForceCors.php existe!
-        $middleware->append(\App\Http\Middleware\ForceCors::class);
+        $middleware->prepend(HandleCors::class);
+        $middleware->prepend(ForceCors::class);
+        $middleware->validateCsrfTokens(except: [
+            'api/webhooks/chatwoot',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
