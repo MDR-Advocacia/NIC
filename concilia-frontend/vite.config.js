@@ -5,8 +5,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     allowedHosts: [
+      'localhost',
       'lab-nic.mdradvocacia.com',
-      'localhost'
+      'api-nic-lab.mdradvocacia.com',
+      'nic.mdradvocacia.com',
+      'api-nic-mdradvocacia.com'
     ],
     proxy: {
       // Isso redireciona qualquer chamada para /api/v1 para o servidor correto

@@ -88,17 +88,17 @@ Volte para a raiz do projeto (onde está o docker-compose.yml) e inicie os servi
 4. Configuração do Backend (Laravel)
 Execute os comandos abaixo sequencialmente para instalar dependências e configurar o banco.
 
-    # 1. Instalar dependências do PHP (Composer)
-    docker-compose exec app composer install
+    #### 1. Instalar dependências do PHP (Composer)
+        docker-compose exec app composer install
 
-    # 2. Gerar a chave da aplicação (Como root para evitar erro de permissão no arquivo .env)
-    docker-compose exec -u root app php artisan key:generate
+    #### 2. Gerar a chave da aplicação (Como root para evitar erro de permissão no arquivo .env)
+        docker-compose exec -u root app php artisan key:generate
 
-    # 3. Rodar as migrações e popular o banco de dados (Seeds)
-    docker-compose exec app php artisan migrate --seed
+    #### 3. Rodar as migrações e popular o banco de dados (Seeds)
+        docker-compose exec app php artisan migrate --seed
 
-    # 4. Ajustar permissões de pastas de cache/storage (Opcional, caso haja erro de permissão em logs)
-    docker-compose exec -u root app chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+    #### 4. Ajustar permissões de pastas de cache/storage (Opcional, caso haja erro de permissão em logs)
+        docker-compose exec -u root app chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 5. Configuração do Frontend (React)
 Instale as dependências do node dentro do container:
