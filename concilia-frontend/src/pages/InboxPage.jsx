@@ -443,7 +443,6 @@ const InboxPage = () => {
   const notificacoesInicializadasRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
   const previousConversationRef = useRef(null);
-  const previousMessagesMetaRef = useRef({ conversationId: null, lastKey: null, length: 0 });
   const fallbackMessagesRef = useRef((() => {
     try {
       if (typeof window === 'undefined') return {};
@@ -1247,46 +1246,24 @@ const InboxPage = () => {
   }, [conversaSelecionada]);
 
   useEffect(() => {
-    if (!conversaSelecionada || mensagens.length === 0) {
-      previousConversationRef.current = conversaSelecionada;
-      previousMessagesMetaRef.current = {
-        conversationId: conversaSelecionada,
-        lastKey: null,
-        length: mensagens.length,
-      };
+    if (!conversaSelecionada) {
+      previousConversationRef.current = null;
       return;
     }
-
-    const ultimaMensagem = mensagens[mensagens.length - 1];
-    const chaveUltimaMensagem =
-      ultimaMensagem?.id ||
-      ultimaMensagem?.source_id ||
-      `${getMessageTimestamp(ultimaMensagem)}-${getConteudoVisivelMensagem(ultimaMensagem)}-${getNomeTemplateMensagem(ultimaMensagem)}`;
 
     const conversaMudou = previousConversationRef.current !== conversaSelecionada;
-    const houveMudancaNasMensagens =
-      previousMessagesMetaRef.current.conversationId !== conversaSelecionada ||
-      previousMessagesMetaRef.current.lastKey !== chaveUltimaMensagem ||
-      previousMessagesMetaRef.current.length !== mensagens.length;
-
     previousConversationRef.current = conversaSelecionada;
-    previousMessagesMetaRef.current = {
-      conversationId: conversaSelecionada,
-      lastKey: chaveUltimaMensagem,
-      length: mensagens.length,
-    };
-
-    if (!houveMudancaNasMensagens) {
-      return;
-    }
 
     if (!conversaMudou && !shouldStickToBottomRef.current) {
       return;
     }
 
-    const behavior = conversaMudou ? 'auto' : 'smooth';
-    window.requestAnimationFrame(() => rolarChatParaFim(behavior));
-  }, [conversaSelecionada, mensagens]);
+    const animationFrame = window.requestAnimationFrame(() => {
+      rolarChatParaFim(conversaMudou ? 'auto' : 'smooth');
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [conversaSelecionada, mensagens.length]);
 
   useEffect(() => {
     setModalTemplatesAberto(false);
