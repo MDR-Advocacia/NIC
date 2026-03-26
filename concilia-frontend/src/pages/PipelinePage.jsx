@@ -19,6 +19,40 @@ import {
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
 import { FaExclamationTriangle } from 'react-icons/fa';
+import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants/legalCaseStatus';
+
+const MAX_API_PAGE_SIZE = 200;
+
+const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
+    const items = [];
+    let currentPage = 1;
+    let lastPage = 1;
+
+    do {
+        const query = new URLSearchParams({
+            ...Object.fromEntries(
+                Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
+            ),
+            page: currentPage,
+            per_page: MAX_API_PAGE_SIZE,
+        });
+
+        const response = await apiClient.get(`${endpoint}?${query.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const payload = response.data;
+        if (Array.isArray(payload)) {
+            return payload;
+        }
+
+        items.push(...(Array.isArray(payload?.data) ? payload.data : []));
+        lastPage = Number(payload?.last_page || 1);
+        currentPage += 1;
+    } while (currentPage <= lastPage);
+
+    return items;
+};
 
 const PipelinePage = () => {
     const { token, user } = useAuth();
@@ -42,13 +76,14 @@ const PipelinePage = () => {
     };
 
     const groupCasesByStatus = useCallback((cases) => {
-        const initialGroups = {
-            'initial_analysis': 'Análise Inicial', 'proposal_sent': 'Proposta Enviada',
-            'in_negotiation': 'Em Negociação', 'awaiting_draft': 'Aguardando Minuta',
-            'closed_deal': 'Acordo Fechado', 'failed_deal': 'Acordo Frustrado',
-        };
+        const initialGroups = LEGAL_CASE_STATUS_ORDER.reduce((acc, statusKey) => {
+            acc[statusKey] = LEGAL_CASE_STATUS_DETAILS[statusKey].name;
+            return acc;
+        }, {});
         const grouped = Object.keys(initialGroups).reduce((acc, key) => ({ ...acc, [key]: [] }), {});
-        (cases || []).forEach(currentCase => {
+        [...(cases || [])]
+            .sort((firstCase, secondCase) => new Date(secondCase.updated_at) - new Date(firstCase.updated_at))
+            .forEach(currentCase => {
             if (grouped[currentCase.status]) {
                 grouped[currentCase.status].push(currentCase);
             } else {
@@ -62,15 +97,38 @@ const PipelinePage = () => {
         if (!token) return;
         setLoading(true);
         try {
-            const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
-
-            const [casesResponse, clientsResponse, lawyersResponse] = await Promise.all([
-                apiClient.get(`/cases?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
+            const [clientsResponse, lawyersResponse] = await Promise.all([
                 apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
-                apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } })
+                fetchAllPaginatedResults('/users', token),
             ]);
 
-            let fetchedCases = Array.isArray(casesResponse.data) ? casesResponse.data : (casesResponse.data.data || []);
+            const fetchedLawyers = Array.isArray(lawyersResponse)
+                ? lawyersResponse.filter((lawyer) => lawyer?.status === 'ativo')
+                : [];
+
+            const effectiveFilters = { ...filters };
+            const requiresResponsibleFilter = ['administrador', 'supervisor'].includes(user?.role);
+
+            if (requiresResponsibleFilter && !effectiveFilters.lawyer_id) {
+                const preferredResponsible =
+                    fetchedLawyers.find((lawyer) => String(lawyer.id) === String(user?.id))
+                    || fetchedLawyers[0];
+
+                if (preferredResponsible) {
+                    effectiveFilters.lawyer_id = String(preferredResponsible.id);
+                    setFilters((currentFilters) =>
+                        currentFilters.lawyer_id
+                            ? currentFilters
+                            : { ...currentFilters, lawyer_id: String(preferredResponsible.id) }
+                    );
+                }
+            }
+
+            let fetchedCases = await fetchAllPaginatedResults('/cases', token, {
+                ...effectiveFilters,
+                sort_by: 'updated_at',
+                sort_order: 'desc',
+            });
 
             // Filtro de Atraso
             if (showDelayedOnly) {
@@ -86,7 +144,7 @@ const PipelinePage = () => {
             const groupedCases = groupCasesByStatus(fetchedCases);
             setPipelineData(groupedCases);
             setClients(clientsResponse.data);
-            setLawyers(lawyersResponse.data.data || []);
+            setLawyers(fetchedLawyers);
         } catch (err) {
             console.error("Erro pipeline:", err);
             setError('Não foi possível carregar os dados do pipeline.');
@@ -208,6 +266,15 @@ const PipelinePage = () => {
         const isStatusChange = movedCase.status !== overContainer;
 
         if (isStatusChange) {
+            // Confirmação ao mover para Contra Indicado
+            if (overContainer === 'contra_indicated') {
+                if (!window.confirm('Tem certeza que deseja marcar este caso como Contra Indicado?')) {
+                    setActiveId(null);
+                    fetchAllData(); // Reverte animação visual
+                    return;
+                }
+            }
+
             console.log(`🔄 Movendo card ${movedCase.id}: ${movedCase.status} -> ${overContainer}`);
 
             // Prepara o objeto para enviar ao Backend
@@ -287,7 +354,7 @@ const PipelinePage = () => {
     if (error) return <p style={{ color: 'red' }}>{error}</p>;
 
     return (
-        <div>
+        <div className={styles.pageContainer}>
             <div className={styles.header}>
                 <h1>Pipeline de Acordos</h1>
                 <div className={styles.headerActions}>
@@ -306,11 +373,11 @@ const PipelinePage = () => {
                     </select>
                 </div>
                 
-                {user?.role === 'administrador' && (
+                {['administrador', 'supervisor'].includes(user?.role) && (
                     <div className={styles.filterGroup}>
-                        <label>Advogado</label>
+                        <label>Responsável do Caso</label>
                         <select className={styles.filterSelect} value={filters.lawyer_id || ''} onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}>
-                            <option value="">Todos</option>
+                            <option value="" disabled>Selecione um responsável</option>
                             {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
                         </select>
                     </div>
@@ -353,16 +420,19 @@ const PipelinePage = () => {
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
             >
-                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', padding: '1rem', paddingBottom: '100px' }}>
-                    {pipelineData?.titles && Object.entries(pipelineData.titles).map(([statusKey, statusTitle]) => (
-                        <PipelineColumn 
-                            key={statusKey} 
-                            id={statusKey} 
-                            title={statusTitle} 
-                            cases={pipelineData.grouped[statusKey] || []} 
-                            onCardClick={handleOpenEditModal} 
-                        />
-                    ))}
+                <div className={styles.boardShell}>
+                    <div className={styles.boardGrid}>
+                    {pipelineData?.titles && Object.entries(pipelineData.titles)
+                        .map(([statusKey, statusTitle]) => (
+                            <PipelineColumn
+                                key={statusKey}
+                                id={statusKey}
+                                title={statusTitle}
+                                cases={pipelineData.grouped[statusKey] || []}
+                                onCardClick={handleOpenEditModal}
+                            />
+                        ))}
+                    </div>
                 </div>
                 {/* Overlay opcional para feedback visual melhorado durante o arraste */}
                 {/* <DragOverlay> ... </DragOverlay> */}

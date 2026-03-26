@@ -24,7 +24,7 @@ class LegalCaseFactory extends Factory
             'defendant' => $this->faker->company(),
             'action_object' => ucfirst($this->faker->words(3, true)),
             'description' => $this->faker->sentence(),
-            'status' => $this->faker->randomElement(['initial_analysis', 'proposal_sent', 'in_negotiation', 'awaiting_draft', 'closed_deal', 'failed_deal']),
+            'status' => $this->faker->randomElement(LegalCase::STATUSES),
             'priority' => $this->faker->randomElement(['baixa', 'media', 'alta']),
             'original_value' => $causeValue * 1.2,
             'agreement_value' => $agreementValue,

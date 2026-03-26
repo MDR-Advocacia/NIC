@@ -6,6 +6,7 @@ import CaseCard from './CaseCard';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext } from '@dnd-kit/sortable';
 import { useTheme } from '../context/ThemeContext';
+import styles from '../styles/Pipeline.module.css';
 
 const PipelineColumn = ({ id, title, cases, onCardClick }) => {
     const { setNodeRef } = useDroppable({ id });
@@ -21,36 +22,20 @@ const PipelineColumn = ({ id, title, cases, onCardClick }) => {
     const primaryText = theme === 'light' ? '#212529' : '#e2e8f0';
 
     const columnStyle = {
-        flex: 1,
-        minWidth: '300px', 
-        backgroundColor: columnBg, // Aplicando a mudança aqui
-        padding: '1rem',
-        borderRadius: '8px',
-        display: 'flex',
-        flexDirection: 'column',
-        height: 'calc(100vh - 150px)', 
-        border: `1px solid ${lightBorder}`
-    };
-
-    const casesContainerStyle = {
-        flex: 1,
-        overflowY: 'auto',
-        paddingTop: '1rem',
+        '--pipeline-column-bg': columnBg,
+        '--pipeline-column-border': lightBorder,
+        '--pipeline-column-heading': primaryText,
+        '--pipeline-column-empty': secondaryText,
     };
 
     return (
-        <div ref={setNodeRef} style={columnStyle}>
-            <h3 style={{ 
-                borderBottom: `2px solid ${lightBorder}`, 
-                paddingBottom: '0.5rem', 
-                margin: '0 0 0.5rem 0',
-                color: primaryText
-            }}>
+        <div ref={setNodeRef} className={styles.pipelineColumn} style={columnStyle}>
+            <h3 className={styles.pipelineColumnHeader}>
                 {title} ({cases.length})
             </h3>
             
             <SortableContext id={id} items={caseIds}>
-                <div style={casesContainerStyle}>
+                <div className={styles.pipelineColumnBody}>
                     {cases.length > 0 ? (
                         cases.map(legalCase => (
                             <CaseCard 
@@ -61,11 +46,7 @@ const PipelineColumn = ({ id, title, cases, onCardClick }) => {
                             />
                         ))
                     ) : (
-                        <p style={{ 
-                            color: secondaryText, 
-                            textAlign: 'center', 
-                            marginTop: '2rem' 
-                        }}>
+                        <p className={styles.pipelineEmptyState}>
                             Nenhum caso nesta etapa.
                         </p>
                     )}

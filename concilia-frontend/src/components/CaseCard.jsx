@@ -6,7 +6,8 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
 // ADICIONADO: FaClock para o ícone de atraso
-import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaCalendarAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
+import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
+import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 
 const CaseCard = ({ id, legalCase, onClick }) => {
     const {
@@ -43,6 +44,17 @@ const CaseCard = ({ id, legalCase, onClick }) => {
     // -----------------------------
 
     const priorityInfo = priorities[legalCase.priority] || {};
+    const statusInfo = getLegalCaseStatusDetails(legalCase.status);
+    const alcadaValue = parseFloat(legalCase.original_value);
+
+    const getBadgeInitials = (value, maxLetters = 3) =>
+        String(value ?? '')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((chunk) => chunk.charAt(0).toUpperCase())
+            .join('')
+            .slice(0, maxLetters);
 
     let economyPercentage = null;
     const originalValue = parseFloat(legalCase.original_value);
@@ -51,6 +63,18 @@ const CaseCard = ({ id, legalCase, onClick }) => {
     if (originalValue > 0 && agreementValue > 0) {
         economyPercentage = ((originalValue - agreementValue) / originalValue) * 100;
     }
+
+    const getDisplayValue = (value, fallback = 'Não informado') => {
+        if (value === null || value === undefined) return fallback;
+        if (typeof value === 'string' || typeof value === 'number') {
+            const normalizedValue = String(value).trim();
+            return normalizedValue || fallback;
+        }
+        if (typeof value === 'object') {
+            return value.name || value.nome || fallback;
+        }
+        return fallback;
+    };
 
     return (
         <div ref={setNodeRef} style={style} {...attributes}>
@@ -63,27 +87,39 @@ const CaseCard = ({ id, legalCase, onClick }) => {
             >
                 <div className={styles.header} {...listeners}>
                     <span className={styles.caseNumber}>{legalCase.case_number}</span>
-                    
-                    {/*  Mostra Alerta se atrasado, senão mostra Prioridade */}
-                    {isDelayed ? (
-                        <span className={styles.delayedTag} title={`Este caso não é atualizado há ${daysSinceUpdate} dias`}>
-                            <FaExclamationTriangle /> {daysSinceUpdate}d parado
-                        </span>
-                    ) : (
-                        priorityInfo.text && (
-                            <span className={`${styles.priorityTag} ${priorityInfo.tagClass || ''}`}>
-                                {priorityInfo.text}
+
+                    <div className={styles.headerMeta}>
+                        {isDelayed ? (
+                            <span className={styles.delayedTag} title={`Este caso não é atualizado há ${daysSinceUpdate} dias`}>
+                                <FaExclamationTriangle /> {daysSinceUpdate}d parado
                             </span>
-                        )
-                    )}
+                        ) : (
+                            priorityInfo.text && (
+                                <span
+                                    className={`${styles.priorityTag} ${priorityInfo.tagClass || ''}`}
+                                    title={`Prioridade: ${priorityInfo.text}`}
+                                >
+                                    {getBadgeInitials(priorityInfo.text, 1)}
+                                </span>
+                            )
+                        )}
+
+                        <span
+                            className={styles.statusTag}
+                            style={{ backgroundColor: statusInfo.color, color: statusInfo.textColor }}
+                            title={`Etapa atual: ${statusInfo.name}`}
+                        >
+                            {getBadgeInitials(statusInfo.name)}
+                        </span>
+                    </div>
                 </div>
 
                 <div className={styles.body}>
-                    <div className={styles.infoRow}><FaUser /><span>{legalCase.opposing_party}</span></div>
-                    <div className={styles.infoRow}><FaFileAlt /><span>{legalCase.action_object || 'Não informado'}</span></div>
+                    <div className={styles.infoRow}><FaUser /><span>{getDisplayValue(legalCase.opposing_party)}</span></div>
+                    <div className={styles.infoRow}><FaFileAlt /><span>{getDisplayValue(legalCase.action_object)}</span></div>
                     
                     <div className={styles.valueRow}>
-                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(legalCase.cause_value || 0)}</span>
+                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number.isFinite(alcadaValue) ? alcadaValue : 0)}</span>
                         {economyPercentage !== null && (
                             <span className={economyPercentage >= 0 ? styles.economyPercentage : styles.economyPercentageNegative}>
                                 {economyPercentage >= 0 ? '↓' : '↑'} {Math.abs(economyPercentage).toFixed(1)}%

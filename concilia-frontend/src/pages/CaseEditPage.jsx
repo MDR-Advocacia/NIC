@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
+import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 
 // --- ESTILOS INLINE (Para garantir visual sem depender de CSS externo) ---
 const cardStyle = {
@@ -251,12 +252,9 @@ const CaseEditPage = () => {
                         onChange={handleChange}
                         style={{...inputStyle, backgroundColor: '#fff'}}
                     >
-                        <option value="initial_analysis">Análise Inicial</option>
-                        <option value="proposal_sent">Proposta Enviada</option>
-                        <option value="in_negotiation">Em Negociação</option>
-                        <option value="awaiting_draft">Aguardando Minuta</option>
-                        <option value="closed_deal">Acordo Fechado</option>
-                        <option value="failed_deal">Acordo Frustrado</option>
+                        {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
+                            <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
+                        ))}
                     </select>
                 </div>
             </div>

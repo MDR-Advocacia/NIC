@@ -21,6 +21,7 @@ import ConversationDetailPage from './pages/ConversationDetailPage';
 import ForceChangePassword from './pages/ForceChangePassword';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import GeneralBasePage from './pages/GeneralBasePage';
 
 
 
@@ -64,6 +65,7 @@ function App() {
         <Route path="users" element={<UserManagementPage />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="inbox/:conversationId" element={<ConversationDetailPage />} />
+        <Route path="base-geral" element={<GeneralBasePage />} />
       </Route>
     </Routes>
   );

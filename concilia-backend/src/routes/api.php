@@ -56,6 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/cases/export', [LegalCaseController::class, 'export']);
     Route::post('/cases/import', [LegalCaseController::class, 'bulkStore']);
+    Route::post('/cases/sync-alcada', [LegalCaseController::class, 'syncAlcada']);
     Route::post('/cases/batch-update', [LegalCaseController::class, 'batchUpdate']);
     Route::get('/cases/{id}/agreement', [LegalCaseController::class, 'generateAgreement']);
     Route::apiResource('cases', LegalCaseController::class);

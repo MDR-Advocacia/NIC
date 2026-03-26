@@ -3,16 +3,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-
-// ADICIONADO: Mapa de status (baseado nos seus gráficos)
-const STATUS_DETAILS = {
-    'initial_analysis': { name: 'Análise Inicial', color: '#4299E1', textColor: '#FFFFFF' },
-    'proposal_sent': { name: 'Proposta Enviada', color: '#48BB78', textColor: '#FFFFFF' },
-    'in_negotiation': { name: 'Em Negociação', color: '#ECC94B', textColor: '#1A202C' }, // Texto escuro para legibilidade
-    'awaiting_draft': { name: 'Aguardando Minuta', color: '#ED8936', textColor: '#FFFFFF' },
-    'closed_deal': { name: 'Acordo Fechado', color: '#38B2AC', textColor: '#FFFFFF' },
-    'failed_deal': { name: 'Acordo Frustrado', color: '#E53E3E', textColor: '#FFFFFF' },
-};
+import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 
 // ADICIONADO: Estilo padrão para a tag
 const tagStyle = {
@@ -59,13 +50,7 @@ const CasesTable = ({ cases }) => {
             </thead>
             <tbody>
                 {cases.map((legalCase) => {
-                    // ADICIONADO: Lógica para buscar os detalhes do status
-                    const statusKey = legalCase.status || 'default';
-                    const statusInfo = STATUS_DETAILS[statusKey] || { 
-                        name: legalCase.status.replace('_', ' '), // Fallback (ex: "proposal sent")
-                        color: '#A0AEC0',       // Cor cinza
-                        textColor: '#1A202C'   // Texto escuro
-                    };
+                    const statusInfo = getLegalCaseStatusDetails(legalCase.status);
 
                     return (
                         <tr key={legalCase.id} style={{ borderBottom: '1px solid #2d3748' }}>
