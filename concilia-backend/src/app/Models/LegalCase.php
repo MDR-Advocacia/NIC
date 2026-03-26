@@ -11,6 +11,13 @@ class LegalCase extends Model
     use HasFactory;
     protected $table = 'legal_cases';
 
+    protected static function booted(): void
+    {
+        static::saving(function (self $legalCase) {
+            $legalCase->has_alcada = $legalCase->resolveHasAlcadaFromOriginalValue();
+        });
+    }
+
     public const STATUS_INITIAL_ANALYSIS = 'initial_analysis';
     public const STATUS_CONTRA_INDICATED = 'contra_indicated';
     public const STATUS_PROPOSAL_SENT = 'proposal_sent';
@@ -77,6 +84,41 @@ class LegalCase extends Model
     ];
 
     protected $casts = ['tags' => 'array', 'agreement_checklist_data' => 'array', 'has_alcada' => 'boolean'];
+
+    private function resolveHasAlcadaFromOriginalValue(): bool
+    {
+        $originalValue = $this->original_value;
+
+        if ($originalValue === null || $originalValue === '') {
+            return false;
+        }
+
+        if (is_bool($originalValue)) {
+            return $originalValue;
+        }
+
+        if (is_numeric($originalValue)) {
+            return (float) $originalValue > 0;
+        }
+
+        $normalizedValue = trim((string) $originalValue);
+        if ($normalizedValue === '') {
+            return false;
+        }
+
+        if (strpos($normalizedValue, ',') !== false) {
+            $normalizedValue = str_replace('.', '', $normalizedValue);
+            $normalizedValue = str_replace(',', '.', $normalizedValue);
+        }
+
+        $normalizedValue = preg_replace('/[^\d.\-]/', '', $normalizedValue);
+
+        if ($normalizedValue === '' || $normalizedValue === null) {
+            return false;
+        }
+
+        return (float) $normalizedValue > 0;
+    }
 
     public function client()
     {

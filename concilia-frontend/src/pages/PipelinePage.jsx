@@ -210,7 +210,7 @@ const PipelinePage = () => {
         if (isStatusChange) {
             // Confirmação ao mover para Contra Indicado
             if (overContainer === 'contra_indicated') {
-                if (!window.confirm('Tem certeza que deseja marcar este caso como Contra Indicado? O caso sairá da visualização do pipeline.')) {
+                if (!window.confirm('Tem certeza que deseja marcar este caso como Contra Indicado?')) {
                     setActiveId(null);
                     fetchAllData(); // Reverte animação visual
                     return;
@@ -365,7 +365,6 @@ const PipelinePage = () => {
                 <div className={styles.boardShell}>
                     <div className={styles.boardGrid}>
                     {pipelineData?.titles && Object.entries(pipelineData.titles)
-                        .filter(([statusKey]) => statusKey !== 'contra_indicated')
                         .map(([statusKey, statusTitle]) => (
                             <PipelineColumn
                                 key={statusKey}

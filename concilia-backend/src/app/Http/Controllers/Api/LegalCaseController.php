@@ -505,6 +505,11 @@ class LegalCaseController extends Controller
         try {
             foreach ($casesToImport as $index => $caseData) {
                 $caseData = $this->sanitizeImportCaseData($caseData);
+
+                if ($this->shouldIgnoreImportedCaseRow($caseData)) {
+                    continue;
+                }
+
                 $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
 
                 if (empty($caseData['original_value'])) {
@@ -513,6 +518,10 @@ class LegalCaseController extends Controller
                 if (empty($caseData['cause_value'])) {
                     $caseData['cause_value'] = $caseData['original_value'] ?? 0;
                 }
+                $caseData['has_alcada'] = $this->resolveImportedHasAlcada(
+                    $caseData['original_value'] ?? null,
+                    $existingCase
+                );
 
                 unset($caseData['updated_condemnation_value']);
 
@@ -591,6 +600,7 @@ class LegalCaseController extends Controller
                     'special_court' => 'nullable|string',
                     'cause_value' => 'nullable|numeric',
                     'original_value' => 'required|numeric',
+                    'has_alcada' => 'nullable|boolean',
                     'agreement_value' => 'nullable|numeric',
                     'pcond_probability' => 'nullable|numeric|min:0',
                     'updated_condemnation_value' => 'nullable|numeric',
@@ -708,11 +718,16 @@ class LegalCaseController extends Controller
         try {
             foreach ($casesToImport as $index => $caseData) {
                 $caseData = $this->sanitizeImportCaseData($caseData);
+
+                if ($this->shouldIgnoreImportedCaseRow($caseData)) {
+                    continue;
+                }
+
                 $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
 
                 // Para sync de alçada, SEMPRE recalcular original_value do portal_agreement_offers
                 if (!empty($caseData['portal_agreement_offers'])) {
-                    $pendingValue = $this->extractPendingPortalAgreementValue(
+                    $pendingValue = $this->extractCurrentPortalAgreementValue(
                         (string) $caseData['portal_agreement_offers']
                     );
                     if ($pendingValue !== null) {
@@ -991,7 +1006,7 @@ class LegalCaseController extends Controller
             (empty($caseData['original_value']) || $caseData['original_value'] === '0')
             && !empty($caseData['portal_agreement_offers'])
         ) {
-            $pendingAgreementValue = $this->extractPendingPortalAgreementValue(
+            $pendingAgreementValue = $this->extractCurrentPortalAgreementValue(
                 (string) $caseData['portal_agreement_offers']
             );
 
@@ -1141,6 +1156,7 @@ class LegalCaseController extends Controller
             'status' => $caseData['status'] ?? $existingCase?->status ?? 'initial_analysis',
             'priority' => $caseData['priority'] ?? $existingCase?->priority ?? 'media',
             'original_value' => $caseData['original_value'] ?? $existingCase?->original_value ?? 0,
+            'has_alcada' => $caseData['has_alcada'] ?? $existingCase?->has_alcada ?? false,
             'agreement_value' => $caseData['agreement_value'] ?? $existingCase?->agreement_value,
             'cause_value' => $caseData['cause_value'] ?? $existingCase?->cause_value ?? 0,
             'pcond_probability' => $caseData['pcond_probability'] ?? $existingCase?->pcond_probability,
@@ -1164,25 +1180,145 @@ class LegalCaseController extends Controller
         );
     }
 
-    private function extractPendingPortalAgreementValue(string $rawValue): ?string
+    private function resolveImportedHasAlcada(mixed $originalValue, ?LegalCase $existingCase): bool
+    {
+        if ($originalValue === null || $originalValue === '') {
+            return (bool) ($existingCase?->has_alcada ?? false);
+        }
+
+        if (is_bool($originalValue)) {
+            return $originalValue;
+        }
+
+        if (is_numeric($originalValue)) {
+            return (float) $originalValue > 0;
+        }
+
+        $normalizedValue = trim((string) $originalValue);
+        if ($normalizedValue === '') {
+            return (bool) ($existingCase?->has_alcada ?? false);
+        }
+
+        if (strpos($normalizedValue, ',') !== false) {
+            $normalizedValue = str_replace('.', '', $normalizedValue);
+            $normalizedValue = str_replace(',', '.', $normalizedValue);
+        }
+
+        $normalizedValue = preg_replace('/[^\d.\-]/', '', $normalizedValue);
+
+        if ($normalizedValue === '' || $normalizedValue === null) {
+            return false;
+        }
+
+        return (float) $normalizedValue > 0;
+    }
+
+    private function extractCurrentPortalAgreementValue(string $rawValue): ?string
     {
         if (trim($rawValue) === '') {
             return null;
         }
 
-        preg_match_all('/R\\$\\s*([0-9.,]+)\\s*\\|\\s*Pendente/i', $rawValue, $matches);
+        $matchingValues = [];
 
-        if (empty($matches[1])) {
+        foreach (preg_split('/\\s*\\|\\|\\s*/', $rawValue) ?: [] as $entry) {
+            $entry = trim((string) $entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            if (!preg_match('/R\\$\\s*([0-9.,]+)/i', $entry, $valueMatches)) {
+                continue;
+            }
+
+            $parts = array_values(array_filter(
+                array_map('trim', explode('|', $entry)),
+                static fn ($value) => $value !== ''
+            ));
+
+            $status = end($parts) ?: '';
+
+            if (! $this->isCurrentPortalAgreementStatus((string) $status)) {
+                continue;
+            }
+
+            $matchingValues[] = $valueMatches[1];
+        }
+
+        if (empty($matchingValues)) {
             return null;
         }
 
-        $pendingValues = array_values(array_filter($matches[1], static fn ($value) => trim((string) $value) !== ''));
+        return end($matchingValues) ?: null;
+    }
 
-        if (empty($pendingValues)) {
-            return null;
+    private function isCurrentPortalAgreementStatus(string $status): bool
+    {
+        $normalizedStatus = $this->normalizeImportComparableText($status);
+
+        if ($normalizedStatus === '') {
+            return false;
         }
 
-        return end($pendingValues) ?: null;
+        foreach ([
+            '/^em tratamento$/',
+            '/^pendente$/',
+            '/^devolvida com contraproposta$/',
+            '/^contraproposta recusada$/',
+            '/^contraproposta aceita$/',
+            '/^contato frustrado$/',
+            '/^acordo frustrado$/',
+            '/^aguardando (a )?avaliacao da (contra)?proposta( vencida)?$/',
+            '/^aguardando (a )?analise da contraproposta$/',
+        ] as $pattern) {
+            if (preg_match($pattern, $normalizedStatus) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function shouldIgnoreImportedCaseRow(array $caseData): bool
+    {
+        $nonEmptyFields = array_filter(
+            $caseData,
+            static fn ($value) => $value !== null && trim((string) $value) !== ''
+        );
+
+        if (empty($nonEmptyFields)) {
+            return true;
+        }
+
+        if (!empty($caseData['case_number'])) {
+            return false;
+        }
+
+        if (count($nonEmptyFields) !== 1) {
+            return false;
+        }
+
+        $field = array_key_first($nonEmptyFields);
+        if ($field !== 'internal_number') {
+            return false;
+        }
+
+        $normalizedValue = $this->normalizeImportComparableText((string) $nonEmptyFields[$field]);
+
+        foreach ([
+            'filtros aplicados',
+            'filtro aplicado',
+            'situacao_proposta',
+            'situacao proposta',
+            'toggle',
+            'polo',
+        ] as $keyword) {
+            if (str_contains($normalizedValue, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function resolveResponsibleUserFromImport(array $caseData): ?User
@@ -1311,6 +1447,11 @@ class LegalCaseController extends Controller
     }
 
     private function normalizeImportedResponsibleText(?string $value): string
+    {
+        return $this->normalizeImportComparableText($value);
+    }
+
+    private function normalizeImportComparableText(?string $value): string
     {
         $normalizedValue = trim((string) $value);
 

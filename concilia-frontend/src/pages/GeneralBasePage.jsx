@@ -27,6 +27,18 @@ const StatusTag = ({ status }) => {
     );
 };
 
+const getDisplayValue = (value, fallback = '—') => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === 'string' || typeof value === 'number') {
+        const normalizedValue = String(value).trim();
+        return normalizedValue || fallback;
+    }
+    if (typeof value === 'object') {
+        return value.name || value.nome || fallback;
+    }
+    return fallback;
+};
+
 const GeneralBasePage = () => {
     const { token } = useAuth();
 
@@ -46,7 +58,12 @@ const GeneralBasePage = () => {
 
     const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
 
-    const [filters, setFilters] = useState({ search: '', status: '', lawyer_id: '' });
+    const [filters, setFilters] = useState({
+        search: '',
+        status: '',
+        lawyer_id: '',
+        scope: 'general_base',
+    });
 
     useEffect(() => {
         const fetchDropdownData = async () => {
@@ -70,7 +87,6 @@ const GeneralBasePage = () => {
             const params = new URLSearchParams(
                 Object.entries(filters).filter(([, value]) => value)
             );
-            params.append('scope', 'general_base');
             params.append('page', currentPage);
             params.append('per_page', perPage);
             params.append('sort_by', sortConfig.key);
@@ -133,23 +149,47 @@ const GeneralBasePage = () => {
     const formatValue = (value) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
+    const scopeContent = {
+        general_base: {
+            subtitle: 'Casos sem alçada — aguardando inclusão na planilha semanal',
+            banner: (
+                <>
+                    Estes casos não possuem alçada e não aparecem no Pipeline ou Gestão de Casos.
+                    Para incluí-los no pipeline, faça a atualização da alçada em{' '}
+                    <Link to="/import">Importar Dados</Link>.
+                </>
+            ),
+            totalLabel: 'Total sem alçada',
+        },
+        pipeline: {
+            subtitle: 'Casos com alçada — elegíveis para o pipeline de acordos',
+            banner: 'Estes casos já possuem alçada atualizada e podem aparecer no Pipeline de Acordos.',
+            totalLabel: 'Total com alçada',
+        },
+        all: {
+            subtitle: 'Visão consolidada dos casos com e sem alçada',
+            banner: 'Use o filtro de alçada para alternar entre casos com alçada, sem alçada ou visualizar tudo junto.',
+            totalLabel: 'Total de casos',
+        },
+    };
+
+    const currentScopeContent = scopeContent[filters.scope] || scopeContent.general_base;
+
     return (
         <div className={styles.pageContainer}>
             <header className={styles.header}>
                 <div>
                     <h1><FaDatabase style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />Base Geral</h1>
-                    <p>Casos sem alçada — aguardando inclusão na planilha semanal</p>
+                    <p>{currentScopeContent.subtitle}</p>
                 </div>
             </header>
 
             <div className={styles.infoBanner}>
-                Estes casos não possuem alçada e não aparecem no Pipeline ou Gestão de Casos.
-                Para incluí-los no pipeline, faça a sincronização semanal de alçada em{' '}
-                <Link to="/import">Importar Dados</Link>.
+                {currentScopeContent.banner}
             </div>
 
             <section className={styles.kpiGrid}>
-                <KpiCard title="Total na Base Geral" value={paginationData.total.toString()} />
+                <KpiCard title={currentScopeContent.totalLabel} value={paginationData.total.toString()} />
                 <KpiCard
                     title="Valor da Causa (Pág.)"
                     value={formatValue(cases.reduce((acc, c) => acc + (parseFloat(c.cause_value) || 0), 0))}
@@ -167,6 +207,16 @@ const GeneralBasePage = () => {
                         value={filters.search}
                         onChange={handleFilterChange}
                     />
+                    <select
+                        className={styles.filterSelect}
+                        name="scope"
+                        value={filters.scope}
+                        onChange={handleFilterChange}
+                    >
+                        <option value="general_base">Alçada: Sem alçada</option>
+                        <option value="pipeline">Alçada: Com alçada</option>
+                        <option value="all">Alçada: Todos</option>
+                    </select>
                     <select
                         className={styles.filterSelect}
                         name="status"
@@ -248,7 +298,7 @@ const GeneralBasePage = () => {
                                 {cases.length === 0 ? (
                                     <tr>
                                         <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
-                                            Nenhum caso encontrado na base geral.
+                                            Nenhum caso encontrado com o filtro selecionado.
                                         </td>
                                     </tr>
                                 ) : cases.map(legalCase => (
@@ -263,7 +313,7 @@ const GeneralBasePage = () => {
                                             <div><small>A:</small> {legalCase.opposing_party || legalCase.plaintiff?.name || '—'}</div>
                                             <div className={styles.subText}><small>R:</small> {legalCase.defendant || legalCase.defendantRel?.name || '—'}</div>
                                         </td>
-                                        <td>{legalCase.action_object || legalCase.actionObject?.name || '—'}</td>
+                                        <td>{getDisplayValue(legalCase.actionObject || legalCase.action_object)}</td>
                                         <td>{legalCase.comarca || '—'}</td>
                                         <td>{formatValue(legalCase.cause_value)}</td>
                                         <td><StatusTag status={legalCase.status} /></td>

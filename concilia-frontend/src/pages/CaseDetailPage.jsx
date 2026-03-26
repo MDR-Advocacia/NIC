@@ -203,14 +203,29 @@ const CaseDetailPage = () => {
 
     const getPartyName = (party) => {
         if (!party) return '-';
-        if (typeof party === 'string') return party;
+        if (typeof party === 'string' || typeof party === 'number') {
+            const normalizedParty = String(party).trim();
+            return normalizedParty || '-';
+        }
         return party.name || party.nome || '-';
     };
 
     const getLawyerName = (lawyer) => {
         if (!lawyer) return 'Não informado';
-        if (typeof lawyer === 'string') return lawyer;
+        if (typeof lawyer === 'string' || typeof lawyer === 'number') {
+            const normalizedLawyer = String(lawyer).trim();
+            return normalizedLawyer || 'Não informado';
+        }
         return lawyer.name || lawyer.nome || 'Não informado';
+    };
+
+    const getActionObjectName = (actionObject) => {
+        if (!actionObject) return 'Ação';
+        if (typeof actionObject === 'string' || typeof actionObject === 'number') {
+            const normalizedActionObject = String(actionObject).trim();
+            return normalizedActionObject || 'Ação';
+        }
+        return actionObject.name || actionObject.nome || 'Ação';
     };
 
     // Segurança no Status/Prioridade (evita erro se vier nulo da importação)
@@ -233,7 +248,7 @@ const CaseDetailPage = () => {
                     </div>
                     {/* AQUI ESTAVA O PROBLEMA: Usamos helpers agora para extrair o nome se for Objeto */}
                     <p>
-                        {legalCase.actionObject?.name || legalCase.action_object || 'Ação'} - {getPartyName(legalCase.opposing_party)} x {getPartyName(legalCase.defendant)}
+                        {getActionObjectName(legalCase.actionObject || legalCase.action_object)} - {getPartyName(legalCase.opposing_party)} x {getPartyName(legalCase.defendant)}
                     </p>
                 </div>
                 

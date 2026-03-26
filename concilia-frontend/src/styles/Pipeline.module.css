@@ -1,6 +1,12 @@
 /* src/styles/Pipeline.module.css */
 /* ATUALIZADO: Adicionado estilo para o botão de filtro de atrasos */
 
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
 .header {
     display: flex;
     justify-content: space-between;
@@ -413,6 +419,7 @@
 .filterBar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 1.5rem;
   padding: 1rem;
   background-color: var(--bg-card);
@@ -491,6 +498,81 @@
 }
 /* --- FIM DO NOVO ESTILO --- */
 
+.boardShell {
+  --pipeline-visible-card-count: 5;
+  --pipeline-estimated-card-height: 168px;
+  --pipeline-column-extra-space: 170px;
+  height: clamp(460px, calc(100vh - 255px), 780px);
+  min-height: 460px;
+  padding: 1rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color-light);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  overflow: auto;
+}
+
+.boardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-auto-rows: calc(
+    (var(--pipeline-visible-card-count) * var(--pipeline-estimated-card-height))
+    + var(--pipeline-column-extra-space)
+  );
+  column-gap: 1rem;
+  row-gap: 2.5rem;
+  align-items: stretch;
+  align-content: start;
+  min-width: 100%;
+}
+
+.pipelineColumn {
+  background-color: var(--pipeline-column-bg);
+  padding: 1rem;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--pipeline-column-border);
+  box-shadow: 0 0 0 10px var(--bg-card);
+}
+
+.pipelineColumnHeader {
+  border-bottom: 2px solid var(--pipeline-column-border);
+  padding-bottom: 0.65rem;
+  margin: 0 0 0.5rem 0;
+  color: var(--pipeline-column-heading);
+  font-size: 1rem;
+}
+
+.pipelineColumnBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: 0.75rem;
+  padding-right: 0.25rem;
+}
+
+.pipelineEmptyState {
+  color: var(--pipeline-column-empty);
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.pipelineColumnBody::-webkit-scrollbar {
+  width: 10px;
+}
+
+.pipelineColumnBody::-webkit-scrollbar-thumb {
+  background-color: var(--border-color-dark);
+  border-radius: 999px;
+}
+
+.pipelineColumnBody::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
 
 .modalLarge {
   max-width: 1200px;
@@ -517,4 +599,73 @@
 
 .chatColumn > div {
   height: 400px;
+}
+
+@media (max-width: 1200px) {
+  .boardShell {
+    height: clamp(560px, calc(100vh - 220px), 900px);
+  }
+
+  .boardGrid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-auto-rows: calc(
+      (var(--pipeline-visible-card-count) * var(--pipeline-estimated-card-height))
+      + var(--pipeline-column-extra-space)
+    );
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .newCaseButton {
+    width: 100%;
+    text-align: center;
+  }
+
+  .filterBar {
+    gap: 1rem;
+  }
+
+  .filterGroup {
+    width: 100%;
+  }
+
+  .filterSelect {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .delayedFilterButton {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .boardShell {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .boardGrid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: calc(
+      (var(--pipeline-visible-card-count) * 150px)
+      + 150px
+    );
+    row-gap: 1.5rem;
+  }
 }

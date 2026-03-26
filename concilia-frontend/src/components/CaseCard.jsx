@@ -54,6 +54,18 @@ const CaseCard = ({ id, legalCase, onClick }) => {
         economyPercentage = ((originalValue - agreementValue) / originalValue) * 100;
     }
 
+    const getDisplayValue = (value, fallback = 'Não informado') => {
+        if (value === null || value === undefined) return fallback;
+        if (typeof value === 'string' || typeof value === 'number') {
+            const normalizedValue = String(value).trim();
+            return normalizedValue || fallback;
+        }
+        if (typeof value === 'object') {
+            return value.name || value.nome || fallback;
+        }
+        return fallback;
+    };
+
     return (
         <div ref={setNodeRef} style={style} {...attributes}>
             {/* ATUALIZADO: Se estiver atrasado, adiciona a classe .cardDelayed 
@@ -90,8 +102,8 @@ const CaseCard = ({ id, legalCase, onClick }) => {
                 </div>
 
                 <div className={styles.body}>
-                    <div className={styles.infoRow}><FaUser /><span>{legalCase.opposing_party}</span></div>
-                    <div className={styles.infoRow}><FaFileAlt /><span>{legalCase.action_object || 'Não informado'}</span></div>
+                    <div className={styles.infoRow}><FaUser /><span>{getDisplayValue(legalCase.opposing_party)}</span></div>
+                    <div className={styles.infoRow}><FaFileAlt /><span>{getDisplayValue(legalCase.action_object)}</span></div>
                     
                     <div className={styles.valueRow}>
                         <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(legalCase.cause_value || 0)}</span>
