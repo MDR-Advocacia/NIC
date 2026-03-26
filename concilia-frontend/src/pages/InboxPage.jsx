@@ -438,8 +438,12 @@ const InboxPage = () => {
   const [adicionandoAgente, setAdicionandoAgente] = useState(false);
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const chatBodyRef = useRef(null);
   const knownActivityRef = useRef(new Map());
   const notificacoesInicializadasRef = useRef(false);
+  const shouldStickToBottomRef = useRef(true);
+  const previousConversationRef = useRef(null);
+  const previousMessagesMetaRef = useRef({ conversationId: null, lastKey: null, length: 0 });
   const fallbackMessagesRef = useRef((() => {
     try {
       if (typeof window === 'undefined') return {};
@@ -1243,6 +1247,48 @@ const InboxPage = () => {
   }, [conversaSelecionada]);
 
   useEffect(() => {
+    if (!conversaSelecionada || mensagens.length === 0) {
+      previousConversationRef.current = conversaSelecionada;
+      previousMessagesMetaRef.current = {
+        conversationId: conversaSelecionada,
+        lastKey: null,
+        length: mensagens.length,
+      };
+      return;
+    }
+
+    const ultimaMensagem = mensagens[mensagens.length - 1];
+    const chaveUltimaMensagem =
+      ultimaMensagem?.id ||
+      ultimaMensagem?.source_id ||
+      `${getMessageTimestamp(ultimaMensagem)}-${getConteudoVisivelMensagem(ultimaMensagem)}-${getNomeTemplateMensagem(ultimaMensagem)}`;
+
+    const conversaMudou = previousConversationRef.current !== conversaSelecionada;
+    const houveMudancaNasMensagens =
+      previousMessagesMetaRef.current.conversationId !== conversaSelecionada ||
+      previousMessagesMetaRef.current.lastKey !== chaveUltimaMensagem ||
+      previousMessagesMetaRef.current.length !== mensagens.length;
+
+    previousConversationRef.current = conversaSelecionada;
+    previousMessagesMetaRef.current = {
+      conversationId: conversaSelecionada,
+      lastKey: chaveUltimaMensagem,
+      length: mensagens.length,
+    };
+
+    if (!houveMudancaNasMensagens) {
+      return;
+    }
+
+    if (!conversaMudou && !shouldStickToBottomRef.current) {
+      return;
+    }
+
+    const behavior = conversaMudou ? 'auto' : 'smooth';
+    window.requestAnimationFrame(() => rolarChatParaFim(behavior));
+  }, [conversaSelecionada, mensagens]);
+
+  useEffect(() => {
     setModalTemplatesAberto(false);
     setTemplateSelecionado(null);
     setVariaveisTemplate({});
@@ -1277,9 +1323,28 @@ const InboxPage = () => {
   };
 
   const abrirConversa = (chatId) => {
+    shouldStickToBottomRef.current = true;
     setConversaSelecionada(chatId);
     setFeedbackEnvio('');
     carregarMensagensConversa(chatId);
+  };
+
+  const atualizarEstadoScrollChat = () => {
+    const elemento = chatBodyRef.current;
+    if (!elemento) return;
+
+    const distanciaAteFim = elemento.scrollHeight - elemento.scrollTop - elemento.clientHeight;
+    shouldStickToBottomRef.current = distanciaAteFim <= 120;
+  };
+
+  const rolarChatParaFim = (behavior = 'smooth') => {
+    const elemento = chatBodyRef.current;
+    if (!elemento) return;
+
+    elemento.scrollTo({
+      top: elemento.scrollHeight,
+      behavior,
+    });
   };
 
   const abrirModalTemplates = async () => {
@@ -1324,6 +1389,7 @@ const InboxPage = () => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
+        shouldStickToBottomRef.current = true;
         setMensagens((anterior) => [
           ...anterior,
           normalizarMensagemRetorno(data, {
@@ -1377,6 +1443,7 @@ const InboxPage = () => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
+        shouldStickToBottomRef.current = true;
         setMensagens((anterior) => [...anterior, normalizarMensagemRetorno(data, { content: novaMensagem.trim() })]);
         setNovaMensagem('');
         setFeedbackEnvio('');
@@ -1445,6 +1512,7 @@ const InboxPage = () => {
           registrarFallbackLocal(conversaSelecionada, mensagemEnviada);
         }
 
+        shouldStickToBottomRef.current = true;
         setMensagens((anterior) => [
           ...anterior,
           mensagemEnviada,
@@ -1867,7 +1935,7 @@ const InboxPage = () => {
               </div>
             </div>
 
-            <div style={styles.chatBody}>
+            <div ref={chatBodyRef} style={styles.chatBody} onScroll={atualizarEstadoScrollChat}>
               {carregandoChat ? (
                 <div style={{ color: '#6b7d96' }}>Carregando conversa...</div>
               ) : mensagens.length > 0 ? (
@@ -1898,7 +1966,6 @@ const InboxPage = () => {
               ) : (
                 <div style={{ color: '#6b7d96' }}>Nenhuma mensagem encontrada para este atendimento.</div>
               )}
-              <div ref={(element) => element?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
 
             <div style={styles.composer}>
