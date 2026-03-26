@@ -3,15 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\User;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Validation\Rules\Password; // Usado para validação de força de senha
-use Illuminate\Support\Facades\Password as PasswordFacade; // <--- ADICIONADO (Com Alias para não conflitar)
-use Illuminate\Auth\Events\PasswordReset; // <--- ADICIONADO
-use Illuminate\Support\Str; // <--- ADICIONADO
+use Illuminate\Support\Facades\Password as PasswordFacade;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -34,7 +31,7 @@ class AuthController extends Controller
 
         return response()->json([
             'user' => $user,
-            'token' => $user->createToken('auth_token')->plainTextToken
+            'token' => $user->createToken('auth_token')->plainTextToken,
         ], 201);
     }
 
@@ -43,40 +40,38 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        // 1. Validação básica
+        $email = Str::lower(trim((string) $request->input('email')));
+        $password = (string) $request->input('password');
+
+        $request->merge([
+            'email' => $email,
+        ]);
+
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
         ]);
 
-        // 2. Limpeza de dados (Remove espaços em branco antes e depois)
-        $email = trim($request->email);
-        $password = trim($request->password);
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
-        // 3. Busca o usuário diretamente (sem usar Auth::attempt)
-        $user = User::where('email', $email)->first();
-
-        // 4. Verificações explícitas para sabermos ONDE está o erro
         if (! $user) {
             return response()->json([
-                'message' => 'Usuário não encontrado no banco de dados com este e-mail.'
+                'message' => 'Usuario nao encontrado no banco de dados com este e-mail.',
             ], 401);
         }
 
-        // 5. Comparação manual do Hash
         if (! Hash::check($password, $user->password)) {
             return response()->json([
-                'message' => 'A senha está incorreta.',
+                'message' => 'A senha esta incorreta.',
                 'debug_email' => $email,
             ], 401);
         }
 
-        // 6. Se passou por tudo, gera o token.
         // Mantemos tokens anteriores para nao derrubar sessoes validas
         // abertas no lab, local ou outros dispositivos da equipe.
         return response()->json([
             'user' => $user,
-            'token' => $user->createToken('auth_token')->plainTextToken
+            'token' => $user->createToken('auth_token')->plainTextToken,
         ]);
     }
 
@@ -85,7 +80,11 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $token = $request->user()?->currentAccessToken();
+
+        if ($token) {
+            $token->delete();
+        }
 
         return response()->json(['message' => 'Logout realizado com sucesso.']);
     }
@@ -97,44 +96,40 @@ class AuthController extends Controller
     {
         $request->validate([
             'current_password' => 'required',
-            'new_password' => ['required', 'confirmed', 'min:8'], 
+            'new_password' => ['required', 'confirmed', 'min:8'],
         ]);
 
         $user = $request->user();
 
-        if (!Hash::check($request->current_password, $user->password)) {
-            return response()->json(['message' => 'A senha atual está incorreta.'], 422);
+        if (! Hash::check($request->current_password, $user->password)) {
+            return response()->json(['message' => 'A senha atual esta incorreta.'], 422);
         }
 
         if (Hash::check($request->new_password, $user->password)) {
-            return response()->json(['message' => 'A nova senha não pode ser igual à atual.'], 422);
+            return response()->json(['message' => 'A nova senha nao pode ser igual a atual.'], 422);
         }
 
         $user->update([
             'password' => Hash::make($request->new_password),
-            'must_change_password' => false 
+            'must_change_password' => false,
         ]);
 
-        return response()->json(['message' => 'Senha alterada com sucesso! Você já pode navegar no sistema.']);
+        return response()->json(['message' => 'Senha alterada com sucesso! Voce ja pode navegar no sistema.']);
     }
 
-    // --- NOVOS MÉTODOS PARA RECUPERAÇÃO DE SENHA (ESQUECI MINHA SENHA) ---
-
     /**
-     * 1. Enviar Link de Recuperação por Email
+     * 1. Enviar Link de Recuperacao por Email
      */
     public function sendResetLinkEmail(Request $request)
     {
         $request->validate(['email' => 'required|email']);
 
-        // Envia o link usando o broker padrão do Laravel
         $status = PasswordFacade::sendResetLink($request->only('email'));
 
         if ($status === PasswordFacade::RESET_LINK_SENT) {
             return response()->json(['status' => __($status)]);
         }
 
-        // Retorna erro 422 se não conseguir enviar (ex: email não existe)
         return response()->json(['email' => __($status)], 422);
     }
 
@@ -149,12 +144,11 @@ class AuthController extends Controller
             'password' => 'required|confirmed|min:8',
         ]);
 
-        // Tenta resetar a senha
         $status = PasswordFacade::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function ($user, $password) {
                 $user->forceFill([
-                    'password' => Hash::make($password)
+                    'password' => Hash::make($password),
                 ])->setRememberToken(Str::random(60));
 
                 $user->save();

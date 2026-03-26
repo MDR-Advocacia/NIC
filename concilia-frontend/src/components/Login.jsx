@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { FaEnvelope, FaHandshake, FaLock, FaSpinner } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
-import { Link, useNavigate } from 'react-router-dom'; 
 import styles from '../styles/Login.module.css';
-import { FaEnvelope, FaLock, FaHandshake, FaSpinner } from 'react-icons/fa';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -13,49 +13,52 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
+
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       navigate('/dashboard');
     } catch (err) {
-      setError('Credenciais inválidas. Tente novamente.');
+      const mensagem =
+        err?.response?.data?.message ||
+        err?.response?.data?.email ||
+        'Credenciais invalidas. Tente novamente.';
+
+      setError(Array.isArray(mensagem) ? mensagem[0] : mensagem);
       setLoading(false);
     }
   };
 
   return (
     <div className={styles.loginContainer}>
-      
-      {/* --- NOVA MARCA NIC (Igual ao Menu Lateral) --- */}
       <div className={styles.brandWrapper}>
         <FaHandshake className={styles.mainIcon} />
-        
+
         <div className={styles.textGroup}>
-            <h1 className={styles.nicTitle}>NIC</h1>
-            <div className={styles.meaningBox}>
-                <span>NÚCLEO</span>
-                <span>INTEGRADO DE</span>
-                <span>CONCILIAÇÕES</span>
-            </div>
+          <h1 className={styles.nicTitle}>NIC</h1>
+          <div className={styles.meaningBox}>
+            <span>NUCLEO</span>
+            <span>INTEGRADO DE</span>
+            <span>CONCILIACOES</span>
+          </div>
         </div>
       </div>
-      {/* ---------------------------------------------- */}
 
       <p className={styles.subtitle}>Acesse sua conta para continuar</p>
 
       <form onSubmit={handleSubmit} className={styles.form}>
-        {error && <div className={styles.error}>{error}</div>}
-        
+        {error ? <div className={styles.error}>{error}</div> : null}
+
         <div className={styles.inputGroup}>
           <FaEnvelope className={styles.icon} />
           <input
             type="email"
             placeholder="E-mail Corporativo"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(event) => setEmail(event.target.value)}
             required
           />
         </div>
@@ -66,23 +69,25 @@ const Login = () => {
             type="password"
             placeholder="Senha"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(event) => setPassword(event.target.value)}
             required
           />
         </div>
 
-        {/* --- 2. LINK ADICIONADO AQUI --- */}
         <div style={{ width: '100%', textAlign: 'right', marginBottom: '15px', marginTop: '-10px' }}>
-            <Link 
-                to="/forgot-password" 
-                style={{ color: '#4a5568', fontSize: '0.85rem', textDecoration: 'none' }}
-                onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
-                onMouseOut={(e) => e.target.style.textDecoration = 'none'}
-            >
-                Esqueci minha senha
-            </Link>
+          <Link
+            to="/forgot-password"
+            style={{ color: '#4a5568', fontSize: '0.85rem', textDecoration: 'none' }}
+            onMouseOver={(event) => {
+              event.target.style.textDecoration = 'underline';
+            }}
+            onMouseOut={(event) => {
+              event.target.style.textDecoration = 'none';
+            }}
+          >
+            Esqueci minha senha
+          </Link>
         </div>
-        {/* ------------------------------- */}
 
         <button type="submit" className={styles.button} disabled={loading}>
           {loading ? (
