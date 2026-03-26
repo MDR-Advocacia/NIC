@@ -71,9 +71,9 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // 6. Se passou por tudo, gera o token
-        $user->tokens()->delete(); // Limpa tokens antigos (opcional)
-        
+        // 6. Se passou por tudo, gera o token.
+        // Mantemos tokens anteriores para nao derrubar sessoes validas
+        // abertas no lab, local ou outros dispositivos da equipe.
         return response()->json([
             'user' => $user,
             'token' => $user->createToken('auth_token')->plainTextToken

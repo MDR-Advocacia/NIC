@@ -1,50 +1,114 @@
-import React, { createContext, useState, useContext } from 'react';
-import apiClient from '../api';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import apiClient, { authApi, clearStoredAuthSession, getStoredAuthToken } from '../api';
 
-// 1. Cria o Contexto
 const AuthContext = createContext(null);
 
-// 2. Cria o Provedor do Contexto
-export const AuthProvider = ({ children }) => {
-  // Tenta pegar o user e token do localStorage para manter o login
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')));
-  const [token, setToken] = useState(localStorage.getItem('authToken'));
-
-  // Função de Login
-  const login = async (email, password) => {
-    const response = await apiClient.post('/login', {
-      email,
-      password,
-    });
-
-    // Salva o token e o usuário no estado e no localStorage
-    localStorage.setItem('authToken', response.data.token);
-    localStorage.setItem('user', JSON.stringify(response.data.user));
-    setToken(response.data.token);
-    setUser(response.data.user);
-  };
-
-  // Função de Logout
-  const logout = () => {
-    // Limpa o localStorage e o estado
-    localStorage.removeItem('authToken');
+const getStoredUser = () => {
+  try {
+    const rawUser = localStorage.getItem('user');
+    return rawUser ? JSON.parse(rawUser) : null;
+  } catch (error) {
     localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
+    return null;
+  }
+};
+
+export const AuthProvider = ({ children }) => {
+  const [token, setToken] = useState(() => getStoredAuthToken());
+  const [user, setUser] = useState(() => getStoredUser());
+  const [loading, setLoading] = useState(() => Boolean(getStoredAuthToken()));
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setToken(null);
+      setUser(null);
+      setLoading(false);
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
+  useEffect(() => {
+    const currentToken = getStoredAuthToken();
+
+    if (!currentToken) {
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    const validateSession = async () => {
+      try {
+        setLoading(true);
+        const response = await authApi.me();
+
+        if (!active) return;
+
+        localStorage.setItem('user', JSON.stringify(response.data));
+        setToken(currentToken);
+        setUser(response.data);
+      } catch (error) {
+        if (!active) return;
+
+        clearStoredAuthSession();
+        setToken(null);
+        setUser(null);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    validateSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const login = async (email, password) => {
+    const response = await apiClient.post('/login', { email, password });
+    const nextToken = String(response.data.token || '').replace(/^"+|"+$/g, '').trim();
+
+    localStorage.setItem('authToken', nextToken);
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+
+    setToken(nextToken);
+    setUser(response.data.user);
+    setLoading(false);
   };
 
-  // Disponibiliza os valores para os componentes filhos
-  const value = {
-    user,
-    token,
-    login,
-    logout,
+  const logout = async () => {
+    try {
+      if (getStoredAuthToken()) {
+        await authApi.logout();
+      }
+    } catch (error) {
+      // Mesmo que o backend ja tenha invalidado a sessao, seguimos com a limpeza local.
+    } finally {
+      clearStoredAuthSession();
+      setToken(null);
+      setUser(null);
+      setLoading(false);
+    }
   };
+
+  const value = useMemo(
+    () => ({
+      user,
+      token,
+      loading,
+      setUser,
+      login,
+      logout,
+    }),
+    [user, token, loading]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// 3. Cria um Hook customizado para facilitar o uso do contexto
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+export const useAuth = () => useContext(AuthContext);
