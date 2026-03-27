@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\LegalCase;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +16,7 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
         $baseQuery = $this->buildFilteredCasesQuery($request, $user);
+        $agreementMetrics = $this->buildAgreementMetrics($request, $user);
 
         $totalCases = (clone $baseQuery)->count();
         $closedCasesQuery = (clone $baseQuery)->where('status', LegalCase::STATUS_CLOSED_DEAL);
@@ -46,6 +48,8 @@ class DashboardController extends Controller
                 'total_agreement_value' => $totalAgreementValue,
                 'total_original_value' => $totalOriginalValue,
                 'total_economy' => $totalEconomy,
+                'agreements_today' => $agreementMetrics['agreements_today'],
+                'average_agreements_per_business_day' => $agreementMetrics['average_agreements_per_business_day'],
                 'conversion_rate' => number_format($conversionRate, 1, '.', '')
             ],
             'status_distribution' => [
@@ -56,6 +60,11 @@ class DashboardController extends Controller
                 LegalCase::STATUS_AWAITING_DRAFT => (int) ($statusCounts[LegalCase::STATUS_AWAITING_DRAFT] ?? 0),
                 LegalCase::STATUS_CLOSED_DEAL => (int) ($statusCounts[LegalCase::STATUS_CLOSED_DEAL] ?? 0),
                 LegalCase::STATUS_FAILED_DEAL => (int) ($statusCounts[LegalCase::STATUS_FAILED_DEAL] ?? 0),
+            ],
+            'agreement_insights' => [
+                'monthly' => $this->buildAgreementMonthlyTrend($request, $user),
+                'daily' => $this->buildAgreementDailyTrend($request, $user),
+                'meta' => $agreementMetrics['meta'],
             ],
             'monthly_evolution' => $this->buildMonthlyEvolution($request, $user),
             'team_performance' => $this->buildTeamPerformance($request, $user),
@@ -69,17 +78,7 @@ class DashboardController extends Controller
 
     private function buildFilteredCasesQuery(Request $request, User $user): Builder
     {
-        $query = LegalCase::query();
-
-        if ($user->role === 'operador') {
-            $query->where('user_id', $user->id);
-        } elseif ($request->filled('lawyer_id')) {
-            $query->where('user_id', $request->input('lawyer_id'));
-        }
-
-        if ($request->filled('client_id')) {
-            $query->where('client_id', $request->input('client_id'));
-        }
+        $query = $this->buildAccessibleCasesQuery($request, $user);
 
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
@@ -91,6 +90,40 @@ class DashboardController extends Controller
 
         if ($request->filled('end_date')) {
             $query->whereDate('created_at', '<=', $request->input('end_date'));
+        }
+
+        return $query;
+    }
+
+    private function buildAccessibleCasesQuery(Request $request, User $user): Builder
+    {
+        $query = LegalCase::query()
+            ->where('has_alcada', true);
+
+        if ($user->role === 'operador') {
+            $query->where('user_id', $user->id);
+        } elseif ($request->filled('lawyer_id')) {
+            $query->where('user_id', $request->input('lawyer_id'));
+        }
+
+        if ($request->filled('client_id')) {
+            $query->where('client_id', $request->input('client_id'));
+        }
+
+        return $query;
+    }
+
+    private function buildAgreementCasesQuery(Request $request, User $user): Builder
+    {
+        $query = $this->buildAccessibleCasesQuery($request, $user)
+            ->where('status', LegalCase::STATUS_CLOSED_DEAL);
+
+        if ($request->filled('start_date')) {
+            $query->whereDate('updated_at', '>=', $request->input('start_date'));
+        }
+
+        if ($request->filled('end_date')) {
+            $query->whereDate('updated_at', '<=', $request->input('end_date'));
         }
 
         return $query;
@@ -184,5 +217,148 @@ class DashboardController extends Controller
             'created' => $created,
             'closed' => $closed,
         ];
+    }
+
+    private function buildAgreementMetrics(Request $request, User $user): array
+    {
+        [$averageStartDate, $averageEndDate, $averageMode] = $this->resolveAverageAgreementPeriod($request);
+        $businessDays = $this->countBusinessDays($averageStartDate, $averageEndDate);
+
+        $agreementsInAveragePeriod = (clone $this->buildAgreementCasesQuery($request, $user))
+            ->whereBetween('updated_at', [
+                $averageStartDate->copy()->startOfDay(),
+                $averageEndDate->copy()->endOfDay(),
+            ])
+            ->count();
+
+        $agreementsToday = (clone $this->buildAgreementCasesQuery($request, $user))
+            ->whereDate('updated_at', now()->toDateString())
+            ->count();
+
+        return [
+            'agreements_today' => $agreementsToday,
+            'average_agreements_per_business_day' => $businessDays > 0
+                ? round($agreementsInAveragePeriod / $businessDays, 2)
+                : 0,
+            'meta' => [
+                'average_period' => [
+                    'mode' => $averageMode,
+                    'start_date' => $averageStartDate->toDateString(),
+                    'end_date' => $averageEndDate->toDateString(),
+                    'business_days' => $businessDays,
+                ],
+                'monthly_period' => [
+                    'mode' => 'rolling_year',
+                ],
+                'daily_period' => [
+                    'mode' => 'rolling_30_days',
+                ],
+            ],
+        ];
+    }
+
+    private function buildAgreementMonthlyTrend(Request $request, User $user): array
+    {
+        $referenceEndDate = $request->filled('end_date')
+            ? Carbon::parse($request->input('end_date'))->endOfDay()
+            : now()->endOfDay();
+
+        $endMonth = $referenceEndDate->copy()->startOfMonth();
+        $startMonth = $endMonth->copy()->subMonths(11)->startOfMonth();
+
+        $counts = (clone $this->buildAgreementCasesQuery($request, $user))
+            ->whereBetween('updated_at', [$startMonth->copy()->startOfDay(), $endMonth->copy()->endOfMonth()])
+            ->selectRaw("DATE_FORMAT(updated_at, '%Y-%m') as period_key, COUNT(*) as total")
+            ->groupBy('period_key')
+            ->pluck('total', 'period_key');
+
+        $labels = [];
+        $values = [];
+
+        for ($cursor = $startMonth->copy(); $cursor->lte($endMonth); $cursor->addMonth()) {
+            $periodKey = $cursor->format('Y-m');
+            $labels[] = $cursor->format('m/Y');
+            $values[] = (int) ($counts[$periodKey] ?? 0);
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values,
+        ];
+    }
+
+    private function buildAgreementDailyTrend(Request $request, User $user): array
+    {
+        $referenceEndDate = $request->filled('end_date')
+            ? Carbon::parse($request->input('end_date'))->endOfDay()
+            : now()->endOfDay();
+
+        $startDay = $referenceEndDate->copy()->subDays(29)->startOfDay();
+
+        if ($request->filled('start_date')) {
+            $requestedStartDate = Carbon::parse($request->input('start_date'))->startOfDay();
+
+            if ($requestedStartDate->gt($startDay)) {
+                $startDay = $requestedStartDate;
+            }
+        }
+
+        $counts = (clone $this->buildAgreementCasesQuery($request, $user))
+            ->whereBetween('updated_at', [$startDay->copy()->startOfDay(), $referenceEndDate->copy()->endOfDay()])
+            ->selectRaw('DATE(updated_at) as period_key, COUNT(*) as total')
+            ->groupBy('period_key')
+            ->pluck('total', 'period_key');
+
+        $labels = [];
+        $values = [];
+
+        for ($cursor = $startDay->copy(); $cursor->lte($referenceEndDate->copy()->startOfDay()); $cursor->addDay()) {
+            $periodKey = $cursor->toDateString();
+            $labels[] = $cursor->format('d/m');
+            $values[] = (int) ($counts[$periodKey] ?? 0);
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values,
+        ];
+    }
+
+    private function resolveAverageAgreementPeriod(Request $request): array
+    {
+        $startDate = $request->filled('start_date')
+            ? Carbon::parse($request->input('start_date'))->startOfDay()
+            : now()->startOfMonth();
+
+        $endDate = $request->filled('end_date')
+            ? Carbon::parse($request->input('end_date'))->endOfDay()
+            : now()->endOfDay();
+
+        if ($endDate->lt($startDate)) {
+            [$startDate, $endDate] = [$endDate->copy()->startOfDay(), $startDate->copy()->endOfDay()];
+        }
+
+        $mode = ($request->filled('start_date') || $request->filled('end_date'))
+            ? 'filtered_period'
+            : 'current_month';
+
+        return [$startDate, $endDate, $mode];
+    }
+
+    private function countBusinessDays(Carbon $startDate, Carbon $endDate): int
+    {
+        if ($endDate->lt($startDate)) {
+            return 0;
+        }
+
+        $businessDays = 0;
+
+        for ($cursor = $startDate->copy()->startOfDay(); $cursor->lte($endDate->copy()->startOfDay()); $cursor->addDay()) {
+            if ($cursor->isWeekday()) {
+                $businessDays++;
+            }
+        }
+
+        return $businessDays;
     }
 }
