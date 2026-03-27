@@ -19,6 +19,7 @@ const ROLE_DETAILS = {
     'administrador': { name: 'Administrador', color: '#9f7aea', textColor: '#FFFFFF' },
     'supervisor': { name: 'Supervisor', color: '#ed8936', textColor: '#FFFFFF' },
     'operador': { name: 'Operador', color: '#4299e1', textColor: '#FFFFFF' },
+    'indicador': { name: 'Indicador', color: '#2b6cb0', textColor: '#FFFFFF' },
 };
 
 const StatusTag = ({ status }) => {
@@ -266,6 +267,7 @@ const UserManagementPage = () => {
                     <option value="administrador">Administrador</option>
                     <option value="supervisor">Supervisor</option>
                     <option value="operador">Operador</option>
+                    <option value="indicador">Indicador</option>
                 </select>
                 <select name="department_id" className={styles.filterSelect} value={filters.department_id} onChange={handleFilterChange}>
                     <option value="">Depto: Todos</option>
@@ -402,6 +404,7 @@ const UserManagementPage = () => {
                                 <option value="operador">Operador</option>
                                 <option value="supervisor">Supervisor</option>
                                 <option value="administrador">Admin</option>
+                                <option value="indicador">Indicador</option>
                             </select>
                         )}
 
@@ -448,6 +451,7 @@ const UserManagementPage = () => {
                                         <option value="operador">Operador</option>
                                         <option value="supervisor">Supervisor</option>
                                         <option value="administrador">Administrador</option>
+                                        <option value="indicador">Indicador</option>
                                     </select>
                                 </div>
                                 <div className={styles.formGroup}>

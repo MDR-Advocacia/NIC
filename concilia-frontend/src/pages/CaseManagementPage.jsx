@@ -14,10 +14,12 @@ import EditCaseModal from '../components/EditCaseModal';
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
+import IndicationChecklistModal from '../components/IndicationChecklistModal';
 import {
     LEGAL_CASE_STATUS_OPTIONS,
     getLegalCaseStatusDetails,
 } from '../constants/legalCaseStatus';
+import { canAccessCaseCreation, isIndicatorRole } from '../constants/access';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -37,9 +39,32 @@ const PriorityTag = ({ priority }) => {
     return <span className={styles.priorityTag} style={{ backgroundColor: currentPriority.color, color: currentPriority.textColor }}>{currentPriority.name}</span>;
 };
 
+const getDisplayName = (value, fallback = '-') => {
+    if (!value) return fallback;
+    if (typeof value === 'string' || typeof value === 'number') {
+        const normalizedValue = String(value).trim();
+        return normalizedValue || fallback;
+    }
+    return value.name || value.nome || fallback;
+};
+
+const getResponsibleName = (legalCase) => getDisplayName(
+    legalCase?.agreement_checklist_data?.indication_checklist?.assigned_operator || legalCase?.lawyer,
+    'Sem operador'
+);
+
+const getIndicatorName = (legalCase) => getDisplayName(
+    legalCase?.indicator
+    || legalCase?.agreement_checklist_data?.indication_checklist?.indicator
+    || legalCase?.agreement_checklist_data?.indication_checklist?.completed_by,
+    ''
+);
+
 const CaseManagementPage = () => {
     // Adicionado 'user' para verificar a role
     const { token, user } = useAuth();
+    const isIndicator = isIndicatorRole(user?.role);
+    const canUseBatchActions = !isIndicator;
     
     const [cases, setCases] = useState([]);
     const [lawyers, setLawyers] = useState([]);
@@ -47,6 +72,7 @@ const CaseManagementPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [editingCase, setEditingCase] = useState(null);
+    const [indicationCase, setIndicationCase] = useState(null);
 
     // --- PAGINAÇÃO (ESTADOS) ---
     const [currentPage, setCurrentPage] = useState(1);
@@ -75,18 +101,26 @@ const CaseManagementPage = () => {
         const fetchDropdownData = async () => {
             if (!token) return;
             try {
-                const [usersResponse, clientsResponse] = await Promise.all([
-                    apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
-                    apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } })
-                ]);
-                setLawyers(usersResponse.data.data || []);
+                const requests = [
+                    apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
+                ];
+
+                if (!isIndicator) {
+                    requests.unshift(apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }));
+                }
+
+                const responses = await Promise.all(requests);
+                const usersResponse = isIndicator ? null : responses[0];
+                const clientsResponse = isIndicator ? responses[0] : responses[1];
+
+                setLawyers(usersResponse?.data?.data || []);
                 setClients(clientsResponse.data || []);
             } catch (err) { 
                 console.error("Erro ao buscar dados de apoio", err); 
             }
         };
         fetchDropdownData();
-    }, [token]);
+    }, [token, isIndicator]);
 
     // Carrega Casos
     const fetchCases = useCallback(async () => {
@@ -211,6 +245,11 @@ const CaseManagementPage = () => {
         }
     };
 
+    const handleCaseIndicated = () => {
+        setIndicationCase(null);
+        fetchCases();
+    };
+
     const formatValue = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
     
     const kpis = {
@@ -231,9 +270,25 @@ const CaseManagementPage = () => {
             <header className={styles.header}>
                 <div><h1>Gestão de Casos</h1><p>Gerencie todos os casos direcionados para o escritório</p></div>
                 <div className={styles.headerActions}>
-                    <Link to="/cases/create" className={styles.newCaseButton}><FaPlus /> Novo Caso</Link>
+                    {canAccessCaseCreation(user?.role) && (
+                        <Link to="/cases/create" className={styles.newCaseButton}><FaPlus /> Novo Caso</Link>
+                    )}
                 </div>
             </header>
+
+            {isIndicator && (
+                <div style={{
+                    marginBottom: '18px',
+                    padding: '14px 18px',
+                    borderRadius: '12px',
+                    border: '1px solid #bfdbfe',
+                    background: '#eff6ff',
+                    color: '#1e3a8a',
+                    fontWeight: 600,
+                }}>
+                    Esta fila mostra os casos em Analise Inicial disponiveis para indicacao de acordo.
+                </div>
+            )}
             
             <section className={styles.kpiGrid}>
                 <KpiCard title="Total (Geral)" value={kpis.total_cases.toString()} />
@@ -250,10 +305,12 @@ const CaseManagementPage = () => {
                         <option value="">Status: Todos</option>
                         {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>)}
                     </select>
-                    <select className={styles.filterSelect} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
-                        <option value="">Advogado: Todos</option>
-                        {lawyers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                    </select>
+                    {!isIndicator && (
+                        <select className={styles.filterSelect} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
+                            <option value="">Advogado: Todos</option>
+                            {lawyers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                    )}
                 </div>
             </section>
             
@@ -286,9 +343,11 @@ const CaseManagementPage = () => {
                         <table className={styles.table}>
                             <thead>
                                 <tr>
-                                    <th style={{width: '40px', textAlign: 'center'}}>
-                                        <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className={styles.checkboxInput} />
-                                    </th>
+                                    {canUseBatchActions && (
+                                        <th style={{width: '40px', textAlign: 'center'}}>
+                                            <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className={styles.checkboxInput} />
+                                        </th>
+                                    )}
                                     
                                     <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('id')}>
                                         ID/Processo {getSortIcon('id')}
@@ -302,21 +361,23 @@ const CaseManagementPage = () => {
                                         Status/Prioridade {getSortIcon('priority')}
                                     </th>
                                     
-                                    <th>Responsável</th>
+                                    <th>Responsavel / Indicador</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {cases.map(legalCase => (
                                     <tr key={legalCase.id} className={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id) ? styles.rowSelected : ''}>
-                                        <td style={{textAlign: 'center'}}>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id)} 
-                                                onChange={() => handleSelectCase(legalCase.id)}
-                                                className={styles.checkboxInput}
-                                            />
-                                        </td>
+                                        {canUseBatchActions && (
+                                            <td style={{textAlign: 'center'}}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id)} 
+                                                    onChange={() => handleSelectCase(legalCase.id)}
+                                                    className={styles.checkboxInput}
+                                                />
+                                            </td>
+                                        )}
                                         <td>
                                             <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>{legalCase.id}</Link>
                                             <div className={styles.subText}>{legalCase.case_number}</div>
@@ -337,14 +398,38 @@ const CaseManagementPage = () => {
                                             <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
                                             <PriorityTag priority={legalCase.priority} />
                                         </td>
-                                        <td>{legalCase.lawyer?.name || <span style={{color: '#E53E3E'}}>Sem advogado</span>}</td>
+                                        <td>
+                                            <div>{getResponsibleName(legalCase)}</div>
+                                            <div className={styles.subText}>
+                                                {getIndicatorName(legalCase) ? `Indicador: ${getIndicatorName(legalCase)}` : 'Sem indicador'}
+                                            </div>
+                                        </td>
                                         <td>
                                             <div style={{ display: 'flex', gap: '10px' }}>
                                                 <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
-                                                <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
+                                                {!isIndicator && (
+                                                    <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
+                                                )}
+                                                {isIndicator && legalCase.status === 'initial_analysis' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIndicationCase(legalCase)}
+                                                        style={{
+                                                            border: 'none',
+                                                            borderRadius: '8px',
+                                                            background: '#1d4ed8',
+                                                            color: '#fff',
+                                                            padding: '8px 12px',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        Indicar Caso para acordo
+                                                    </button>
+                                                )}
                                                 
                                                 {/* SÓ MOSTRA SE FOR ADMIN */}
-                                                {user?.role === 'admin' && (
+                                                {user?.role === 'admin' && !isIndicator && (
                                                     <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase.id)}>
                                                         <FaTrash />
                                                     </span>
@@ -384,7 +469,7 @@ const CaseManagementPage = () => {
             </section>
 
             {/* --- BARRA FLUTUANTE DE AÇÕES EM LOTE --- */}
-            {Array.isArray(selectedCaseIds) && selectedCaseIds.length > 0 && (
+            {canUseBatchActions && Array.isArray(selectedCaseIds) && selectedCaseIds.length > 0 && (
                 <div className={styles.batchActionBar}>
                     <div className={styles.batchInfo}>
                         <strong>{selectedCaseIds.length}</strong> selecionados
@@ -445,6 +530,13 @@ const CaseManagementPage = () => {
                     </div>
                 </div>
             )}
+
+            <IndicationChecklistModal
+                isOpen={Boolean(indicationCase)}
+                legalCase={indicationCase}
+                onClose={() => setIndicationCase(null)}
+                onSuccess={handleCaseIndicated}
+            />
 
             {editingCase && (
                 <EditCaseModal 

@@ -13,6 +13,11 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user(); // <--- Identifica quem está logado
+
+        if ($user->role === 'indicador') {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
 

@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB; // Adicionado para transações em lote
+use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
@@ -26,7 +27,7 @@ class UserController extends Controller
 
         // 2. FILTRO DE SEGURANÇA:
         // Se for operador, forçamos a query a retornar APENAS ele mesmo.
-        if ($currentUser->role === 'operador') {
+        if (in_array($currentUser->role, ['operador', 'indicador'], true)) {
             $query->where('id', $currentUser->id);
         }
 
@@ -57,6 +58,23 @@ class UserController extends Controller
         return response()->json($query->paginate(15));
     }
 
+    public function operators(Request $request): JsonResponse
+    {
+        $currentUser = auth()->user();
+
+        if (!$currentUser || !in_array($currentUser->role, ['administrador', 'supervisor', 'indicador'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $operators = User::query()
+            ->where('role', 'operador')
+            ->where('status', 'ativo')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'role', 'status']);
+
+        return response()->json($operators);
+    }
+
     public function store(Request $request)
     {
         $this->authorize('create', User::class);
@@ -65,7 +83,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
-            'role' => 'required|string|in:administrador,supervisor,operador',
+            'role' => 'required|string|in:administrador,supervisor,operador,indicador',
             'department_id' => 'required|exists:departments,id',
             'phone' => 'nullable|string',
             'status' => 'required|string|in:ativo,inativo',
@@ -104,7 +122,7 @@ class UserController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'email' => ['sometimes', 'required', 'email', Rule::unique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:8',
-            'role' => 'sometimes|required|string|in:administrador,supervisor,operador',
+            'role' => 'sometimes|required|string|in:administrador,supervisor,operador,indicador',
             'department_id' => 'sometimes|required|exists:departments,id',
             'phone' => 'nullable|string',
             'status' => 'sometimes|required|string|in:ativo,inativo',

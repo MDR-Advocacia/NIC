@@ -55,6 +55,7 @@ class LegalCase extends Model
         'internal_number', 
         'client_id',
         'user_id',
+        'indicator_user_id',
         'opposing_party', // Mantemos string para compatibilidade ou texto livre
         'plaintiff_id',   // NOVO: ID do Autor
         'defendant',      // Mantemos string
@@ -128,6 +129,11 @@ class LegalCase extends Model
     public function lawyer()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function indicator()
+    {
+        return $this->belongsTo(User::class, 'indicator_user_id');
     }
     
     public function opposingLawyer()

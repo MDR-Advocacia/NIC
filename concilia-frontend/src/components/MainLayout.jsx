@@ -5,6 +5,14 @@ import { useTheme } from '../context/ThemeContext';
 import styles from '../styles/MainLayout.module.css';
 import { FaUserCog } from 'react-icons/fa';
 import {
+    canAccessDashboard,
+    canAccessGeneralBase,
+    canAccessImport,
+    canAccessInbox,
+    canAccessLogs,
+    canManageUsers,
+} from '../constants/access';
+import {
     FaTachometerAlt, FaInbox, FaStream, FaSuitcase,
     FaFileUpload, FaUsers, FaSignOutAlt, FaHandshake,
     FaSun, FaMoon, FaShieldAlt, FaDatabase
@@ -18,8 +26,8 @@ const MainLayout = () => {
         return `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`;
     };
 
-    const isAdmin = user?.role === 'administrador';
-    const canManageUsers = user?.role === 'administrador' || user?.role === 'supervisor';
+    const isAdmin = canAccessLogs(user?.role);
+    const canManageUsersSection = canManageUsers(user?.role);
 
     return (
         <div className={styles.layoutContainer}>
@@ -44,16 +52,20 @@ const MainLayout = () => {
                 <nav>
                     <ul className={styles.navList}>
                         
-                        <li className={styles.navItem}>
-                            <NavLink to="/dashboard" className={getNavLinkClass}>
-                                <FaTachometerAlt /> <span>Dashboard</span>
-                            </NavLink>
-                        </li>
-                        <li className={styles.navItem}>
-                            <NavLink to="/inbox" className={getNavLinkClass}>
-                                <FaInbox /> <span>Caixa de Entrada</span>
-                            </NavLink>
-                        </li>
+                        {canAccessDashboard(user?.role) && (
+                            <li className={styles.navItem}>
+                                <NavLink to="/dashboard" className={getNavLinkClass}>
+                                    <FaTachometerAlt /> <span>Dashboard</span>
+                                </NavLink>
+                            </li>
+                        )}
+                        {canAccessInbox(user?.role) && (
+                            <li className={styles.navItem}>
+                                <NavLink to="/inbox" className={getNavLinkClass}>
+                                    <FaInbox /> <span>Caixa de Entrada</span>
+                                </NavLink>
+                            </li>
+                        )}
                         <li className={styles.navItem}>
                             <NavLink to="/pipeline" className={getNavLinkClass}>
                                 <FaStream /> <span>Pipeline de Acordos</span>
@@ -64,13 +76,15 @@ const MainLayout = () => {
                                 <FaSuitcase /> <span>Gestão de Casos</span>
                             </NavLink>
                         </li>
-                        <li className={styles.navItem}>
-                            <NavLink to="/import" className={getNavLinkClass}>
-                                <FaFileUpload /> <span>Importar Dados</span>
-                            </NavLink>
-                        </li>
+                        {canAccessImport(user?.role) && (
+                            <li className={styles.navItem}>
+                                <NavLink to="/import" className={getNavLinkClass}>
+                                    <FaFileUpload /> <span>Importar Dados</span>
+                                </NavLink>
+                            </li>
+                        )}
 
-                        {canManageUsers && (
+                        {canAccessGeneralBase(user?.role) && (
                             <li className={styles.navItem}>
                                 <NavLink to="/base-geral" className={getNavLinkClass}>
                                     <FaDatabase /> <span>Base Geral</span>
@@ -78,7 +92,7 @@ const MainLayout = () => {
                             </li>
                         )}
 
-                        {canManageUsers && (
+                        {canManageUsersSection && (
                             <li className={styles.navItem}>
                                 <NavLink to="/users" className={getNavLinkClass}>
                                     <FaUsers /> <span>Gestão de Usuários</span>
@@ -94,10 +108,10 @@ const MainLayout = () => {
                             </li>
                         )}
                         <li className={styles.navItem}>
-    <NavLink to="/profile" className={getNavLinkClass}>
-        <FaUserCog /> <span>Meu Perfil</span>
-    </NavLink>
-</li>
+                            <NavLink to="/profile" className={getNavLinkClass}>
+                                <FaUserCog /> <span>Meu Perfil</span>
+                            </NavLink>
+                        </li>
                     </ul>
                 </nav>
 

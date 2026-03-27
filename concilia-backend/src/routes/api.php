@@ -49,6 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::get('/users/operators', [UserController::class, 'operators']);
     Route::apiResource('users', UserController::class);
     Route::apiResource('clients', ClientController::class);
     Route::apiResource('departments', DepartmentController::class)->only(['index', 'store']);
@@ -58,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cases/import', [LegalCaseController::class, 'bulkStore']);
     Route::post('/cases/sync-alcada', [LegalCaseController::class, 'syncAlcada']);
     Route::post('/cases/batch-update', [LegalCaseController::class, 'batchUpdate']);
+    Route::post('/cases/{case}/indicate', [LegalCaseController::class, 'indicate']);
     Route::get('/cases/{id}/agreement', [LegalCaseController::class, 'generateAgreement']);
     Route::apiResource('cases', LegalCaseController::class);
 

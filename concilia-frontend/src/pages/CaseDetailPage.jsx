@@ -11,6 +11,7 @@ import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, F
 import { ImSpinner2 } from 'react-icons/im';
 import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
+import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 
 // --- DICIONÁRIOS ---
@@ -219,6 +220,29 @@ const CaseDetailPage = () => {
         return lawyer.name || lawyer.nome || 'Não informado';
     };
 
+    const getResponsibleName = (caseData) => {
+        const responsibleData = caseData?.agreement_checklist_data?.indication_checklist?.assigned_operator
+            || caseData?.lawyer;
+
+        if (!responsibleData) {
+            return 'Sem responsavel';
+        }
+
+        return getLawyerName(responsibleData);
+    };
+
+    const getIndicatorName = (caseData) => {
+        const indicatorData = caseData?.indicator
+            || caseData?.agreement_checklist_data?.indication_checklist?.indicator
+            || caseData?.agreement_checklist_data?.indication_checklist?.completed_by;
+
+        if (!indicatorData) {
+            return 'Sem indicador';
+        }
+
+        return getLawyerName(indicatorData);
+    };
+
     const getActionObjectName = (actionObject) => {
         if (!actionObject) return 'Ação';
         if (typeof actionObject === 'string' || typeof actionObject === 'number') {
@@ -296,7 +320,8 @@ const CaseDetailPage = () => {
                         <h3><FaGavel style={{marginRight:'8px', color:'#718096'}}/> Dados do Processo</h3>
                         <div className={styles.infoGrid}>
                             <div className={styles.infoItem}><label>Banco</label><p>{legalCase.client?.name || 'Não vinculado'}</p></div>
-                            <div className={styles.infoItem}><label>Colaborador</label><p>{legalCase.lawyer?.name || 'Sem responsável'}</p></div>
+                            <div className={styles.infoItem}><label>Responsavel pelo Caso</label><p>{getResponsibleName(legalCase)}</p></div>
+                            <div className={styles.infoItem}><label>Indicador</label><p>{getIndicatorName(legalCase)}</p></div>
                             {/* Usa helper formatDate */}
                             <div className={styles.infoItem}><label>Distribuição</label><p>{formatDate(legalCase.start_date)}</p></div>
                             <div className={styles.infoItem}><label>Juizado Especial?</label><p>{legalCase.special_court || 'Não'}</p></div>
@@ -320,10 +345,14 @@ const CaseDetailPage = () => {
                     {legalCase.agreement_checklist_data && (
                         <div className={styles.infoCard}>
                             <h3>Checklist de Análise</h3>
-                            <AgreementChecklist 
-                                checklistData={legalCase.agreement_checklist_data} 
-                                onUpdate={() => {}} 
-                            />
+                            {legalCase.agreement_checklist_data?.indication_checklist ? (
+                                <IndicationChecklistSummary checklistData={legalCase.agreement_checklist_data} />
+                            ) : (
+                                <AgreementChecklist 
+                                    checklistData={legalCase.agreement_checklist_data} 
+                                    onUpdate={() => {}} 
+                                />
+                            )}
                         </div>
                     )}
 

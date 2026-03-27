@@ -71,4 +71,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(LegalCase::class, 'user_id');
     }
+
+    public function indicatedCases(): HasMany
+    {
+        return $this->hasMany(LegalCase::class, 'indicator_user_id');
+    }
 }

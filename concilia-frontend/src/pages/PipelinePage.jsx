@@ -20,6 +20,8 @@ import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
 import { FaExclamationTriangle } from 'react-icons/fa';
 import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants/legalCaseStatus';
+import { canAccessCaseCreation, isIndicatorRole } from '../constants/access';
+import IndicationChecklistModal from '../components/IndicationChecklistModal';
 
 const MAX_API_PAGE_SIZE = 200;
 
@@ -56,6 +58,7 @@ const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
 
 const PipelinePage = () => {
     const { token, user } = useAuth();
+    const isIndicator = isIndicatorRole(user?.role);
 
     const [pipelineData, setPipelineData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -64,14 +67,28 @@ const PipelinePage = () => {
     const [lawyers, setLawyers] = useState([]);
     
     const [editingCase, setEditingCase] = useState(null);
+    const [indicationCase, setIndicationCase] = useState(null);
     const [filters, setFilters] = useState({});
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
     const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
 
-    const handleOpenEditModal = (caseToEdit) => setEditingCase(caseToEdit);
+    const handleOpenEditModal = (caseToEdit) => {
+        if (isIndicator) {
+            return;
+        }
+
+        setEditingCase(caseToEdit);
+    };
     const handleCloseEditModal = () => setEditingCase(null);
+    const handleOpenIndicationModal = (caseToIndicate) => setIndicationCase(caseToIndicate);
+    const handleCloseIndicationModal = () => setIndicationCase(null);
 
     const handleCaseUpdated = () => {
+        fetchAllData();
+    };
+
+    const handleCaseIndicated = () => {
+        setIndicationCase(null);
         fetchAllData();
     };
 
@@ -358,9 +375,11 @@ const PipelinePage = () => {
             <div className={styles.header}>
                 <h1>Pipeline de Acordos</h1>
                 <div className={styles.headerActions}>
-                    <Link to="/cases/create" className={styles.newCaseButton}>
-                        + Novo Caso
-                    </Link>
+                    {canAccessCaseCreation(user?.role) && (
+                        <Link to="/cases/create" className={styles.newCaseButton}>
+                            + Novo Caso
+                        </Link>
+                    )}
                 </div>
             </div>
 
@@ -402,6 +421,20 @@ const PipelinePage = () => {
                 </button>
             </div>
 
+            {isIndicator && (
+                <div style={{
+                    marginBottom: '18px',
+                    padding: '14px 18px',
+                    borderRadius: '12px',
+                    border: '1px solid #bfdbfe',
+                    background: '#eff6ff',
+                    color: '#1e3a8a',
+                    fontWeight: 600,
+                }}>
+                    Os casos em Analise Inicial podem ser avaliados aqui e indicados para acordo pelo checklist obrigatorio.
+                </div>
+            )}
+
             {/* Modal de Edição */}
             {editingCase && (
                 <EditCaseModal 
@@ -412,6 +445,13 @@ const PipelinePage = () => {
                     lawyers={lawyers} 
                 />
             )}
+
+            <IndicationChecklistModal
+                isOpen={Boolean(indicationCase)}
+                legalCase={indicationCase}
+                onClose={handleCloseIndicationModal}
+                onSuccess={handleCaseIndicated}
+            />
             
             <DndContext 
                 sensors={sensors} 
@@ -423,6 +463,7 @@ const PipelinePage = () => {
                 <div className={styles.boardShell}>
                     <div className={styles.boardGrid}>
                     {pipelineData?.titles && Object.entries(pipelineData.titles)
+                        .filter(([statusKey]) => !isIndicator || statusKey === 'initial_analysis')
                         .map(([statusKey, statusTitle]) => (
                             <PipelineColumn
                                 key={statusKey}
@@ -430,6 +471,9 @@ const PipelinePage = () => {
                                 title={statusTitle}
                                 cases={pipelineData.grouped[statusKey] || []}
                                 onCardClick={handleOpenEditModal}
+                                enableDrag={!isIndicator}
+                                canIndicateCase={isIndicator}
+                                onIndicateCase={handleOpenIndicationModal}
                             />
                         ))}
                     </div>
