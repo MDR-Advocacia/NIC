@@ -7,7 +7,7 @@ import CasesTable from '../components/CasesTable';
 import KpiCard from '../components/KpiCard';
 import StatusDistributionChart from '../components/StatusDistributionChartJS';
 import ProcessStageChart from '../components/ProcessStageChart';
-import MonthlyEvolutionChart from '../components/MonthlyEvolutionChart';
+import AgreementVolumeChart from '../components/AgreementVolumeChart';
 import TeamPerformancePanel from '../components/TeamPerformancePanel';
 import TeamPerformanceModal from '../components/TeamPerformanceModal';
 import LawyerDetailModal from '../components/LawyerDetailModal';
@@ -16,6 +16,20 @@ import { FaTrophy, FaArrowRight, FaBriefcase } from 'react-icons/fa';
 import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
 import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
+
+const formatDisplayDate = (value) => {
+    if (!value) {
+        return '';
+    }
+
+    const [year, month, day] = value.split('-');
+
+    if (!year || !month || !day) {
+        return value;
+    }
+
+    return `${day}/${month}/${year}`;
+};
 
 const DashboardPage = () => {
     
@@ -110,21 +124,57 @@ const DashboardPage = () => {
             case 'total_agreement_value':
             case 'total_economy':
                 return formatCurrency(value);
+            case 'average_agreements_per_business_day':
+                return new Intl.NumberFormat('pt-BR', {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 2,
+                }).format(Number(value || 0));
             case 'conversion_rate':
                 return `${parseFloat(value || 0).toFixed(2)}%`;
             default:
-                return value;
+                return typeof value === 'number' ? value.toLocaleString('pt-BR') : value;
         }
     };
-    
-    const kpiTitles = {
-        total_original_value: "Total em alçadas",
-        total_agreement_value: "Total em valores de acordos",
-        total_economy: "Economia gerada",
-        total_cases: "Casos Totais",
-        active_cases: "Casos Ativos",
-        conversion_rate: "Taxa de Conversão"
-    };
+
+    const averagePeriodLabel = (() => {
+        if (startDate && endDate) {
+            return `${formatDisplayDate(startDate)} a ${formatDisplayDate(endDate)}`;
+        }
+
+        if (startDate) {
+            return `Desde ${formatDisplayDate(startDate)}`;
+        }
+
+        if (endDate) {
+            return `Até ${formatDisplayDate(endDate)}`;
+        }
+
+        return 'Mês atual';
+    })();
+
+    const businessDays = dashboardData?.agreement_insights?.meta?.average_period?.business_days;
+    const averageAgreementsDescription = businessDays
+        ? `${averagePeriodLabel} • ${businessDays} dia(s) útil(eis)`
+        : averagePeriodLabel;
+
+    const kpiConfig = [
+        { key: 'total_cases', title: 'Casos com Alçada' },
+        { key: 'active_cases', title: 'Casos Ativos' },
+        { key: 'total_original_value', title: 'Total em Alçadas' },
+        { key: 'total_agreement_value', title: 'Total em Valores de Acordos' },
+        { key: 'total_economy', title: 'Economia Total', description: 'Valor de alçada - valor do acordo' },
+        {
+            key: 'agreements_today',
+            title: 'Acordos no Dia',
+            description: `Fechados em ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`,
+        },
+        {
+            key: 'average_agreements_per_business_day',
+            title: 'Média por Dia Útil',
+            description: averageAgreementsDescription,
+        },
+        { key: 'conversion_rate', title: 'Taxa de Conversão' },
+    ];
 
     if (loading) return <p>Carregando dashboard...</p>;
     if (error) return <p style={{ color: 'red' }}>{error}</p>;
@@ -144,7 +194,7 @@ const DashboardPage = () => {
                         <option value="">Todos</option>
                         {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
                     </select>
-                    <label>Advogado:</label>
+                    <label>Responsável do Caso:</label>
                     <select value={selectedLawyer} onChange={(e) => setSelectedLawyer(e.target.value)}>
                         <option value="">Todos</option>
                         {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
@@ -166,13 +216,16 @@ const DashboardPage = () => {
             {isManager && (
                 <div className={styles.kpiGrid}>
                     {dashboardData && dashboardData.kpis ? (
-                        Object.entries(dashboardData.kpis).map(([key, value]) => (
-                            <KpiCard
-                                key={key}
-                                title={kpiTitles[key] || key}
-                                value={formatKpiValue(key, value)}
-                            />
-                        ))
+                        kpiConfig
+                            .filter(({ key }) => Object.prototype.hasOwnProperty.call(dashboardData.kpis, key))
+                            .map(({ key, title, description }) => (
+                                <KpiCard
+                                    key={key}
+                                    title={title}
+                                    value={formatKpiValue(key, dashboardData.kpis[key])}
+                                    description={description}
+                                />
+                            ))
                     ) : <p>Não há dados de KPI para exibir.</p>}
                 </div>
             )}
@@ -191,10 +244,35 @@ const DashboardPage = () => {
                 >
                     <div className={styles.chartsGrid}>
                         <div className={styles.chartCard}>
-                            <h3>Evolução Mensal (Últimos 12 Meses)</h3>
-                            {dashboardData && dashboardData.monthly_evolution ? (
-                                <MonthlyEvolutionChart data={dashboardData.monthly_evolution} />
-                            ) : <p>Não há dados de evolução mensal para exibir.</p>}
+                            <div className={styles.chartHeader}>
+                                <h3>Acordos Realizados por Mês</h3>
+                                <p className={styles.chartSubtitle}>Últimos 12 meses</p>
+                            </div>
+                            {dashboardData && dashboardData.agreement_insights?.monthly ? (
+                                <AgreementVolumeChart
+                                    data={dashboardData.agreement_insights.monthly}
+                                    datasetLabel="Acordos realizados"
+                                    color="#16a34a"
+                                    emptyMessage="Não há acordos realizados por mês para exibir."
+                                />
+                            ) : <p>Não há dados mensais de acordos para exibir.</p>}
+                        </div>
+
+                        <div className={styles.chartCard}>
+                            <div className={styles.chartHeader}>
+                                <h3>Acordos Realizados por Dia</h3>
+                                <p className={styles.chartSubtitle}>
+                                    {startDate || endDate ? 'Janela diária do período filtrado' : 'Últimos 30 dias'}
+                                </p>
+                            </div>
+                            {dashboardData && dashboardData.agreement_insights?.daily ? (
+                                <AgreementVolumeChart
+                                    data={dashboardData.agreement_insights.daily}
+                                    datasetLabel="Acordos por dia"
+                                    color="#f97316"
+                                    emptyMessage="Não há acordos realizados por dia para exibir."
+                                />
+                            ) : <p>Não há dados diários de acordos para exibir.</p>}
                         </div>
 
                         <div className={styles.chartCard}>
