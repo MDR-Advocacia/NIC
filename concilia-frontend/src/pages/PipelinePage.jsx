@@ -28,7 +28,12 @@ import {
     FaBolt,
 } from 'react-icons/fa';
 import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants/legalCaseStatus';
-import { canAccessCaseCreation, isIndicatorRole } from '../constants/access';
+import {
+    canAccessCaseCreation,
+    isIndicatorRole,
+    normalizeUserRole,
+    USER_ROLES,
+} from '../constants/access';
 import IndicationChecklistModal from '../components/IndicationChecklistModal';
 
 const MAX_API_PAGE_SIZE = 200;
@@ -144,11 +149,31 @@ const PipelinePage = () => {
             ]);
 
             const fetchedLawyers = Array.isArray(lawyersResponse)
-                ? lawyersResponse.filter((lawyer) => lawyer?.status === 'ativo')
+                ? lawyersResponse.filter(
+                    (lawyer) => lawyer?.status === 'ativo'
+                        && normalizeUserRole(lawyer?.role) === USER_ROLES.OPERADOR
+                )
                 : [];
 
             const effectiveFilters = { ...filters };
             const requiresResponsibleFilter = canChooseResponsible;
+
+            const hasValidResponsibleSelected = fetchedLawyers.some(
+                (lawyer) => String(lawyer.id) === String(effectiveFilters.lawyer_id)
+            );
+
+            if (effectiveFilters.lawyer_id && !hasValidResponsibleSelected) {
+                delete effectiveFilters.lawyer_id;
+                setFilters((currentFilters) => {
+                    if (!currentFilters.lawyer_id) {
+                        return currentFilters;
+                    }
+
+                    const nextFilters = { ...currentFilters };
+                    delete nextFilters.lawyer_id;
+                    return nextFilters;
+                });
+            }
 
             if (requiresResponsibleFilter && !effectiveFilters.lawyer_id) {
                 const preferredResponsible =
