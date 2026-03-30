@@ -26,6 +26,7 @@ import {
     FaSignal,
     FaEraser,
     FaBolt,
+    FaTag,
 } from 'react-icons/fa';
 import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants/legalCaseStatus';
 import {
@@ -79,6 +80,7 @@ const PipelinePage = () => {
     const [error, setError] = useState('');
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
+    const [savedTags, setSavedTags] = useState([]);
     
     const [editingCase, setEditingCase] = useState(null);
     const [indicationCase, setIndicationCase] = useState(null);
@@ -88,6 +90,8 @@ const PipelinePage = () => {
 
     const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
     const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
+        || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
     const priorityLabelMap = {
         baixa: 'Prioridade baixa',
         media: 'Prioridade média',
@@ -97,6 +101,7 @@ const PipelinePage = () => {
         selectedClientName ? `Cliente: ${selectedClientName}` : null,
         selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
         filters.priority ? priorityLabelMap[filters.priority] : null,
+        selectedTagName ? `Etiqueta: ${selectedTagName}` : null,
         showDelayedOnly ? 'Apenas atrasados (+5 dias)' : null,
     ].filter(Boolean);
     const activeFilterCount = activeFilterChips.length;
@@ -143,9 +148,10 @@ const PipelinePage = () => {
         if (!token) return;
         setLoading(true);
         try {
-            const [clientsResponse, lawyersResponse] = await Promise.all([
+            const [clientsResponse, lawyersResponse, caseTagsResponse] = await Promise.all([
                 apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
                 fetchAllPaginatedResults('/users', token),
+                apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
             ]);
 
             const fetchedLawyers = Array.isArray(lawyersResponse)
@@ -211,6 +217,7 @@ const PipelinePage = () => {
             setPipelineData(groupedCases);
             setClients(clientsResponse.data);
             setLawyers(fetchedLawyers);
+            setSavedTags(Array.isArray(caseTagsResponse.data) ? caseTagsResponse.data : []);
         } catch (err) {
             console.error("Erro pipeline:", err);
             setError('Não foi possível carregar os dados do pipeline.');
@@ -505,6 +512,25 @@ const PipelinePage = () => {
                             <option value="baixa">Baixa</option>
                             <option value="media">Média</option>
                             <option value="alta">Alta</option>
+                        </select>
+                    </div>
+
+                    <div className={styles.filterField}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaTag />
+                            <span>Etiqueta</span>
+                        </label>
+                        <select
+                            className={styles.filterSelect}
+                            value={filters.tag || ''}
+                            onChange={(e) => handleFilterChange('tag', e.target.value)}
+                        >
+                            <option value="">Todas</option>
+                            {savedTags.map((tag) => (
+                                <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
+                                    {tag.text || tag.name}
+                                </option>
+                            ))}
                         </select>
                     </div>
                 </div>

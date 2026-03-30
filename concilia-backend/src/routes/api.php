@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AggressorLawyerController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CaseHistoryController;
+use App\Http\Controllers\Api\CaseTagController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
@@ -49,6 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::get('/case-tags', [CaseTagController::class, 'index']);
     Route::get('/users/operators', [UserController::class, 'operators']);
     Route::apiResource('users', UserController::class);
     Route::apiResource('clients', ClientController::class);

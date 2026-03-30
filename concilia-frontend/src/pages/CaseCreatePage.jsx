@@ -19,6 +19,7 @@ import {
     SETTLEMENT_BENEFIT_TYPES,
     validateSettlementBenefit
 } from '../constants/settlementBenefit';
+import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
 
 // --- Ícones SVG Inline ---
 const IconArrowLeft = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
@@ -77,6 +78,8 @@ const CaseCreatePage = () => {
     // Tags
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState(availableColors[0]);
+    const [savedTags, setSavedTags] = useState([]);
+    const [selectedSavedTagText, setSelectedSavedTagText] = useState('');
     const [settlementBenefitType, setSettlementBenefitType] = useState(SETTLEMENT_BENEFIT_TYPES.NONE);
 
     // Estado do Formulário
@@ -121,13 +124,14 @@ const CaseCreatePage = () => {
         const fetchDependencies = async () => {
             if (!token) return;
             try {
-                const [clientsRes, usersRes, lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes] = await Promise.all([
+                const [clientsRes, usersRes, lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes, caseTagsRes] = await Promise.all([
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/action-objects', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/plaintiffs', { headers: { Authorization: `Bearer ${token}` } }), // Fetch Autores
-                    apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } })  // Fetch Réus
+                    apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } }),  // Fetch Réus
+                    apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
                 ]);
                 setClients(Array.isArray(clientsRes.data) ? clientsRes.data : []);
                 setLawyers(Array.isArray(usersRes.data?.data) ? usersRes.data.data : []);
@@ -135,6 +139,7 @@ const CaseCreatePage = () => {
                 setActionObjectsList(Array.isArray(actionObjectsRes.data) ? actionObjectsRes.data : []);
                 setPlaintiffsList(Array.isArray(plaintiffsRes.data) ? plaintiffsRes.data : []);
                 setDefendantsList(Array.isArray(defendantsRes.data) ? defendantsRes.data : []);
+                setSavedTags(Array.isArray(caseTagsRes.data) ? caseTagsRes.data : []);
             } catch (error) {
                 console.error("Erro ao carregar listas:", error);
                 setGeneralError("Não foi possível carregar listas. Verifique a conexão.");
@@ -336,12 +341,24 @@ const CaseCreatePage = () => {
 
     const handleAddTag = () => {
         if (newTagText.trim() === '') return;
-        const newTag = { text: newTagText, color: newTagColor };
         setFormData(prevState => ({
           ...prevState,
-          tags: [...(prevState.tags || []), newTag]
+          tags: appendCaseTag(prevState.tags, { text: newTagText, color: newTagColor })
         }));
         setNewTagText('');
+    };
+
+    const handleAddSavedTag = () => {
+        if (!selectedSavedTagText) return;
+
+        const selectedTag = savedTags.find(tag => (tag.text || tag.name) === selectedSavedTagText);
+        if (!selectedTag) return;
+
+        setFormData(prevState => ({
+            ...prevState,
+            tags: appendCaseTag(prevState.tags, selectedTag)
+        }));
+        setSelectedSavedTagText('');
     };
 
     const handleRemoveTag = (indexToRemove) => {
@@ -413,6 +430,7 @@ const CaseCreatePage = () => {
                     ourocap_value: formData.ourocap_value,
                     livelo_points: formData.livelo_points,
                 }),
+                tags: normalizeCaseTags(formData.tags),
                 pcond_probability: formData.pcond_probability ? parseFloat(formData.pcond_probability) : null,
                 updated_condemnation_value: formData.updated_condemnation_value ? parseFloat(formData.updated_condemnation_value) : null,
             };
@@ -815,10 +833,35 @@ const CaseCreatePage = () => {
                 
                 {/* 6. ETIQUETAS (Tags) */}
                 <section className={styles.section}>
-                     <div className={styles.sectionHeader}>
+                    <div className={styles.sectionHeader}>
                         <div className={styles.sectionIcon}><IconChecklist /></div>
                         <h2>Etiquetas</h2>
                     </div>
+
+                    {savedTags.length > 0 && (
+                        <div className={styles.tagCreator}>
+                            <select
+                                className={styles.tagInput}
+                                value={selectedSavedTagText}
+                                onChange={(e) => setSelectedSavedTagText(e.target.value)}
+                            >
+                                <option value="">Replicar etiqueta salva...</option>
+                                {savedTags.map((tag) => (
+                                    <option key={`${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
+                                        {tag.text || tag.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <button
+                                type="button"
+                                className={styles.addButton}
+                                onClick={handleAddSavedTag}
+                                disabled={!selectedSavedTagText}
+                            >
+                                Replicar
+                            </button>
+                        </div>
+                    )}
                     
                     <div className={styles.tagCreator}>
                        <input type="text" className={styles.tagInput} value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nova etiqueta..." />

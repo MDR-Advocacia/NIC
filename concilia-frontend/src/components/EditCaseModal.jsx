@@ -23,6 +23,7 @@ import {
     SETTLEMENT_BENEFIT_TYPES,
     validateSettlementBenefit
 } from '../constants/settlementBenefit';
+import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
 
 // --- Ícones SVG Inline ---
 const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#4299e1'}}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
@@ -210,6 +211,10 @@ const DetailsTab = ({
     setShowDefendantDropdown,
     handleSelectDefendant,
     handleCreateDefendant,
+    savedTags,
+    selectedSavedTagText,
+    setSelectedSavedTagText,
+    handleAddSavedTag,
     settlementBenefitType,
     handleSettlementBenefitTypeChange
 }) => {
@@ -611,6 +616,26 @@ const DetailsTab = ({
                     <button type="button" className={`${styles.priorityButton} ${styles.baixa} ${formData.priority === 'baixa' ? styles.selected : ''}`} onClick={() => handlePriorityChange('baixa')}>Baixa</button>
                 </div>
                 
+                {savedTags.length > 0 && (
+                    <div className={styles.tagCreator} style={{marginTop: '1rem'}}>
+                        <select
+                            className={styles.tagInput}
+                            value={selectedSavedTagText}
+                            onChange={(e) => setSelectedSavedTagText(e.target.value)}
+                        >
+                            <option value="">Replicar etiqueta salva...</option>
+                            {savedTags.map((tag) => (
+                                <option key={`${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
+                                    {tag.text || tag.name}
+                                </option>
+                            ))}
+                        </select>
+                        <button type="button" className={styles.addButton} onClick={handleAddSavedTag} disabled={!selectedSavedTagText}>
+                            Replicar
+                        </button>
+                    </div>
+                )}
+
                 <div className={styles.tagCreator} style={{marginTop: '1rem'}}>
                     <input type="text" className={styles.tagInput} value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nova etiqueta..." />
                     <button type="button" className={styles.addButton} onClick={handleAddTag}>Adicionar</button>
@@ -664,6 +689,8 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     const [activeTab, setActiveTab] = useState('details');
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState('#EF4444');
+    const [savedTags, setSavedTags] = useState([]);
+    const [selectedSavedTagText, setSelectedSavedTagText] = useState('');
     
     // Listas de Dados
     const [opposingLawyersList, setOpposingLawyersList] = useState([]);
@@ -702,16 +729,18 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         const fetchData = async () => {
             if (!token) return;
             try {
-                const [lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes] = await Promise.all([
+                const [lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes, caseTagsRes] = await Promise.all([
                     apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/action-objects', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/plaintiffs', { headers: { Authorization: `Bearer ${token}` } }),
-                    apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } })
+                    apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
                 ]);
                 setOpposingLawyersList(Array.isArray(lawyersRes.data) ? lawyersRes.data : []);
                 setActionObjectsList(Array.isArray(actionObjectsRes.data) ? actionObjectsRes.data : []);
                 setPlaintiffsList(Array.isArray(plaintiffsRes.data) ? plaintiffsRes.data : []);
                 setDefendantsList(Array.isArray(defendantsRes.data) ? defendantsRes.data : []);
+                setSavedTags(Array.isArray(caseTagsRes.data) ? caseTagsRes.data : []);
             } catch (err) {
                 console.error("Erro ao carregar listas de dados:", err);
             }
@@ -733,6 +762,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 ...legalCase,
                 client_id: legalCase.client?.id || '',
                 lawyer_id: legalCase.lawyer?.id || '',
+                tags: normalizeCaseTags(legalCase.tags),
                 
                 internal_number: legalCase.internal_number || '',
                 city: legalCase.city || '',
@@ -763,6 +793,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
             setPlaintiffSearchTerm(getStringValue(legalCase.opposing_party || legalCase.plaintiff));
             setDefendantSearchTerm(getStringValue(legalCase.defendant || legalCase.defendantRel));
             setSettlementBenefitType(getSettlementBenefitType(legalCase));
+            setSelectedSavedTagText('');
             
             setConversation(null);
             setMessages([]);
@@ -892,8 +923,27 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     };
 
     const handlePriorityChange = (priority) => { setFormData(prevState => ({ ...prevState, priority: priority })); };
-    const handleAddTag = () => { if (newTagText.trim() === '') return; const newTag = { text: newTagText, color: newTagColor }; setFormData(prevState => ({ ...prevState, tags: [...(prevState.tags || []), newTag] })); setNewTagText(''); };
+    const handleAddTag = () => {
+        if (newTagText.trim() === '') return;
+        setFormData(prevState => ({
+            ...prevState,
+            tags: appendCaseTag(prevState.tags, { text: newTagText, color: newTagColor }),
+        }));
+        setNewTagText('');
+    };
     const handleRemoveTag = (indexToRemove) => { setFormData(prevState => ({ ...prevState, tags: prevState.tags.filter((_, index) => index !== indexToRemove) })); };
+    const handleAddSavedTag = () => {
+        if (!selectedSavedTagText) return;
+
+        const selectedTag = savedTags.find(tag => (tag.text || tag.name) === selectedSavedTagText);
+        if (!selectedTag) return;
+
+        setFormData(prevState => ({
+            ...prevState,
+            tags: appendCaseTag(prevState.tags, selectedTag),
+        }));
+        setSelectedSavedTagText('');
+    };
     const handleSettlementBenefitTypeChange = (e) => {
         const value = e.target.value;
         setSettlementBenefitType(value);
@@ -923,6 +973,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
 
             const payload = {
                 ...formData,
+                tags: normalizeCaseTags(formData.tags),
                 action_object: (formData.action_object || '').trim(),
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,
                 cause_value: formData.cause_value ? parseFloat(formData.cause_value) : null,
@@ -1020,6 +1071,10 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     setShowDefendantDropdown={setShowDefendantDropdown}
                                     handleSelectDefendant={handleSelectDefendant}
                                     handleCreateDefendant={handleCreateDefendant}
+                                    savedTags={savedTags}
+                                    selectedSavedTagText={selectedSavedTagText}
+                                    setSelectedSavedTagText={setSelectedSavedTagText}
+                                    handleAddSavedTag={handleAddSavedTag}
                                     settlementBenefitType={settlementBenefitType}
                                     handleSettlementBenefitTypeChange={handleSettlementBenefitTypeChange}
                                 />

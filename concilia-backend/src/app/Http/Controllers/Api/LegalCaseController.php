@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Services\AuditService;
 use App\Http\Controllers\Controller;
+use App\Models\CaseTag;
 use App\Models\LegalCase;
 use App\Models\User;
 use App\Models\AuditLog;
@@ -92,6 +93,20 @@ class LegalCaseController extends Controller
             $query->where('priority', $request->input('priority'));
         }
 
+        if ($request->filled('tag')) {
+            $normalizedTag = CaseTag::normalizeTag($request->input('tag'));
+
+            if ($normalizedTag !== null) {
+                $tagName = $normalizedTag['text'];
+
+                $query->where(function ($tagQuery) use ($tagName) {
+                    $tagQuery
+                        ->whereJsonContains('tags', $tagName)
+                        ->orWhereRaw("JSON_SEARCH(tags, 'one', ?, NULL, '$[*].text') IS NOT NULL", [$tagName]);
+                });
+            }
+        }
+
         // --- ORDENAÇÃO DINÂMICA ---
         $sortColumn = $request->input('sort_by', 'id'); // Padrão: ID
         $sortDirection = $request->input('sort_order', 'desc'); // Padrão: Decrescente
@@ -175,6 +190,7 @@ class LegalCaseController extends Controller
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
         $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
+        $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
 
         $validatedData = $request->validate([
             'case_number' => 'required|string|max:255',
@@ -211,6 +227,8 @@ class LegalCaseController extends Controller
             'special_court' => 'nullable|string',
             
             'tags' => 'nullable|array',
+            'tags.*.text' => 'required|string|max:100',
+            'tags.*.color' => 'nullable|string|max:20',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
             'pcond_probability' => 'nullable|numeric|min:0',
             'updated_condemnation_value' => 'nullable|numeric',
@@ -218,6 +236,7 @@ class LegalCaseController extends Controller
         ]);
 
         $case = LegalCase::create($validatedData);
+        $this->syncCaseTagCatalog($validatedData['tags'] ?? []);
 
         // --- NOVO: LOG DE AUDITORIA (BLINDADO) ---
         try {
@@ -273,6 +292,10 @@ class LegalCaseController extends Controller
         $request->merge($this->resolveActionObjectPayload($request->all()));
         $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
 
+        if (array_key_exists('tags', $request->all())) {
+            $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
+        }
+
         // Salva o status ANTIGO para o log de auditoria
         $oldStatus = $case->status;
 
@@ -310,6 +333,8 @@ class LegalCaseController extends Controller
             'opposing_contact' => 'nullable|string|max:255',
             
             'tags' => 'nullable|array',
+            'tags.*.text' => 'required|string|max:100',
+            'tags.*.color' => 'nullable|string|max:20',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
             'pcond_probability' => 'nullable|numeric|min:0',
             'updated_condemnation_value' => 'nullable|numeric',
@@ -318,6 +343,9 @@ class LegalCaseController extends Controller
 
         $originalData = $case->getOriginal();
         $case->update($validatedData);
+        if (array_key_exists('tags', $validatedData)) {
+            $this->syncCaseTagCatalog($validatedData['tags'] ?? []);
+        }
         $changes = $case->getChanges();
 
         // --- SISTEMA DE HISTÓRICO INTERNO DO CASO (Lógica Original Mantida) ---
@@ -1147,16 +1175,22 @@ class LegalCaseController extends Controller
                     break;
 
                 case 'add_tag':
-                    // Loop para manipular JSON com segurança
+                    $normalizedTag = CaseTag::normalizeTag($value);
+                    if ($normalizedTag === null) {
+                        throw new \InvalidArgumentException('Etiqueta inválida para a ação em lote.');
+                    }
+
                     $cases = $query->get();
                     foreach($cases as $case) {
-                        $currentTags = $case->tags ?? [];
-                        if (!in_array($value, $currentTags)) {
-                            $currentTags[] = $value;
-                            $case->update(['tags' => $currentTags]);
+                        $currentTags = CaseTag::normalizeCollection($case->tags ?? []);
+                        $updatedTags = CaseTag::normalizeCollection(array_merge($currentTags, [$normalizedTag]));
+
+                        if ($updatedTags !== $currentTags) {
+                            $case->update(['tags' => $updatedTags]);
                         }
                     }
-                    $logDetails = "Adicionou a tag '{$value}' em {$count} processos";
+                    $this->syncCaseTagCatalog([$normalizedTag]);
+                    $logDetails = "Adicionou a tag '{$normalizedTag['text']}' em {$count} processos";
                     break;
 
                 case 'delete':
@@ -1839,6 +1873,11 @@ class LegalCaseController extends Controller
         }
 
         return 'R$ ' . number_format((float) $value, 2, ',', '.');
+    }
+
+    private function syncCaseTagCatalog(mixed $tags): void
+    {
+        CaseTag::upsertFromCaseTags($tags);
     }
 
     private function legalCasesTableHasIndicatorUserId(): bool
