@@ -254,13 +254,11 @@ select.filterControl {
     border-left: 5px solid var(--accent-primary);
     cursor: pointer;
     transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
-    /* ADICIONADO: Sombra */
     box-shadow: var(--card-shadow);
 }
 
 .kpiCard:hover {
     transform: translateY(-4px);
-    /* ATUALIZADO: Sombra mais pronunciada no hover */
     box-shadow: 0 8px 20px rgba(0,0,0,0.08);
 }
 
@@ -272,9 +270,9 @@ select.filterControl {
 
 .kpiValue {
     margin: 0;
-    font-size: 1.75rem; 
+    font-size: 1.75rem;
     font-weight: bold;
-    word-break: break-all; 
+    word-break: break-all;
     color: var(--text-primary);
 }
 
@@ -335,11 +333,9 @@ select.filterControl {
     background-color: var(--bg-card);
     padding: 1.5rem;
     border-radius: 8px;
-    /* border: 1px solid var(--border-color-light); REMOVIDO */
     display: flex;
     flex-direction: column;
     min-height: 350px;
-    /* ADICIONADO: Sombra */
     box-shadow: var(--card-shadow);
 }
 
@@ -365,8 +361,6 @@ select.filterControl {
     background-color: var(--bg-card);
     padding: 1.5rem;
     border-radius: 8px;
-    /* border: 1px solid var(--border-color-light); REMOVIDO */
-    /* ADICIONADO: Sombra */
     box-shadow: var(--card-shadow);
 }
 
@@ -376,7 +370,6 @@ select.filterControl {
     top: 2rem;
 }
 
-/* Overrides para Layout Unificado */
 .mainContent > .chartsGrid > .chartCard,
 .mainContent > .statusDistribution,
 .mainContent > .recentCases {
@@ -384,7 +377,7 @@ select.filterControl {
     padding: 0;
     border-radius: 0;
     border: none;
-    box-shadow: none; /* REMOVIDO: Sombra dos filhos */
+    box-shadow: none;
     min-height: auto;
 }
 
@@ -398,8 +391,6 @@ select.filterControl {
     color: var(--text-primary);
 }
 
-
-/* Alinha o Título à esquerda e o Botão à direita */
 .sectionHeader {
     display: flex;
     justify-content: space-between;
@@ -407,14 +398,13 @@ select.filterControl {
     margin-bottom: 15px;
 }
 
-/* Estilo do Botão Moderno (Igual ao de Performance) */
 .viewAllBtn {
     background: transparent;
     border: none;
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #63b3ed; /* Azul claro */
+    color: #63b3ed;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -424,7 +414,7 @@ select.filterControl {
 
 .viewAllBtn:hover {
     color: #fff;
-    transform: translateX(4px); /* Animação da setinha */
+    transform: translateX(4px);
 }
 
 @media (max-width: 768px) {

@@ -23,7 +23,7 @@ import {
     FaFlag,
     FaSearch,
     FaEraser,
-} from 'react-icons/fa'; 
+} from 'react-icons/fa';
 import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
 import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
@@ -48,9 +48,8 @@ const INDICATION_KPI_ORDER = [
 ];
 
 const DashboardPage = () => {
-    
     const { token, user } = useAuth();
-    
+
     // LÓGICA DE PERMISSÃO
     const role = user?.role ? user.role.toLowerCase() : '';
     const isManager = role.includes('admin') || role.includes('supervisor') || role.includes('gerente');
@@ -61,7 +60,7 @@ const DashboardPage = () => {
     const [lawyers, setLawyers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    
+
     // Filtros
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -149,18 +148,18 @@ const DashboardPage = () => {
             const params = new URLSearchParams();
             if (filterStartDate) params.append('start_date', filterStartDate);
             if (filterEndDate) params.append('end_date', filterEndDate);
-            
+
             if (isManager) {
                 if (filterClient) params.append('client_id', filterClient);
                 if (filterLawyer) params.append('lawyer_id', filterLawyer);
             }
-            
+
             if (filterStatus) params.append('status', filterStatus);
-            
+
             const response = await apiClient.get(`/dashboard?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             setDashboardData(response.data);
             setCases(response.data.recent_cases || []);
         } catch (err) {
@@ -222,7 +221,7 @@ const DashboardPage = () => {
                 return value;
         }
     };
-    
+
     const kpiTitles = {
         total_original_value: "Total em alçadas",
         total_agreement_value: "Total em valores de acordos",
@@ -270,7 +269,7 @@ const DashboardPage = () => {
 
     return (
         <div className={styles.dashboardContainer}>
-            
+
             {/* 1. FILTROS (Gestor) */}
             {isManager && (
                 <section className={styles.filters}>
@@ -422,13 +421,13 @@ const DashboardPage = () => {
             )}
 
             {/* LAYOUT FLUIDO */}
-            <div 
+            <div
                 className={styles.dashboardGrid}
                 style={!isManager ? { display: 'flex', justifyContent: 'center' } : {}}
             >
-                <div 
-                    className={styles.mainContent} 
-                    style={{ 
+                <div
+                    className={styles.mainContent}
+                    style={{
                         width: isManager ? 'auto' : '100%',
                         maxWidth: isManager ? 'none' : '1200px'
                     }}
@@ -444,8 +443,8 @@ const DashboardPage = () => {
                         <div className={styles.chartCard}>
                             <h3>Distribuição de Status (Visão Geral)</h3>
                             {dashboardData && dashboardData.status_distribution ? (
-                                <StatusDistributionChart 
-                                    data={dashboardData.status_distribution} 
+                                <StatusDistributionChart
+                                    data={dashboardData.status_distribution}
                                     onStageClick={handleChartClick}
                                 />
                             ) : <p>Não há dados de distribuição para exibir.</p>}
@@ -455,20 +454,18 @@ const DashboardPage = () => {
                     <div className={styles.statusDistribution}>
                         <h3>Distribuição por Etapa do Processo</h3>
                         {dashboardData && dashboardData.status_distribution ? (
-                            <ProcessStageChart 
-                                data={dashboardData.status_distribution} 
+                            <ProcessStageChart
+                                data={dashboardData.status_distribution}
                                 onStageClick={handleChartClick}
                             />
                         ) : <p>Não há dados de distribuição para exibir.</p>}
                     </div>
 
-                    {/* --- AQUI ESTÁ A MUDANÇA FORÇADA DO BOTÃO --- */}
                     <div className={styles.recentCases}>
-                        {/* Header flexível */}
-                        <div style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center', 
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
                             marginBottom: '15px',
                             borderBottom: '1px solid #2d3748',
                             paddingBottom: '10px'
@@ -476,13 +473,12 @@ const DashboardPage = () => {
                             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <FaBriefcase color="#A0AEC0" size={18} /> Casos Recentes
                             </h3>
-                            
-                            {/* ESTRATÉGIA NOVA: Botão dentro do Link */}
+
                             <Link to="/cases" style={{ textDecoration: 'none' }}>
-                                <button 
+                                <button
                                     style={{
                                         background: 'transparent',
-                                        border: '1px solid transparent', // Borda transparente para manter tamanho
+                                        border: '1px solid transparent',
                                         cursor: 'pointer',
                                         fontSize: '0.85rem',
                                         fontWeight: '600',
@@ -494,7 +490,6 @@ const DashboardPage = () => {
                                         borderRadius: '6px',
                                         transition: 'all 0.2s ease-in-out'
                                     }}
-                                    // Hover via JS direto no elemento button
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.backgroundColor = 'rgba(99, 179, 237, 0.1)';
                                         e.currentTarget.style.color = '#ffffff';
@@ -520,7 +515,7 @@ const DashboardPage = () => {
                     <div className={styles.rightSidebar}>
                         <div className={styles.chartCard}>
                             <h3><FaTrophy /> Performance da Equipe</h3>
-                            <TeamPerformancePanel 
+                            <TeamPerformancePanel
                                 data={dashboardData?.team_performance || []}
                                 onOpenModal={() => setIsPerformanceModalOpen(true)}
                                 onViewDetails={handleOpenDetailModal}
@@ -534,7 +529,7 @@ const DashboardPage = () => {
                 isOpen={isPerformanceModalOpen}
                 onClose={() => setIsPerformanceModalOpen(false)}
                 onViewDetails={handleOpenDetailModal}
-                data={dashboardData?.team_performance || []} 
+                data={dashboardData?.team_performance || []}
             />
             <LawyerDetailModal
                 isOpen={isDetailModalOpen}
