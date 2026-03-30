@@ -17,6 +17,21 @@ import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
 import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 
+const GENERAL_KPI_ORDER = [
+    'total_cases',
+    'active_cases',
+    'total_original_value',
+    'total_agreement_value',
+    'total_economy',
+    'conversion_rate',
+];
+
+const INDICATION_KPI_ORDER = [
+    'indications_received',
+    'agreements_via_indication',
+    'indication_flow_conversion_rate',
+];
+
 const DashboardPage = () => {
     
     const { token, user } = useAuth();
@@ -111,6 +126,7 @@ const DashboardPage = () => {
             case 'total_economy':
                 return formatCurrency(value);
             case 'conversion_rate':
+            case 'indication_flow_conversion_rate':
                 return `${parseFloat(value || 0).toFixed(2)}%`;
             default:
                 return value;
@@ -123,7 +139,36 @@ const DashboardPage = () => {
         total_economy: "Economia gerada",
         total_cases: "Casos Totais",
         active_cases: "Casos Ativos",
-        conversion_rate: "Taxa de Conversão"
+        conversion_rate: "Taxa de Conversão",
+        indications_received: "Indicações Recebidas",
+        agreements_via_indication: "Acordos via Indicação",
+        indication_flow_conversion_rate: "Taxa de Conversão do Fluxo"
+    };
+
+    const renderKpiGrid = (data, order) => {
+        if (!data) {
+            return <p>Não há dados de KPI para exibir.</p>;
+        }
+
+        const entries = order
+            .filter((key) => Object.prototype.hasOwnProperty.call(data, key))
+            .map((key) => [key, data[key]]);
+
+        if (entries.length === 0) {
+            return <p>Não há dados de KPI para exibir.</p>;
+        }
+
+        return (
+            <div className={styles.kpiGrid}>
+                {entries.map(([key, value]) => (
+                    <KpiCard
+                        key={key}
+                        title={kpiTitles[key] || key}
+                        value={formatKpiValue(key, value)}
+                    />
+                ))}
+            </div>
+        );
     };
 
     if (loading) return <p>Carregando dashboard...</p>;
@@ -164,16 +209,22 @@ const DashboardPage = () => {
 
             {/* 2. KPIs (Gestor) */}
             {isManager && (
-                <div className={styles.kpiGrid}>
-                    {dashboardData && dashboardData.kpis ? (
-                        Object.entries(dashboardData.kpis).map(([key, value]) => (
-                            <KpiCard
-                                key={key}
-                                title={kpiTitles[key] || key}
-                                value={formatKpiValue(key, value)}
-                            />
-                        ))
-                    ) : <p>Não há dados de KPI para exibir.</p>}
+                <div className={styles.kpiSections}>
+                    <section className={styles.kpiSection}>
+                        <div className={styles.kpiSectionHeader}>
+                            <h3 className={styles.kpiSectionTitle}>Visão Geral de Acordos</h3>
+                            <p className={styles.kpiSectionSubtitle}>Indicadores dos casos com alçada na gestão de casos.</p>
+                        </div>
+                        {renderKpiGrid(dashboardData?.kpis, GENERAL_KPI_ORDER)}
+                    </section>
+
+                    <section className={styles.kpiSection}>
+                        <div className={styles.kpiSectionHeader}>
+                            <h3 className={styles.kpiSectionTitle}>Fluxo de Indicação</h3>
+                            <p className={styles.kpiSectionSubtitle}>Acompanhamento separado dos casos que vieram de indicação.</p>
+                        </div>
+                        {renderKpiGrid(dashboardData?.indication_metrics, INDICATION_KPI_ORDER)}
+                    </section>
                 </div>
             )}
 

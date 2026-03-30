@@ -54,6 +54,23 @@ class DashboardController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
+        $indicationCasesQuery = clone $baseCasesQuery;
+        $this->applyIndicationFilter($indicationCasesQuery);
+
+        $indicationKpiRow = $indicationCasesQuery
+            ->selectRaw('COUNT(*) as indications_received')
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as agreements_via_indication',
+                [LegalCase::STATUS_CLOSED_DEAL]
+            )
+            ->first();
+
+        $indicationsReceived = (int) ($indicationKpiRow->indications_received ?? 0);
+        $agreementsViaIndication = (int) ($indicationKpiRow->agreements_via_indication ?? 0);
+        $indicationFlowConversionRate = $indicationsReceived > 0
+            ? ($agreementsViaIndication / $indicationsReceived) * 100
+            : 0;
+
         $recentCases = (clone $baseCasesQuery)
             ->with([
                 'client:id,name',
@@ -83,6 +100,11 @@ class DashboardController extends Controller
                 'total_original_value' => (float) ($kpiRow->total_original_value ?? 0),
                 'total_economy' => (float) ($kpiRow->total_economy ?? 0),
                 'conversion_rate' => number_format($conversionRate, 1),
+            ],
+            'indication_metrics' => [
+                'indications_received' => $indicationsReceived,
+                'agreements_via_indication' => $agreementsViaIndication,
+                'indication_flow_conversion_rate' => number_format($indicationFlowConversionRate, 1),
             ],
             'status_distribution' => [
                 LegalCase::STATUS_INITIAL_ANALYSIS => (int) ($statusCounts[LegalCase::STATUS_INITIAL_ANALYSIS] ?? 0),
@@ -276,6 +298,11 @@ class DashboardController extends Controller
         if ($dateRange['end'] instanceof Carbon) {
             $join->where("{$table}.{$dateColumn}", '<=', $dateRange['end']);
         }
+    }
+
+    private function applyIndicationFilter(Builder $query): void
+    {
+        $query->whereRaw("JSON_EXTRACT(agreement_checklist_data, '$.indication_checklist') IS NOT NULL");
     }
 
     private function resolveDateRange(Request $request): array
