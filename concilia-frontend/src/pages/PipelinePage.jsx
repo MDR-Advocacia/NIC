@@ -18,7 +18,15 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
-import { FaExclamationTriangle } from 'react-icons/fa';
+import {
+    FaExclamationTriangle,
+    FaSlidersH,
+    FaBuilding,
+    FaUserTie,
+    FaSignal,
+    FaEraser,
+    FaBolt,
+} from 'react-icons/fa';
 import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants/legalCaseStatus';
 import { canAccessCaseCreation, isIndicatorRole } from '../constants/access';
 import IndicationChecklistModal from '../components/IndicationChecklistModal';
@@ -59,6 +67,7 @@ const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
 const PipelinePage = () => {
     const { token, user } = useAuth();
     const isIndicator = isIndicatorRole(user?.role);
+    const canChooseResponsible = ['administrador', 'supervisor'].includes(user?.role);
 
     const [pipelineData, setPipelineData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -71,6 +80,21 @@ const PipelinePage = () => {
     const [filters, setFilters] = useState({});
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
     const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
+
+    const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
+    const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const priorityLabelMap = {
+        baixa: 'Prioridade baixa',
+        media: 'Prioridade média',
+        alta: 'Prioridade alta',
+    };
+    const activeFilterChips = [
+        selectedClientName ? `Cliente: ${selectedClientName}` : null,
+        selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
+        filters.priority ? priorityLabelMap[filters.priority] : null,
+        showDelayedOnly ? 'Apenas atrasados (+5 dias)' : null,
+    ].filter(Boolean);
+    const activeFilterCount = activeFilterChips.length;
 
     const handleOpenEditModal = (caseToEdit) => {
         if (isIndicator) {
@@ -124,7 +148,7 @@ const PipelinePage = () => {
                 : [];
 
             const effectiveFilters = { ...filters };
-            const requiresResponsibleFilter = ['administrador', 'supervisor'].includes(user?.role);
+            const requiresResponsibleFilter = canChooseResponsible;
 
             if (requiresResponsibleFilter && !effectiveFilters.lawyer_id) {
                 const preferredResponsible =
@@ -367,6 +391,11 @@ const PipelinePage = () => {
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleClearFilters = () => {
+        setFilters({});
+        setShowDelayedOnly(false);
+    };
+
     if (loading && !pipelineData) return <p>Carregando pipeline...</p>;
     if (error) return <p style={{ color: 'red' }}>{error}</p>;
 
@@ -383,43 +412,118 @@ const PipelinePage = () => {
                 </div>
             </div>
 
-            <div className={styles.filterBar}>
-                <div className={styles.filterGroup}>
-                    <label>Cliente</label>
-                    <select className={styles.filterSelect} value={filters.client_id || ''} onChange={(e) => handleFilterChange('client_id', e.target.value)}>
-                        <option value="">Todos</option>
-                        {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
-                    </select>
-                </div>
-                
-                {['administrador', 'supervisor'].includes(user?.role) && (
-                    <div className={styles.filterGroup}>
-                        <label>Responsável do Caso</label>
-                        <select className={styles.filterSelect} value={filters.lawyer_id || ''} onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}>
-                            <option value="" disabled>Selecione um responsável</option>
-                            {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
-                        </select>
+            <section className={styles.filterPanel}>
+                <div className={styles.filterPanelHeader}>
+                    <div className={styles.filterPanelTitleGroup}>
+                        <div className={styles.filterPanelIcon}>
+                            <FaSlidersH />
+                        </div>
+                        <div>
+                            <h2 className={styles.filterPanelTitle}>Filtros do Pipeline</h2>
+                            <p className={styles.filterPanelSubtitle}>
+                                Refine os cards por cliente, responsável, prioridade e destaque rapidamente os casos parados.
+                            </p>
+                        </div>
                     </div>
-                )}
-                
-                <div className={styles.filterGroup}>
-                    <label>Prioridade</label>
-                    <select className={styles.filterSelect} value={filters.priority || ''} onChange={(e) => handleFilterChange('priority', e.target.value)}>
-                        <option value="">Todas</option>
-                        <option value="baixa">Baixa</option>
-                        <option value="media">Média</option>
-                        <option value="alta">Alta</option>
-                    </select>
+
+                    <div className={styles.filterPanelMeta}>
+                        <strong>{activeFilterCount}</strong>
+                        <span>{activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}</span>
+                        <small><FaBolt /> Atualização automática</small>
+                    </div>
                 </div>
 
-                <button 
-                    className={`${styles.delayedFilterButton} ${showDelayedOnly ? styles.active : ''}`}
-                    onClick={() => setShowDelayedOnly(!showDelayedOnly)}
-                    title="Mostrar apenas casos parados há mais de 5 dias"
-                >
-                    <FaExclamationTriangle /> {showDelayedOnly ? 'Mostrando Atrasados' : 'Ver Atrasados'}
-                </button>
-            </div>
+                <div className={styles.filterGrid}>
+                    <div className={styles.filterField}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaBuilding />
+                            <span>Cliente</span>
+                        </label>
+                        <select
+                            className={styles.filterSelect}
+                            value={filters.client_id || ''}
+                            onChange={(e) => handleFilterChange('client_id', e.target.value)}
+                        >
+                            <option value="">Todos</option>
+                            {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                        </select>
+                    </div>
+                    
+                    {canChooseResponsible && (
+                        <div className={styles.filterField}>
+                            <label className={styles.filterFieldLabel}>
+                                <FaUserTie />
+                                <span>Responsável do Caso</span>
+                            </label>
+                            <select
+                                className={styles.filterSelect}
+                                value={filters.lawyer_id || ''}
+                                onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}
+                            >
+                                <option value="" disabled>Selecione um responsável</option>
+                                {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
+                            </select>
+                        </div>
+                    )}
+                    
+                    <div className={styles.filterField}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaSignal />
+                            <span>Prioridade</span>
+                        </label>
+                        <select
+                            className={styles.filterSelect}
+                            value={filters.priority || ''}
+                            onChange={(e) => handleFilterChange('priority', e.target.value)}
+                        >
+                            <option value="">Todas</option>
+                            <option value="baixa">Baixa</option>
+                            <option value="media">Média</option>
+                            <option value="alta">Alta</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className={styles.filterPanelFooter}>
+                    <div className={styles.filterSummary}>
+                        {activeFilterChips.length > 0 ? (
+                            activeFilterChips.map((chip) => (
+                                <span
+                                    key={chip}
+                                    className={`${styles.filterChip} ${chip.includes('Atrasados') || chip.includes('atrasados') ? styles.filterChipAlert : ''}`}
+                                >
+                                    {chip}
+                                </span>
+                            ))
+                        ) : (
+                            <span className={styles.filterHint}>
+                                Sem filtros ativos. O pipeline está exibindo a visão completa disponível para o seu perfil.
+                            </span>
+                        )}
+                    </div>
+
+                    <div className={styles.filterActions}>
+                        <button
+                            type="button"
+                            className={styles.clearFilterButton}
+                            onClick={handleClearFilters}
+                            disabled={activeFilterCount === 0}
+                        >
+                            <FaEraser />
+                            Limpar
+                        </button>
+                        <button 
+                            type="button"
+                            className={`${styles.delayedFilterButton} ${showDelayedOnly ? styles.active : ''}`}
+                            onClick={() => setShowDelayedOnly(!showDelayedOnly)}
+                            title="Mostrar apenas casos parados há mais de 5 dias"
+                        >
+                            <FaExclamationTriangle />
+                            {showDelayedOnly ? 'Mostrando atrasados' : 'Ver atrasados'}
+                        </button>
+                    </div>
+                </div>
+            </section>
 
             {isIndicator && (
                 <div style={{

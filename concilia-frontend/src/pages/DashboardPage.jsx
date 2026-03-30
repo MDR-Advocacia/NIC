@@ -12,7 +12,18 @@ import TeamPerformancePanel from '../components/TeamPerformancePanel';
 import TeamPerformanceModal from '../components/TeamPerformanceModal';
 import LawyerDetailModal from '../components/LawyerDetailModal';
 import CasesListModal from '../components/CasesListModal';
-import { FaTrophy, FaArrowRight, FaBriefcase } from 'react-icons/fa'; 
+import {
+    FaTrophy,
+    FaArrowRight,
+    FaBriefcase,
+    FaSlidersH,
+    FaCalendarAlt,
+    FaBuilding,
+    FaUserTie,
+    FaFlag,
+    FaSearch,
+    FaEraser,
+} from 'react-icons/fa'; 
 import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
 import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
@@ -66,35 +77,85 @@ const DashboardPage = () => {
     const [modalStatusKey, setModalStatusKey] = useState(null);
     const [modalStatusName, setModalStatusName] = useState('');
 
+    const activeFilterCount = [startDate, endDate, selectedClient, selectedLawyer, selectedStatus]
+        .filter(Boolean)
+        .length;
+
+    const formatFilterDate = (value) => {
+        if (!value) {
+            return '';
+        }
+
+        const parsedDate = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(parsedDate.getTime())) {
+            return value;
+        }
+
+        return new Intl.DateTimeFormat('pt-BR').format(parsedDate);
+    };
+
+    const selectedClientName = clients.find((client) => String(client.id) === String(selectedClient))?.name;
+    const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(selectedLawyer))?.name;
+    const selectedStatusName = LEGAL_CASE_STATUS_OPTIONS.find((statusOption) => statusOption.value === selectedStatus)?.name;
+
+    const activeFilterChips = [
+        startDate ? `A partir de ${formatFilterDate(startDate)}` : null,
+        endDate ? `Até ${formatFilterDate(endDate)}` : null,
+        selectedClientName ? `Cliente: ${selectedClientName}` : null,
+        selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
+        selectedStatusName ? `Status: ${selectedStatusName}` : null,
+    ].filter(Boolean);
+
     const handleOpenDetailModal = (lawyer) => {
         setSelectedLawyerForDetail(lawyer);
         setIsDetailModalOpen(true);
     };
 
-    const handleApplyFilters = useCallback(async () => {
+    const loadFilterOptions = useCallback(async () => {
+        if (!token || !isManager) {
+            setClients([]);
+            setLawyers([]);
+            return;
+        }
+
+        try {
+            const [clientsResponse, lawyersResponse] = await Promise.all([
+                apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
+                apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
+            ]);
+
+            setClients(clientsResponse.data);
+            setLawyers(lawyersResponse.data.data || []);
+        } catch (err) {
+            console.error('Erro ao carregar opções de filtro:', err);
+            setClients([]);
+            setLawyers([]);
+        }
+    }, [token, isManager]);
+
+    const fetchDashboardData = useCallback(async ({
+        startDate: filterStartDate = '',
+        endDate: filterEndDate = '',
+        selectedClient: filterClient = '',
+        selectedLawyer: filterLawyer = '',
+        selectedStatus: filterStatus = '',
+    } = {}) => {
         if (!token) return;
+
         setLoading(true);
         setError('');
+
         try {
-            if (isManager) {
-                const [clientsResponse, lawyersResponse] = await Promise.all([
-                    apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
-                    apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
-                ]);
-                setClients(clientsResponse.data);
-                setLawyers(lawyersResponse.data.data || []);
-            }
-            
             const params = new URLSearchParams();
-            if (startDate) params.append('start_date', startDate);
-            if (endDate) params.append('end_date', endDate);
+            if (filterStartDate) params.append('start_date', filterStartDate);
+            if (filterEndDate) params.append('end_date', filterEndDate);
             
             if (isManager) {
-                if (selectedClient) params.append('client_id', selectedClient);
-                if (selectedLawyer) params.append('lawyer_id', selectedLawyer);
+                if (filterClient) params.append('client_id', filterClient);
+                if (filterLawyer) params.append('lawyer_id', filterLawyer);
             }
             
-            if (selectedStatus) params.append('status', selectedStatus);
+            if (filterStatus) params.append('status', filterStatus);
             
             const response = await apiClient.get(`/dashboard?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -108,13 +169,37 @@ const DashboardPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, startDate, endDate, selectedClient, selectedLawyer, selectedStatus, isManager]);
+    }, [token, isManager]);
+
+    const handleApplyFilters = useCallback(() => {
+        fetchDashboardData({
+            startDate,
+            endDate,
+            selectedClient,
+            selectedLawyer,
+            selectedStatus,
+        });
+    }, [fetchDashboardData, startDate, endDate, selectedClient, selectedLawyer, selectedStatus]);
+
+    const handleResetFilters = useCallback(() => {
+        setStartDate('');
+        setEndDate('');
+        setSelectedClient('');
+        setSelectedLawyer('');
+        setSelectedStatus('');
+        fetchDashboardData();
+    }, [fetchDashboardData]);
 
     useEffect(() => {
         if (token) {
-            handleApplyFilters();
+            if (isManager) {
+                Promise.all([loadFilterOptions(), fetchDashboardData()]);
+                return;
+            }
+
+            fetchDashboardData();
         }
-    }, [token, handleApplyFilters]);
+    }, [token, isManager, loadFilterOptions, fetchDashboardData]);
 
     const handleChartClick = (statusKey, statusName) => {
         setModalStatusKey(statusKey);
@@ -188,32 +273,131 @@ const DashboardPage = () => {
             
             {/* 1. FILTROS (Gestor) */}
             {isManager && (
-                <div className={styles.filters}>
-                    <label>Data Início:</label>
-                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                    <label>Data Fim:</label>
-                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                    <label>Cliente:</label>
-                    <select value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
-                        <option value="">Todos</option>
-                        {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
-                    </select>
-                    <label>Advogado:</label>
-                    <select value={selectedLawyer} onChange={(e) => setSelectedLawyer(e.target.value)}>
-                        <option value="">Todos</option>
-                        {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
-                    </select>
-                    <label>Status:</label>
-                    <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
-                        <option value="">Todos</option>
-                        {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
-                            <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
-                        ))}
-                    </select>
-                    <button onClick={handleApplyFilters} className={styles.filterButton}>
-                        Aplicar Filtros
-                    </button>
-                </div>
+                <section className={styles.filters}>
+                    <div className={styles.filtersHeader}>
+                        <div className={styles.filtersTitleGroup}>
+                            <div className={styles.filtersIconBadge}>
+                                <FaSlidersH />
+                            </div>
+                            <div>
+                                <h2 className={styles.filtersTitle}>Filtros do Dashboard</h2>
+                                <p className={styles.filtersSubtitle}>
+                                    Ajuste a leitura dos indicadores por período, cliente, responsável e etapa do caso.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className={styles.filtersCounter}>
+                            <strong>{activeFilterCount}</strong>
+                            <span>{activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}</span>
+                        </div>
+                    </div>
+
+                    <div className={styles.filtersGrid}>
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaCalendarAlt />
+                                <span>Data inicial</span>
+                            </label>
+                            <input
+                                className={styles.filterControl}
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaCalendarAlt />
+                                <span>Data final</span>
+                            </label>
+                            <input
+                                className={styles.filterControl}
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaBuilding />
+                                <span>Cliente</span>
+                            </label>
+                            <select
+                                className={styles.filterControl}
+                                value={selectedClient}
+                                onChange={(e) => setSelectedClient(e.target.value)}
+                            >
+                                <option value="">Todos</option>
+                                {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaUserTie />
+                                <span>Responsável</span>
+                            </label>
+                            <select
+                                className={styles.filterControl}
+                                value={selectedLawyer}
+                                onChange={(e) => setSelectedLawyer(e.target.value)}
+                            >
+                                <option value="">Todos</option>
+                                {lawyers.map((lawyer) => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaFlag />
+                                <span>Status</span>
+                            </label>
+                            <select
+                                className={styles.filterControl}
+                                value={selectedStatus}
+                                onChange={(e) => setSelectedStatus(e.target.value)}
+                            >
+                                <option value="">Todos</option>
+                                {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
+                                    <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className={styles.filtersFooter}>
+                        <div className={styles.filtersSummary}>
+                            {activeFilterChips.length > 0 ? (
+                                activeFilterChips.map((chip) => (
+                                    <span key={chip} className={styles.filterChip}>{chip}</span>
+                                ))
+                            ) : (
+                                <span className={styles.filtersHint}>
+                                    Sem filtros aplicados. Exibindo a visão geral do dashboard.
+                                </span>
+                            )}
+                        </div>
+
+                        <div className={styles.filterActions}>
+                            <button
+                                type="button"
+                                onClick={handleResetFilters}
+                                className={styles.clearFilterButton}
+                                disabled={activeFilterCount === 0}
+                            >
+                                <FaEraser />
+                                Limpar
+                            </button>
+                            <button type="button" onClick={handleApplyFilters} className={styles.filterButton}>
+                                <FaSearch />
+                                Atualizar painel
+                            </button>
+                        </div>
+                    </div>
+                </section>
             )}
 
             {/* 2. KPIs (Gestor) */}
