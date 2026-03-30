@@ -416,38 +416,206 @@
     border-radius: 4px;
 }
 
-.filterBar {
+.filterPanel {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  padding: 1rem;
-  background-color: var(--bg-card);
+  flex-direction: column;
+  gap: 1.2rem;
+  padding: 1.4rem;
+  border-radius: 24px;
   border: 1px solid var(--border-color-light);
+  background:
+    radial-gradient(circle at top right, rgba(99, 179, 237, 0.16), transparent 30%),
+    var(--bg-card);
   box-shadow: var(--card-shadow);
-  border-radius: 8px;
   margin-bottom: 1rem;
 }
 
-.filterGroup {
+.filterPanelHeader {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
-.filterGroup label {
-  font-size: 0.75rem;
+.filterPanelTitleGroup {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex: 1;
+  min-width: 260px;
+}
+
+.filterPanelIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--text-on-accent);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
+  box-shadow: 0 14px 28px rgba(49, 130, 206, 0.22);
+}
+
+.filterPanelTitle {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.filterPanelSubtitle {
+  margin: 0.35rem 0 0;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-size: 0.94rem;
+  line-height: 1.5;
+  max-width: 58ch;
+}
+
+.filterPanelMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 150px;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--border-color-light);
+  background: var(--bg-input);
+}
+
+.filterPanelMeta strong {
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.filterPanelMeta span,
+.filterPanelMeta small {
+  color: var(--text-secondary);
+}
+
+.filterPanelMeta small {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+}
+
+.filterGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.filterFieldLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.filterFieldLabel svg {
+  color: var(--accent-primary);
+  font-size: 0.9rem;
 }
 
 .filterSelect {
-  padding: 0.5rem;
-  border-radius: 5px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 48px;
+  padding: 0.85rem 1rem;
+  padding-right: 2.8rem;
+  border-radius: 14px;
   border: 1px solid var(--border-color-dark);
   background-color: var(--bg-input);
   color: var(--text-primary);
-  min-width: 150px;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+    linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 3px),
+    calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.filterSelect:hover {
+  border-color: var(--accent-primary);
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 4px rgba(49, 130, 206, 0.12);
+  transform: translateY(-1px);
+}
+
+.filterPanelFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border-color-light);
+}
+
+.filterSummary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  flex: 1;
+  min-height: 44px;
+  min-width: 0;
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(99, 179, 237, 0.1);
+  border: 1px solid rgba(99, 179, 237, 0.18);
+  color: var(--accent-primary);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.filterChipAlert {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #dc2626;
+}
+
+.filterHint {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.filterActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .headerActions {
@@ -471,30 +639,59 @@
 
 /* --- BOTÃO DE FILTRO DE ATRASO --- */
 .delayedFilterButton {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 5px;
-    border: 1px solid #ef4444; /* Borda vermelha */
-    background-color: transparent;
-    color: #ef4444; /* Texto vermelho */
-    font-weight: bold;
+    min-height: 46px;
+    padding: 0 1rem;
+    border-radius: 14px;
+    border: 1px solid rgba(239, 68, 68, 0.28);
+    background-color: rgba(239, 68, 68, 0.08);
+    color: #dc2626;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s;
-    margin-left: auto; /* Empurra para a direita */
+    transition: all 0.2s ease-out;
 }
 
 .delayedFilterButton.active {
-    background-color: #ef4444; /* Fundo vermelho quando ativo */
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border-color: transparent;
     color: white;
+    box-shadow: 0 16px 28px rgba(239, 68, 68, 0.22);
 }
 
 .delayedFilterButton:hover {
-    background-color: rgba(239, 68, 68, 0.1);
+    transform: translateY(-1px);
+    background-color: rgba(239, 68, 68, 0.14);
 }
 .delayedFilterButton.active:hover {
-    background-color: #dc2626; /* Vermelho mais escuro no hover */
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
+
+.clearFilterButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 46px;
+    padding: 0 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--border-color-dark);
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease-out;
+}
+
+.clearFilterButton:hover:not(:disabled) {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    transform: translateY(-1px);
+}
+
+.clearFilterButton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
 }
 /* --- FIM DO NOVO ESTILO --- */
 
@@ -635,18 +832,34 @@
     gap: 1rem;
   }
 
-  .filterGroup {
+  .filterPanel {
+    padding: 1.1rem;
+    border-radius: 20px;
+  }
+
+  .filterPanelTitleGroup {
+    min-width: 100%;
+  }
+
+  .filterPanelMeta {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .filterGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .filterPanelFooter {
+    align-items: stretch;
+  }
+
+  .filterActions {
     width: 100%;
   }
 
-  .filterSelect {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .delayedFilterButton {
-    margin-left: 0;
-    width: 100%;
+  .filterActions button {
+    flex: 1;
     justify-content: center;
   }
 

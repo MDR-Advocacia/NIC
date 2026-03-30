@@ -6,6 +6,15 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
+import {
+    LIVELO_MIN_POINTS,
+    getSettlementBenefitType,
+    normalizeSettlementBenefitPayload,
+    OUROCAP_MIN_VALUE,
+    SETTLEMENT_BENEFIT_OPTIONS,
+    SETTLEMENT_BENEFIT_TYPES,
+    validateSettlementBenefit
+} from '../constants/settlementBenefit';
 
 // --- ESTILOS INLINE (Para garantir visual sem depender de CSS externo) ---
 const cardStyle = {
@@ -112,9 +121,12 @@ const CaseEditPage = () => {
       opposing_party: '',
       description: '',
       cause_value: '',
+      ourocap_value: '',
+      livelo_points: '',
       status: 'initial_analysis',
       agreement_checklist_data: {}
   });
+  const [settlementBenefitType, setSettlementBenefitType] = useState(SETTLEMENT_BENEFIT_TYPES.NONE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -139,6 +151,8 @@ const CaseEditPage = () => {
             opposing_party: (typeof data.opposing_party === 'object') 
                 ? (data.opposing_party.name || data.opposing_party.nome || '') 
                 : (data.opposing_party || ''),
+            ourocap_value: data.ourocap_value || '',
+            livelo_points: data.livelo_points || '',
             // Garante objeto para checklist
             agreement_checklist_data: (typeof data.agreement_checklist_data === 'string')
                 ? JSON.parse(data.agreement_checklist_data || '{}')
@@ -146,6 +160,7 @@ const CaseEditPage = () => {
         };
 
         setFormData(safeData);
+        setSettlementBenefitType(getSettlementBenefitType(safeData));
       } catch (err) {
         console.error("Erro ao carregar:", err);
         setError('Erro ao carregar dados. Verifique sua conexão.');
@@ -161,6 +176,16 @@ const CaseEditPage = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleSettlementBenefitTypeChange = (e) => {
+    const value = e.target.value;
+    setSettlementBenefitType(value);
+    setFormData(prev => ({
+      ...prev,
+      ourocap_value: value === SETTLEMENT_BENEFIT_TYPES.OUROCAP ? prev.ourocap_value : '',
+      livelo_points: value === SETTLEMENT_BENEFIT_TYPES.LIVELO ? prev.livelo_points : '',
+    }));
+  };
+
   const handleChecklistUpdate = (newChecklistData) => {
       setFormData(prev => ({
           ...prev,
@@ -172,9 +197,26 @@ const CaseEditPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
+      const settlementBenefitError = validateSettlementBenefit({
+        settlementBenefitType,
+        ourocap_value: formData.ourocap_value,
+        livelo_points: formData.livelo_points,
+      });
+
+      if (settlementBenefitError) {
+        setError(settlementBenefitError);
+        setLoading(false);
+        return;
+      }
+
       const dataToSubmit = { 
         ...formData, 
-        client_id: formData.client?.id || formData.client_id 
+        client_id: formData.client?.id || formData.client_id,
+        ...normalizeSettlementBenefitPayload({
+            settlementBenefitType,
+            ourocap_value: formData.ourocap_value,
+            livelo_points: formData.livelo_points,
+        }),
       };
 
       await apiClient.put(
@@ -257,6 +299,46 @@ const CaseEditPage = () => {
                         ))}
                     </select>
                 </div>
+                <div>
+                    <label style={{ fontWeight: 'bold' }}>Benefício Complementar:</label>
+                    <select
+                        value={settlementBenefitType}
+                        onChange={handleSettlementBenefitTypeChange}
+                        style={{...inputStyle, backgroundColor: '#fff'}}
+                    >
+                        {SETTLEMENT_BENEFIT_OPTIONS.map((option) => (
+                            <option key={option.value || 'none'} value={option.value}>{option.label}</option>
+                        ))}
+                    </select>
+                </div>
+                {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
+                    <div>
+                        <label style={{ fontWeight: 'bold' }}>Valor Ourocap (mínimo R$ 500,00):</label>
+                        <input
+                            type="number"
+                            name="ourocap_value"
+                            value={formData.ourocap_value || ''}
+                            onChange={handleChange}
+                            step="0.01"
+                            min={OUROCAP_MIN_VALUE}
+                            style={inputStyle}
+                        />
+                    </div>
+                )}
+                {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
+                    <div>
+                        <label style={{ fontWeight: 'bold' }}>Pontos Livelo (mínimo 5.000):</label>
+                        <input
+                            type="number"
+                            name="livelo_points"
+                            value={formData.livelo_points || ''}
+                            onChange={handleChange}
+                            step="1"
+                            min={LIVELO_MIN_POINTS}
+                            style={inputStyle}
+                        />
+                    </div>
+                )}
             </div>
         </div>
 

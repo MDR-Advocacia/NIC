@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Services\AuditService;
 use App\Http\Controllers\Controller;
+use App\Models\CaseTag;
 use App\Models\LegalCase;
 use App\Models\User;
 use App\Models\AuditLog;
@@ -19,6 +20,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log; 
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class LegalCaseController extends Controller
@@ -37,7 +40,7 @@ class LegalCaseController extends Controller
         $user = Auth::user();
         
         // Começa a query base, carregando todos os relacionamentos importantes
-        $query = LegalCase::with(['client', 'lawyer', 'opposingLawyer', 'plaintiff', 'defendantRel', 'actionObject']);
+        $query = LegalCase::with($this->caseRelationshipLoads());
 
         // --- FILTRO POR SCOPE (ALÇADA) ---
         $scope = $request->input('scope', 'pipeline');
@@ -50,6 +53,10 @@ class LegalCaseController extends Controller
             $query->where('has_alcada', false);
         }
         // scope=all → sem filtro de alçada
+
+        if ($user->role === 'indicador') {
+            $query->where('status', LegalCase::STATUS_INITIAL_ANALYSIS);
+        }
 
         // --- LÓGICA DE PERMISSÃO (RBAC) ---
         if ($user->role === 'operador') {
@@ -86,6 +93,20 @@ class LegalCaseController extends Controller
             $query->where('priority', $request->input('priority'));
         }
 
+        if ($request->filled('tag')) {
+            $normalizedTag = CaseTag::normalizeTag($request->input('tag'));
+
+            if ($normalizedTag !== null) {
+                $tagName = $normalizedTag['text'];
+
+                $query->where(function ($tagQuery) use ($tagName) {
+                    $tagQuery
+                        ->whereJsonContains('tags', $tagName)
+                        ->orWhereRaw("JSON_SEARCH(tags, 'one', ?, NULL, '$[*].text') IS NOT NULL", [$tagName]);
+                });
+            }
+        }
+
         // --- ORDENAÇÃO DINÂMICA ---
         $sortColumn = $request->input('sort_by', 'id'); // Padrão: ID
         $sortDirection = $request->input('sort_order', 'desc'); // Padrão: Decrescente
@@ -118,16 +139,18 @@ class LegalCaseController extends Controller
     {
         $case = LegalCase::with(['client', 'plaintiff', 'defendantRel', 'opposingLawyer'])->findOrFail($id);
 
-        // 1. Detectar se é OUROCAP (Banco do Brasil)
-        $isOurocap = false;
-        if (str_contains(mb_strtolower($case->description ?? ''), 'ourocap')) {
-            $isOurocap = true;
-        }
+        // Prioriza os campos estruturados do caso e mantém o fallback legado para registros antigos.
+        $isOurocap = $this->hasFilledValue($case->ourocap_value);
+        $isLivelo = $this->hasFilledValue($case->livelo_points);
 
-        // 2. Detectar se é LIVELO
-        $isLivelo = false;
-        if ($case->client && str_contains(mb_strtolower($case->client->name), 'livelo')) {
-            $isLivelo = true;
+        if (!$isOurocap && !$isLivelo) {
+            if (str_contains(mb_strtolower($case->description ?? ''), 'ourocap')) {
+                $isOurocap = true;
+            }
+
+            if ($case->client && str_contains(mb_strtolower($case->client->name), 'livelo')) {
+                $isLivelo = true;
+            }
         }
 
         // 3. Detectar se tem OBRIGAÇÃO DE FAZER
@@ -156,12 +179,18 @@ class LegalCaseController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        if (Auth::user()?->role === 'indicador') {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
         // Conversão de lawyer_id para user_id (Lógica Original Mantida)
         if ($request->has('lawyer_id')) {
             $request->merge(['user_id' => $request->input('lawyer_id')]);
         }
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
+        $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
+        $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
 
         $validatedData = $request->validate([
             'case_number' => 'required|string|max:255',
@@ -185,6 +214,8 @@ class LegalCaseController extends Controller
             'priority' => 'required|string',
             'original_value' => 'required|numeric',
             'agreement_value' => 'nullable|numeric',
+            'ourocap_value' => $this->ourocapValidationRules($request),
+            'livelo_points' => $this->liveloPointsValidationRules($request),
             'cause_value' => 'nullable|numeric',
             
             'opposing_lawyer' => 'nullable|string', // Nome visual
@@ -196,6 +227,8 @@ class LegalCaseController extends Controller
             'special_court' => 'nullable|string',
             
             'tags' => 'nullable|array',
+            'tags.*.text' => 'required|string|max:100',
+            'tags.*.color' => 'nullable|string|max:20',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
             'pcond_probability' => 'nullable|numeric|min:0',
             'updated_condemnation_value' => 'nullable|numeric',
@@ -203,6 +236,7 @@ class LegalCaseController extends Controller
         ]);
 
         $case = LegalCase::create($validatedData);
+        $this->syncCaseTagCatalog($validatedData['tags'] ?? []);
 
         // --- NOVO: LOG DE AUDITORIA (BLINDADO) ---
         try {
@@ -227,17 +261,16 @@ class LegalCaseController extends Controller
     public function show(LegalCase $case): JsonResponse
     {
         $this->authorize('view', $case);
+
+        if (Auth::user()?->role === 'indicador' && $case->status !== LegalCase::STATUS_INITIAL_ANALYSIS) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
         // Carrega todos os relacionamentos para exibição completa
-        return response()->json($case->load([
-            'client', 
-            'lawyer', 
-            'opposingLawyer', 
-            'actionObject',
-            'plaintiff', 
-            'defendantRel', 
-            'histories', 
-            'histories.user'
-        ]));
+        return response()->json($case->load($this->caseRelationshipLoads([
+            'histories',
+            'histories.user',
+        ])));
     }
 
     /**
@@ -247,12 +280,21 @@ class LegalCaseController extends Controller
     {
         $this->authorize('update', $case);
 
+        if (Auth::user()?->role === 'indicador') {
+            return response()->json(['message' => 'Indicadores devem usar o fluxo de indicação do caso.'], 403);
+        }
+
         // Compatibilidade com frontend antigo
         if ($request->has('lawyer_id')) {
             $request->merge(['user_id' => $request->input('lawyer_id')]);
         }
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
+        $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
+
+        if (array_key_exists('tags', $request->all())) {
+            $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
+        }
 
         // Salva o status ANTIGO para o log de auditoria
         $oldStatus = $case->status;
@@ -278,6 +320,8 @@ class LegalCaseController extends Controller
             'priority' => 'sometimes|required|string',
             'original_value' => 'sometimes|required|numeric',
             'agreement_value' => 'nullable|numeric',
+            'ourocap_value' => $this->ourocapValidationRules($request, $case),
+            'livelo_points' => $this->liveloPointsValidationRules($request, $case),
             'cause_value' => 'nullable|numeric',
             
             'comarca' => 'nullable|string|max:255',
@@ -289,6 +333,8 @@ class LegalCaseController extends Controller
             'opposing_contact' => 'nullable|string|max:255',
             
             'tags' => 'nullable|array',
+            'tags.*.text' => 'required|string|max:100',
+            'tags.*.color' => 'nullable|string|max:20',
             'agreement_probability' => 'nullable|numeric|min:0|max:100',
             'pcond_probability' => 'nullable|numeric|min:0',
             'updated_condemnation_value' => 'nullable|numeric',
@@ -297,6 +343,9 @@ class LegalCaseController extends Controller
 
         $originalData = $case->getOriginal();
         $case->update($validatedData);
+        if (array_key_exists('tags', $validatedData)) {
+            $this->syncCaseTagCatalog($validatedData['tags'] ?? []);
+        }
         $changes = $case->getChanges();
 
         // --- SISTEMA DE HISTÓRICO INTERNO DO CASO (Lógica Original Mantida) ---
@@ -344,7 +393,196 @@ class LegalCaseController extends Controller
         }
         // ----------------------------------------------------
 
-        return response()->json($case->fresh(['client', 'lawyer', 'opposingLawyer', 'actionObject', 'plaintiff', 'defendantRel']));
+        return response()->json($case->fresh($this->caseRelationshipLoads()));
+    }
+
+    public function indicate(Request $request, LegalCase $case): JsonResponse
+    {
+        $user = Auth::user();
+
+        if (!in_array($user?->role, ['indicador', 'administrador', 'supervisor'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        if ($case->status !== LegalCase::STATUS_INITIAL_ANALYSIS) {
+            return response()->json(['message' => 'Somente casos em Análise Inicial podem ser indicados para acordo.'], 422);
+        }
+
+        $case->loadMissing('opposingLawyer');
+
+        $validatedData = $request->validate([
+            'responsible_user_id' => [
+                'required',
+                'integer',
+                Rule::exists('users', 'id')->where(function ($query) {
+                    $query
+                        ->where('role', 'operador')
+                        ->where('status', 'ativo');
+                }),
+            ],
+            'materia.is_valid_for_agreement' => 'required|boolean',
+            'materia.notes' => 'nullable|string|max:1000',
+            'obrigacao.type' => 'required|string|in:simples,complexa,apenas_pecuniaria',
+            'subsidio.available' => 'required|string|in:sim,nao',
+            'analise_subsidio.notes' => 'required|string|max:4000',
+            'litigante_habitual.notes' => 'nullable|string|max:1000',
+            'analise_risco.last_analysis_date' => 'required|date',
+            'pcond_portal.value' => 'required|string|max:255',
+            'pcond_processual.value' => 'required|string|max:1000',
+        ]);
+
+        $hasLitigantRestriction = (bool) ($case->opposingLawyer?->is_abusive ?? false);
+        $blockingReasons = [];
+
+        if (($validatedData['materia']['is_valid_for_agreement'] ?? false) !== true) {
+            $blockingReasons[] = 'a materia esta contraindicada';
+        }
+
+        if (($validatedData['subsidio']['available'] ?? null) !== 'sim') {
+            $blockingReasons[] = 'nao ha subsidio disponibilizado';
+        }
+
+        if ($hasLitigantRestriction) {
+            $blockingReasons[] = 'o advogado adverso esta marcado como litigante abusivo';
+        }
+
+        if ($blockingReasons !== []) {
+            return response()->json([
+                'message' => 'O caso nao pode ser indicado para acordo porque ' . $this->formatBlockingReasons($blockingReasons) . '.',
+                'blocking_reasons' => $blockingReasons,
+            ], 422);
+        }
+
+        $existingChecklistData = is_array($case->agreement_checklist_data)
+            ? $case->agreement_checklist_data
+            : [];
+        $responsibleOperator = User::query()
+            ->where('id', $validatedData['responsible_user_id'])
+            ->where('role', 'operador')
+            ->where('status', 'ativo')
+            ->firstOrFail();
+        $formattedAlcadaValue = $this->formatChecklistCurrency($case->original_value);
+        $previousResponsibleUserId = $case->user_id;
+        $supportsIndicatorUserId = $this->legalCasesTableHasIndicatorUserId();
+        $previousIndicatorUserId = $supportsIndicatorUserId ? $case->indicator_user_id : null;
+
+        $existingChecklistData['indication_checklist'] = [
+            'version' => 1,
+            'completed_at' => now()->toIso8601String(),
+            'completed_by' => [
+                'id' => $user->id,
+                'name' => $user->name,
+            ],
+            'indicator' => [
+                'id' => $user->id,
+                'name' => $user->name,
+            ],
+            'assigned_operator' => [
+                'id' => $responsibleOperator->id,
+                'name' => $responsibleOperator->name,
+            ],
+            'fields' => [
+                'materia' => [
+                    'label' => 'Matéria',
+                    'source' => 'Portal BB',
+                    'classification' => 'objetivo',
+                    'is_valid_for_agreement' => (bool) $validatedData['materia']['is_valid_for_agreement'],
+                    'notes' => $validatedData['materia']['notes'] ?? null,
+                ],
+                'obrigacao' => [
+                    'label' => 'Obrigação',
+                    'source' => 'Portal BB',
+                    'classification' => 'objetivo',
+                    'type' => $validatedData['obrigacao']['type'],
+                ],
+                'subsidio' => [
+                    'label' => 'Subsídio',
+                    'source' => 'Portal BB',
+                    'classification' => 'objetivo',
+                    'available' => $validatedData['subsidio']['available'],
+                ],
+                'analise_subsidio' => [
+                    'label' => 'Análise do Subsídio',
+                    'source' => 'Portal BB',
+                    'classification' => 'subjetivo',
+                    'notes' => $validatedData['analise_subsidio']['notes'],
+                ],
+                'litigante_habitual' => [
+                    'label' => 'Litigante Habitual',
+                    'source' => 'Portal BB ou L1',
+                    'classification' => 'objetivo',
+                    'has_restriction' => $hasLitigantRestriction,
+                    'notes' => $validatedData['litigante_habitual']['notes'] ?? null,
+                ],
+                'analise_risco' => [
+                    'label' => 'Análise de Risco',
+                    'source' => 'Portal BB',
+                    'classification' => 'objetivo',
+                    'last_analysis_date' => $validatedData['analise_risco']['last_analysis_date'],
+                ],
+                'pcond_portal' => [
+                    'label' => 'PCOND Portal',
+                    'source' => 'Portal BB',
+                    'classification' => 'objetivo',
+                    'value' => $validatedData['pcond_portal']['value'],
+                ],
+                'pcond_processual' => [
+                    'label' => 'PCOND Processual',
+                    'source' => 'Processo',
+                    'classification' => 'subjetivo',
+                    'value' => $validatedData['pcond_processual']['value'],
+                ],
+                'alcada' => [
+                    'label' => 'Alçada',
+                    'source' => 'Portal BB',
+                    'classification' => 'objetivo',
+                    'value' => $case->original_value,
+                    'formatted_value' => $formattedAlcadaValue,
+                ],
+            ],
+        ];
+
+        $caseUpdatePayload = [
+            'status' => LegalCase::STATUS_IN_NEGOTIATION,
+            'user_id' => $responsibleOperator->id,
+            'agreement_checklist_data' => $existingChecklistData,
+        ];
+
+        if ($supportsIndicatorUserId) {
+            $caseUpdatePayload['indicator_user_id'] = $user->id;
+        }
+
+        $case->update($caseUpdatePayload);
+
+        $case->histories()->create([
+            'user_id' => Auth::id(),
+            'event_type' => 'update',
+            'description' => 'O caso foi indicado para acordo com checklist obrigatório preenchido.',
+            'old_values' => [
+                'status' => LegalCase::STATUS_INITIAL_ANALYSIS,
+                'user_id' => $previousResponsibleUserId,
+                'indicator_user_id' => $previousIndicatorUserId,
+            ],
+            'new_values' => [
+                'status' => LegalCase::STATUS_IN_NEGOTIATION,
+                'user_id' => $responsibleOperator->id,
+                'indicator_user_id' => $user->id,
+            ],
+        ]);
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Indicação de Caso',
+                'details' => "Indicou o caso #{$case->case_number} para acordo e atribuiu ao operador {$responsibleOperator->name}",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Erro AuditLog indication: " . $e->getMessage());
+        }
+
+        return response()->json($case->fresh($this->caseRelationshipLoads()));
     }
 
     /**
@@ -382,7 +620,7 @@ class LegalCaseController extends Controller
         $fileName = 'casos_concilia_' . date('Y-m-d') . '.csv';
 
         $user = Auth::user();
-        $query = LegalCase::with(['client', 'lawyer']);
+        $query = LegalCase::with($this->caseRelationshipLoads(['client', 'lawyer']));
 
         // --- FILTRO POR SCOPE (ALÇADA) ---
         $scope = $request->input('scope', 'pipeline');
@@ -435,7 +673,7 @@ class LegalCaseController extends Controller
                 $row['Reu'] = $case->defendant;
                 $row['Status'] = $case->status;
                 $row['Prioridade'] = $case->priority;
-                $row['Advogado Responsavel'] = $case->lawyer->name ?? 'N/A';
+                $row['Advogado Responsavel'] = $case->lawyer?->name ?? 'N/A';
                 $row['Valor Causa'] = $case->cause_value;
                 $row['Valor Acordo'] = $case->agreement_value;
                 $row['Valor Alçada'] = $case->original_value;
@@ -462,7 +700,6 @@ class LegalCaseController extends Controller
         $createdCount = 0;
         $updatedCount = 0;
         $errors = [];
-        $authenticatedUserId = Auth::id();
 
         // Mensagens de erro personalizadas
         $messages = [
@@ -529,14 +766,9 @@ class LegalCaseController extends Controller
                 if ($responsibleUser) {
                     $caseData['user_id'] = $responsibleUser->id;
                     $caseData['lawyer_name'] = $responsibleUser->name;
+                } else {
+                    $caseData['user_id'] = null;
                 }
-                if (!isset($caseData['user_id']) && isset($caseData['lawyer_id'])) {
-                    $caseData['user_id'] = $caseData['lawyer_id'];
-                }
-
-                $caseData['user_id'] = $caseData['user_id']
-                    ?? $existingCase?->user_id
-                    ?? $authenticatedUserId;
 
                 $caseData['client_id'] = $clientId;
                 $caseData['status'] = $existingCase?->status ?? 'initial_analysis';
@@ -589,7 +821,7 @@ class LegalCaseController extends Controller
                     'case_number' => 'required|string|max:255',
                     'opposing_party' => 'required|string|max:255',
                     'defendant' => 'nullable|string|max:255',
-                    'user_id' => 'required|exists:users,id',
+                    'user_id' => 'nullable|exists:users,id',
                     'action_object' => 'nullable|string|max:255',
                     'action_object_id' => 'nullable|exists:action_objects,id',
                     'internal_number' => 'nullable|string|max:255',
@@ -694,7 +926,6 @@ class LegalCaseController extends Controller
         $updatedCount = 0;
         $errors = [];
         $processedCaseIds = [];
-        $authenticatedUserId = Auth::id();
 
         $messages = [
             'required' => 'O campo :attribute é obrigatório.',
@@ -755,14 +986,9 @@ class LegalCaseController extends Controller
                 if ($responsibleUser) {
                     $caseData['user_id'] = $responsibleUser->id;
                     $caseData['lawyer_name'] = $responsibleUser->name;
+                } else {
+                    $caseData['user_id'] = null;
                 }
-                if (!isset($caseData['user_id']) && isset($caseData['lawyer_id'])) {
-                    $caseData['user_id'] = $caseData['lawyer_id'];
-                }
-
-                $caseData['user_id'] = $caseData['user_id']
-                    ?? $existingCase?->user_id
-                    ?? $authenticatedUserId;
 
                 $caseData['client_id'] = $clientId;
                 $caseData['status'] = $existingCase?->status ?? 'initial_analysis';
@@ -810,7 +1036,7 @@ class LegalCaseController extends Controller
                     'case_number' => 'required|string|max:255',
                     'opposing_party' => 'required|string|max:255',
                     'defendant' => 'nullable|string|max:255',
-                    'user_id' => 'required|exists:users,id',
+                    'user_id' => 'nullable|exists:users,id',
                     'action_object' => 'nullable|string|max:255',
                     'action_object_id' => 'nullable|exists:action_objects,id',
                     'internal_number' => 'nullable|string|max:255',
@@ -902,6 +1128,10 @@ class LegalCaseController extends Controller
      */
     public function batchUpdate(Request $request): JsonResponse
     {
+        if (Auth::user()?->role === 'indicador') {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
         $validated = $request->validate([
             'case_ids' => 'required|array',
             'case_ids.*' => 'exists:legal_cases,id',
@@ -945,16 +1175,22 @@ class LegalCaseController extends Controller
                     break;
 
                 case 'add_tag':
-                    // Loop para manipular JSON com segurança
+                    $normalizedTag = CaseTag::normalizeTag($value);
+                    if ($normalizedTag === null) {
+                        throw new \InvalidArgumentException('Etiqueta inválida para a ação em lote.');
+                    }
+
                     $cases = $query->get();
                     foreach($cases as $case) {
-                        $currentTags = $case->tags ?? [];
-                        if (!in_array($value, $currentTags)) {
-                            $currentTags[] = $value;
-                            $case->update(['tags' => $currentTags]);
+                        $currentTags = CaseTag::normalizeCollection($case->tags ?? []);
+                        $updatedTags = CaseTag::normalizeCollection(array_merge($currentTags, [$normalizedTag]));
+
+                        if ($updatedTags !== $currentTags) {
+                            $case->update(['tags' => $updatedTags]);
                         }
                     }
-                    $logDetails = "Adicionou a tag '{$value}' em {$count} processos";
+                    $this->syncCaseTagCatalog([$normalizedTag]);
+                    $logDetails = "Adicionou a tag '{$normalizedTag['text']}' em {$count} processos";
                     break;
 
                 case 'delete':
@@ -1145,7 +1381,9 @@ class LegalCaseController extends Controller
             'case_number' => $existingCase?->case_number ?? $caseData['case_number'],
             'internal_number' => $caseData['internal_number'] ?? $existingCase?->internal_number,
             'client_id' => $caseData['client_id'] ?? $existingCase?->client_id,
-            'user_id' => $caseData['user_id'] ?? $existingCase?->user_id,
+            'user_id' => array_key_exists('user_id', $caseData)
+                ? $caseData['user_id']
+                : $existingCase?->user_id,
             'opposing_party' => $caseData['opposing_party'] ?? $existingCase?->opposing_party,
             'plaintiff_id' => $caseData['plaintiff_id'] ?? $existingCase?->plaintiff_id,
             'defendant' => $caseData['defendant'] ?? $existingCase?->defendant,
@@ -1323,6 +1561,18 @@ class LegalCaseController extends Controller
 
     private function resolveResponsibleUserFromImport(array $caseData): ?User
     {
+        foreach (['user_id', 'lawyer_id'] as $field) {
+            $candidateId = $caseData[$field] ?? null;
+            if ($candidateId === null || $candidateId === '' || !is_numeric($candidateId)) {
+                continue;
+            }
+
+            $matchedUser = User::query()->find((int) $candidateId);
+            if ($matchedUser) {
+                return $matchedUser;
+            }
+        }
+
         $candidates = array_values(array_filter([
             is_string($caseData['lawyer_name'] ?? null) ? trim((string) $caseData['lawyer_name']) : null,
             is_string($caseData['campaign_observations'] ?? null) ? trim((string) $caseData['campaign_observations']) : null,
@@ -1520,6 +1770,70 @@ class LegalCaseController extends Controller
         return $payload;
     }
 
+    private function normalizeSettlementBenefitPayload(array $payload): array
+    {
+        return [
+            'ourocap_value' => $this->normalizeNullableScalar($payload['ourocap_value'] ?? null),
+            'livelo_points' => $this->normalizeNullableScalar($payload['livelo_points'] ?? null),
+        ];
+    }
+
+    private function normalizeNullableScalar(mixed $value): mixed
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        $normalizedValue = trim($value);
+
+        return $normalizedValue === '' ? null : $normalizedValue;
+    }
+
+    private function ourocapValidationRules(Request $request, ?LegalCase $case = null): array
+    {
+        return [
+            'nullable',
+            'numeric',
+            'min:500',
+            function (string $attribute, mixed $value, \Closure $fail) use ($request, $case) {
+                $liveloPoints = $request->input('livelo_points', $case?->livelo_points);
+
+                if ($this->hasFilledValue($value) && $this->hasFilledValue($liveloPoints)) {
+                    $fail('O caso pode ter Ourocap ou Livelo, mas não ambos ao mesmo tempo.');
+                }
+            },
+        ];
+    }
+
+    private function liveloPointsValidationRules(Request $request, ?LegalCase $case = null): array
+    {
+        return [
+            'nullable',
+            'integer',
+            'min:5000',
+            function (string $attribute, mixed $value, \Closure $fail) use ($request, $case) {
+                $ourocapValue = $request->input('ourocap_value', $case?->ourocap_value);
+
+                if ($this->hasFilledValue($value) && $this->hasFilledValue($ourocapValue)) {
+                    $fail('O caso pode ter Livelo ou Ourocap, mas não ambos ao mesmo tempo.');
+                }
+            },
+        ];
+    }
+
+    private function hasFilledValue(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        if (is_string($value)) {
+            return trim($value) !== '';
+        }
+
+        return true;
+    }
+
     private function normalizeImportedCaseNumber(string $caseNumber): string
     {
         $cleanNumber = preg_replace('/\D/', '', $caseNumber);
@@ -1550,5 +1864,79 @@ class LegalCaseController extends Controller
         $name = trim(explode('|', $firstParticipant)[0] ?? $firstParticipant);
 
         return $name !== '' ? $name : trim($rawValue);
+    }
+
+    private function formatChecklistCurrency(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+
+        return 'R$ ' . number_format((float) $value, 2, ',', '.');
+    }
+
+    private function syncCaseTagCatalog(mixed $tags): void
+    {
+        CaseTag::upsertFromCaseTags($tags);
+    }
+
+    private function legalCasesTableHasIndicatorUserId(): bool
+    {
+        static $hasIndicatorUserIdColumn = null;
+
+        if ($hasIndicatorUserIdColumn !== null) {
+            return $hasIndicatorUserIdColumn;
+        }
+
+        try {
+            $hasIndicatorUserIdColumn = Schema::hasColumn('legal_cases', 'indicator_user_id');
+        } catch (\Throwable $exception) {
+            Log::warning('Nao foi possivel verificar a coluna indicator_user_id em legal_cases.', [
+                'error' => $exception->getMessage(),
+            ]);
+            $hasIndicatorUserIdColumn = false;
+        }
+
+        return $hasIndicatorUserIdColumn;
+    }
+
+    private function caseRelationshipLoads(array $extraRelationships = []): array
+    {
+        $relationships = [
+            'client',
+            'lawyer',
+            'opposingLawyer',
+            'plaintiff',
+            'defendantRel',
+            'actionObject',
+        ];
+
+        if ($this->legalCasesTableHasIndicatorUserId()) {
+            $relationships[] = 'indicator';
+        }
+
+        return array_values(array_unique(array_merge($relationships, $extraRelationships)));
+    }
+
+    private function formatBlockingReasons(array $blockingReasons): string
+    {
+        $reasons = array_values(array_filter($blockingReasons, static fn ($reason) => is_string($reason) && trim($reason) !== ''));
+        $count = count($reasons);
+
+        if ($count === 0) {
+            return 'existem restricoes impeditivas';
+        }
+
+        if ($count === 1) {
+            return $reasons[0];
+        }
+
+        if ($count === 2) {
+            return $reasons[0] . ' e ' . $reasons[1];
+        }
+
+        $lastReason = array_pop($reasons);
+
+        return implode(', ', $reasons) . ' e ' . $lastReason;
     }
 }

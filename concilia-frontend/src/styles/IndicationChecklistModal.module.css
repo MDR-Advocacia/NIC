@@ -1,0 +1,300 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(12px, 3vw, 28px);
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.modal {
+  width: min(920px, 100%);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border-radius: 20px;
+  box-shadow: 0 32px 80px rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+}
+
+.modal * {
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 24px 28px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 65%);
+}
+
+.headerContent {
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #1d4ed8;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.title {
+  margin: 8px 0 6px;
+  color: #0f172a;
+}
+
+.subtitle {
+  margin: 0;
+  color: #475569;
+}
+
+.closeButton {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.form {
+  padding: 28px;
+  overflow-y: auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.section {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.sectionText {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 0.92rem;
+}
+
+.autoGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.innerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fieldCard {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.fullSpan {
+  grid-column: 1 / -1;
+}
+
+.label {
+  display: block;
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.descriptorRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.descriptorBadge {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #1e293b;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.input,
+.textarea,
+.readOnlyField {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.textarea {
+  resize: vertical;
+}
+
+.readOnlyField {
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.helperText {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.errorBanner {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.blockingBanner {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border: 1px solid #fca5a5;
+  border-radius: 14px;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.blockingList {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+.blockingList li + li {
+  margin-top: 6px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.secondaryButton,
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.primaryButton {
+  border: none;
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.secondaryButton:disabled,
+.primaryButton:disabled,
+.closeButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+@media (max-width: 920px) {
+  .autoGrid,
+  .innerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fullSpan {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .header,
+  .form {
+    padding: 20px;
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .secondaryButton,
+  .primaryButton {
+    width: 100%;
+  }
+}

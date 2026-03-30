@@ -121,6 +121,7 @@ const AddEditUserModal = ({ isOpen, onClose, onSave, departments, existingUser }
                                     <option value="operador">Operador</option>
                                     <option value="supervisor">Supervisor</option>
                                     <option value="administrador">Administrador</option>
+                                    <option value="indicador">Indicador</option>
                                 </select>
                             </div>
                             <div className={formStyles.formGroup}>

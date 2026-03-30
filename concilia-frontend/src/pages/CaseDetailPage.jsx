@@ -11,7 +11,13 @@ import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, F
 import { ImSpinner2 } from 'react-icons/im';
 import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
+import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
+import {
+    formatLiveloPoints,
+    getSettlementBenefitType,
+    SETTLEMENT_BENEFIT_TYPES
+} from '../constants/settlementBenefit';
 
 // --- DICIONÁRIOS ---
 const PRIORITY_DETAILS = {
@@ -142,8 +148,14 @@ const CaseDetailPage = () => {
     };
 
     const handleGenerateAgreement = async () => {
-        if (!legalCase?.agreement_value) {
-            alert("Defina um Valor Negociado para gerar a minuta.");
+        const hasAgreementTerms = [
+            legalCase?.agreement_value,
+            legalCase?.ourocap_value,
+            legalCase?.livelo_points,
+        ].some(value => value !== null && value !== undefined && value !== '');
+
+        if (!hasAgreementTerms) {
+            alert("Defina uma proposta em dinheiro, Ourocap ou Livelo para gerar a minuta.");
             return;
         }
         setIsGeneratingPdf(true);
@@ -219,6 +231,29 @@ const CaseDetailPage = () => {
         return lawyer.name || lawyer.nome || 'Não informado';
     };
 
+    const getResponsibleName = (caseData) => {
+        const responsibleData = caseData?.agreement_checklist_data?.indication_checklist?.assigned_operator
+            || caseData?.lawyer;
+
+        if (!responsibleData) {
+            return 'Sem responsavel';
+        }
+
+        return getLawyerName(responsibleData);
+    };
+
+    const getIndicatorName = (caseData) => {
+        const indicatorData = caseData?.indicator
+            || caseData?.agreement_checklist_data?.indication_checklist?.indicator
+            || caseData?.agreement_checklist_data?.indication_checklist?.completed_by;
+
+        if (!indicatorData) {
+            return 'Sem indicador';
+        }
+
+        return getLawyerName(indicatorData);
+    };
+
     const getActionObjectName = (actionObject) => {
         if (!actionObject) return 'Ação';
         if (typeof actionObject === 'string' || typeof actionObject === 'number') {
@@ -227,6 +262,13 @@ const CaseDetailPage = () => {
         }
         return actionObject.name || actionObject.nome || 'Ação';
     };
+
+    const settlementBenefitType = getSettlementBenefitType(legalCase);
+    const hasAgreementTerms = [
+        legalCase?.agreement_value,
+        legalCase?.ourocap_value,
+        legalCase?.livelo_points,
+    ].some(value => value !== null && value !== undefined && value !== '');
 
     // Segurança no Status/Prioridade (evita erro se vier nulo da importação)
     const currentStatus = getLegalCaseStatusDetails(legalCase.status);
@@ -257,7 +299,7 @@ const CaseDetailPage = () => {
                         <span className={styles.tag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>
                         <span className={styles.tag} style={{ backgroundColor: currentPriority.color, color: currentPriority.textColor }}>{currentPriority.name}</span>
                     </div>
-                    <button className={styles.pdfButton} onClick={handleGenerateAgreement} disabled={isGeneratingPdf}>
+                    <button className={styles.pdfButton} onClick={handleGenerateAgreement} disabled={isGeneratingPdf || !hasAgreementTerms}>
                         {isGeneratingPdf ? <ImSpinner2 className={styles.spinner} /> : <FaFilePdf />}
                         {isGeneratingPdf ? 'Gerando...' : 'Gerar Minuta'}
                     </button>
@@ -296,7 +338,8 @@ const CaseDetailPage = () => {
                         <h3><FaGavel style={{marginRight:'8px', color:'#718096'}}/> Dados do Processo</h3>
                         <div className={styles.infoGrid}>
                             <div className={styles.infoItem}><label>Banco</label><p>{legalCase.client?.name || 'Não vinculado'}</p></div>
-                            <div className={styles.infoItem}><label>Colaborador</label><p>{legalCase.lawyer?.name || 'Sem responsável'}</p></div>
+                            <div className={styles.infoItem}><label>Responsavel pelo Caso</label><p>{getResponsibleName(legalCase)}</p></div>
+                            <div className={styles.infoItem}><label>Indicador</label><p>{getIndicatorName(legalCase)}</p></div>
                             {/* Usa helper formatDate */}
                             <div className={styles.infoItem}><label>Distribuição</label><p>{formatDate(legalCase.start_date)}</p></div>
                             <div className={styles.infoItem}><label>Juizado Especial?</label><p>{legalCase.special_court || 'Não'}</p></div>
@@ -320,10 +363,14 @@ const CaseDetailPage = () => {
                     {legalCase.agreement_checklist_data && (
                         <div className={styles.infoCard}>
                             <h3>Checklist de Análise</h3>
-                            <AgreementChecklist 
-                                checklistData={legalCase.agreement_checklist_data} 
-                                onUpdate={() => {}} 
-                            />
+                            {legalCase.agreement_checklist_data?.indication_checklist ? (
+                                <IndicationChecklistSummary checklistData={legalCase.agreement_checklist_data} />
+                            ) : (
+                                <AgreementChecklist 
+                                    checklistData={legalCase.agreement_checklist_data} 
+                                    onUpdate={() => {}} 
+                                />
+                            )}
                         </div>
                     )}
 
@@ -370,6 +417,22 @@ const CaseDetailPage = () => {
                             <p>{formatCurrency(legalCase.agreement_value)}</p>
                             <span>Valor atual trabalhado</span>
                         </div>
+
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
+                            <div className={styles.valueBlock} style={{ background: 'rgba(217, 119, 6, 0.12)', border: '1px solid #d97706', marginTop: '10px' }}>
+                                <label>Ourocap</label>
+                                <p>{formatCurrency(legalCase.ourocap_value)}</p>
+                                <span>Benefício complementar em dinheiro</span>
+                            </div>
+                        )}
+
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
+                            <div className={styles.valueBlock} style={{ background: 'rgba(37, 99, 235, 0.12)', border: '1px solid #2563eb', marginTop: '10px' }}>
+                                <label>Livelo</label>
+                                <p>{formatLiveloPoints(legalCase.livelo_points)} pontos</p>
+                                <span>Benefício complementar em pontuação</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -13,6 +13,10 @@
     </style>
 </head>
 <body>
+    @php
+        $liveloPoints = $case->livelo_points;
+    @endphp
+
     <p><strong>EXCELENTÍSSIMO SENHOR DOUTOR JUIZ DE DIREITO DA VARA CÍVEL DA COMARCA DE {{ mb_strtoupper($case->comarca ?? '.......................') }}</strong></p>
 
     <p><strong>Processo nº {{ $case->case_number }}</strong></p>
@@ -22,23 +26,25 @@
     </p>
 
     <p>
-        1. Para pôr fim à demanda, a Ré <strong>LIVELO S.A.</strong> efetuará o crédito de <strong>{{ $case->points_amount ?? '________' }} pontos</strong> na conta Livelo de titularidade da parte Autora.
+        1. Para pôr fim à demanda, a Ré <strong>LIVELO S.A.</strong> efetuará o crédito de <strong>{{ $liveloPoints ? number_format((int) $liveloPoints, 0, ',', '.') : '________' }} pontos</strong> na conta Livelo de titularidade da parte Autora.
     </p>
 
     <p>
         2. O crédito dos pontos será realizado no prazo de até <strong>15 (quinze) dias úteis</strong>, a contar da data de homologação deste acordo.
     </p>
 
-    <p>
-        3. Além da pontuação, a Ré pagará ao Autor a importância de <strong>R$ {{ number_format($case->agreement_value, 2, ',', '.') }}</strong>, referente a danos morais/materiais, mediante depósito judicial ou crédito em conta.
-    </p>
+    @if(!is_null($case->agreement_value) && $case->agreement_value !== '')
+        <p>
+            3. Além da pontuação, a Ré pagará ao Autor a importância de <strong>R$ {{ number_format((float) $case->agreement_value, 2, ',', '.') }}</strong>, referente a danos morais/materiais, mediante depósito judicial ou crédito em conta.
+        </p>
+
+        <p>
+            4. O pagamento do valor pecuniário será realizado em até 20 (vinte) dias úteis após o protocolo desta minuta.
+        </p>
+    @endif
 
     <p>
-        4. O pagamento do valor pecuniário será realizado em até 20 (vinte) dias úteis após o protocolo desta minuta.
-    </p>
-
-    <p>
-        5. Com o cumprimento das obrigações (crédito dos pontos e pagamento do valor), a parte Autora dá plena, geral e irrevogável quitação quanto ao objeto da presente ação.
+        5. Com o cumprimento {{ !is_null($case->agreement_value) && $case->agreement_value !== '' ? 'das obrigações (crédito dos pontos e pagamento do valor)' : 'da obrigação de crédito dos pontos' }}, a parte Autora dá plena, geral e irrevogável quitação quanto ao objeto da presente ação.
     </p>
 
     <p>

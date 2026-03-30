@@ -11,6 +11,15 @@ import ActionObjectListModal from '../components/ActionObjectListModal';
 import AddEditPlaintiffModal from '../components/AddEditPlaintiffModal';
 import AddEditDefendantModal from '../components/AddEditDefendantModal';
 import { FaExclamationTriangle } from 'react-icons/fa';
+import {
+    LIVELO_MIN_POINTS,
+    normalizeSettlementBenefitPayload,
+    OUROCAP_MIN_VALUE,
+    SETTLEMENT_BENEFIT_OPTIONS,
+    SETTLEMENT_BENEFIT_TYPES,
+    validateSettlementBenefit
+} from '../constants/settlementBenefit';
+import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
 
 // --- Ícones SVG Inline ---
 const IconArrowLeft = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
@@ -69,6 +78,9 @@ const CaseCreatePage = () => {
     // Tags
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState(availableColors[0]);
+    const [savedTags, setSavedTags] = useState([]);
+    const [selectedSavedTagText, setSelectedSavedTagText] = useState('');
+    const [settlementBenefitType, setSettlementBenefitType] = useState(SETTLEMENT_BENEFIT_TYPES.NONE);
 
     // Estado do Formulário
     const [formData, setFormData] = useState({
@@ -95,7 +107,9 @@ const CaseCreatePage = () => {
         city: '',
         cause_value: '',
         original_value: '',
-        agreement_value: '', 
+        agreement_value: '',
+        ourocap_value: '',
+        livelo_points: '',
         priority: 'media',
         status: 'initial_analysis',
         description: '',
@@ -110,13 +124,14 @@ const CaseCreatePage = () => {
         const fetchDependencies = async () => {
             if (!token) return;
             try {
-                const [clientsRes, usersRes, lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes] = await Promise.all([
+                const [clientsRes, usersRes, lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes, caseTagsRes] = await Promise.all([
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/action-objects', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/plaintiffs', { headers: { Authorization: `Bearer ${token}` } }), // Fetch Autores
-                    apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } })  // Fetch Réus
+                    apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } }),  // Fetch Réus
+                    apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
                 ]);
                 setClients(Array.isArray(clientsRes.data) ? clientsRes.data : []);
                 setLawyers(Array.isArray(usersRes.data?.data) ? usersRes.data.data : []);
@@ -124,6 +139,7 @@ const CaseCreatePage = () => {
                 setActionObjectsList(Array.isArray(actionObjectsRes.data) ? actionObjectsRes.data : []);
                 setPlaintiffsList(Array.isArray(plaintiffsRes.data) ? plaintiffsRes.data : []);
                 setDefendantsList(Array.isArray(defendantsRes.data) ? defendantsRes.data : []);
+                setSavedTags(Array.isArray(caseTagsRes.data) ? caseTagsRes.data : []);
             } catch (error) {
                 console.error("Erro ao carregar listas:", error);
                 setGeneralError("Não foi possível carregar listas. Verifique a conexão.");
@@ -188,6 +204,27 @@ const CaseCreatePage = () => {
                 return newErrors;
             });
         }
+    };
+
+    const clearSettlementBenefitErrors = () => {
+        setErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors.ourocap_value;
+            delete newErrors.livelo_points;
+            return newErrors;
+        });
+    };
+
+    const handleSettlementBenefitTypeChange = (e) => {
+        const value = e.target.value;
+        setSettlementBenefitType(value);
+        clearSettlementBenefitErrors();
+
+        setFormData(prev => ({
+            ...prev,
+            ourocap_value: value === SETTLEMENT_BENEFIT_TYPES.OUROCAP ? prev.ourocap_value : '',
+            livelo_points: value === SETTLEMENT_BENEFIT_TYPES.LIVELO ? prev.livelo_points : '',
+        }));
     };
 
     // --- FILTROS DE PESQUISA ---
@@ -304,12 +341,24 @@ const CaseCreatePage = () => {
 
     const handleAddTag = () => {
         if (newTagText.trim() === '') return;
-        const newTag = { text: newTagText, color: newTagColor };
         setFormData(prevState => ({
           ...prevState,
-          tags: [...(prevState.tags || []), newTag]
+          tags: appendCaseTag(prevState.tags, { text: newTagText, color: newTagColor })
         }));
         setNewTagText('');
+    };
+
+    const handleAddSavedTag = () => {
+        if (!selectedSavedTagText) return;
+
+        const selectedTag = savedTags.find(tag => (tag.text || tag.name) === selectedSavedTagText);
+        if (!selectedTag) return;
+
+        setFormData(prevState => ({
+            ...prevState,
+            tags: appendCaseTag(prevState.tags, selectedTag)
+        }));
+        setSelectedSavedTagText('');
     };
 
     const handleRemoveTag = (indexToRemove) => {
@@ -332,6 +381,21 @@ const CaseCreatePage = () => {
         if (!formData.state) newErrors.state = "Obrigatório.";
         if (!formData.city.trim()) newErrors.city = "Obrigatório.";
         if (!formData.cause_value) newErrors.cause_value = "Obrigatório.";
+
+        const settlementBenefitError = validateSettlementBenefit({
+            settlementBenefitType,
+            ourocap_value: formData.ourocap_value,
+            livelo_points: formData.livelo_points,
+        });
+        if (settlementBenefitError) {
+            if (settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP) {
+                newErrors.ourocap_value = settlementBenefitError;
+            }
+
+            if (settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO) {
+                newErrors.livelo_points = settlementBenefitError;
+            }
+        }
         
         const hasMateria = formData.agreement_checklist_data?.objective?.materia;
         if (!hasMateria) {
@@ -361,6 +425,12 @@ const CaseCreatePage = () => {
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,
                 cause_value: parseFloat(formData.cause_value),
                 agreement_value: formData.agreement_value ? parseFloat(formData.agreement_value) : null,
+                ...normalizeSettlementBenefitPayload({
+                    settlementBenefitType,
+                    ourocap_value: formData.ourocap_value,
+                    livelo_points: formData.livelo_points,
+                }),
+                tags: normalizeCaseTags(formData.tags),
                 pcond_probability: formData.pcond_probability ? parseFloat(formData.pcond_probability) : null,
                 updated_condemnation_value: formData.updated_condemnation_value ? parseFloat(formData.updated_condemnation_value) : null,
             };
@@ -674,6 +744,51 @@ const CaseCreatePage = () => {
                             <input className={styles.input} type="number" step="0.01" name="agreement_value" value={formData.agreement_value} onChange={handleChange} />
                         </div>
                         <div className={styles.formGroup}>
+                            <label className={styles.label}>Benefício Complementar</label>
+                            <select
+                                className={styles.select}
+                                value={settlementBenefitType}
+                                onChange={handleSettlementBenefitTypeChange}
+                            >
+                                {SETTLEMENT_BENEFIT_OPTIONS.map(option => (
+                                    <option key={option.value || 'none'} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                            <span className={styles.errorMessage} style={{ color: '#9ca3af' }}>
+                                Opcional. Pode coexistir com a Proposta Inicial (R$).
+                            </span>
+                        </div>
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Valor Ourocap (mínimo R$ 500,00)</label>
+                                <input
+                                    className={`${styles.input} ${errors.ourocap_value ? styles.errorInput : ''}`}
+                                    type="number"
+                                    step="0.01"
+                                    min={OUROCAP_MIN_VALUE}
+                                    name="ourocap_value"
+                                    value={formData.ourocap_value}
+                                    onChange={handleChange}
+                                />
+                                {errors.ourocap_value && <span className={styles.errorMessage}>{errors.ourocap_value}</span>}
+                            </div>
+                        )}
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Pontos Livelo (mínimo 5.000)</label>
+                                <input
+                                    className={`${styles.input} ${errors.livelo_points ? styles.errorInput : ''}`}
+                                    type="number"
+                                    step="1"
+                                    min={LIVELO_MIN_POINTS}
+                                    name="livelo_points"
+                                    value={formData.livelo_points}
+                                    onChange={handleChange}
+                                />
+                                {errors.livelo_points && <span className={styles.errorMessage}>{errors.livelo_points}</span>}
+                            </div>
+                        )}
+                        <div className={styles.formGroup}>
                             <label className={styles.label}>Valor da PCOND (R$)</label>
                             <input className={styles.input} type="number" step="0.01" name="pcond_probability" value={formData.pcond_probability} onChange={handleChange} />
                         </div>
@@ -718,10 +833,35 @@ const CaseCreatePage = () => {
                 
                 {/* 6. ETIQUETAS (Tags) */}
                 <section className={styles.section}>
-                     <div className={styles.sectionHeader}>
+                    <div className={styles.sectionHeader}>
                         <div className={styles.sectionIcon}><IconChecklist /></div>
                         <h2>Etiquetas</h2>
                     </div>
+
+                    {savedTags.length > 0 && (
+                        <div className={styles.tagCreator}>
+                            <select
+                                className={styles.tagInput}
+                                value={selectedSavedTagText}
+                                onChange={(e) => setSelectedSavedTagText(e.target.value)}
+                            >
+                                <option value="">Replicar etiqueta salva...</option>
+                                {savedTags.map((tag) => (
+                                    <option key={`${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
+                                        {tag.text || tag.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <button
+                                type="button"
+                                className={styles.addButton}
+                                onClick={handleAddSavedTag}
+                                disabled={!selectedSavedTagText}
+                            >
+                                Replicar
+                            </button>
+                        </div>
+                    )}
                     
                     <div className={styles.tagCreator}>
                        <input type="text" className={styles.tagInput} value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nova etiqueta..." />

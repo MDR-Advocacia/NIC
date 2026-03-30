@@ -2,8 +2,9 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ForceChangePassword from '../pages/ForceChangePassword';
+import { getDefaultRouteForRole } from '../constants/access';
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles = null }) => {
   // Pegamos o user e o loading. 
   // O "authenticated" removemos pois pode não existir no seu contexto.
   const { user, loading } = useAuth();
@@ -32,6 +33,10 @@ const ProtectedRoute = ({ children }) => {
   if (user && (user.must_change_password === true || user.must_change_password === 1)) {
     console.log("Bloqueio de Segurança: Troca de senha obrigatória.");
     return <ForceChangePassword />;
+  }
+
+  if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+    return <Navigate to={getDefaultRouteForRole(user.role)} replace />;
   }
 
   // 4. Se passou por tudo, libera o acesso à rota (Dashboard, etc)

@@ -13,6 +13,10 @@
     </style>
 </head>
 <body>
+    @php
+        $ourocapValue = $case->ourocap_value ?? 500;
+    @endphp
+
     <p><strong>AO JUÍZO DO JUIZADO ESPECIAL DA COMARCA DE {{ mb_strtoupper($case->comarca ?? '.......................') }}</strong></p>
 
     <p><strong>Processo nº {{ $case->case_number }}</strong></p>
@@ -22,11 +26,11 @@
     </p>
 
     <p>
-        2. Considerando a vontade comum das PARTES em encerrar definitivamente a lide, resolvem que o BANCO DO BRASIL S.A. dará em pagamento <strong>01 título(s) de capitalização</strong>, que totaliza(m) o valor de R$ 500,00, no prazo de 20 dias úteis a contar do protocolo desta petição.
+        2. Considerando a vontade comum das PARTES em encerrar definitivamente a lide, resolvem que o BANCO DO BRASIL S.A. dará em pagamento <strong>título(s) de capitalização</strong>, no valor total de <strong>R$ {{ number_format((float) $ourocapValue, 2, ',', '.') }}</strong>, no prazo de 20 dias úteis a contar do protocolo desta petição.
     </p>
 
     <p>
-        3. O(s) título(s) de capitalização oferecido(s) em pagamento consiste(m) em: <strong>Ourocap PU 48 meses no valor de R$ 500,00</strong>.
+        3. O(s) título(s) de capitalização oferecido(s) em pagamento consiste(m) em: <strong>Ourocap PU 48 meses no valor total de R$ {{ number_format((float) $ourocapValue, 2, ',', '.') }}</strong>.
     </p>
 
     <p>
@@ -37,13 +41,15 @@
         5. O(s) título(s) de capitalização será(ão) disponibilizado(s) no prazo de até 15 dias úteis, na seção Autoatendimento nos sites ou agências do BANCO.
     </p>
 
-    <p>
-        6. O BANCO DO BRASIL S.A pagará também ao AUTOR a importância de <strong>R$ {{ number_format($case->agreement_value, 2, ',', '.') }}</strong>, que abrange principal, juros, correção monetária e multa.
-    </p>
+    @if(!is_null($case->agreement_value) && $case->agreement_value !== '')
+        <p>
+            6. O BANCO DO BRASIL S.A pagará também ao AUTOR a importância de <strong>R$ {{ number_format((float) $case->agreement_value, 2, ',', '.') }}</strong>, que abrange principal, juros, correção monetária e multa.
+        </p>
 
-    <p>
-        O crédito será realizado em conta corrente indicada, no prazo de até 15 (quinze) dias úteis, a contar do protocolo desta petição.
-    </p>
+        <p>
+            O crédito será realizado em conta corrente indicada, no prazo de até 15 (quinze) dias úteis, a contar do protocolo desta petição.
+        </p>
+    @endif
 
     <p>
         7. As partes declaram que não há obrigação de fazer pendente.

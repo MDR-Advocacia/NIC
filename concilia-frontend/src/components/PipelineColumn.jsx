@@ -8,7 +8,15 @@ import { SortableContext } from '@dnd-kit/sortable';
 import { useTheme } from '../context/ThemeContext';
 import styles from '../styles/Pipeline.module.css';
 
-const PipelineColumn = ({ id, title, cases, onCardClick }) => {
+const PipelineColumn = ({
+    id,
+    title,
+    cases,
+    onCardClick,
+    enableDrag = true,
+    canIndicateCase = false,
+    onIndicateCase,
+}) => {
     const { setNodeRef } = useDroppable({ id });
     const caseIds = cases.map(c => c.id);
 
@@ -42,7 +50,10 @@ const PipelineColumn = ({ id, title, cases, onCardClick }) => {
                                 key={legalCase.id} 
                                 id={legalCase.id} 
                                 legalCase={legalCase} 
-                                onClick={() => onCardClick(legalCase)} 
+                                onClick={() => onCardClick(legalCase)}
+                                enableDrag={enableDrag}
+                                canIndicate={canIndicateCase && legalCase.status === 'initial_analysis'}
+                                onIndicate={onIndicateCase}
                             />
                         ))
                     ) : (

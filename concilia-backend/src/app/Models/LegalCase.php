@@ -55,6 +55,7 @@ class LegalCase extends Model
         'internal_number', 
         'client_id',
         'user_id',
+        'indicator_user_id',
         'opposing_party', // Mantemos string para compatibilidade ou texto livre
         'plaintiff_id',   // NOVO: ID do Autor
         'defendant',      // Mantemos string
@@ -67,6 +68,8 @@ class LegalCase extends Model
         'original_value',
         'has_alcada',
         'agreement_value',
+        'ourocap_value',
+        'livelo_points',
         'cause_value',
         'updated_condemnation_value', 
         'opposing_lawyer_id',
@@ -83,7 +86,12 @@ class LegalCase extends Model
         'start_date'
     ];
 
-    protected $casts = ['tags' => 'array', 'agreement_checklist_data' => 'array', 'has_alcada' => 'boolean'];
+    protected $casts = [
+        'tags' => 'array',
+        'agreement_checklist_data' => 'array',
+        'has_alcada' => 'boolean',
+        'livelo_points' => 'integer',
+    ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool
     {
@@ -128,6 +136,11 @@ class LegalCase extends Model
     public function lawyer()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function indicator()
+    {
+        return $this->belongsTo(User::class, 'indicator_user_id');
     }
     
     public function opposingLawyer()

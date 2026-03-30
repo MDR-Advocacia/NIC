@@ -7,34 +7,49 @@ import CasesTable from '../components/CasesTable';
 import KpiCard from '../components/KpiCard';
 import StatusDistributionChart from '../components/StatusDistributionChartJS';
 import ProcessStageChart from '../components/ProcessStageChart';
-import AgreementVolumeChart from '../components/AgreementVolumeChart';
+import MonthlyEvolutionChart from '../components/MonthlyEvolutionChart';
 import TeamPerformancePanel from '../components/TeamPerformancePanel';
 import TeamPerformanceModal from '../components/TeamPerformanceModal';
 import LawyerDetailModal from '../components/LawyerDetailModal';
 import CasesListModal from '../components/CasesListModal';
-import { FaTrophy, FaArrowRight, FaBriefcase } from 'react-icons/fa'; 
+import {
+    FaTrophy,
+    FaArrowRight,
+    FaBriefcase,
+    FaSlidersH,
+    FaCalendarAlt,
+    FaBuilding,
+    FaUserTie,
+    FaFlag,
+    FaSearch,
+    FaEraser,
+} from 'react-icons/fa';
 import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
 import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 
-const formatDisplayDate = (value) => {
-    if (!value) {
-        return '';
-    }
+const GENERAL_KPI_ORDER = [
+    'total_cases',
+    'active_cases',
+    'closed_deals_today',
+    'total_original_value',
+    'total_agreement_value',
+    'average_ticket',
+    'total_economy',
+    'livelo_closed_deals',
+    'ourocap_closed_deals',
+    'conversion_rate',
+];
 
-    const [year, month, day] = value.split('-');
-
-    if (!year || !month || !day) {
-        return value;
-    }
-
-    return `${day}/${month}/${year}`;
-};
+const INDICATION_KPI_ORDER = [
+    'indications_received',
+    'agreements_via_indication',
+    'indication_flow_conversion_rate',
+];
 
 const DashboardPage = () => {
-    
     const { token, user } = useAuth();
-    
+
     // LÓGICA DE PERMISSÃO
     const role = user?.role ? user.role.toLowerCase() : '';
     const isManager = role.includes('admin') || role.includes('supervisor') || role.includes('gerente');
@@ -45,7 +60,7 @@ const DashboardPage = () => {
     const [lawyers, setLawyers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    
+
     // Filtros
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -61,40 +76,90 @@ const DashboardPage = () => {
     const [modalStatusKey, setModalStatusKey] = useState(null);
     const [modalStatusName, setModalStatusName] = useState('');
 
+    const activeFilterCount = [startDate, endDate, selectedClient, selectedLawyer, selectedStatus]
+        .filter(Boolean)
+        .length;
+
+    const formatFilterDate = (value) => {
+        if (!value) {
+            return '';
+        }
+
+        const parsedDate = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(parsedDate.getTime())) {
+            return value;
+        }
+
+        return new Intl.DateTimeFormat('pt-BR').format(parsedDate);
+    };
+
+    const selectedClientName = clients.find((client) => String(client.id) === String(selectedClient))?.name;
+    const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(selectedLawyer))?.name;
+    const selectedStatusName = LEGAL_CASE_STATUS_OPTIONS.find((statusOption) => statusOption.value === selectedStatus)?.name;
+
+    const activeFilterChips = [
+        startDate ? `A partir de ${formatFilterDate(startDate)}` : null,
+        endDate ? `Até ${formatFilterDate(endDate)}` : null,
+        selectedClientName ? `Cliente: ${selectedClientName}` : null,
+        selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
+        selectedStatusName ? `Status: ${selectedStatusName}` : null,
+    ].filter(Boolean);
+
     const handleOpenDetailModal = (lawyer) => {
         setSelectedLawyerForDetail(lawyer);
         setIsDetailModalOpen(true);
     };
 
-    const handleApplyFilters = useCallback(async () => {
+    const loadFilterOptions = useCallback(async () => {
+        if (!token || !isManager) {
+            setClients([]);
+            setLawyers([]);
+            return;
+        }
+
+        try {
+            const [clientsResponse, lawyersResponse] = await Promise.all([
+                apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
+                apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
+            ]);
+
+            setClients(clientsResponse.data);
+            setLawyers(lawyersResponse.data.data || []);
+        } catch (err) {
+            console.error('Erro ao carregar opções de filtro:', err);
+            setClients([]);
+            setLawyers([]);
+        }
+    }, [token, isManager]);
+
+    const fetchDashboardData = useCallback(async ({
+        startDate: filterStartDate = '',
+        endDate: filterEndDate = '',
+        selectedClient: filterClient = '',
+        selectedLawyer: filterLawyer = '',
+        selectedStatus: filterStatus = '',
+    } = {}) => {
         if (!token) return;
+
         setLoading(true);
         setError('');
+
         try {
-            if (isManager) {
-                const [clientsResponse, lawyersResponse] = await Promise.all([
-                    apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
-                    apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
-                ]);
-                setClients(clientsResponse.data);
-                setLawyers(lawyersResponse.data.data || []);
-            }
-            
             const params = new URLSearchParams();
-            if (startDate) params.append('start_date', startDate);
-            if (endDate) params.append('end_date', endDate);
-            
+            if (filterStartDate) params.append('start_date', filterStartDate);
+            if (filterEndDate) params.append('end_date', filterEndDate);
+
             if (isManager) {
-                if (selectedClient) params.append('client_id', selectedClient);
-                if (selectedLawyer) params.append('lawyer_id', selectedLawyer);
+                if (filterClient) params.append('client_id', filterClient);
+                if (filterLawyer) params.append('lawyer_id', filterLawyer);
             }
-            
-            if (selectedStatus) params.append('status', selectedStatus);
-            
+
+            if (filterStatus) params.append('status', filterStatus);
+
             const response = await apiClient.get(`/dashboard?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             setDashboardData(response.data);
             setCases(response.data.recent_cases || []);
         } catch (err) {
@@ -103,13 +168,37 @@ const DashboardPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, startDate, endDate, selectedClient, selectedLawyer, selectedStatus, isManager]);
+    }, [token, isManager]);
+
+    const handleApplyFilters = useCallback(() => {
+        fetchDashboardData({
+            startDate,
+            endDate,
+            selectedClient,
+            selectedLawyer,
+            selectedStatus,
+        });
+    }, [fetchDashboardData, startDate, endDate, selectedClient, selectedLawyer, selectedStatus]);
+
+    const handleResetFilters = useCallback(() => {
+        setStartDate('');
+        setEndDate('');
+        setSelectedClient('');
+        setSelectedLawyer('');
+        setSelectedStatus('');
+        fetchDashboardData();
+    }, [fetchDashboardData]);
 
     useEffect(() => {
         if (token) {
-            handleApplyFilters();
+            if (isManager) {
+                Promise.all([loadFilterOptions(), fetchDashboardData()]);
+                return;
+            }
+
+            fetchDashboardData();
         }
-    }, [token, handleApplyFilters]);
+    }, [token, isManager, loadFilterOptions, fetchDashboardData]);
 
     const handleChartClick = (statusKey, statusName) => {
         setModalStatusKey(statusKey);
@@ -123,163 +212,239 @@ const DashboardPage = () => {
             case 'total_original_value':
             case 'total_agreement_value':
             case 'total_economy':
+            case 'average_ticket':
                 return formatCurrency(value);
-            case 'average_agreements_per_business_day':
-                return new Intl.NumberFormat('pt-BR', {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 2,
-                }).format(Number(value || 0));
             case 'conversion_rate':
+            case 'indication_flow_conversion_rate':
                 return `${parseFloat(value || 0).toFixed(2)}%`;
             default:
-                return typeof value === 'number' ? value.toLocaleString('pt-BR') : value;
+                return value;
         }
     };
 
-    const averagePeriodLabel = (() => {
-        if (startDate && endDate) {
-            return `${formatDisplayDate(startDate)} a ${formatDisplayDate(endDate)}`;
+    const kpiTitles = {
+        total_original_value: "Total em alçadas",
+        total_agreement_value: "Total em valores de acordos",
+        total_economy: "Economia gerada",
+        total_cases: "Casos Totais",
+        active_cases: "Casos Ativos",
+        closed_deals_today: "Acordos Fechados Hoje",
+        average_ticket: "Ticket Médio",
+        livelo_closed_deals: "Acordos Livelo",
+        ourocap_closed_deals: "Acordos Ourocap",
+        conversion_rate: "Taxa de Conversão",
+        indications_received: "Indicações Recebidas",
+        agreements_via_indication: "Acordos via Indicação",
+        indication_flow_conversion_rate: "Taxa de Conversão do Fluxo"
+    };
+
+    const renderKpiGrid = (data, order) => {
+        if (!data) {
+            return <p>Não há dados de KPI para exibir.</p>;
         }
 
-        if (startDate) {
-            return `Desde ${formatDisplayDate(startDate)}`;
+        const entries = order
+            .filter((key) => Object.prototype.hasOwnProperty.call(data, key))
+            .map((key) => [key, data[key]]);
+
+        if (entries.length === 0) {
+            return <p>Não há dados de KPI para exibir.</p>;
         }
 
-        if (endDate) {
-            return `Até ${formatDisplayDate(endDate)}`;
-        }
-
-        return 'Mês atual';
-    })();
-
-    const businessDays = dashboardData?.agreement_insights?.meta?.average_period?.business_days;
-    const averageAgreementsDescription = businessDays
-        ? `${averagePeriodLabel} • ${businessDays} dia(s) útil(eis)`
-        : averagePeriodLabel;
-
-    const kpiConfig = [
-        { key: 'total_cases', title: 'Casos com Alçada' },
-        { key: 'active_cases', title: 'Casos Ativos' },
-        { key: 'total_original_value', title: 'Total em Alçadas' },
-        { key: 'total_agreement_value', title: 'Total em Valores de Acordos' },
-        { key: 'total_economy', title: 'Economia Total', description: 'Valor de alçada - valor do acordo' },
-        {
-            key: 'agreements_today',
-            title: 'Acordos no Dia',
-            description: `Fechados em ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`,
-        },
-        {
-            key: 'average_agreements_per_business_day',
-            title: 'Média por Dia Útil',
-            description: averageAgreementsDescription,
-        },
-        { key: 'conversion_rate', title: 'Taxa de Conversão' },
-    ];
+        return (
+            <div className={styles.kpiGrid}>
+                {entries.map(([key, value]) => (
+                    <KpiCard
+                        key={key}
+                        title={kpiTitles[key] || key}
+                        value={formatKpiValue(key, value)}
+                    />
+                ))}
+            </div>
+        );
+    };
 
     if (loading) return <p>Carregando dashboard...</p>;
     if (error) return <p style={{ color: 'red' }}>{error}</p>;
 
     return (
         <div className={styles.dashboardContainer}>
-            
+
             {/* 1. FILTROS (Gestor) */}
             {isManager && (
-                <div className={styles.filters}>
-                    <label>Data Início:</label>
-                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                    <label>Data Fim:</label>
-                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                    <label>Cliente:</label>
-                    <select value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
-                        <option value="">Todos</option>
-                        {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
-                    </select>
-                    <label>Responsável do Caso:</label>
-                    <select value={selectedLawyer} onChange={(e) => setSelectedLawyer(e.target.value)}>
-                        <option value="">Todos</option>
-                        {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
-                    </select>
-                    <label>Status:</label>
-                    <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
-                        <option value="">Todos</option>
-                        {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
-                            <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
-                        ))}
-                    </select>
-                    <button onClick={handleApplyFilters} className={styles.filterButton}>
-                        Aplicar Filtros
-                    </button>
-                </div>
+                <section className={styles.filters}>
+                    <div className={styles.filtersHeader}>
+                        <div className={styles.filtersTitleGroup}>
+                            <div className={styles.filtersIconBadge}>
+                                <FaSlidersH />
+                            </div>
+                            <div>
+                                <h2 className={styles.filtersTitle}>Filtros do Dashboard</h2>
+                                <p className={styles.filtersSubtitle}>
+                                    Ajuste a leitura dos indicadores por período, cliente, responsável e etapa do caso.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className={styles.filtersCounter}>
+                            <strong>{activeFilterCount}</strong>
+                            <span>{activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}</span>
+                        </div>
+                    </div>
+
+                    <div className={styles.filtersGrid}>
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaCalendarAlt />
+                                <span>Data inicial</span>
+                            </label>
+                            <input
+                                className={styles.filterControl}
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaCalendarAlt />
+                                <span>Data final</span>
+                            </label>
+                            <input
+                                className={styles.filterControl}
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaBuilding />
+                                <span>Cliente</span>
+                            </label>
+                            <select
+                                className={styles.filterControl}
+                                value={selectedClient}
+                                onChange={(e) => setSelectedClient(e.target.value)}
+                            >
+                                <option value="">Todos</option>
+                                {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaUserTie />
+                                <span>Responsável</span>
+                            </label>
+                            <select
+                                className={styles.filterControl}
+                                value={selectedLawyer}
+                                onChange={(e) => setSelectedLawyer(e.target.value)}
+                            >
+                                <option value="">Todos</option>
+                                {lawyers.map((lawyer) => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className={styles.filterField}>
+                            <label className={styles.filterLabel}>
+                                <FaFlag />
+                                <span>Status</span>
+                            </label>
+                            <select
+                                className={styles.filterControl}
+                                value={selectedStatus}
+                                onChange={(e) => setSelectedStatus(e.target.value)}
+                            >
+                                <option value="">Todos</option>
+                                {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
+                                    <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className={styles.filtersFooter}>
+                        <div className={styles.filtersSummary}>
+                            {activeFilterChips.length > 0 ? (
+                                activeFilterChips.map((chip) => (
+                                    <span key={chip} className={styles.filterChip}>{chip}</span>
+                                ))
+                            ) : (
+                                <span className={styles.filtersHint}>
+                                    Sem filtros aplicados. Exibindo a visão geral do dashboard.
+                                </span>
+                            )}
+                        </div>
+
+                        <div className={styles.filterActions}>
+                            <button
+                                type="button"
+                                onClick={handleResetFilters}
+                                className={styles.clearFilterButton}
+                                disabled={activeFilterCount === 0}
+                            >
+                                <FaEraser />
+                                Limpar
+                            </button>
+                            <button type="button" onClick={handleApplyFilters} className={styles.filterButton}>
+                                <FaSearch />
+                                Atualizar painel
+                            </button>
+                        </div>
+                    </div>
+                </section>
             )}
 
             {/* 2. KPIs (Gestor) */}
             {isManager && (
-                <div className={styles.kpiGrid}>
-                    {dashboardData && dashboardData.kpis ? (
-                        kpiConfig
-                            .filter(({ key }) => Object.prototype.hasOwnProperty.call(dashboardData.kpis, key))
-                            .map(({ key, title, description }) => (
-                                <KpiCard
-                                    key={key}
-                                    title={title}
-                                    value={formatKpiValue(key, dashboardData.kpis[key])}
-                                    description={description}
-                                />
-                            ))
-                    ) : <p>Não há dados de KPI para exibir.</p>}
+                <div className={styles.kpiSections}>
+                    <section className={styles.kpiSection}>
+                        <div className={styles.kpiSectionHeader}>
+                            <h3 className={styles.kpiSectionTitle}>Visão Geral de Acordos</h3>
+                            <p className={styles.kpiSectionSubtitle}>Indicadores dos casos com alçada na gestão de casos.</p>
+                        </div>
+                        {renderKpiGrid(dashboardData?.kpis, GENERAL_KPI_ORDER)}
+                    </section>
+
+                    <section className={styles.kpiSection}>
+                        <div className={styles.kpiSectionHeader}>
+                            <h3 className={styles.kpiSectionTitle}>Fluxo de Indicação</h3>
+                            <p className={styles.kpiSectionSubtitle}>Acompanhamento separado dos casos que vieram de indicação.</p>
+                        </div>
+                        {renderKpiGrid(dashboardData?.indication_metrics, INDICATION_KPI_ORDER)}
+                    </section>
                 </div>
             )}
 
             {/* LAYOUT FLUIDO */}
-            <div 
+            <div
                 className={styles.dashboardGrid}
                 style={!isManager ? { display: 'flex', justifyContent: 'center' } : {}}
             >
-                <div 
-                    className={styles.mainContent} 
-                    style={{ 
+                <div
+                    className={styles.mainContent}
+                    style={{
                         width: isManager ? 'auto' : '100%',
                         maxWidth: isManager ? 'none' : '1200px'
                     }}
                 >
                     <div className={styles.chartsGrid}>
                         <div className={styles.chartCard}>
-                            <div className={styles.chartHeader}>
-                                <h3>Acordos Realizados por Mês</h3>
-                                <p className={styles.chartSubtitle}>Últimos 12 meses</p>
-                            </div>
-                            {dashboardData && dashboardData.agreement_insights?.monthly ? (
-                                <AgreementVolumeChart
-                                    data={dashboardData.agreement_insights.monthly}
-                                    datasetLabel="Acordos realizados"
-                                    color="#16a34a"
-                                    emptyMessage="Não há acordos realizados por mês para exibir."
-                                />
-                            ) : <p>Não há dados mensais de acordos para exibir.</p>}
-                        </div>
-
-                        <div className={styles.chartCard}>
-                            <div className={styles.chartHeader}>
-                                <h3>Acordos Realizados por Dia</h3>
-                                <p className={styles.chartSubtitle}>
-                                    {startDate || endDate ? 'Janela diária do período filtrado' : 'Últimos 30 dias'}
-                                </p>
-                            </div>
-                            {dashboardData && dashboardData.agreement_insights?.daily ? (
-                                <AgreementVolumeChart
-                                    data={dashboardData.agreement_insights.daily}
-                                    datasetLabel="Acordos por dia"
-                                    color="#f97316"
-                                    emptyMessage="Não há acordos realizados por dia para exibir."
-                                />
-                            ) : <p>Não há dados diários de acordos para exibir.</p>}
+                            <h3>Evolução Mensal (Últimos 12 Meses)</h3>
+                            {dashboardData && dashboardData.monthly_evolution ? (
+                                <MonthlyEvolutionChart data={dashboardData.monthly_evolution} />
+                            ) : <p>Não há dados de evolução mensal para exibir.</p>}
                         </div>
 
                         <div className={styles.chartCard}>
                             <h3>Distribuição de Status (Visão Geral)</h3>
                             {dashboardData && dashboardData.status_distribution ? (
-                                <StatusDistributionChart 
-                                    data={dashboardData.status_distribution} 
+                                <StatusDistributionChart
+                                    data={dashboardData.status_distribution}
                                     onStageClick={handleChartClick}
                                 />
                             ) : <p>Não há dados de distribuição para exibir.</p>}
@@ -289,20 +454,18 @@ const DashboardPage = () => {
                     <div className={styles.statusDistribution}>
                         <h3>Distribuição por Etapa do Processo</h3>
                         {dashboardData && dashboardData.status_distribution ? (
-                            <ProcessStageChart 
-                                data={dashboardData.status_distribution} 
+                            <ProcessStageChart
+                                data={dashboardData.status_distribution}
                                 onStageClick={handleChartClick}
                             />
                         ) : <p>Não há dados de distribuição para exibir.</p>}
                     </div>
 
-                    {/* --- AQUI ESTÁ A MUDANÇA FORÇADA DO BOTÃO --- */}
                     <div className={styles.recentCases}>
-                        {/* Header flexível */}
-                        <div style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center', 
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
                             marginBottom: '15px',
                             borderBottom: '1px solid #2d3748',
                             paddingBottom: '10px'
@@ -310,13 +473,12 @@ const DashboardPage = () => {
                             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <FaBriefcase color="#A0AEC0" size={18} /> Casos Recentes
                             </h3>
-                            
-                            {/* ESTRATÉGIA NOVA: Botão dentro do Link */}
+
                             <Link to="/cases" style={{ textDecoration: 'none' }}>
-                                <button 
+                                <button
                                     style={{
                                         background: 'transparent',
-                                        border: '1px solid transparent', // Borda transparente para manter tamanho
+                                        border: '1px solid transparent',
                                         cursor: 'pointer',
                                         fontSize: '0.85rem',
                                         fontWeight: '600',
@@ -328,7 +490,6 @@ const DashboardPage = () => {
                                         borderRadius: '6px',
                                         transition: 'all 0.2s ease-in-out'
                                     }}
-                                    // Hover via JS direto no elemento button
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.backgroundColor = 'rgba(99, 179, 237, 0.1)';
                                         e.currentTarget.style.color = '#ffffff';
@@ -354,7 +515,7 @@ const DashboardPage = () => {
                     <div className={styles.rightSidebar}>
                         <div className={styles.chartCard}>
                             <h3><FaTrophy /> Performance da Equipe</h3>
-                            <TeamPerformancePanel 
+                            <TeamPerformancePanel
                                 data={dashboardData?.team_performance || []}
                                 onOpenModal={() => setIsPerformanceModalOpen(true)}
                                 onViewDetails={handleOpenDetailModal}
@@ -368,7 +529,7 @@ const DashboardPage = () => {
                 isOpen={isPerformanceModalOpen}
                 onClose={() => setIsPerformanceModalOpen(false)}
                 onViewDetails={handleOpenDetailModal}
-                data={dashboardData?.team_performance || []} 
+                data={dashboardData?.team_performance || []}
             />
             <LawyerDetailModal
                 isOpen={isDetailModalOpen}

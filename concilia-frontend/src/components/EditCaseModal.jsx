@@ -14,6 +14,16 @@ import AddEditActionObjectModal from './AddEditActionObjectModal';
 import ActionObjectListModal from './ActionObjectListModal';
 import AddEditPlaintiffModal from './AddEditPlaintiffModal'; 
 import AddEditDefendantModal from './AddEditDefendantModal'; 
+import {
+    LIVELO_MIN_POINTS,
+    getSettlementBenefitType,
+    normalizeSettlementBenefitPayload,
+    OUROCAP_MIN_VALUE,
+    SETTLEMENT_BENEFIT_OPTIONS,
+    SETTLEMENT_BENEFIT_TYPES,
+    validateSettlementBenefit
+} from '../constants/settlementBenefit';
+import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
 
 // --- Ícones SVG Inline ---
 const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#4299e1'}}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
@@ -32,6 +42,7 @@ const HistoryItem = ({ entry }) => {
         case_number: 'Nº do Processo', status: 'Status', priority: 'Prioridade',
         description: 'Descrição', opposing_party: 'Autor', defendant: 'Réu',
         original_value: 'Valor de Alçada', agreement_value: 'Valor do Acordo', cause_value: 'Valor da Causa',
+        ourocap_value: 'Valor Ourocap', livelo_points: 'Pontos Livelo',
         internal_number: 'Nº Interno', city: 'Cidade', action_object: 'Objeto da Ação',
         pcond_probability: 'Valor da PCOND', updated_condemnation_value: 'Condenação Atualizada'
     };
@@ -199,7 +210,13 @@ const DetailsTab = ({
     showDefendantDropdown,
     setShowDefendantDropdown,
     handleSelectDefendant,
-    handleCreateDefendant
+    handleCreateDefendant,
+    savedTags,
+    selectedSavedTagText,
+    setSelectedSavedTagText,
+    handleAddSavedTag,
+    settlementBenefitType,
+    handleSettlementBenefitTypeChange
 }) => {
     const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
     const availableColors = ['#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
@@ -558,6 +575,27 @@ const DetailsTab = ({
                         <input className={styles.input} type="number" step="0.01" name="agreement_value" value={formData.agreement_value || ''} onChange={handleChange} />
                     </div>
                     <div className={styles.formGroup}>
+                        <label className={styles.label}>Benefício Complementar</label>
+                        <select className={styles.select} value={settlementBenefitType} onChange={handleSettlementBenefitTypeChange}>
+                            {SETTLEMENT_BENEFIT_OPTIONS.map(option => (
+                                <option key={option.value || 'none'} value={option.value}>{option.label}</option>
+                            ))}
+                        </select>
+                        <small style={{ color: '#a0aec0' }}>Opcional. Pode coexistir com a Proposta Acordo (R$).</small>
+                    </div>
+                    {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
+                        <div className={styles.formGroup}>
+                            <label className={styles.label}>Valor Ourocap (mínimo R$ 500,00)</label>
+                            <input className={styles.input} type="number" step="0.01" min={OUROCAP_MIN_VALUE} name="ourocap_value" value={formData.ourocap_value || ''} onChange={handleChange} />
+                        </div>
+                    )}
+                    {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
+                        <div className={styles.formGroup}>
+                            <label className={styles.label}>Pontos Livelo (mínimo 5.000)</label>
+                            <input className={styles.input} type="number" step="1" min={LIVELO_MIN_POINTS} name="livelo_points" value={formData.livelo_points || ''} onChange={handleChange} />
+                        </div>
+                    )}
+                    <div className={styles.formGroup}>
                         <label className={styles.label}>Condenação Atual (R$)</label>
                         <input className={styles.input} type="number" step="0.01" name="updated_condemnation_value" value={formData.updated_condemnation_value || ''} onChange={handleChange} />
                     </div>
@@ -578,6 +616,26 @@ const DetailsTab = ({
                     <button type="button" className={`${styles.priorityButton} ${styles.baixa} ${formData.priority === 'baixa' ? styles.selected : ''}`} onClick={() => handlePriorityChange('baixa')}>Baixa</button>
                 </div>
                 
+                {savedTags.length > 0 && (
+                    <div className={styles.tagCreator} style={{marginTop: '1rem'}}>
+                        <select
+                            className={styles.tagInput}
+                            value={selectedSavedTagText}
+                            onChange={(e) => setSelectedSavedTagText(e.target.value)}
+                        >
+                            <option value="">Replicar etiqueta salva...</option>
+                            {savedTags.map((tag) => (
+                                <option key={`${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
+                                    {tag.text || tag.name}
+                                </option>
+                            ))}
+                        </select>
+                        <button type="button" className={styles.addButton} onClick={handleAddSavedTag} disabled={!selectedSavedTagText}>
+                            Replicar
+                        </button>
+                    </div>
+                )}
+
                 <div className={styles.tagCreator} style={{marginTop: '1rem'}}>
                     <input type="text" className={styles.tagInput} value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nova etiqueta..." />
                     <button type="button" className={styles.addButton} onClick={handleAddTag}>Adicionar</button>
@@ -625,11 +683,14 @@ const DetailsTab = ({
 const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) => {
     const { token } = useAuth();
     const [formData, setFormData] = useState({});
+    const [settlementBenefitType, setSettlementBenefitType] = useState(SETTLEMENT_BENEFIT_TYPES.NONE);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('details');
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState('#EF4444');
+    const [savedTags, setSavedTags] = useState([]);
+    const [selectedSavedTagText, setSelectedSavedTagText] = useState('');
     
     // Listas de Dados
     const [opposingLawyersList, setOpposingLawyersList] = useState([]);
@@ -668,16 +729,18 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         const fetchData = async () => {
             if (!token) return;
             try {
-                const [lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes] = await Promise.all([
+                const [lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes, caseTagsRes] = await Promise.all([
                     apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/action-objects', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/plaintiffs', { headers: { Authorization: `Bearer ${token}` } }),
-                    apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } })
+                    apiClient.get('/defendants', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
                 ]);
                 setOpposingLawyersList(Array.isArray(lawyersRes.data) ? lawyersRes.data : []);
                 setActionObjectsList(Array.isArray(actionObjectsRes.data) ? actionObjectsRes.data : []);
                 setPlaintiffsList(Array.isArray(plaintiffsRes.data) ? plaintiffsRes.data : []);
                 setDefendantsList(Array.isArray(defendantsRes.data) ? defendantsRes.data : []);
+                setSavedTags(Array.isArray(caseTagsRes.data) ? caseTagsRes.data : []);
             } catch (err) {
                 console.error("Erro ao carregar listas de dados:", err);
             }
@@ -699,10 +762,13 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 ...legalCase,
                 client_id: legalCase.client?.id || '',
                 lawyer_id: legalCase.lawyer?.id || '',
+                tags: normalizeCaseTags(legalCase.tags),
                 
                 internal_number: legalCase.internal_number || '',
                 city: legalCase.city || '',
                 special_court: legalCase.special_court || 'Não',
+                ourocap_value: legalCase.ourocap_value || '',
+                livelo_points: legalCase.livelo_points || '',
                 updated_condemnation_value: legalCase.updated_condemnation_value || '',
                 pcond_probability: legalCase.pcond_probability || '',
                 
@@ -726,6 +792,8 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
             setLawyerSearchTerm(getStringValue(legalCase.opposing_lawyer || legalCase.opposingLawyer));
             setPlaintiffSearchTerm(getStringValue(legalCase.opposing_party || legalCase.plaintiff));
             setDefendantSearchTerm(getStringValue(legalCase.defendant || legalCase.defendantRel));
+            setSettlementBenefitType(getSettlementBenefitType(legalCase));
+            setSelectedSavedTagText('');
             
             setConversation(null);
             setMessages([]);
@@ -855,20 +923,66 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     };
 
     const handlePriorityChange = (priority) => { setFormData(prevState => ({ ...prevState, priority: priority })); };
-    const handleAddTag = () => { if (newTagText.trim() === '') return; const newTag = { text: newTagText, color: newTagColor }; setFormData(prevState => ({ ...prevState, tags: [...(prevState.tags || []), newTag] })); setNewTagText(''); };
+    const handleAddTag = () => {
+        if (newTagText.trim() === '') return;
+        setFormData(prevState => ({
+            ...prevState,
+            tags: appendCaseTag(prevState.tags, { text: newTagText, color: newTagColor }),
+        }));
+        setNewTagText('');
+    };
     const handleRemoveTag = (indexToRemove) => { setFormData(prevState => ({ ...prevState, tags: prevState.tags.filter((_, index) => index !== indexToRemove) })); };
+    const handleAddSavedTag = () => {
+        if (!selectedSavedTagText) return;
+
+        const selectedTag = savedTags.find(tag => (tag.text || tag.name) === selectedSavedTagText);
+        if (!selectedTag) return;
+
+        setFormData(prevState => ({
+            ...prevState,
+            tags: appendCaseTag(prevState.tags, selectedTag),
+        }));
+        setSelectedSavedTagText('');
+    };
+    const handleSettlementBenefitTypeChange = (e) => {
+        const value = e.target.value;
+        setSettlementBenefitType(value);
+        setFormData(prevState => ({
+            ...prevState,
+            ourocap_value: value === SETTLEMENT_BENEFIT_TYPES.OUROCAP ? prevState.ourocap_value : '',
+            livelo_points: value === SETTLEMENT_BENEFIT_TYPES.LIVELO ? prevState.livelo_points : '',
+        }));
+    };
     
     const handleSubmit = async (e) => { 
         e.preventDefault(); 
         setIsSubmitting(true); 
         setError(''); 
         try { 
+            const settlementBenefitError = validateSettlementBenefit({
+                settlementBenefitType,
+                ourocap_value: formData.ourocap_value,
+                livelo_points: formData.livelo_points,
+            });
+
+            if (settlementBenefitError) {
+                setError(settlementBenefitError);
+                setIsSubmitting(false);
+                return;
+            }
+
             const payload = {
                 ...formData,
+                tags: normalizeCaseTags(formData.tags),
                 action_object: (formData.action_object || '').trim(),
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,
                 cause_value: formData.cause_value ? parseFloat(formData.cause_value) : null,
                 agreement_value: formData.agreement_value ? parseFloat(formData.agreement_value) : null,
+                ...normalizeSettlementBenefitPayload({
+                    settlementBenefitType,
+                    ourocap_value: formData.ourocap_value,
+                    livelo_points: formData.livelo_points,
+                }),
                 updated_condemnation_value: formData.updated_condemnation_value ? parseFloat(formData.updated_condemnation_value) : null,
                 pcond_probability: formData.pcond_probability ? parseFloat(formData.pcond_probability) : null,
             };
@@ -879,7 +993,8 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
             onClose(); 
         } catch (err) { 
             console.error("Erro ao atualizar:", err); 
-            setError('Erro ao salvar. Verifique os dados.'); 
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setError(firstBackendError || err.response?.data?.message || 'Erro ao salvar. Verifique os dados.'); 
         } finally { 
             setIsSubmitting(false); 
         } 
@@ -956,6 +1071,12 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     setShowDefendantDropdown={setShowDefendantDropdown}
                                     handleSelectDefendant={handleSelectDefendant}
                                     handleCreateDefendant={handleCreateDefendant}
+                                    savedTags={savedTags}
+                                    selectedSavedTagText={selectedSavedTagText}
+                                    setSelectedSavedTagText={setSelectedSavedTagText}
+                                    handleAddSavedTag={handleAddSavedTag}
+                                    settlementBenefitType={settlementBenefitType}
+                                    handleSettlementBenefitTypeChange={handleSettlementBenefitTypeChange}
                                 />
                                 {error && <p className={styles.error}>{error}</p>}
                                 <div className={styles.actions}> 

@@ -5,6 +5,15 @@ import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditLitigantModal from './AddEditLitigantModal'; // Importando para criar rápido
+import {
+  LIVELO_MIN_POINTS,
+  normalizeSettlementBenefitPayload,
+  OUROCAP_MIN_VALUE,
+  SETTLEMENT_BENEFIT_OPTIONS,
+  SETTLEMENT_BENEFIT_TYPES,
+  validateSettlementBenefit
+} from '../constants/settlementBenefit';
+import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
 
 const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const availableColors = ['#EF4444', '#F97316', '#FBBF24', ' #84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
@@ -18,6 +27,7 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
   // Controle de Modal rápido de criação de litigante
   const [showAddLitigant, setShowAddLitigant] = useState(false);
   const [refreshLitigants, setRefreshLitigants] = useState(false);
+  const [settlementBenefitType, setSettlementBenefitType] = useState(SETTLEMENT_BENEFIT_TYPES.NONE);
 
   const [formData, setFormData] = useState({
     case_number: '',
@@ -42,6 +52,8 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     original_value: '',
     agreement_value: '',
     cause_value: '',
+    ourocap_value: '',
+    livelo_points: '',
     status: 'initial_analysis',
     priority: 'media',
     description: '',
@@ -52,6 +64,8 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
 
   const [newTagText, setNewTagText] = useState('');
   const [newTagColor, setNewTagColor] = useState(availableColors[0]);
+  const [savedTags, setSavedTags] = useState([]);
+  const [selectedSavedTagText, setSelectedSavedTagText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -68,6 +82,23 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     };
     loadLitigants();
   }, [refreshLitigants]);
+
+  useEffect(() => {
+    const loadCaseTags = async () => {
+      if (!token) return;
+
+      try {
+        const response = await apiClient.get('/case-tags', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setSavedTags(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error("Erro ao carregar etiquetas salvas:", err);
+      }
+    };
+
+    loadCaseTags();
+  }, [token]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -97,6 +128,16 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     setFormData(prevState => ({ ...prevState, [name]: value }));
   };
 
+  const handleSettlementBenefitTypeChange = (e) => {
+    const value = e.target.value;
+    setSettlementBenefitType(value);
+    setFormData(prevState => ({
+      ...prevState,
+      ourocap_value: value === SETTLEMENT_BENEFIT_TYPES.OUROCAP ? prevState.ourocap_value : '',
+      livelo_points: value === SETTLEMENT_BENEFIT_TYPES.LIVELO ? prevState.livelo_points : '',
+    }));
+  };
+
   const handlePriorityChange = (priority) => {
     setFormData(prevState => ({ ...prevState, priority: priority }));
   };
@@ -107,13 +148,25 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
 
   const handleAddTag = () => {
     if (newTagText.trim() === '') return;
-    const newTag = { text: newTagText, color: newTagColor };
     setFormData(prevState => ({
       ...prevState,
-      tags: [...(prevState.tags || []), newTag]
+      tags: appendCaseTag(prevState.tags, { text: newTagText, color: newTagColor })
     }));
     setNewTagText('');
     setNewTagColor(availableColors[0]);
+  };
+
+  const handleAddSavedTag = () => {
+    if (!selectedSavedTagText) return;
+
+    const selectedTag = savedTags.find(tag => (tag.text || tag.name) === selectedSavedTagText);
+    if (!selectedTag) return;
+
+    setFormData(prevState => ({
+      ...prevState,
+      tags: appendCaseTag(prevState.tags, selectedTag)
+    }));
+    setSelectedSavedTagText('');
   };
 
   const handleRemoveTag = (indexToRemove) => {
@@ -128,7 +181,27 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     setIsSubmitting(true);
     setError('');
     try {
-      await apiClient.post('/cases', formData, {
+      const settlementBenefitError = validateSettlementBenefit({
+        settlementBenefitType,
+        ourocap_value: formData.ourocap_value,
+        livelo_points: formData.livelo_points,
+      });
+
+      if (settlementBenefitError) {
+        setError(settlementBenefitError);
+        setIsSubmitting(false);
+        return;
+      }
+
+      await apiClient.post('/cases', {
+        ...formData,
+        tags: normalizeCaseTags(formData.tags),
+        ...normalizeSettlementBenefitPayload({
+          settlementBenefitType,
+          ourocap_value: formData.ourocap_value,
+          livelo_points: formData.livelo_points,
+        }),
+      }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert('Caso criado com sucesso!');
@@ -298,6 +371,26 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
                  <label className={styles.label} htmlFor="agreement_value">Valor da Proposta de Acordo</label>
                  <input className={styles.input} type="number" step="0.01" id="agreement_value" name="agreement_value" value={formData.agreement_value} onChange={handleChange} />
                </div>
+               <div className={styles.formGroup}>
+                 <label className={styles.label} htmlFor="settlement_benefit">Benefício Complementar</label>
+                 <select className={styles.select} id="settlement_benefit" value={settlementBenefitType} onChange={handleSettlementBenefitTypeChange}>
+                   {SETTLEMENT_BENEFIT_OPTIONS.map(option => (
+                     <option key={option.value || 'none'} value={option.value}>{option.label}</option>
+                   ))}
+                 </select>
+               </div>
+               {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
+                 <div className={styles.formGroup}>
+                   <label className={styles.label} htmlFor="ourocap_value">Valor Ourocap (mínimo R$ 500,00)</label>
+                   <input className={styles.input} type="number" step="0.01" min={OUROCAP_MIN_VALUE} id="ourocap_value" name="ourocap_value" value={formData.ourocap_value} onChange={handleChange} />
+                 </div>
+               )}
+               {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
+                 <div className={styles.formGroup}>
+                   <label className={styles.label} htmlFor="livelo_points">Pontos Livelo (mínimo 5.000)</label>
+                   <input className={styles.input} type="number" step="1" min={LIVELO_MIN_POINTS} id="livelo_points" name="livelo_points" value={formData.livelo_points} onChange={handleChange} />
+                 </div>
+               )}
              </div>
            </div>
 
@@ -309,9 +402,44 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
                <button type="button" className={`${styles.priorityButton} ${styles.media} ${formData.priority === 'media' ? styles.selected : ''}`} onClick={() => handlePriorityChange('media')}>Média</button>
                <button type="button" className={`${styles.priorityButton} ${styles.baixa} ${formData.priority === 'baixa' ? styles.selected : ''}`} onClick={() => handlePriorityChange('baixa')}>Baixa</button>
              </div>
-             
-             {/* Tag Logic Omitted for brevity, assumed same as before */}
-             {/* ... */}
+
+             {savedTags.length > 0 && (
+               <div className={styles.tagCreator} style={{ marginTop: '1rem' }}>
+                 <select
+                   className={styles.tagInput}
+                   value={selectedSavedTagText}
+                   onChange={(e) => setSelectedSavedTagText(e.target.value)}
+                 >
+                   <option value="">Replicar etiqueta salva...</option>
+                   {savedTags.map((tag) => (
+                     <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
+                       {tag.text || tag.name}
+                     </option>
+                   ))}
+                 </select>
+                 <button type="button" className={styles.addButton} onClick={handleAddSavedTag} disabled={!selectedSavedTagText}>
+                   Replicar
+                 </button>
+               </div>
+             )}
+
+             <div className={styles.tagCreator} style={{ marginTop: '1rem' }}>
+               <input className={styles.tagInput} type="text" value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nova etiqueta..." />
+               <button type="button" className={styles.addButton} onClick={handleAddTag}>Adicionar</button>
+             </div>
+             <div className={styles.colorPicker}>
+               {availableColors.map(color => (
+                 <div key={color} className={`${styles.colorDot} ${newTagColor === color ? styles.selected : ''}`} style={{ backgroundColor: color }} onClick={() => setNewTagColor(color)} />
+               ))}
+             </div>
+             <div className={styles.tagList} style={{ marginTop: '0.5rem' }}>
+               {(formData.tags || []).map((tag, index) => (
+                 <div key={`${tag.text}-${index}`} className={styles.tagItem} style={{ backgroundColor: tag.color }}>
+                   <span>{tag.text}</span>
+                   <button type="button" className={styles.tagRemoveButton} onClick={() => handleRemoveTag(index)}>&times;</button>
+                 </div>
+               ))}
+             </div>
            </div>
 
            <div className={styles.formSection}>
