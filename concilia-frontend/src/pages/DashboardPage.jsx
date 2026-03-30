@@ -20,9 +20,13 @@ import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 const GENERAL_KPI_ORDER = [
     'total_cases',
     'active_cases',
+    'closed_deals_today',
     'total_original_value',
     'total_agreement_value',
+    'average_ticket',
     'total_economy',
+    'livelo_closed_deals',
+    'ourocap_closed_deals',
     'conversion_rate',
 ];
 
@@ -124,6 +128,7 @@ const DashboardPage = () => {
             case 'total_original_value':
             case 'total_agreement_value':
             case 'total_economy':
+            case 'average_ticket':
                 return formatCurrency(value);
             case 'conversion_rate':
             case 'indication_flow_conversion_rate':
@@ -139,6 +144,10 @@ const DashboardPage = () => {
         total_economy: "Economia gerada",
         total_cases: "Casos Totais",
         active_cases: "Casos Ativos",
+        closed_deals_today: "Acordos Fechados Hoje",
+        average_ticket: "Ticket Médio",
+        livelo_closed_deals: "Acordos Livelo",
+        ourocap_closed_deals: "Acordos Ourocap",
         conversion_rate: "Taxa de Conversão",
         indications_received: "Indicações Recebidas",
         agreements_via_indication: "Acordos via Indicação",

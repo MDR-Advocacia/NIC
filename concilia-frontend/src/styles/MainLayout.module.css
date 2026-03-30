@@ -120,9 +120,16 @@
     margin-bottom: 10px;
 }
 
+.submenuItem {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
 .navLink {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 12px 15px;
     border-radius: 8px;
     color: var(--text-secondary);
@@ -136,6 +143,49 @@
     background-color: var(--bg-hover); /* Usa variável para adaptar ao tema */
     color: var(--text-primary);
     transform: translateX(5px);
+}
+
+.submenuToggle {
+    width: 100%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.submenuLabel {
+    display: flex;
+    align-items: center;
+}
+
+.submenuChevron {
+    margin-right: 0 !important;
+    font-size: 0.9rem !important;
+    transition: transform 0.2s ease;
+}
+
+.submenuChevronOpen {
+    transform: rotate(180deg);
+}
+
+.submenuList {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    border-left: 1px solid var(--border-color-light);
+}
+
+.submenuListItem {
+    margin: 0;
+}
+
+.submenuLink {
+    margin-left: 0.75rem;
+    padding: 10px 12px;
+    font-size: 0.9rem;
 }
 
 .navLinkActive {

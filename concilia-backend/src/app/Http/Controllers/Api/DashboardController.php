@@ -25,12 +25,17 @@ class DashboardController extends Controller
         }
 
         $dateRange = $this->resolveDateRange($request);
+        $todayRange = $this->resolveTodayRange();
         $baseCasesQuery = $this->newFilteredCaseQuery($request, $user, $dateRange);
 
         $kpiRow = (clone $baseCasesQuery)
             ->selectRaw('COUNT(*) as total_cases')
             ->selectRaw('COALESCE(SUM(COALESCE(agreement_value, 0)), 0) as total_agreement_value')
             ->selectRaw('COALESCE(SUM(COALESCE(original_value, 0)), 0) as total_original_value')
+            ->selectRaw(
+                'COALESCE(AVG(CASE WHEN status = ? AND COALESCE(agreement_value, 0) > 0 THEN agreement_value END), 0) as average_ticket',
+                [LegalCase::STATUS_CLOSED_DEAL]
+            )
             ->selectRaw(
                 'COALESCE(SUM(CASE WHEN status = ? THEN COALESCE(original_value, 0) - COALESCE(agreement_value, 0) ELSE 0 END), 0) as total_economy',
                 [LegalCase::STATUS_CLOSED_DEAL]
@@ -42,6 +47,18 @@ class DashboardController extends Controller
             ->selectRaw(
                 'COALESCE(SUM(CASE WHEN status NOT IN (?, ?, ?) THEN 1 ELSE 0 END), 0) as active_cases',
                 LegalCase::TERMINAL_STATUSES
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN status = ? AND updated_at BETWEEN ? AND ? THEN 1 ELSE 0 END), 0) as closed_deals_today',
+                [LegalCase::STATUS_CLOSED_DEAL, $todayRange['start'], $todayRange['end']]
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN status = ? AND COALESCE(livelo_points, 0) > 0 THEN 1 ELSE 0 END), 0) as livelo_closed_deals',
+                [LegalCase::STATUS_CLOSED_DEAL]
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN status = ? AND COALESCE(ourocap_value, 0) > 0 THEN 1 ELSE 0 END), 0) as ourocap_closed_deals',
+                [LegalCase::STATUS_CLOSED_DEAL]
             )
             ->first();
 
@@ -96,9 +113,13 @@ class DashboardController extends Controller
             'kpis' => [
                 'total_cases' => $totalCases,
                 'active_cases' => (int) ($kpiRow->active_cases ?? 0),
+                'closed_deals_today' => (int) ($kpiRow->closed_deals_today ?? 0),
                 'total_agreement_value' => (float) ($kpiRow->total_agreement_value ?? 0),
                 'total_original_value' => (float) ($kpiRow->total_original_value ?? 0),
+                'average_ticket' => (float) ($kpiRow->average_ticket ?? 0),
                 'total_economy' => (float) ($kpiRow->total_economy ?? 0),
+                'livelo_closed_deals' => (int) ($kpiRow->livelo_closed_deals ?? 0),
+                'ourocap_closed_deals' => (int) ($kpiRow->ourocap_closed_deals ?? 0),
                 'conversion_rate' => number_format($conversionRate, 1),
             ],
             'indication_metrics' => [
@@ -321,6 +342,16 @@ class DashboardController extends Controller
         return [
             'start' => $startDate?->startOfDay(),
             'end' => $endDate?->endOfDay(),
+        ];
+    }
+
+    private function resolveTodayRange(): array
+    {
+        $today = now();
+
+        return [
+            'start' => $today->copy()->startOfDay(),
+            'end' => $today->copy()->endOfDay(),
         ];
     }
 
