@@ -13,6 +13,11 @@ import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
 import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
+import {
+    formatLiveloPoints,
+    getSettlementBenefitType,
+    SETTLEMENT_BENEFIT_TYPES
+} from '../constants/settlementBenefit';
 
 // --- DICIONÁRIOS ---
 const PRIORITY_DETAILS = {
@@ -143,8 +148,14 @@ const CaseDetailPage = () => {
     };
 
     const handleGenerateAgreement = async () => {
-        if (!legalCase?.agreement_value) {
-            alert("Defina um Valor Negociado para gerar a minuta.");
+        const hasAgreementTerms = [
+            legalCase?.agreement_value,
+            legalCase?.ourocap_value,
+            legalCase?.livelo_points,
+        ].some(value => value !== null && value !== undefined && value !== '');
+
+        if (!hasAgreementTerms) {
+            alert("Defina uma proposta em dinheiro, Ourocap ou Livelo para gerar a minuta.");
             return;
         }
         setIsGeneratingPdf(true);
@@ -252,6 +263,13 @@ const CaseDetailPage = () => {
         return actionObject.name || actionObject.nome || 'Ação';
     };
 
+    const settlementBenefitType = getSettlementBenefitType(legalCase);
+    const hasAgreementTerms = [
+        legalCase?.agreement_value,
+        legalCase?.ourocap_value,
+        legalCase?.livelo_points,
+    ].some(value => value !== null && value !== undefined && value !== '');
+
     // Segurança no Status/Prioridade (evita erro se vier nulo da importação)
     const currentStatus = getLegalCaseStatusDetails(legalCase.status);
     const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority || 'Normal', color: '#CBD5E0', textColor: '#1A202C' };
@@ -281,7 +299,7 @@ const CaseDetailPage = () => {
                         <span className={styles.tag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>
                         <span className={styles.tag} style={{ backgroundColor: currentPriority.color, color: currentPriority.textColor }}>{currentPriority.name}</span>
                     </div>
-                    <button className={styles.pdfButton} onClick={handleGenerateAgreement} disabled={isGeneratingPdf}>
+                    <button className={styles.pdfButton} onClick={handleGenerateAgreement} disabled={isGeneratingPdf || !hasAgreementTerms}>
                         {isGeneratingPdf ? <ImSpinner2 className={styles.spinner} /> : <FaFilePdf />}
                         {isGeneratingPdf ? 'Gerando...' : 'Gerar Minuta'}
                     </button>
@@ -399,6 +417,22 @@ const CaseDetailPage = () => {
                             <p>{formatCurrency(legalCase.agreement_value)}</p>
                             <span>Valor atual trabalhado</span>
                         </div>
+
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
+                            <div className={styles.valueBlock} style={{ background: 'rgba(217, 119, 6, 0.12)', border: '1px solid #d97706', marginTop: '10px' }}>
+                                <label>Ourocap</label>
+                                <p>{formatCurrency(legalCase.ourocap_value)}</p>
+                                <span>Benefício complementar em dinheiro</span>
+                            </div>
+                        )}
+
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
+                            <div className={styles.valueBlock} style={{ background: 'rgba(37, 99, 235, 0.12)', border: '1px solid #2563eb', marginTop: '10px' }}>
+                                <label>Livelo</label>
+                                <p>{formatLiveloPoints(legalCase.livelo_points)} pontos</p>
+                                <span>Benefício complementar em pontuação</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

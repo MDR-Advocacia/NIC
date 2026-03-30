@@ -68,6 +68,8 @@ class LegalCase extends Model
         'original_value',
         'has_alcada',
         'agreement_value',
+        'ourocap_value',
+        'livelo_points',
         'cause_value',
         'updated_condemnation_value', 
         'opposing_lawyer_id',
@@ -84,7 +86,12 @@ class LegalCase extends Model
         'start_date'
     ];
 
-    protected $casts = ['tags' => 'array', 'agreement_checklist_data' => 'array', 'has_alcada' => 'boolean'];
+    protected $casts = [
+        'tags' => 'array',
+        'agreement_checklist_data' => 'array',
+        'has_alcada' => 'boolean',
+        'livelo_points' => 'integer',
+    ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool
     {

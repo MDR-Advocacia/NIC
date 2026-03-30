@@ -11,6 +11,12 @@ import ActionObjectListModal from '../components/ActionObjectListModal';
 import AddEditPlaintiffModal from '../components/AddEditPlaintiffModal';
 import AddEditDefendantModal from '../components/AddEditDefendantModal';
 import { FaExclamationTriangle } from 'react-icons/fa';
+import {
+    normalizeSettlementBenefitPayload,
+    SETTLEMENT_BENEFIT_OPTIONS,
+    SETTLEMENT_BENEFIT_TYPES,
+    validateSettlementBenefit
+} from '../constants/settlementBenefit';
 
 // --- Ícones SVG Inline ---
 const IconArrowLeft = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
@@ -69,6 +75,7 @@ const CaseCreatePage = () => {
     // Tags
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState(availableColors[0]);
+    const [settlementBenefitType, setSettlementBenefitType] = useState(SETTLEMENT_BENEFIT_TYPES.NONE);
 
     // Estado do Formulário
     const [formData, setFormData] = useState({
@@ -95,7 +102,9 @@ const CaseCreatePage = () => {
         city: '',
         cause_value: '',
         original_value: '',
-        agreement_value: '', 
+        agreement_value: '',
+        ourocap_value: '',
+        livelo_points: '',
         priority: 'media',
         status: 'initial_analysis',
         description: '',
@@ -188,6 +197,27 @@ const CaseCreatePage = () => {
                 return newErrors;
             });
         }
+    };
+
+    const clearSettlementBenefitErrors = () => {
+        setErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors.ourocap_value;
+            delete newErrors.livelo_points;
+            return newErrors;
+        });
+    };
+
+    const handleSettlementBenefitTypeChange = (e) => {
+        const value = e.target.value;
+        setSettlementBenefitType(value);
+        clearSettlementBenefitErrors();
+
+        setFormData(prev => ({
+            ...prev,
+            ourocap_value: value === SETTLEMENT_BENEFIT_TYPES.OUROCAP ? prev.ourocap_value : '',
+            livelo_points: value === SETTLEMENT_BENEFIT_TYPES.LIVELO ? prev.livelo_points : '',
+        }));
     };
 
     // --- FILTROS DE PESQUISA ---
@@ -332,6 +362,21 @@ const CaseCreatePage = () => {
         if (!formData.state) newErrors.state = "Obrigatório.";
         if (!formData.city.trim()) newErrors.city = "Obrigatório.";
         if (!formData.cause_value) newErrors.cause_value = "Obrigatório.";
+
+        const settlementBenefitError = validateSettlementBenefit({
+            settlementBenefitType,
+            ourocap_value: formData.ourocap_value,
+            livelo_points: formData.livelo_points,
+        });
+        if (settlementBenefitError) {
+            if (settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP) {
+                newErrors.ourocap_value = settlementBenefitError;
+            }
+
+            if (settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO) {
+                newErrors.livelo_points = settlementBenefitError;
+            }
+        }
         
         const hasMateria = formData.agreement_checklist_data?.objective?.materia;
         if (!hasMateria) {
@@ -361,6 +406,11 @@ const CaseCreatePage = () => {
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,
                 cause_value: parseFloat(formData.cause_value),
                 agreement_value: formData.agreement_value ? parseFloat(formData.agreement_value) : null,
+                ...normalizeSettlementBenefitPayload({
+                    settlementBenefitType,
+                    ourocap_value: formData.ourocap_value,
+                    livelo_points: formData.livelo_points,
+                }),
                 pcond_probability: formData.pcond_probability ? parseFloat(formData.pcond_probability) : null,
                 updated_condemnation_value: formData.updated_condemnation_value ? parseFloat(formData.updated_condemnation_value) : null,
             };
@@ -673,6 +723,51 @@ const CaseCreatePage = () => {
                             <label className={styles.label}>Proposta Inicial (R$)</label>
                             <input className={styles.input} type="number" step="0.01" name="agreement_value" value={formData.agreement_value} onChange={handleChange} />
                         </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.label}>Benefício Complementar</label>
+                            <select
+                                className={styles.select}
+                                value={settlementBenefitType}
+                                onChange={handleSettlementBenefitTypeChange}
+                            >
+                                {SETTLEMENT_BENEFIT_OPTIONS.map(option => (
+                                    <option key={option.value || 'none'} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                            <span className={styles.errorMessage} style={{ color: '#9ca3af' }}>
+                                Opcional. Pode coexistir com a Proposta Inicial (R$).
+                            </span>
+                        </div>
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Valor Ourocap (R$)</label>
+                                <input
+                                    className={`${styles.input} ${errors.ourocap_value ? styles.errorInput : ''}`}
+                                    type="number"
+                                    step="0.01"
+                                    min="500"
+                                    name="ourocap_value"
+                                    value={formData.ourocap_value}
+                                    onChange={handleChange}
+                                />
+                                {errors.ourocap_value && <span className={styles.errorMessage}>{errors.ourocap_value}</span>}
+                            </div>
+                        )}
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Pontos Livelo</label>
+                                <input
+                                    className={`${styles.input} ${errors.livelo_points ? styles.errorInput : ''}`}
+                                    type="number"
+                                    step="1"
+                                    min="1"
+                                    name="livelo_points"
+                                    value={formData.livelo_points}
+                                    onChange={handleChange}
+                                />
+                                {errors.livelo_points && <span className={styles.errorMessage}>{errors.livelo_points}</span>}
+                            </div>
+                        )}
                         <div className={styles.formGroup}>
                             <label className={styles.label}>Valor da PCOND (R$)</label>
                             <input className={styles.input} type="number" step="0.01" name="pcond_probability" value={formData.pcond_probability} onChange={handleChange} />

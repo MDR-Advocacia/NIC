@@ -20,6 +20,7 @@ import {
     getLegalCaseStatusDetails,
 } from '../constants/legalCaseStatus';
 import { canAccessCaseCreation, isIndicatorRole } from '../constants/access';
+import { formatLiveloPoints } from '../constants/settlementBenefit';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -59,6 +60,36 @@ const getIndicatorName = (legalCase) => getDisplayName(
     || legalCase?.agreement_checklist_data?.indication_checklist?.completed_by,
     ''
 );
+
+const hasFilledValue = (value) => value !== null && value !== undefined && String(value).trim() !== '';
+
+const renderSettlementTerms = (legalCase, formatCurrency) => {
+    const rows = [];
+    const agreementValue = Number.parseFloat(legalCase?.agreement_value);
+    const ourocapValue = Number.parseFloat(legalCase?.ourocap_value);
+
+    if (Number.isFinite(agreementValue) && agreementValue > 0) {
+        rows.push(`Acordo: ${formatCurrency(agreementValue)}`);
+    }
+
+    if (Number.isFinite(ourocapValue) && ourocapValue > 0) {
+        rows.push(`Ourocap: ${formatCurrency(ourocapValue)}`);
+    }
+
+    if (hasFilledValue(legalCase?.livelo_points)) {
+        rows.push(`Livelo: ${formatLiveloPoints(legalCase.livelo_points)} pontos`);
+    }
+
+    if (rows.length === 0) {
+        return null;
+    }
+
+    return rows.map((row) => (
+        <div key={row} style={{ color: '#38a169', fontSize: '0.8rem' }}>
+            {row}
+        </div>
+    ));
+};
 
 const CaseManagementPage = () => {
     // Adicionado 'user' para verificar a role
@@ -392,7 +423,7 @@ const CaseManagementPage = () => {
                                         </td>
                                         <td>
                                             <div>{formatValue(legalCase.cause_value)}</div>
-                                            {legalCase.agreement_value > 0 && <div style={{color: '#38a169', fontSize: '0.8rem'}}>Acordo: {formatValue(legalCase.agreement_value)}</div>}
+                                            {renderSettlementTerms(legalCase, formatValue)}
                                         </td>
                                         <td>
                                             <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>

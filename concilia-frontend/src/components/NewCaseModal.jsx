@@ -5,6 +5,12 @@ import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditLitigantModal from './AddEditLitigantModal'; // Importando para criar rápido
+import {
+  normalizeSettlementBenefitPayload,
+  SETTLEMENT_BENEFIT_OPTIONS,
+  SETTLEMENT_BENEFIT_TYPES,
+  validateSettlementBenefit
+} from '../constants/settlementBenefit';
 
 const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const availableColors = ['#EF4444', '#F97316', '#FBBF24', ' #84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
@@ -18,6 +24,7 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
   // Controle de Modal rápido de criação de litigante
   const [showAddLitigant, setShowAddLitigant] = useState(false);
   const [refreshLitigants, setRefreshLitigants] = useState(false);
+  const [settlementBenefitType, setSettlementBenefitType] = useState(SETTLEMENT_BENEFIT_TYPES.NONE);
 
   const [formData, setFormData] = useState({
     case_number: '',
@@ -42,6 +49,8 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     original_value: '',
     agreement_value: '',
     cause_value: '',
+    ourocap_value: '',
+    livelo_points: '',
     status: 'initial_analysis',
     priority: 'media',
     description: '',
@@ -97,6 +106,16 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     setFormData(prevState => ({ ...prevState, [name]: value }));
   };
 
+  const handleSettlementBenefitTypeChange = (e) => {
+    const value = e.target.value;
+    setSettlementBenefitType(value);
+    setFormData(prevState => ({
+      ...prevState,
+      ourocap_value: value === SETTLEMENT_BENEFIT_TYPES.OUROCAP ? prevState.ourocap_value : '',
+      livelo_points: value === SETTLEMENT_BENEFIT_TYPES.LIVELO ? prevState.livelo_points : '',
+    }));
+  };
+
   const handlePriorityChange = (priority) => {
     setFormData(prevState => ({ ...prevState, priority: priority }));
   };
@@ -128,7 +147,26 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     setIsSubmitting(true);
     setError('');
     try {
-      await apiClient.post('/cases', formData, {
+      const settlementBenefitError = validateSettlementBenefit({
+        settlementBenefitType,
+        ourocap_value: formData.ourocap_value,
+        livelo_points: formData.livelo_points,
+      });
+
+      if (settlementBenefitError) {
+        setError(settlementBenefitError);
+        setIsSubmitting(false);
+        return;
+      }
+
+      await apiClient.post('/cases', {
+        ...formData,
+        ...normalizeSettlementBenefitPayload({
+          settlementBenefitType,
+          ourocap_value: formData.ourocap_value,
+          livelo_points: formData.livelo_points,
+        }),
+      }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert('Caso criado com sucesso!');
@@ -298,6 +336,26 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
                  <label className={styles.label} htmlFor="agreement_value">Valor da Proposta de Acordo</label>
                  <input className={styles.input} type="number" step="0.01" id="agreement_value" name="agreement_value" value={formData.agreement_value} onChange={handleChange} />
                </div>
+               <div className={styles.formGroup}>
+                 <label className={styles.label} htmlFor="settlement_benefit">Benefício Complementar</label>
+                 <select className={styles.select} id="settlement_benefit" value={settlementBenefitType} onChange={handleSettlementBenefitTypeChange}>
+                   {SETTLEMENT_BENEFIT_OPTIONS.map(option => (
+                     <option key={option.value || 'none'} value={option.value}>{option.label}</option>
+                   ))}
+                 </select>
+               </div>
+               {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
+                 <div className={styles.formGroup}>
+                   <label className={styles.label} htmlFor="ourocap_value">Valor Ourocap (R$)</label>
+                   <input className={styles.input} type="number" step="0.01" min="500" id="ourocap_value" name="ourocap_value" value={formData.ourocap_value} onChange={handleChange} />
+                 </div>
+               )}
+               {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
+                 <div className={styles.formGroup}>
+                   <label className={styles.label} htmlFor="livelo_points">Pontos Livelo</label>
+                   <input className={styles.input} type="number" step="1" min="1" id="livelo_points" name="livelo_points" value={formData.livelo_points} onChange={handleChange} />
+                 </div>
+               )}
              </div>
            </div>
 

@@ -124,16 +124,18 @@ class LegalCaseController extends Controller
     {
         $case = LegalCase::with(['client', 'plaintiff', 'defendantRel', 'opposingLawyer'])->findOrFail($id);
 
-        // 1. Detectar se é OUROCAP (Banco do Brasil)
-        $isOurocap = false;
-        if (str_contains(mb_strtolower($case->description ?? ''), 'ourocap')) {
-            $isOurocap = true;
-        }
+        // Prioriza os campos estruturados do caso e mantém o fallback legado para registros antigos.
+        $isOurocap = $this->hasFilledValue($case->ourocap_value);
+        $isLivelo = $this->hasFilledValue($case->livelo_points);
 
-        // 2. Detectar se é LIVELO
-        $isLivelo = false;
-        if ($case->client && str_contains(mb_strtolower($case->client->name), 'livelo')) {
-            $isLivelo = true;
+        if (!$isOurocap && !$isLivelo) {
+            if (str_contains(mb_strtolower($case->description ?? ''), 'ourocap')) {
+                $isOurocap = true;
+            }
+
+            if ($case->client && str_contains(mb_strtolower($case->client->name), 'livelo')) {
+                $isLivelo = true;
+            }
         }
 
         // 3. Detectar se tem OBRIGAÇÃO DE FAZER
@@ -172,6 +174,7 @@ class LegalCaseController extends Controller
         }
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
+        $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
 
         $validatedData = $request->validate([
             'case_number' => 'required|string|max:255',
@@ -195,6 +198,8 @@ class LegalCaseController extends Controller
             'priority' => 'required|string',
             'original_value' => 'required|numeric',
             'agreement_value' => 'nullable|numeric',
+            'ourocap_value' => $this->ourocapValidationRules($request),
+            'livelo_points' => $this->liveloPointsValidationRules($request),
             'cause_value' => 'nullable|numeric',
             
             'opposing_lawyer' => 'nullable|string', // Nome visual
@@ -266,6 +271,7 @@ class LegalCaseController extends Controller
         }
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
+        $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
 
         // Salva o status ANTIGO para o log de auditoria
         $oldStatus = $case->status;
@@ -291,6 +297,8 @@ class LegalCaseController extends Controller
             'priority' => 'sometimes|required|string',
             'original_value' => 'sometimes|required|numeric',
             'agreement_value' => 'nullable|numeric',
+            'ourocap_value' => $this->ourocapValidationRules($request, $case),
+            'livelo_points' => $this->liveloPointsValidationRules($request, $case),
             'cause_value' => 'nullable|numeric',
             
             'comarca' => 'nullable|string|max:255',
@@ -1724,6 +1732,70 @@ class LegalCaseController extends Controller
         $payload['action_object'] = $actionObject->name;
 
         return $payload;
+    }
+
+    private function normalizeSettlementBenefitPayload(array $payload): array
+    {
+        return [
+            'ourocap_value' => $this->normalizeNullableScalar($payload['ourocap_value'] ?? null),
+            'livelo_points' => $this->normalizeNullableScalar($payload['livelo_points'] ?? null),
+        ];
+    }
+
+    private function normalizeNullableScalar(mixed $value): mixed
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        $normalizedValue = trim($value);
+
+        return $normalizedValue === '' ? null : $normalizedValue;
+    }
+
+    private function ourocapValidationRules(Request $request, ?LegalCase $case = null): array
+    {
+        return [
+            'nullable',
+            'numeric',
+            'min:500',
+            function (string $attribute, mixed $value, \Closure $fail) use ($request, $case) {
+                $liveloPoints = $request->input('livelo_points', $case?->livelo_points);
+
+                if ($this->hasFilledValue($value) && $this->hasFilledValue($liveloPoints)) {
+                    $fail('O caso pode ter Ourocap ou Livelo, mas não ambos ao mesmo tempo.');
+                }
+            },
+        ];
+    }
+
+    private function liveloPointsValidationRules(Request $request, ?LegalCase $case = null): array
+    {
+        return [
+            'nullable',
+            'integer',
+            'min:1',
+            function (string $attribute, mixed $value, \Closure $fail) use ($request, $case) {
+                $ourocapValue = $request->input('ourocap_value', $case?->ourocap_value);
+
+                if ($this->hasFilledValue($value) && $this->hasFilledValue($ourocapValue)) {
+                    $fail('O caso pode ter Livelo ou Ourocap, mas não ambos ao mesmo tempo.');
+                }
+            },
+        ];
+    }
+
+    private function hasFilledValue(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        if (is_string($value)) {
+            return trim($value) !== '';
+        }
+
+        return true;
     }
 
     private function normalizeImportedCaseNumber(string $caseNumber): string
