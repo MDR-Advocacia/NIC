@@ -14,7 +14,7 @@ class UserPolicy
      */
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, ['administrador', 'supervisor', 'operador']);
+        return in_array($user->role, ['administrador', 'supervisor', 'operador', 'indicador']);
     }
 
     /**
@@ -26,7 +26,7 @@ class UserPolicy
         if (in_array($user->role, ['administrador', 'supervisor'])) {
             return true;
         }
-        // Operador só vê a si mesmo
+        // Operador e Indicador só veem a si mesmos
         return $user->id === $model->id;
     }
 

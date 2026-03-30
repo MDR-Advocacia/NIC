@@ -11,6 +11,37 @@ class LegalCase extends Model
     use HasFactory;
     protected $table = 'legal_cases';
 
+    protected static function booted(): void
+    {
+        static::saving(function (self $legalCase) {
+            $legalCase->has_alcada = $legalCase->resolveHasAlcadaFromOriginalValue();
+        });
+    }
+
+    public const STATUS_INITIAL_ANALYSIS = 'initial_analysis';
+    public const STATUS_CONTRA_INDICATED = 'contra_indicated';
+    public const STATUS_PROPOSAL_SENT = 'proposal_sent';
+    public const STATUS_IN_NEGOTIATION = 'in_negotiation';
+    public const STATUS_AWAITING_DRAFT = 'awaiting_draft';
+    public const STATUS_CLOSED_DEAL = 'closed_deal';
+    public const STATUS_FAILED_DEAL = 'failed_deal';
+
+    public const STATUSES = [
+        self::STATUS_INITIAL_ANALYSIS,
+        self::STATUS_CONTRA_INDICATED,
+        self::STATUS_PROPOSAL_SENT,
+        self::STATUS_IN_NEGOTIATION,
+        self::STATUS_AWAITING_DRAFT,
+        self::STATUS_CLOSED_DEAL,
+        self::STATUS_FAILED_DEAL,
+    ];
+
+    public const TERMINAL_STATUSES = [
+        self::STATUS_CONTRA_INDICATED,
+        self::STATUS_CLOSED_DEAL,
+        self::STATUS_FAILED_DEAL,
+    ];
+
     /**
      * Get the history records for the legal case.
      */
@@ -24,6 +55,7 @@ class LegalCase extends Model
         'internal_number', 
         'client_id',
         'user_id',
+        'indicator_user_id',
         'opposing_party', // Mantemos string para compatibilidade ou texto livre
         'plaintiff_id',   // NOVO: ID do Autor
         'defendant',      // Mantemos string
@@ -34,7 +66,10 @@ class LegalCase extends Model
         'status',
         'priority',
         'original_value',
+        'has_alcada',
         'agreement_value',
+        'ourocap_value',
+        'livelo_points',
         'cause_value',
         'updated_condemnation_value', 
         'opposing_lawyer_id',
@@ -51,7 +86,47 @@ class LegalCase extends Model
         'start_date'
     ];
 
-    protected $casts = ['tags' => 'array', 'agreement_checklist_data' => 'array'];
+    protected $casts = [
+        'tags' => 'array',
+        'agreement_checklist_data' => 'array',
+        'has_alcada' => 'boolean',
+        'livelo_points' => 'integer',
+    ];
+
+    private function resolveHasAlcadaFromOriginalValue(): bool
+    {
+        $originalValue = $this->original_value;
+
+        if ($originalValue === null || $originalValue === '') {
+            return false;
+        }
+
+        if (is_bool($originalValue)) {
+            return $originalValue;
+        }
+
+        if (is_numeric($originalValue)) {
+            return (float) $originalValue > 0;
+        }
+
+        $normalizedValue = trim((string) $originalValue);
+        if ($normalizedValue === '') {
+            return false;
+        }
+
+        if (strpos($normalizedValue, ',') !== false) {
+            $normalizedValue = str_replace('.', '', $normalizedValue);
+            $normalizedValue = str_replace(',', '.', $normalizedValue);
+        }
+
+        $normalizedValue = preg_replace('/[^\d.\-]/', '', $normalizedValue);
+
+        if ($normalizedValue === '' || $normalizedValue === null) {
+            return false;
+        }
+
+        return (float) $normalizedValue > 0;
+    }
 
     public function client()
     {
@@ -61,6 +136,11 @@ class LegalCase extends Model
     public function lawyer()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function indicator()
+    {
+        return $this->belongsTo(User::class, 'indicator_user_id');
     }
     
     public function opposingLawyer()

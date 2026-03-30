@@ -11,16 +11,15 @@ import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, F
 import { ImSpinner2 } from 'react-icons/im';
 import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
+import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
+import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
+import {
+    formatLiveloPoints,
+    getSettlementBenefitType,
+    SETTLEMENT_BENEFIT_TYPES
+} from '../constants/settlementBenefit';
 
 // --- DICIONÁRIOS ---
-const STATUS_DETAILS = {
-    'initial_analysis': { name: 'Análise Inicial', color: '#4299E1', textColor: '#FFFFFF' },
-    'proposal_sent': { name: 'Proposta Enviada', color: '#48BB78', textColor: '#FFFFFF' },
-    'in_negotiation': { name: 'Em Negociação', color: '#ECC94B', textColor: '#1A202C' },
-    'awaiting_draft': { name: 'Aguardando Minuta', color: '#ED8936', textColor: '#FFFFFF' },
-    'closed_deal': { name: 'Acordo Fechado', color: '#38B2AC', textColor: '#FFFFFF' },
-    'failed_deal': { name: 'Acordo Frustrado', color: '#E53E3E', textColor: '#FFFFFF' },
-};
 const PRIORITY_DETAILS = {
     'baixa': { name: 'Prioridade Baixa', color: '#22c55e', textColor: '#FFFFFF' },
     'media': { name: 'Prioridade Média', color: '#f59e0b', textColor: '#FFFFFF' },
@@ -149,8 +148,14 @@ const CaseDetailPage = () => {
     };
 
     const handleGenerateAgreement = async () => {
-        if (!legalCase?.agreement_value) {
-            alert("Defina um Valor Negociado para gerar a minuta.");
+        const hasAgreementTerms = [
+            legalCase?.agreement_value,
+            legalCase?.ourocap_value,
+            legalCase?.livelo_points,
+        ].some(value => value !== null && value !== undefined && value !== '');
+
+        if (!hasAgreementTerms) {
+            alert("Defina uma proposta em dinheiro, Ourocap ou Livelo para gerar a minuta.");
             return;
         }
         setIsGeneratingPdf(true);
@@ -210,18 +215,63 @@ const CaseDetailPage = () => {
 
     const getPartyName = (party) => {
         if (!party) return '-';
-        if (typeof party === 'string') return party;
+        if (typeof party === 'string' || typeof party === 'number') {
+            const normalizedParty = String(party).trim();
+            return normalizedParty || '-';
+        }
         return party.name || party.nome || '-';
     };
 
     const getLawyerName = (lawyer) => {
         if (!lawyer) return 'Não informado';
-        if (typeof lawyer === 'string') return lawyer;
+        if (typeof lawyer === 'string' || typeof lawyer === 'number') {
+            const normalizedLawyer = String(lawyer).trim();
+            return normalizedLawyer || 'Não informado';
+        }
         return lawyer.name || lawyer.nome || 'Não informado';
     };
 
+    const getResponsibleName = (caseData) => {
+        const responsibleData = caseData?.agreement_checklist_data?.indication_checklist?.assigned_operator
+            || caseData?.lawyer;
+
+        if (!responsibleData) {
+            return 'Sem responsavel';
+        }
+
+        return getLawyerName(responsibleData);
+    };
+
+    const getIndicatorName = (caseData) => {
+        const indicatorData = caseData?.indicator
+            || caseData?.agreement_checklist_data?.indication_checklist?.indicator
+            || caseData?.agreement_checklist_data?.indication_checklist?.completed_by;
+
+        if (!indicatorData) {
+            return 'Sem indicador';
+        }
+
+        return getLawyerName(indicatorData);
+    };
+
+    const getActionObjectName = (actionObject) => {
+        if (!actionObject) return 'Ação';
+        if (typeof actionObject === 'string' || typeof actionObject === 'number') {
+            const normalizedActionObject = String(actionObject).trim();
+            return normalizedActionObject || 'Ação';
+        }
+        return actionObject.name || actionObject.nome || 'Ação';
+    };
+
+    const settlementBenefitType = getSettlementBenefitType(legalCase);
+    const hasAgreementTerms = [
+        legalCase?.agreement_value,
+        legalCase?.ourocap_value,
+        legalCase?.livelo_points,
+    ].some(value => value !== null && value !== undefined && value !== '');
+
     // Segurança no Status/Prioridade (evita erro se vier nulo da importação)
-    const currentStatus = STATUS_DETAILS[legalCase.status] || { name: legalCase.status || 'Sem Status', color: '#CBD5E0', textColor: '#1A202C' };
+    const currentStatus = getLegalCaseStatusDetails(legalCase.status);
     const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority || 'Normal', color: '#CBD5E0', textColor: '#1A202C' };
 
     return (
@@ -240,7 +290,7 @@ const CaseDetailPage = () => {
                     </div>
                     {/* AQUI ESTAVA O PROBLEMA: Usamos helpers agora para extrair o nome se for Objeto */}
                     <p>
-                        {legalCase.actionObject?.name || legalCase.action_object || 'Ação'} - {getPartyName(legalCase.opposing_party)} x {getPartyName(legalCase.defendant)}
+                        {getActionObjectName(legalCase.actionObject || legalCase.action_object)} - {getPartyName(legalCase.opposing_party)} x {getPartyName(legalCase.defendant)}
                     </p>
                 </div>
                 
@@ -249,7 +299,7 @@ const CaseDetailPage = () => {
                         <span className={styles.tag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>
                         <span className={styles.tag} style={{ backgroundColor: currentPriority.color, color: currentPriority.textColor }}>{currentPriority.name}</span>
                     </div>
-                    <button className={styles.pdfButton} onClick={handleGenerateAgreement} disabled={isGeneratingPdf}>
+                    <button className={styles.pdfButton} onClick={handleGenerateAgreement} disabled={isGeneratingPdf || !hasAgreementTerms}>
                         {isGeneratingPdf ? <ImSpinner2 className={styles.spinner} /> : <FaFilePdf />}
                         {isGeneratingPdf ? 'Gerando...' : 'Gerar Minuta'}
                     </button>
@@ -288,7 +338,8 @@ const CaseDetailPage = () => {
                         <h3><FaGavel style={{marginRight:'8px', color:'#718096'}}/> Dados do Processo</h3>
                         <div className={styles.infoGrid}>
                             <div className={styles.infoItem}><label>Banco</label><p>{legalCase.client?.name || 'Não vinculado'}</p></div>
-                            <div className={styles.infoItem}><label>Colaborador</label><p>{legalCase.lawyer?.name || 'Sem responsável'}</p></div>
+                            <div className={styles.infoItem}><label>Responsavel pelo Caso</label><p>{getResponsibleName(legalCase)}</p></div>
+                            <div className={styles.infoItem}><label>Indicador</label><p>{getIndicatorName(legalCase)}</p></div>
                             {/* Usa helper formatDate */}
                             <div className={styles.infoItem}><label>Distribuição</label><p>{formatDate(legalCase.start_date)}</p></div>
                             <div className={styles.infoItem}><label>Juizado Especial?</label><p>{legalCase.special_court || 'Não'}</p></div>
@@ -312,10 +363,14 @@ const CaseDetailPage = () => {
                     {legalCase.agreement_checklist_data && (
                         <div className={styles.infoCard}>
                             <h3>Checklist de Análise</h3>
-                            <AgreementChecklist 
-                                checklistData={legalCase.agreement_checklist_data} 
-                                onUpdate={() => {}} 
-                            />
+                            {legalCase.agreement_checklist_data?.indication_checklist ? (
+                                <IndicationChecklistSummary checklistData={legalCase.agreement_checklist_data} />
+                            ) : (
+                                <AgreementChecklist 
+                                    checklistData={legalCase.agreement_checklist_data} 
+                                    onUpdate={() => {}} 
+                                />
+                            )}
                         </div>
                     )}
 
@@ -362,6 +417,22 @@ const CaseDetailPage = () => {
                             <p>{formatCurrency(legalCase.agreement_value)}</p>
                             <span>Valor atual trabalhado</span>
                         </div>
+
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
+                            <div className={styles.valueBlock} style={{ background: 'rgba(217, 119, 6, 0.12)', border: '1px solid #d97706', marginTop: '10px' }}>
+                                <label>Ourocap</label>
+                                <p>{formatCurrency(legalCase.ourocap_value)}</p>
+                                <span>Benefício complementar em dinheiro</span>
+                            </div>
+                        )}
+
+                        {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
+                            <div className={styles.valueBlock} style={{ background: 'rgba(37, 99, 235, 0.12)', border: '1px solid #2563eb', marginTop: '10px' }}>
+                                <label>Livelo</label>
+                                <p>{formatLiveloPoints(legalCase.livelo_points)} pontos</p>
+                                <span>Benefício complementar em pontuação</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

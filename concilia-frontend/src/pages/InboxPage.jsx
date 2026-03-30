@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import LinkCaseModal from '../components/LinkCaseModal';
 
 const TEMPLATE_FALLBACK_STORAGE_KEY = 'nic_template_fallback_messages_v1';
 
@@ -366,6 +367,35 @@ const styles = {
     lineHeight: 1.6,
     color: '#6b7d96',
   },
+  agentSearchResults: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    maxHeight: '240px',
+    overflowY: 'auto',
+  },
+  agentOption: (active) => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '10px',
+    padding: '12px 14px',
+    borderRadius: '14px',
+    border: active ? '1px solid #93c5fd' : '1px solid #dbe3ee',
+    backgroundColor: active ? '#eaf2ff' : '#ffffff',
+  }),
+  tinyButton: (tone = 'neutral') => ({
+    minWidth: '36px',
+    height: '36px',
+    padding: '0 12px',
+    borderRadius: '12px',
+    border: tone === 'primary' ? 'none' : '1px solid #dbe3ee',
+    background: tone === 'primary' ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : '#f8fbff',
+    color: tone === 'primary' ? '#fff' : '#213656',
+    fontWeight: 800,
+    cursor: 'pointer',
+    flexShrink: 0,
+  }),
 };
 
 const InboxPage = () => {
@@ -397,6 +427,8 @@ const InboxPage = () => {
   const [tipoFeedback, setTipoFeedback] = useState('success');
   const [imagemAberta, setImagemAberta] = useState(null);
   const [painelContatoAberto, setPainelContatoAberto] = useState(false);
+  const [modalVinculoAberto, setModalVinculoAberto] = useState(false);
+  const [processoVinculado, setProcessoVinculado] = useState(null);
   const [formContato, setFormContato] = useState({ id: '', name: '', email: '', phone_number: '' });
   const [salvandoContato, setSalvandoContato] = useState(false);
   const [agentesInbox, setAgentesInbox] = useState([]);
@@ -406,12 +438,14 @@ const InboxPage = () => {
   const [buscaAgente, setBuscaAgente] = useState('');
   const [assigneeSelecionado, setAssigneeSelecionado] = useState('');
   const [atribuindoConversa, setAtribuindoConversa] = useState(false);
-  const [agenteParaAdicionar, setAgenteParaAdicionar] = useState('');
   const [adicionandoAgente, setAdicionandoAgente] = useState(false);
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const chatBodyRef = useRef(null);
   const knownActivityRef = useRef(new Map());
   const notificacoesInicializadasRef = useRef(false);
+  const shouldStickToBottomRef = useRef(true);
+  const previousConversationRef = useRef(null);
   const fallbackMessagesRef = useRef((() => {
     try {
       if (typeof window === 'undefined') return {};
@@ -760,6 +794,22 @@ const InboxPage = () => {
     });
   }, [agentesConta, agentesInbox, buscaAgente]);
 
+  const resultadosBuscaAgente = useMemo(() => {
+    const inboxOptions = agentesInboxFiltrados.map((agente) => ({
+      ...agente,
+      inInbox: true,
+    }));
+
+    const accountOptions = buscaAgente.trim()
+      ? agentesDisponiveisParaInbox.map((agente) => ({
+          ...agente,
+          inInbox: false,
+        }))
+      : [];
+
+    return [...inboxOptions, ...accountOptions];
+  }, [agentesInboxFiltrados, agentesDisponiveisParaInbox, buscaAgente]);
+
   const telefoneDestino = useMemo(
     () =>
       contatoAtual?.phone_number ||
@@ -793,6 +843,18 @@ const InboxPage = () => {
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
     setTipoFeedback(tipo);
+  };
+
+  const handleVinculoProcessoConcluido = (processo) => {
+    setProcessoVinculado(processo || null);
+    setModalVinculoAberto(false);
+
+    if (processo?.case_number) {
+      definirFeedback(`Conversa vinculada ao processo ${processo.case_number} e registrada no historico.`);
+      return;
+    }
+
+    definirFeedback('Conversa vinculada ao processo com sucesso.');
   };
 
   const aplicarContatoAtualizado = (contatoAtualizado) => {
@@ -886,8 +948,8 @@ const InboxPage = () => {
     }
   };
 
-  const adicionarAgenteNaInbox = async () => {
-    if (!conversaAtual?.inbox_id || !agenteParaAdicionar || adicionandoAgente) return;
+  const adicionarAgenteNaInbox = async (agentId) => {
+    if (!conversaAtual?.inbox_id || !agentId || adicionandoAgente) return;
 
     const token = getCleanToken();
 
@@ -900,14 +962,13 @@ const InboxPage = () => {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({ user_ids: [Number(agenteParaAdicionar)] }),
+        body: JSON.stringify({ user_ids: [Number(agentId)] }),
       });
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
         await carregarAgentesInbox(conversaAtual.inbox_id);
-        setAssigneeSelecionado(String(agenteParaAdicionar));
-        setAgenteParaAdicionar('');
+        setAssigneeSelecionado(String(agentId));
         definirFeedback('Agente adicionado a inbox com sucesso.');
       } else {
         definirFeedback(data?.message || 'Nao foi possivel adicionar o agente a inbox.', 'error');
@@ -1130,7 +1191,6 @@ const InboxPage = () => {
     carregarAgentesInbox(conversaAtual.inbox_id);
     carregarAgentesConta();
     setBuscaAgente('');
-    setAgenteParaAdicionar('');
   }, [painelContatoAberto, conversaAtual?.inbox_id]);
 
   useEffect(() => {
@@ -1201,7 +1261,29 @@ const InboxPage = () => {
   }, [conversaSelecionada]);
 
   useEffect(() => {
+    if (!conversaSelecionada) {
+      previousConversationRef.current = null;
+      return;
+    }
+
+    const conversaMudou = previousConversationRef.current !== conversaSelecionada;
+    previousConversationRef.current = conversaSelecionada;
+
+    if (!conversaMudou && !shouldStickToBottomRef.current) {
+      return;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      rolarChatParaFim(conversaMudou ? 'auto' : 'smooth');
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [conversaSelecionada, mensagens.length]);
+
+  useEffect(() => {
     setModalTemplatesAberto(false);
+    setModalVinculoAberto(false);
+    setProcessoVinculado(null);
     setTemplateSelecionado(null);
     setVariaveisTemplate({});
     setBuscaTemplate('');
@@ -1235,9 +1317,28 @@ const InboxPage = () => {
   };
 
   const abrirConversa = (chatId) => {
+    shouldStickToBottomRef.current = true;
     setConversaSelecionada(chatId);
     setFeedbackEnvio('');
     carregarMensagensConversa(chatId);
+  };
+
+  const atualizarEstadoScrollChat = () => {
+    const elemento = chatBodyRef.current;
+    if (!elemento) return;
+
+    const distanciaAteFim = elemento.scrollHeight - elemento.scrollTop - elemento.clientHeight;
+    shouldStickToBottomRef.current = distanciaAteFim <= 120;
+  };
+
+  const rolarChatParaFim = (behavior = 'smooth') => {
+    const elemento = chatBodyRef.current;
+    if (!elemento) return;
+
+    elemento.scrollTo({
+      top: elemento.scrollHeight,
+      behavior,
+    });
   };
 
   const abrirModalTemplates = async () => {
@@ -1282,6 +1383,7 @@ const InboxPage = () => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
+        shouldStickToBottomRef.current = true;
         setMensagens((anterior) => [
           ...anterior,
           normalizarMensagemRetorno(data, {
@@ -1335,6 +1437,7 @@ const InboxPage = () => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
+        shouldStickToBottomRef.current = true;
         setMensagens((anterior) => [...anterior, normalizarMensagemRetorno(data, { content: novaMensagem.trim() })]);
         setNovaMensagem('');
         setFeedbackEnvio('');
@@ -1403,6 +1506,7 @@ const InboxPage = () => {
           registrarFallbackLocal(conversaSelecionada, mensagemEnviada);
         }
 
+        shouldStickToBottomRef.current = true;
         setMensagens((anterior) => [
           ...anterior,
           mensagemEnviada,
@@ -1707,6 +1811,16 @@ const InboxPage = () => {
         </div>
       ) : null}
 
+      {modalVinculoAberto && conversaSelecionada ? (
+        <LinkCaseModal
+          conversationId={conversaSelecionada}
+          contactName={contatoAtual?.name || conversaAtual?.meta?.sender?.name || ''}
+          contactPhone={telefoneDestino || ''}
+          onClose={() => setModalVinculoAberto(false)}
+          onLinkSuccess={handleVinculoProcessoConcluido}
+        />
+      ) : null}
+
       <div style={styles.rail}>
         <div>
           <div style={styles.railKicker}>Central de atendimento</div>
@@ -1821,11 +1935,14 @@ const InboxPage = () => {
                 <button type="button" style={styles.secondaryButton} onClick={() => setPainelContatoAberto(true)}>
                   Contato
                 </button>
+                <button type="button" style={styles.secondaryButton} onClick={() => setModalVinculoAberto(true)}>
+                  Vincular processo
+                </button>
                 <div style={styles.badge}>WhatsApp</div>
               </div>
             </div>
 
-            <div style={styles.chatBody}>
+            <div ref={chatBodyRef} style={styles.chatBody} onScroll={atualizarEstadoScrollChat}>
               {carregandoChat ? (
                 <div style={{ color: '#6b7d96' }}>Carregando conversa...</div>
               ) : mensagens.length > 0 ? (
@@ -1856,7 +1973,6 @@ const InboxPage = () => {
               ) : (
                 <div style={{ color: '#6b7d96' }}>Nenhuma mensagem encontrada para este atendimento.</div>
               )}
-              <div ref={(element) => element?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
 
             <div style={styles.composer}>
@@ -1951,6 +2067,28 @@ const InboxPage = () => {
             {visaoAtiva === 'conversas' && conversaSelecionada ? (
               <div style={styles.fieldCard}>
                 <div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#10233f' }}>Vinculo com processo</div>
+                  <div style={{ marginTop: '6px', color: '#6b7d96', fontSize: '13px' }}>
+                    Relacione esta conversa a um processo para manter esse atendimento salvo no historico juridico.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={styles.fieldLabel}>Processo vinculado</label>
+                  <div style={{ fontWeight: 700, color: '#10233f' }}>
+                    {processoVinculado?.case_number || 'Nenhum processo vinculado nesta sessao'}
+                  </div>
+                </div>
+
+                <button type="button" style={styles.primaryButton} onClick={() => setModalVinculoAberto(true)}>
+                  {processoVinculado?.case_number ? 'Alterar vinculo' : 'Vincular processo'}
+                </button>
+              </div>
+            ) : null}
+
+            {visaoAtiva === 'conversas' && conversaSelecionada ? (
+              <div style={styles.fieldCard}>
+                <div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: '#10233f' }}>Atribuicao da conversa</div>
                   <div style={{ marginTop: '6px', color: '#6b7d96', fontSize: '13px' }}>
                     Depois de atribuir, esta conversa passa a aparecer para o agente na aba "Minhas".
@@ -1975,14 +2113,47 @@ const InboxPage = () => {
 
                 <div>
                   <label style={styles.fieldLabel}>Selecionar agente</label>
-                  <select style={styles.select} value={assigneeSelecionado} onChange={(event) => setAssigneeSelecionado(event.target.value)}>
-                    <option value="">Nenhum</option>
-                    {agentesInboxFiltrados.map((agente) => (
-                      <option key={agente.id} value={agente.id}>
-                        {agente.name}{agente.email ? ` - ${agente.email}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={styles.agentSearchResults}>
+                    <div style={styles.agentOption(assigneeSelecionado === '')}>
+                      <div>
+                        <div style={{ fontWeight: 700, color: '#10233f' }}>Nenhum</div>
+                        <div style={{ marginTop: '2px', fontSize: '12px', color: '#6b7d96' }}>Deixa a conversa sem agente atribuido.</div>
+                      </div>
+                      <button type="button" style={styles.tinyButton(assigneeSelecionado === '' ? 'primary' : 'neutral')} onClick={() => setAssigneeSelecionado('')}>
+                        {assigneeSelecionado === '' ? 'OK' : 'Usar'}
+                      </button>
+                    </div>
+
+                    {resultadosBuscaAgente.map((agente) => {
+                      const ativo = String(assigneeSelecionado) === String(agente.id);
+
+                      return (
+                        <div key={`${agente.inInbox ? 'in' : 'out'}-${agente.id}`} style={styles.agentOption(ativo)}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, color: '#10233f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agente.name}</div>
+                            <div style={{ marginTop: '2px', fontSize: '12px', color: '#6b7d96', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {agente.email || (agente.inInbox ? 'Agente ja liberado na inbox' : 'Disponivel para adicionar na inbox')}
+                            </div>
+                          </div>
+                          {agente.inInbox ? (
+                            <button type="button" style={styles.tinyButton(ativo ? 'primary' : 'neutral')} onClick={() => setAssigneeSelecionado(String(agente.id))}>
+                              {ativo ? 'OK' : 'Usar'}
+                            </button>
+                          ) : (
+                            <button type="button" style={styles.tinyButton('neutral')} onClick={() => adicionarAgenteNaInbox(agente.id)} disabled={adicionandoAgente}>
+                              +
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {!carregandoAgentes && !carregandoAgentesConta && resultadosBuscaAgente.length === 0 ? (
+                      <div style={{ padding: '12px 4px', fontSize: '12px', color: '#6b7d96' }}>
+                        Nenhum colaborador encontrado com esse filtro.
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div style={styles.helperText}>
@@ -1991,30 +2162,6 @@ const InboxPage = () => {
 
                 <button type="button" style={styles.primaryButton} onClick={atribuirConversaAtual} disabled={atribuindoConversa || carregandoAgentes}>
                   {atribuindoConversa ? 'Atualizando...' : 'Salvar atribuicao'}
-                </button>
-
-                <div style={{ height: '1px', backgroundColor: '#dbe3ee' }} />
-
-                <div>
-                  <label style={styles.fieldLabel}>Adicionar agente a inbox</label>
-                  <select style={styles.select} value={agenteParaAdicionar} onChange={(event) => setAgenteParaAdicionar(event.target.value)}>
-                    <option value="">{carregandoAgentesConta ? 'Carregando agentes da conta...' : 'Selecione um colaborador'}</option>
-                    {agentesDisponiveisParaInbox.map((agente) => (
-                      <option key={agente.id} value={agente.id}>
-                        {agente.name}{agente.email ? ` - ${agente.email}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={styles.helperText}>
-                  {agentesDisponiveisParaInbox.length > 0
-                    ? 'Escolha um colaborador da conta para liberar a atribuicao nesta inbox.'
-                    : 'Nenhum outro agente disponivel para adicionar com o filtro atual.'}
-                </div>
-
-                <button type="button" style={styles.secondaryButton} onClick={adicionarAgenteNaInbox} disabled={adicionandoAgente || !agenteParaAdicionar}>
-                  {adicionandoAgente ? 'Adicionando...' : 'Adicionar agente'}
                 </button>
               </div>
             ) : null}

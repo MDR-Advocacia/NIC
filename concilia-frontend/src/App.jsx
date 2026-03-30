@@ -21,6 +21,11 @@ import ConversationDetailPage from './pages/ConversationDetailPage';
 import ForceChangePassword from './pages/ForceChangePassword';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import GeneralBasePage from './pages/GeneralBasePage';
+import {
+  USER_ROLES,
+  getDefaultRouteForRole,
+} from './constants/access';
 
 
 
@@ -28,11 +33,18 @@ import ResetPassword from './pages/ResetPassword';
 import MainLayout from './components/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 function App() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return null;
+  }
 
   return (
     <Routes>
-      <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
+      <Route
+        path="/"
+        element={user ? <Navigate to={getDefaultRouteForRole(user.role)} /> : <Navigate to="/login" />}
+      />
       
       {/* --- ÁREA PÚBLICA (Qualquer um pode acessar) --- */}
       <Route path="/login" element={<LoginPage />} />
@@ -49,17 +61,102 @@ function App() {
         }
       >
         <Route path="profile" element={<UserProfile />} />
-        <Route path="logs" element={<SystemLogsPage />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="pipeline" element={<PipelinePage />} />
-        <Route path="cases" element={<CaseManagementPage />} />
-        <Route path="import" element={<ImportDataPage />} /> 
-        <Route path="cases/create" element={<CaseCreatePage />} /> 
-        <Route path="cases/:caseId" element={<CaseDetailPage />} />
-        <Route path="cases/:caseId/edit" element={<CaseEditPage />} />
-        <Route path="users" element={<UserManagementPage />} />
-        <Route path="inbox" element={<InboxPage />} />
-        <Route path="inbox/:conversationId" element={<ConversationDetailPage />} />
+        <Route
+          path="logs"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR]}>
+              <SystemLogsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="dashboard"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR]}>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="pipeline"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR, USER_ROLES.INDICADOR]}>
+              <PipelinePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="cases"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR, USER_ROLES.INDICADOR]}>
+              <CaseManagementPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="import"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR]}>
+              <ImportDataPage />
+            </ProtectedRoute>
+          }
+        /> 
+        <Route
+          path="cases/create"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR]}>
+              <CaseCreatePage />
+            </ProtectedRoute>
+          }
+        /> 
+        <Route
+          path="cases/:caseId"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR, USER_ROLES.INDICADOR]}>
+              <CaseDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="cases/:caseId/edit"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR]}>
+              <CaseEditPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="users"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR]}>
+              <UserManagementPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="inbox"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR]}>
+              <InboxPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="inbox/:conversationId"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR]}>
+              <ConversationDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="base-geral"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR]}>
+              <GeneralBasePage />
+            </ProtectedRoute>
+          }
+        />
       </Route>
     </Routes>
   );

@@ -24,9 +24,13 @@ const columnMapping = {
   'Nº do Processo': 'case_number',
   'Numero do Processo': 'case_number',
   'Número do Processo': 'case_number',
+  'Numero Processo': 'case_number',
+  'Número Processo': 'case_number',
   'Número Interno': 'internal_number',
   'Responsável Principal': 'lawyer_name',
   'Responsavel Principal': 'lawyer_name',
+  'Advogado Responsável': 'lawyer_name',
+  'Advogado Responsavel': 'lawyer_name',
   'Causas de Pedir': 'action_object',
   'Causa de Pedir': 'action_object',
   'Data do Ajuizameto': 'start_date',
@@ -51,6 +55,11 @@ const columnMapping = {
   UF: 'state',
   'Juizado Especial': 'special_court',
   'Valor da Causa': 'cause_value',
+  'Valor Acordo': 'agreement_value',
+  'Valor Alçada': 'original_value',
+  'Valor Alcada': 'original_value',
+  'Valor de Alçada': 'original_value',
+  'Valor de Alcada': 'original_value',
   'Valor da PCOND': 'pcond_probability',
   'Propostas Portal Acordos': 'portal_agreement_offers',
   'Observações Campanhas': 'campaign_observations',
@@ -122,6 +131,12 @@ const normalizeHeader = (header) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const normalizeComparableText = (value) =>
+  normalizeHeader(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
 const normalizeValue = (value) => {
   if (value == null) return '';
   if (value instanceof Date) {
@@ -133,6 +148,38 @@ const normalizeValue = (value) => {
 const parseLineIndex = (lineLabel) => {
   const matched = String(lineLabel ?? '').match(/(\d+)/);
   return matched ? Number(matched[1]) - 1 : -1;
+};
+
+const isSpreadsheetMetadataRow = (row) => {
+  const populatedEntries = Object.entries(row).filter(([, value]) => normalizeValue(value) !== '');
+
+  if (!populatedEntries.length) {
+    return true;
+  }
+
+  if (row.case_number) {
+    return false;
+  }
+
+  if (populatedEntries.length !== 1) {
+    return false;
+  }
+
+  const [field, value] = populatedEntries[0];
+  if (field !== 'internal_number') {
+    return false;
+  }
+
+  const normalizedText = normalizeComparableText(value);
+
+  return [
+    'filtros aplicados',
+    'filtro aplicado',
+    'situacao_proposta',
+    'situacao proposta',
+    'toggle',
+    'polo',
+  ].some((keyword) => normalizedText.includes(keyword));
 };
 
 const inferErrorCode = (messages = []) => {
@@ -170,6 +217,7 @@ const createRowDraft = (row, index) => ({
 
 const ImportDataPage = () => {
   const { token } = useAuth();
+
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedClientName, setSelectedClientName] = useState('');
@@ -297,15 +345,23 @@ const ImportDataPage = () => {
       throw new Error('Nenhuma linha preenchida foi encontrada no arquivo.');
     }
 
-    return dataRows.map((row) => {
-      const mappedRow = {};
-      headers.forEach((header, index) => {
-        if (!header) return;
-        const dbField = columnMapping[header] || header;
-        mappedRow[dbField] = normalizeValue(row[index]);
-      });
-      return mappedRow;
-    });
+    const mappedRows = dataRows
+      .map((row) => {
+        const mappedRow = {};
+        headers.forEach((header, index) => {
+          if (!header) return;
+          const dbField = columnMapping[header] || header;
+          mappedRow[dbField] = normalizeValue(row[index]);
+        });
+        return mappedRow;
+      })
+      .filter((row) => !isSpreadsheetMetadataRow(row));
+
+    if (!mappedRows.length) {
+      throw new Error('Nenhuma linha válida de processo foi encontrada no arquivo.');
+    }
+
+    return mappedRows;
   };
 
   const parseSpreadsheetFile = async (file) => {
@@ -379,6 +435,7 @@ const ImportDataPage = () => {
         editedCount: 0,
         message: 'Arquivo carregado com sucesso. Revise e envie quando estiver pronto.',
       });
+      event.target.value = '';
     } catch (error) {
       console.error('Erro ao ler arquivo:', error);
       event.target.value = '';
@@ -677,7 +734,7 @@ const ImportDataPage = () => {
       <header className={styles.header}>
         <div>
           <h1>Importação de casos</h1>
-          <p>Fluxo direto para planilhas, resumo do processamento e saneamento imediato no front.</p>
+          <p>Importador único para as 3 planilhas, com atualização automática por número do processo.</p>
         </div>
         <button type="button" className={styles.templateButton} onClick={handleDownloadTemplate}>
           <FaDownload />
@@ -697,7 +754,7 @@ const ImportDataPage = () => {
           <div className={styles.cardHeader}>
             <div>
               <h2>Importador de planilhas</h2>
-              <p>CSV, XLSX e XLS. O envio só é liberado depois que o arquivo for carregado.</p>
+              <p>CSV, XLSX e XLS. O importador reconhece os 3 layouts e atualiza processos existentes pelo número do processo.</p>
             </div>
             <span className={styles.clientBadge}>{selectedClientName || 'Cliente não definido'}</span>
           </div>
@@ -745,7 +802,7 @@ const ImportDataPage = () => {
           {uploadProgress && <p className={styles.progressText}>{uploadProgress}</p>}
 
           <div className={styles.helpBox}>
-            <strong>Fluxo:</strong> selecione a planilha, envie e o sistema processa em lotes automáticos. Depois confira o resumo e trate as inconsistências na tabela de saneamento logo abaixo.
+            <strong>Fluxo:</strong> selecione qualquer uma das 3 planilhas, envie e o sistema identifica o layout pelos cabeçalhos. Se o processo já existir, ele é atualizado pelo número do processo; se não existir, é criado.
           </div>
         </article>
 

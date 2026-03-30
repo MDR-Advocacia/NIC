@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\LegalCase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ChatController extends Controller
@@ -201,16 +202,54 @@ class ChatController extends Controller
     {
         $validated = $request->validate([
             'legal_case_id' => 'required|integer|exists:legal_cases,id',
+            'contact_name' => 'nullable|string|max:255',
+            'contact_phone' => 'nullable|string|max:255',
         ]);
 
-        $conversation = Conversation::find($conversationId);
+        $legalCase = LegalCase::findOrFail($validated['legal_case_id']);
+        $conversation = $this->resolveConversationRecord($conversationId);
+        $previousCaseId = $conversation?->legal_case_id ? (int) $conversation->legal_case_id : null;
 
-        if ($conversation) {
-            $conversation->legal_case_id = $validated['legal_case_id'];
-            $conversation->save();
+        if (! $conversation) {
+            $conversation = new Conversation();
+
+            if ($this->conversationHasChatwootIdColumn()) {
+                $conversation->chatwoot_id = (string) $conversationId;
+            } else {
+                $conversation->id = (int) $conversationId;
+            }
         }
 
-        return response()->json(['message' => 'Vinculacao processada com sucesso.']);
+        if (blank($conversation->contact_name) && filled($validated['contact_name'] ?? null)) {
+            $conversation->contact_name = $validated['contact_name'];
+        }
+
+        if (blank($conversation->contact_phone) && filled($validated['contact_phone'] ?? null)) {
+            $conversation->contact_phone = $validated['contact_phone'];
+        }
+
+        if ($previousCaseId === (int) $legalCase->id) {
+            return response()->json([
+                'message' => 'Esta conversa ja estava vinculada a este processo.',
+                'legal_case' => [
+                    'id' => $legalCase->id,
+                    'case_number' => $legalCase->case_number,
+                ],
+            ]);
+        }
+
+        $conversation->legal_case_id = $legalCase->id;
+        $conversation->save();
+
+        $this->registrarHistoricoDeVinculo($request, $legalCase, $conversation, $conversationId, $previousCaseId);
+
+        return response()->json([
+            'message' => 'Conversa vinculada ao processo com sucesso.',
+            'legal_case' => [
+                'id' => $legalCase->id,
+                'case_number' => $legalCase->case_number,
+            ],
+        ]);
     }
 
     public function getConversationMessages($conversationId)
@@ -354,6 +393,76 @@ class ChatController extends Controller
             'conversation' => $conversation,
             'messages' => $messages,
         ]);
+    }
+
+    private function resolveConversationRecord($conversationId): ?Conversation
+    {
+        if ($this->conversationHasChatwootIdColumn()) {
+            $conversation = Conversation::where('chatwoot_id', (string) $conversationId)->first();
+
+            if ($conversation) {
+                return $conversation;
+            }
+        }
+
+        return Conversation::find($conversationId);
+    }
+
+    private function conversationHasChatwootIdColumn(): bool
+    {
+        static $hasChatwootIdColumn = null;
+
+        if ($hasChatwootIdColumn === null) {
+            $hasChatwootIdColumn = Schema::hasColumn('conversations', 'chatwoot_id');
+        }
+
+        return $hasChatwootIdColumn;
+    }
+
+    private function registrarHistoricoDeVinculo(
+        Request $request,
+        LegalCase $legalCase,
+        Conversation $conversation,
+        $conversationId,
+        ?int $previousCaseId
+    ): void {
+        $descricaoContato = $conversation->contact_name
+            ? " do atendimento com {$conversation->contact_name}"
+            : '';
+
+        $legalCase->histories()->create([
+            'user_id' => $request->user()?->id,
+            'event_type' => 'conversation_linked',
+            'description' => "Conversa{$descricaoContato} (Chatwoot #{$conversationId}) vinculada a este processo.",
+            'old_values' => $previousCaseId ? ['legal_case_id' => $previousCaseId] : null,
+            'new_values' => [
+                'legal_case_id' => $legalCase->id,
+                'case_number' => $legalCase->case_number,
+                'chatwoot_conversation_id' => (string) $conversationId,
+                'contact_name' => $conversation->contact_name,
+                'contact_phone' => $conversation->contact_phone,
+            ],
+        ]);
+
+        if ($previousCaseId && $previousCaseId !== (int) $legalCase->id) {
+            $oldCase = LegalCase::find($previousCaseId);
+
+            if ($oldCase) {
+                $oldCase->histories()->create([
+                    'user_id' => $request->user()?->id,
+                    'event_type' => 'conversation_unlinked',
+                    'description' => "Conversa{$descricaoContato} (Chatwoot #{$conversationId}) desvinculada deste processo e movida para o processo {$legalCase->case_number}.",
+                    'old_values' => [
+                        'legal_case_id' => $oldCase->id,
+                        'case_number' => $oldCase->case_number,
+                    ],
+                    'new_values' => [
+                        'legal_case_id' => $legalCase->id,
+                        'case_number' => $legalCase->case_number,
+                    ],
+                ]);
+            }
+        }
     }
 
     public function getTemplates(Request $request)

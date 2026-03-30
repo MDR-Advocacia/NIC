@@ -18,37 +18,123 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
-import { FaExclamationTriangle } from 'react-icons/fa';
+import {
+    FaExclamationTriangle,
+    FaSlidersH,
+    FaBuilding,
+    FaUserTie,
+    FaSignal,
+    FaEraser,
+    FaBolt,
+    FaTag,
+} from 'react-icons/fa';
+import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants/legalCaseStatus';
+import {
+    canAccessCaseCreation,
+    isIndicatorRole,
+    normalizeUserRole,
+    USER_ROLES,
+} from '../constants/access';
+import IndicationChecklistModal from '../components/IndicationChecklistModal';
+
+const MAX_API_PAGE_SIZE = 200;
+
+const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
+    const items = [];
+    let currentPage = 1;
+    let lastPage = 1;
+
+    do {
+        const query = new URLSearchParams({
+            ...Object.fromEntries(
+                Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
+            ),
+            page: currentPage,
+            per_page: MAX_API_PAGE_SIZE,
+        });
+
+        const response = await apiClient.get(`${endpoint}?${query.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const payload = response.data;
+        if (Array.isArray(payload)) {
+            return payload;
+        }
+
+        items.push(...(Array.isArray(payload?.data) ? payload.data : []));
+        lastPage = Number(payload?.last_page || 1);
+        currentPage += 1;
+    } while (currentPage <= lastPage);
+
+    return items;
+};
 
 const PipelinePage = () => {
     const { token, user } = useAuth();
+    const isIndicator = isIndicatorRole(user?.role);
+    const canChooseResponsible = ['administrador', 'supervisor'].includes(user?.role);
 
     const [pipelineData, setPipelineData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
+    const [savedTags, setSavedTags] = useState([]);
     
     const [editingCase, setEditingCase] = useState(null);
+    const [indicationCase, setIndicationCase] = useState(null);
     const [filters, setFilters] = useState({});
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
     const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
 
-    const handleOpenEditModal = (caseToEdit) => setEditingCase(caseToEdit);
+    const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
+    const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
+        || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
+    const priorityLabelMap = {
+        baixa: 'Prioridade baixa',
+        media: 'Prioridade média',
+        alta: 'Prioridade alta',
+    };
+    const activeFilterChips = [
+        selectedClientName ? `Cliente: ${selectedClientName}` : null,
+        selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
+        filters.priority ? priorityLabelMap[filters.priority] : null,
+        selectedTagName ? `Etiqueta: ${selectedTagName}` : null,
+        showDelayedOnly ? 'Apenas atrasados (+5 dias)' : null,
+    ].filter(Boolean);
+    const activeFilterCount = activeFilterChips.length;
+
+    const handleOpenEditModal = (caseToEdit) => {
+        if (isIndicator) {
+            return;
+        }
+
+        setEditingCase(caseToEdit);
+    };
     const handleCloseEditModal = () => setEditingCase(null);
+    const handleOpenIndicationModal = (caseToIndicate) => setIndicationCase(caseToIndicate);
+    const handleCloseIndicationModal = () => setIndicationCase(null);
 
     const handleCaseUpdated = () => {
         fetchAllData();
     };
 
+    const handleCaseIndicated = () => {
+        setIndicationCase(null);
+        fetchAllData();
+    };
+
     const groupCasesByStatus = useCallback((cases) => {
-        const initialGroups = {
-            'initial_analysis': 'Análise Inicial', 'proposal_sent': 'Proposta Enviada',
-            'in_negotiation': 'Em Negociação', 'awaiting_draft': 'Aguardando Minuta',
-            'closed_deal': 'Acordo Fechado', 'failed_deal': 'Acordo Frustrado',
-        };
+        const initialGroups = LEGAL_CASE_STATUS_ORDER.reduce((acc, statusKey) => {
+            acc[statusKey] = LEGAL_CASE_STATUS_DETAILS[statusKey].name;
+            return acc;
+        }, {});
         const grouped = Object.keys(initialGroups).reduce((acc, key) => ({ ...acc, [key]: [] }), {});
-        (cases || []).forEach(currentCase => {
+        [...(cases || [])]
+            .sort((firstCase, secondCase) => new Date(secondCase.updated_at) - new Date(firstCase.updated_at))
+            .forEach(currentCase => {
             if (grouped[currentCase.status]) {
                 grouped[currentCase.status].push(currentCase);
             } else {
@@ -62,15 +148,59 @@ const PipelinePage = () => {
         if (!token) return;
         setLoading(true);
         try {
-            const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
-
-            const [casesResponse, clientsResponse, lawyersResponse] = await Promise.all([
-                apiClient.get(`/cases?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
+            const [clientsResponse, lawyersResponse, caseTagsResponse] = await Promise.all([
                 apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
-                apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } })
+                fetchAllPaginatedResults('/users', token),
+                apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
             ]);
 
-            let fetchedCases = Array.isArray(casesResponse.data) ? casesResponse.data : (casesResponse.data.data || []);
+            const fetchedLawyers = Array.isArray(lawyersResponse)
+                ? lawyersResponse.filter(
+                    (lawyer) => lawyer?.status === 'ativo'
+                        && normalizeUserRole(lawyer?.role) === USER_ROLES.OPERADOR
+                )
+                : [];
+
+            const effectiveFilters = { ...filters };
+            const requiresResponsibleFilter = canChooseResponsible;
+
+            const hasValidResponsibleSelected = fetchedLawyers.some(
+                (lawyer) => String(lawyer.id) === String(effectiveFilters.lawyer_id)
+            );
+
+            if (effectiveFilters.lawyer_id && !hasValidResponsibleSelected) {
+                delete effectiveFilters.lawyer_id;
+                setFilters((currentFilters) => {
+                    if (!currentFilters.lawyer_id) {
+                        return currentFilters;
+                    }
+
+                    const nextFilters = { ...currentFilters };
+                    delete nextFilters.lawyer_id;
+                    return nextFilters;
+                });
+            }
+
+            if (requiresResponsibleFilter && !effectiveFilters.lawyer_id) {
+                const preferredResponsible =
+                    fetchedLawyers.find((lawyer) => String(lawyer.id) === String(user?.id))
+                    || fetchedLawyers[0];
+
+                if (preferredResponsible) {
+                    effectiveFilters.lawyer_id = String(preferredResponsible.id);
+                    setFilters((currentFilters) =>
+                        currentFilters.lawyer_id
+                            ? currentFilters
+                            : { ...currentFilters, lawyer_id: String(preferredResponsible.id) }
+                    );
+                }
+            }
+
+            let fetchedCases = await fetchAllPaginatedResults('/cases', token, {
+                ...effectiveFilters,
+                sort_by: 'updated_at',
+                sort_order: 'desc',
+            });
 
             // Filtro de Atraso
             if (showDelayedOnly) {
@@ -86,7 +216,8 @@ const PipelinePage = () => {
             const groupedCases = groupCasesByStatus(fetchedCases);
             setPipelineData(groupedCases);
             setClients(clientsResponse.data);
-            setLawyers(lawyersResponse.data.data || []);
+            setLawyers(fetchedLawyers);
+            setSavedTags(Array.isArray(caseTagsResponse.data) ? caseTagsResponse.data : []);
         } catch (err) {
             console.error("Erro pipeline:", err);
             setError('Não foi possível carregar os dados do pipeline.');
@@ -208,6 +339,15 @@ const PipelinePage = () => {
         const isStatusChange = movedCase.status !== overContainer;
 
         if (isStatusChange) {
+            // Confirmação ao mover para Contra Indicado
+            if (overContainer === 'contra_indicated') {
+                if (!window.confirm('Tem certeza que deseja marcar este caso como Contra Indicado?')) {
+                    setActiveId(null);
+                    fetchAllData(); // Reverte animação visual
+                    return;
+                }
+            }
+
             console.log(`🔄 Movendo card ${movedCase.id}: ${movedCase.status} -> ${overContainer}`);
 
             // Prepara o objeto para enviar ao Backend
@@ -283,57 +423,172 @@ const PipelinePage = () => {
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleClearFilters = () => {
+        setFilters({});
+        setShowDelayedOnly(false);
+    };
+
     if (loading && !pipelineData) return <p>Carregando pipeline...</p>;
     if (error) return <p style={{ color: 'red' }}>{error}</p>;
 
     return (
-        <div>
+        <div className={styles.pageContainer}>
             <div className={styles.header}>
                 <h1>Pipeline de Acordos</h1>
                 <div className={styles.headerActions}>
-                    <Link to="/cases/create" className={styles.newCaseButton}>
-                        + Novo Caso
-                    </Link>
+                    {canAccessCaseCreation(user?.role) && (
+                        <Link to="/cases/create" className={styles.newCaseButton}>
+                            + Novo Caso
+                        </Link>
+                    )}
                 </div>
             </div>
 
-            <div className={styles.filterBar}>
-                <div className={styles.filterGroup}>
-                    <label>Cliente</label>
-                    <select className={styles.filterSelect} value={filters.client_id || ''} onChange={(e) => handleFilterChange('client_id', e.target.value)}>
-                        <option value="">Todos</option>
-                        {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
-                    </select>
+            <section className={styles.filterPanel}>
+                <div className={styles.filterPanelHeader}>
+                    <div className={styles.filterPanelTitleGroup}>
+                        <div className={styles.filterPanelIcon}>
+                            <FaSlidersH />
+                        </div>
+                        <div>
+                            <h2 className={styles.filterPanelTitle}>Filtros do Pipeline</h2>
+                            <p className={styles.filterPanelSubtitle}>
+                                Refine os cards por cliente, responsável, prioridade e destaque rapidamente os casos parados.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className={styles.filterPanelMeta}>
+                        <strong>{activeFilterCount}</strong>
+                        <span>{activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}</span>
+                        <small><FaBolt /> Atualização automática</small>
+                    </div>
                 </div>
-                
-                {user?.role === 'administrador' && (
-                    <div className={styles.filterGroup}>
-                        <label>Advogado</label>
-                        <select className={styles.filterSelect} value={filters.lawyer_id || ''} onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}>
+
+                <div className={styles.filterGrid}>
+                    <div className={styles.filterField}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaBuilding />
+                            <span>Cliente</span>
+                        </label>
+                        <select
+                            className={styles.filterSelect}
+                            value={filters.client_id || ''}
+                            onChange={(e) => handleFilterChange('client_id', e.target.value)}
+                        >
                             <option value="">Todos</option>
-                            {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
+                            {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
                         </select>
                     </div>
-                )}
-                
-                <div className={styles.filterGroup}>
-                    <label>Prioridade</label>
-                    <select className={styles.filterSelect} value={filters.priority || ''} onChange={(e) => handleFilterChange('priority', e.target.value)}>
-                        <option value="">Todas</option>
-                        <option value="baixa">Baixa</option>
-                        <option value="media">Média</option>
-                        <option value="alta">Alta</option>
-                    </select>
+                    
+                    {canChooseResponsible && (
+                        <div className={styles.filterField}>
+                            <label className={styles.filterFieldLabel}>
+                                <FaUserTie />
+                                <span>Responsável do Caso</span>
+                            </label>
+                            <select
+                                className={styles.filterSelect}
+                                value={filters.lawyer_id || ''}
+                                onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}
+                            >
+                                <option value="" disabled>Selecione um responsável</option>
+                                {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
+                            </select>
+                        </div>
+                    )}
+                    
+                    <div className={styles.filterField}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaSignal />
+                            <span>Prioridade</span>
+                        </label>
+                        <select
+                            className={styles.filterSelect}
+                            value={filters.priority || ''}
+                            onChange={(e) => handleFilterChange('priority', e.target.value)}
+                        >
+                            <option value="">Todas</option>
+                            <option value="baixa">Baixa</option>
+                            <option value="media">Média</option>
+                            <option value="alta">Alta</option>
+                        </select>
+                    </div>
+
+                    <div className={styles.filterField}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaTag />
+                            <span>Etiqueta</span>
+                        </label>
+                        <select
+                            className={styles.filterSelect}
+                            value={filters.tag || ''}
+                            onChange={(e) => handleFilterChange('tag', e.target.value)}
+                        >
+                            <option value="">Todas</option>
+                            {savedTags.map((tag) => (
+                                <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
+                                    {tag.text || tag.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
-                <button 
-                    className={`${styles.delayedFilterButton} ${showDelayedOnly ? styles.active : ''}`}
-                    onClick={() => setShowDelayedOnly(!showDelayedOnly)}
-                    title="Mostrar apenas casos parados há mais de 5 dias"
-                >
-                    <FaExclamationTriangle /> {showDelayedOnly ? 'Mostrando Atrasados' : 'Ver Atrasados'}
-                </button>
-            </div>
+                <div className={styles.filterPanelFooter}>
+                    <div className={styles.filterSummary}>
+                        {activeFilterChips.length > 0 ? (
+                            activeFilterChips.map((chip) => (
+                                <span
+                                    key={chip}
+                                    className={`${styles.filterChip} ${chip.includes('Atrasados') || chip.includes('atrasados') ? styles.filterChipAlert : ''}`}
+                                >
+                                    {chip}
+                                </span>
+                            ))
+                        ) : (
+                            <span className={styles.filterHint}>
+                                Sem filtros ativos. O pipeline está exibindo a visão completa disponível para o seu perfil.
+                            </span>
+                        )}
+                    </div>
+
+                    <div className={styles.filterActions}>
+                        <button
+                            type="button"
+                            className={styles.clearFilterButton}
+                            onClick={handleClearFilters}
+                            disabled={activeFilterCount === 0}
+                        >
+                            <FaEraser />
+                            Limpar
+                        </button>
+                        <button 
+                            type="button"
+                            className={`${styles.delayedFilterButton} ${showDelayedOnly ? styles.active : ''}`}
+                            onClick={() => setShowDelayedOnly(!showDelayedOnly)}
+                            title="Mostrar apenas casos parados há mais de 5 dias"
+                        >
+                            <FaExclamationTriangle />
+                            {showDelayedOnly ? 'Mostrando atrasados' : 'Ver atrasados'}
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            {isIndicator && (
+                <div style={{
+                    marginBottom: '18px',
+                    padding: '14px 18px',
+                    borderRadius: '12px',
+                    border: '1px solid #bfdbfe',
+                    background: '#eff6ff',
+                    color: '#1e3a8a',
+                    fontWeight: 600,
+                }}>
+                    Os casos em Analise Inicial podem ser avaliados aqui e indicados para acordo pelo checklist obrigatorio.
+                </div>
+            )}
 
             {/* Modal de Edição */}
             {editingCase && (
@@ -345,6 +600,13 @@ const PipelinePage = () => {
                     lawyers={lawyers} 
                 />
             )}
+
+            <IndicationChecklistModal
+                isOpen={Boolean(indicationCase)}
+                legalCase={indicationCase}
+                onClose={handleCloseIndicationModal}
+                onSuccess={handleCaseIndicated}
+            />
             
             <DndContext 
                 sensors={sensors} 
@@ -353,16 +615,23 @@ const PipelinePage = () => {
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
             >
-                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', padding: '1rem', paddingBottom: '100px' }}>
-                    {pipelineData?.titles && Object.entries(pipelineData.titles).map(([statusKey, statusTitle]) => (
-                        <PipelineColumn 
-                            key={statusKey} 
-                            id={statusKey} 
-                            title={statusTitle} 
-                            cases={pipelineData.grouped[statusKey] || []} 
-                            onCardClick={handleOpenEditModal} 
-                        />
-                    ))}
+                <div className={styles.boardShell}>
+                    <div className={styles.boardGrid}>
+                    {pipelineData?.titles && Object.entries(pipelineData.titles)
+                        .filter(([statusKey]) => !isIndicator || statusKey === 'initial_analysis')
+                        .map(([statusKey, statusTitle]) => (
+                            <PipelineColumn
+                                key={statusKey}
+                                id={statusKey}
+                                title={statusTitle}
+                                cases={pipelineData.grouped[statusKey] || []}
+                                onCardClick={handleOpenEditModal}
+                                enableDrag={!isIndicator}
+                                canIndicateCase={isIndicator}
+                                onIndicateCase={handleOpenIndicationModal}
+                            />
+                        ))}
+                    </div>
                 </div>
                 {/* Overlay opcional para feedback visual melhorado durante o arraste */}
                 {/* <DragOverlay> ... </DragOverlay> */}
