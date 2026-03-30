@@ -6,7 +6,9 @@ import styles from '../styles/Pipeline.module.css';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditLitigantModal from './AddEditLitigantModal'; // Importando para criar rápido
 import {
+  LIVELO_MIN_POINTS,
   normalizeSettlementBenefitPayload,
+  OUROCAP_MIN_VALUE,
   SETTLEMENT_BENEFIT_OPTIONS,
   SETTLEMENT_BENEFIT_TYPES,
   validateSettlementBenefit
@@ -346,14 +348,14 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
                </div>
                {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
                  <div className={styles.formGroup}>
-                   <label className={styles.label} htmlFor="ourocap_value">Valor Ourocap (R$)</label>
-                   <input className={styles.input} type="number" step="0.01" min="500" id="ourocap_value" name="ourocap_value" value={formData.ourocap_value} onChange={handleChange} />
+                   <label className={styles.label} htmlFor="ourocap_value">Valor Ourocap (mínimo R$ 500,00)</label>
+                   <input className={styles.input} type="number" step="0.01" min={OUROCAP_MIN_VALUE} id="ourocap_value" name="ourocap_value" value={formData.ourocap_value} onChange={handleChange} />
                  </div>
                )}
                {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
                  <div className={styles.formGroup}>
-                   <label className={styles.label} htmlFor="livelo_points">Pontos Livelo</label>
-                   <input className={styles.input} type="number" step="1" min="1" id="livelo_points" name="livelo_points" value={formData.livelo_points} onChange={handleChange} />
+                   <label className={styles.label} htmlFor="livelo_points">Pontos Livelo (mínimo 5.000)</label>
+                   <input className={styles.input} type="number" step="1" min={LIVELO_MIN_POINTS} id="livelo_points" name="livelo_points" value={formData.livelo_points} onChange={handleChange} />
                  </div>
                )}
              </div>

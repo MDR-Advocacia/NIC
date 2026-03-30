@@ -4,6 +4,9 @@ export const SETTLEMENT_BENEFIT_TYPES = {
     LIVELO: 'livelo',
 };
 
+export const OUROCAP_MIN_VALUE = 500;
+export const LIVELO_MIN_POINTS = 5000;
+
 export const SETTLEMENT_BENEFIT_OPTIONS = [
     { value: SETTLEMENT_BENEFIT_TYPES.NONE, label: 'Nenhum' },
     { value: SETTLEMENT_BENEFIT_TYPES.OUROCAP, label: 'Ourocap' },
@@ -37,7 +40,7 @@ export const validateSettlementBenefit = ({ settlementBenefitType, ourocap_value
             return 'Informe um valor válido para o Ourocap.';
         }
 
-        if (parsedValue < 500) {
+        if (parsedValue < OUROCAP_MIN_VALUE) {
             return 'O valor do Ourocap deve ser de no mínimo R$ 500,00.';
         }
     }
@@ -48,8 +51,8 @@ export const validateSettlementBenefit = ({ settlementBenefitType, ourocap_value
         }
 
         const parsedValue = Number.parseInt(livelo_points, 10);
-        if (Number.isNaN(parsedValue) || parsedValue < 1) {
-            return 'Informe uma quantidade válida de pontos Livelo.';
+        if (Number.isNaN(parsedValue) || parsedValue < LIVELO_MIN_POINTS) {
+            return 'A quantidade de pontos Livelo deve ser de no mínimo 5.000.';
         }
     }
 

@@ -12,7 +12,9 @@ import AddEditPlaintiffModal from '../components/AddEditPlaintiffModal';
 import AddEditDefendantModal from '../components/AddEditDefendantModal';
 import { FaExclamationTriangle } from 'react-icons/fa';
 import {
+    LIVELO_MIN_POINTS,
     normalizeSettlementBenefitPayload,
+    OUROCAP_MIN_VALUE,
     SETTLEMENT_BENEFIT_OPTIONS,
     SETTLEMENT_BENEFIT_TYPES,
     validateSettlementBenefit
@@ -740,12 +742,12 @@ const CaseCreatePage = () => {
                         </div>
                         {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
                             <div className={styles.formGroup}>
-                                <label className={styles.label}>Valor Ourocap (R$)</label>
+                                <label className={styles.label}>Valor Ourocap (mínimo R$ 500,00)</label>
                                 <input
                                     className={`${styles.input} ${errors.ourocap_value ? styles.errorInput : ''}`}
                                     type="number"
                                     step="0.01"
-                                    min="500"
+                                    min={OUROCAP_MIN_VALUE}
                                     name="ourocap_value"
                                     value={formData.ourocap_value}
                                     onChange={handleChange}
@@ -755,12 +757,12 @@ const CaseCreatePage = () => {
                         )}
                         {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
                             <div className={styles.formGroup}>
-                                <label className={styles.label}>Pontos Livelo</label>
+                                <label className={styles.label}>Pontos Livelo (mínimo 5.000)</label>
                                 <input
                                     className={`${styles.input} ${errors.livelo_points ? styles.errorInput : ''}`}
                                     type="number"
                                     step="1"
-                                    min="1"
+                                    min={LIVELO_MIN_POINTS}
                                     name="livelo_points"
                                     value={formData.livelo_points}
                                     onChange={handleChange}

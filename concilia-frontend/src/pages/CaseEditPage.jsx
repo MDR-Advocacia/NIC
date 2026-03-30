@@ -7,8 +7,10 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 import {
+    LIVELO_MIN_POINTS,
     getSettlementBenefitType,
     normalizeSettlementBenefitPayload,
+    OUROCAP_MIN_VALUE,
     SETTLEMENT_BENEFIT_OPTIONS,
     SETTLEMENT_BENEFIT_TYPES,
     validateSettlementBenefit
@@ -311,28 +313,28 @@ const CaseEditPage = () => {
                 </div>
                 {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
                     <div>
-                        <label style={{ fontWeight: 'bold' }}>Valor Ourocap (R$):</label>
+                        <label style={{ fontWeight: 'bold' }}>Valor Ourocap (mínimo R$ 500,00):</label>
                         <input
                             type="number"
                             name="ourocap_value"
                             value={formData.ourocap_value || ''}
                             onChange={handleChange}
                             step="0.01"
-                            min="500"
+                            min={OUROCAP_MIN_VALUE}
                             style={inputStyle}
                         />
                     </div>
                 )}
                 {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
                     <div>
-                        <label style={{ fontWeight: 'bold' }}>Pontos Livelo:</label>
+                        <label style={{ fontWeight: 'bold' }}>Pontos Livelo (mínimo 5.000):</label>
                         <input
                             type="number"
                             name="livelo_points"
                             value={formData.livelo_points || ''}
                             onChange={handleChange}
                             step="1"
-                            min="1"
+                            min={LIVELO_MIN_POINTS}
                             style={inputStyle}
                         />
                     </div>

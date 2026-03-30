@@ -645,7 +645,7 @@ class LegalCaseController extends Controller
                 $row['Reu'] = $case->defendant;
                 $row['Status'] = $case->status;
                 $row['Prioridade'] = $case->priority;
-                $row['Advogado Responsavel'] = $case->lawyer->name ?? 'N/A';
+                $row['Advogado Responsavel'] = $case->lawyer?->name ?? 'N/A';
                 $row['Valor Causa'] = $case->cause_value;
                 $row['Valor Acordo'] = $case->agreement_value;
                 $row['Valor Alçada'] = $case->original_value;
@@ -672,7 +672,6 @@ class LegalCaseController extends Controller
         $createdCount = 0;
         $updatedCount = 0;
         $errors = [];
-        $authenticatedUserId = Auth::id();
 
         // Mensagens de erro personalizadas
         $messages = [
@@ -739,14 +738,9 @@ class LegalCaseController extends Controller
                 if ($responsibleUser) {
                     $caseData['user_id'] = $responsibleUser->id;
                     $caseData['lawyer_name'] = $responsibleUser->name;
+                } else {
+                    $caseData['user_id'] = null;
                 }
-                if (!isset($caseData['user_id']) && isset($caseData['lawyer_id'])) {
-                    $caseData['user_id'] = $caseData['lawyer_id'];
-                }
-
-                $caseData['user_id'] = $caseData['user_id']
-                    ?? $existingCase?->user_id
-                    ?? $authenticatedUserId;
 
                 $caseData['client_id'] = $clientId;
                 $caseData['status'] = $existingCase?->status ?? 'initial_analysis';
@@ -799,7 +793,7 @@ class LegalCaseController extends Controller
                     'case_number' => 'required|string|max:255',
                     'opposing_party' => 'required|string|max:255',
                     'defendant' => 'nullable|string|max:255',
-                    'user_id' => 'required|exists:users,id',
+                    'user_id' => 'nullable|exists:users,id',
                     'action_object' => 'nullable|string|max:255',
                     'action_object_id' => 'nullable|exists:action_objects,id',
                     'internal_number' => 'nullable|string|max:255',
@@ -904,7 +898,6 @@ class LegalCaseController extends Controller
         $updatedCount = 0;
         $errors = [];
         $processedCaseIds = [];
-        $authenticatedUserId = Auth::id();
 
         $messages = [
             'required' => 'O campo :attribute é obrigatório.',
@@ -965,14 +958,9 @@ class LegalCaseController extends Controller
                 if ($responsibleUser) {
                     $caseData['user_id'] = $responsibleUser->id;
                     $caseData['lawyer_name'] = $responsibleUser->name;
+                } else {
+                    $caseData['user_id'] = null;
                 }
-                if (!isset($caseData['user_id']) && isset($caseData['lawyer_id'])) {
-                    $caseData['user_id'] = $caseData['lawyer_id'];
-                }
-
-                $caseData['user_id'] = $caseData['user_id']
-                    ?? $existingCase?->user_id
-                    ?? $authenticatedUserId;
 
                 $caseData['client_id'] = $clientId;
                 $caseData['status'] = $existingCase?->status ?? 'initial_analysis';
@@ -1020,7 +1008,7 @@ class LegalCaseController extends Controller
                     'case_number' => 'required|string|max:255',
                     'opposing_party' => 'required|string|max:255',
                     'defendant' => 'nullable|string|max:255',
-                    'user_id' => 'required|exists:users,id',
+                    'user_id' => 'nullable|exists:users,id',
                     'action_object' => 'nullable|string|max:255',
                     'action_object_id' => 'nullable|exists:action_objects,id',
                     'internal_number' => 'nullable|string|max:255',
@@ -1359,7 +1347,9 @@ class LegalCaseController extends Controller
             'case_number' => $existingCase?->case_number ?? $caseData['case_number'],
             'internal_number' => $caseData['internal_number'] ?? $existingCase?->internal_number,
             'client_id' => $caseData['client_id'] ?? $existingCase?->client_id,
-            'user_id' => $caseData['user_id'] ?? $existingCase?->user_id,
+            'user_id' => array_key_exists('user_id', $caseData)
+                ? $caseData['user_id']
+                : $existingCase?->user_id,
             'opposing_party' => $caseData['opposing_party'] ?? $existingCase?->opposing_party,
             'plaintiff_id' => $caseData['plaintiff_id'] ?? $existingCase?->plaintiff_id,
             'defendant' => $caseData['defendant'] ?? $existingCase?->defendant,
@@ -1537,6 +1527,18 @@ class LegalCaseController extends Controller
 
     private function resolveResponsibleUserFromImport(array $caseData): ?User
     {
+        foreach (['user_id', 'lawyer_id'] as $field) {
+            $candidateId = $caseData[$field] ?? null;
+            if ($candidateId === null || $candidateId === '' || !is_numeric($candidateId)) {
+                continue;
+            }
+
+            $matchedUser = User::query()->find((int) $candidateId);
+            if ($matchedUser) {
+                return $matchedUser;
+            }
+        }
+
         $candidates = array_values(array_filter([
             is_string($caseData['lawyer_name'] ?? null) ? trim((string) $caseData['lawyer_name']) : null,
             is_string($caseData['campaign_observations'] ?? null) ? trim((string) $caseData['campaign_observations']) : null,
@@ -1774,7 +1776,7 @@ class LegalCaseController extends Controller
         return [
             'nullable',
             'integer',
-            'min:1',
+            'min:5000',
             function (string $attribute, mixed $value, \Closure $fail) use ($request, $case) {
                 $ourocapValue = $request->input('ourocap_value', $case?->ourocap_value);
 
