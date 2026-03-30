@@ -7,7 +7,7 @@ import {
     FaCheckSquare, FaExchangeAlt, FaTrashAlt, FaTimes, 
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
-    FaSort, FaSortUp, FaSortDown
+    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
@@ -28,6 +28,18 @@ const PRIORITY_DETAILS = {
     'alta': { name: 'Alta', color: '#e53e3e', textColor: '#FFFFFF' },
     'media': { name: 'Média', color: '#dd6b20', textColor: '#FFFFFF' },
     'baixa': { name: 'Baixa', color: '#38a169', textColor: '#FFFFFF' },
+};
+
+const PRIORITY_OPTIONS = Object.entries(PRIORITY_DETAILS).map(([value, details]) => ({
+    value,
+    name: details.name,
+}));
+
+const INITIAL_FILTERS = {
+    search: '',
+    status: '',
+    priority: '',
+    lawyer_id: '',
 };
 
 const StatusTag = ({ status }) => {
@@ -123,9 +135,7 @@ const CaseManagementPage = () => {
     const [batchActionType, setBatchActionType] = useState(null); 
     const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
-    const [filters, setFilters] = useState({
-        search: '', status: '', priority: '', lawyer_id: '',
-    });
+    const [filters, setFilters] = useState(INITIAL_FILTERS);
 
     // Carrega dados de apoio
     useEffect(() => {
@@ -226,6 +236,10 @@ const CaseManagementPage = () => {
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleClearFilters = () => {
+        setFilters({ ...INITIAL_FILTERS });
+    };
+
     const handleSelectAll = (e) => {
         if (e.target.checked) {
             setSelectedCaseIds(cases.map(c => c.id));
@@ -295,6 +309,35 @@ const CaseManagementPage = () => {
     };
 
     const isAllSelected = cases.length > 0 && Array.isArray(selectedCaseIds) && selectedCaseIds.length === cases.length;
+    const selectedLawyer = lawyers.find(lawyer => String(lawyer.id) === String(filters.lawyer_id));
+    const activeFilterChips = [];
+
+    if (filters.search.trim()) {
+        activeFilterChips.push({ key: 'search', label: `Busca: ${filters.search.trim()}` });
+    }
+
+    if (filters.status) {
+        activeFilterChips.push({
+            key: 'status',
+            label: `Status: ${getLegalCaseStatusDetails(filters.status).name}`,
+        });
+    }
+
+    if (filters.priority) {
+        activeFilterChips.push({
+            key: 'priority',
+            label: `Prioridade: ${PRIORITY_DETAILS[filters.priority]?.name || filters.priority}`,
+        });
+    }
+
+    if (!isIndicator && filters.lawyer_id) {
+        activeFilterChips.push({
+            key: 'lawyer_id',
+            label: `Responsável: ${selectedLawyer?.name || 'Selecionado'}`,
+        });
+    }
+
+    const activeFilterCount = activeFilterChips.length;
 
     return (
         <div className={styles.pageContainer}>
@@ -329,19 +372,109 @@ const CaseManagementPage = () => {
             </section>
 
             <section className={styles.filtersContainer}>
-                <h3><FaSearch /> Filtros</h3>
-                <div className={styles.filterControls}>
-                    <input type="text" placeholder="Buscar..." className={styles.searchInput} name="search" value={filters.search} onChange={handleFilterChange} />
-                    <select className={styles.filterSelect} name="status" value={filters.status} onChange={handleFilterChange}>
-                        <option value="">Status: Todos</option>
-                        {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>)}
-                    </select>
-                    {!isIndicator && (
-                        <select className={styles.filterSelect} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
-                            <option value="">Advogado: Todos</option>
-                            {lawyers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                <div className={styles.filtersHeader}>
+                    <div className={styles.filtersTitleBlock}>
+                        <div className={styles.filtersIcon}>
+                            <FaSlidersH />
+                        </div>
+                        <div className={styles.filtersHeading}>
+                            <h3>Filtros da Gestão</h3>
+                            <p>Refine a carteira e a tabela atualiza automaticamente enquanto você trabalha.</p>
+                        </div>
+                    </div>
+                    <span className={styles.filterCount}>
+                        {activeFilterCount} {activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}
+                    </span>
+                </div>
+
+                <div className={styles.filterGrid}>
+                    <label className={`${styles.filterField} ${styles.searchField}`}>
+                        <span className={styles.filterLabel}>
+                            <FaSearch />
+                            Busca rápida
+                        </span>
+                        <input
+                            type="text"
+                            placeholder="Processo, cliente ou palavra-chave"
+                            className={styles.filterControl}
+                            name="search"
+                            value={filters.search}
+                            onChange={handleFilterChange}
+                        />
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaCheckSquare />
+                            Status
+                        </span>
+                        <select className={styles.filterControl} name="status" value={filters.status} onChange={handleFilterChange}>
+                            <option value="">Todos os status</option>
+                            {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
+                                <option key={statusOption.value} value={statusOption.value}>
+                                    {statusOption.name}
+                                </option>
+                            ))}
                         </select>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaExclamationCircle />
+                            Prioridade
+                        </span>
+                        <select className={styles.filterControl} name="priority" value={filters.priority} onChange={handleFilterChange}>
+                            <option value="">Todas as prioridades</option>
+                            {PRIORITY_OPTIONS.map((priorityOption) => (
+                                <option key={priorityOption.value} value={priorityOption.value}>
+                                    {priorityOption.name}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+
+                    {!isIndicator && (
+                        <label className={styles.filterField}>
+                            <span className={styles.filterLabel}>
+                                <FaUserTag />
+                                Responsável do caso
+                            </span>
+                            <select className={styles.filterControl} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
+                                <option value="">Todos os responsáveis</option>
+                                {lawyers.map((lawyer) => (
+                                    <option key={lawyer.id} value={lawyer.id}>
+                                        {lawyer.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
                     )}
+                </div>
+
+                <div className={styles.filtersFooter}>
+                    <div className={styles.filtersSummary}>
+                        {activeFilterCount > 0 ? (
+                            activeFilterChips.map((chip) => (
+                                <span key={chip.key} className={styles.filterChip}>
+                                    {chip.label}
+                                </span>
+                            ))
+                        ) : (
+                            <span className={styles.filtersHint}>
+                                Sem filtros adicionais no momento. A lista mostra todos os casos da fila atual.
+                            </span>
+                        )}
+                    </div>
+
+                    <button
+                        type="button"
+                        className={styles.clearFiltersButton}
+                        onClick={handleClearFilters}
+                        disabled={activeFilterCount === 0}
+                    >
+                        <FaEraser />
+                        Limpar filtros
+                    </button>
                 </div>
             </section>
             
