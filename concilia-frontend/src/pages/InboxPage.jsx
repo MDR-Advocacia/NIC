@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import LinkCaseModal from '../components/LinkCaseModal';
 
 const TEMPLATE_FALLBACK_STORAGE_KEY = 'nic_template_fallback_messages_v1';
 
@@ -426,6 +427,8 @@ const InboxPage = () => {
   const [tipoFeedback, setTipoFeedback] = useState('success');
   const [imagemAberta, setImagemAberta] = useState(null);
   const [painelContatoAberto, setPainelContatoAberto] = useState(false);
+  const [modalVinculoAberto, setModalVinculoAberto] = useState(false);
+  const [processoVinculado, setProcessoVinculado] = useState(null);
   const [formContato, setFormContato] = useState({ id: '', name: '', email: '', phone_number: '' });
   const [salvandoContato, setSalvandoContato] = useState(false);
   const [agentesInbox, setAgentesInbox] = useState([]);
@@ -840,6 +843,18 @@ const InboxPage = () => {
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
     setTipoFeedback(tipo);
+  };
+
+  const handleVinculoProcessoConcluido = (processo) => {
+    setProcessoVinculado(processo || null);
+    setModalVinculoAberto(false);
+
+    if (processo?.case_number) {
+      definirFeedback(`Conversa vinculada ao processo ${processo.case_number} e registrada no historico.`);
+      return;
+    }
+
+    definirFeedback('Conversa vinculada ao processo com sucesso.');
   };
 
   const aplicarContatoAtualizado = (contatoAtualizado) => {
@@ -1267,6 +1282,8 @@ const InboxPage = () => {
 
   useEffect(() => {
     setModalTemplatesAberto(false);
+    setModalVinculoAberto(false);
+    setProcessoVinculado(null);
     setTemplateSelecionado(null);
     setVariaveisTemplate({});
     setBuscaTemplate('');
@@ -1794,6 +1811,16 @@ const InboxPage = () => {
         </div>
       ) : null}
 
+      {modalVinculoAberto && conversaSelecionada ? (
+        <LinkCaseModal
+          conversationId={conversaSelecionada}
+          contactName={contatoAtual?.name || conversaAtual?.meta?.sender?.name || ''}
+          contactPhone={telefoneDestino || ''}
+          onClose={() => setModalVinculoAberto(false)}
+          onLinkSuccess={handleVinculoProcessoConcluido}
+        />
+      ) : null}
+
       <div style={styles.rail}>
         <div>
           <div style={styles.railKicker}>Central de atendimento</div>
@@ -1907,6 +1934,9 @@ const InboxPage = () => {
               <div style={styles.headerActions}>
                 <button type="button" style={styles.secondaryButton} onClick={() => setPainelContatoAberto(true)}>
                   Contato
+                </button>
+                <button type="button" style={styles.secondaryButton} onClick={() => setModalVinculoAberto(true)}>
+                  Vincular processo
                 </button>
                 <div style={styles.badge}>WhatsApp</div>
               </div>
@@ -2033,6 +2063,28 @@ const InboxPage = () => {
                 {salvandoContato ? 'Salvando...' : 'Salvar contato'}
               </button>
             </div>
+
+            {visaoAtiva === 'conversas' && conversaSelecionada ? (
+              <div style={styles.fieldCard}>
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#10233f' }}>Vinculo com processo</div>
+                  <div style={{ marginTop: '6px', color: '#6b7d96', fontSize: '13px' }}>
+                    Relacione esta conversa a um processo para manter esse atendimento salvo no historico juridico.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={styles.fieldLabel}>Processo vinculado</label>
+                  <div style={{ fontWeight: 700, color: '#10233f' }}>
+                    {processoVinculado?.case_number || 'Nenhum processo vinculado nesta sessao'}
+                  </div>
+                </div>
+
+                <button type="button" style={styles.primaryButton} onClick={() => setModalVinculoAberto(true)}>
+                  {processoVinculado?.case_number ? 'Alterar vinculo' : 'Vincular processo'}
+                </button>
+              </div>
+            ) : null}
 
             {visaoAtiva === 'conversas' && conversaSelecionada ? (
               <div style={styles.fieldCard}>
