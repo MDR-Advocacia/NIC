@@ -302,12 +302,4 @@ Esta etapa aumentou significativamente a maturidade tecnica e operacional do NIC
 
 Do ponto de vista de negocio, o ganho principal foi aproximar o atendimento via WhatsApp da rastreabilidade juridica exigida pela operacao do escritorio. Do ponto de vista tecnico, houve melhora de resiliencia, integracao e qualidade de uso no ambiente compartilhado da equipe.
 
-## 13. Sugestao de uso no e-mail
 
-Sugestao de assunto:
-
-`Entrega tecnica NIC - evolucao da Caixa de Entrada, WhatsApp/Meta e rastreabilidade juridica`
-
-Sugestao de texto introdutorio:
-
-`Segue em anexo a documentacao tecnica consolidada da etapa recente de evolucao do NIC, contemplando as melhorias implementadas na Caixa de Entrada, integracao com templates da Meta, suporte a anexos, atribuicao de conversas, estabilidade de autenticacao e vinculacao da conversa ao processo com registro em historico. O documento resume escopo, impacto, arquivos afetados, validacoes e proximos passos recomendados.`
