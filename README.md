@@ -1,12 +1,12 @@
 # NIC - Nucleo Integrado de Conciliacoes
 
-Plataforma interna da MDR Advocacia para gestao de atendimentos, negociacoes, processos juridicos e acompanhamento operacional, com frontend proprio sobre a operacao do Chatwoot e integracao com WhatsApp Business / Meta.
+Plataforma interna da MDR Advocacia para gestao de atendimentos, negociacoes, processos juridicos e acompanhamento operacional, com frontend e backend proprio sobre a operacao do Chatwoot e integracao com WhatsApp Business / Meta.
 
 ## Visao Geral
 
 O NIC foi estruturado para centralizar a operacao juridica em tres frentes principais:
 
-- atendimento e negociacao via Caixa de Entrada
+- atendimento e negociacao via Caixa de Entrada / Chatwoot
 - gestao juridica de processos e pipeline de acordos
 - rastreabilidade operacional por historico, auditoria e dashboards
 
@@ -19,7 +19,7 @@ Na pratica, o sistema combina:
 
 ## Para quem este README serve
 
-Este documento foi atualizado para atender dois perfis ao mesmo tempo:
+Este documento foi atualizado para atender dois perfis:
 
 - time de desenvolvimento, que precisa entender arquitetura, setup, variaveis e pontos de manutencao
 - usuarios internos e stakeholders, que precisam entender o que o sistema faz e quais fluxos estao disponiveis
@@ -123,10 +123,6 @@ NIC/
 `-- DOCUMENTACAO_TECNICA_ENTREGAS_NIC.md
 ```
 
-## Documentos complementares
-
-- [`ROADMAP.md`](./ROADMAP.md): consolidado das issues e entregas recentes
-- [`DOCUMENTACAO_TECNICA_ENTREGAS_NIC.md`](./DOCUMENTACAO_TECNICA_ENTREGAS_NIC.md): documentacao tecnica detalhada para envio interno e e-mail
 
 ## Manual rapido para usuarios
 
