@@ -518,6 +518,10 @@
   width: 100%;
 }
 
+.searchField {
+  grid-column: span 2;
+}
+
 .filterFieldLabel {
   display: inline-flex;
   align-items: center;
@@ -532,20 +536,24 @@
   font-size: 0.9rem;
 }
 
-.filterSelect {
+.filterSelect,
+.filterInput {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   min-height: 48px;
   padding: 0.85rem 1rem;
-  padding-right: 2.8rem;
   border-radius: 14px;
   border: 1px solid var(--border-color-dark);
   background-color: var(--bg-input);
   color: var(--text-primary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.filterSelect {
+  padding-right: 2.8rem;
   appearance: none;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   background-image:
     linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
     linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
@@ -556,15 +564,21 @@
   background-repeat: no-repeat;
 }
 
-.filterSelect:hover {
+.filterSelect:hover,
+.filterInput:hover {
   border-color: var(--accent-primary);
 }
 
-.filterSelect:focus {
+.filterSelect:focus,
+.filterInput:focus {
   outline: none;
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 4px rgba(49, 130, 206, 0.12);
   transform: translateY(-1px);
+}
+
+.filterInput::placeholder {
+  color: var(--text-secondary);
 }
 
 .filterPanelFooter {
@@ -848,6 +862,10 @@
 
   .filterGrid {
     grid-template-columns: 1fr;
+  }
+
+  .searchField {
+    grid-column: span 1;
   }
 
   .filterPanelFooter {

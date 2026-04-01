@@ -18,8 +18,9 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
-import {
+import { 
     FaExclamationTriangle,
+    FaSearch,
     FaSlidersH,
     FaBuilding,
     FaUserTie,
@@ -38,6 +39,13 @@ import {
 import IndicationChecklistModal from '../components/IndicationChecklistModal';
 
 const MAX_API_PAGE_SIZE = 200;
+const INITIAL_FILTERS = {
+    search: '',
+    client_id: '',
+    lawyer_id: '',
+    priority: '',
+    tag: '',
+};
 
 const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
     const items = [];
@@ -84,10 +92,16 @@ const PipelinePage = () => {
     
     const [editingCase, setEditingCase] = useState(null);
     const [indicationCase, setIndicationCase] = useState(null);
-    const [filters, setFilters] = useState({});
+    const [filters, setFilters] = useState(INITIAL_FILTERS);
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
     const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
 
+    const searchTerm = filters.search.trim();
+    const clientFilter = filters.client_id || '';
+    const lawyerFilter = filters.lawyer_id || '';
+    const priorityFilter = filters.priority || '';
+    const tagFilter = filters.tag || '';
     const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
     const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
     const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
@@ -98,6 +112,7 @@ const PipelinePage = () => {
         alta: 'Prioridade alta',
     };
     const activeFilterChips = [
+        searchTerm ? `Busca: ${searchTerm}` : null,
         selectedClientName ? `Cliente: ${selectedClientName}` : null,
         selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
         filters.priority ? priorityLabelMap[filters.priority] : null,
@@ -125,6 +140,14 @@ const PipelinePage = () => {
         setIndicationCase(null);
         fetchAllData();
     };
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
     const groupCasesByStatus = useCallback((cases) => {
         const initialGroups = LEGAL_CASE_STATUS_ORDER.reduce((acc, statusKey) => {
@@ -161,14 +184,20 @@ const PipelinePage = () => {
                 )
                 : [];
 
-            const effectiveFilters = { ...filters };
+            const effectiveFilters = {
+                search: debouncedSearch,
+                client_id: clientFilter,
+                lawyer_id: lawyerFilter,
+                priority: priorityFilter,
+                tag: tagFilter,
+            };
             const requiresResponsibleFilter = canChooseResponsible;
 
             const hasValidResponsibleSelected = fetchedLawyers.some(
-                (lawyer) => String(lawyer.id) === String(effectiveFilters.lawyer_id)
+                (lawyer) => String(lawyer.id) === String(lawyerFilter)
             );
 
-            if (effectiveFilters.lawyer_id && !hasValidResponsibleSelected) {
+            if (lawyerFilter && !hasValidResponsibleSelected) {
                 delete effectiveFilters.lawyer_id;
                 setFilters((currentFilters) => {
                     if (!currentFilters.lawyer_id) {
@@ -224,7 +253,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, filters, showDelayedOnly]);
+    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, priorityFilter, tagFilter, debouncedSearch, showDelayedOnly, canChooseResponsible, user?.id]);
 
     useEffect(() => {
         fetchAllData();
@@ -424,7 +453,7 @@ const PipelinePage = () => {
     };
 
     const handleClearFilters = () => {
-        setFilters({});
+        setFilters({ ...INITIAL_FILTERS });
         setShowDelayedOnly(false);
     };
 
@@ -453,7 +482,7 @@ const PipelinePage = () => {
                         <div>
                             <h2 className={styles.filterPanelTitle}>Filtros do Pipeline</h2>
                             <p className={styles.filterPanelSubtitle}>
-                                Refine os cards por cliente, responsável, prioridade e destaque rapidamente os casos parados.
+                                Refine os cards por caso, cliente, responsável, prioridade e destaque rapidamente os casos parados.
                             </p>
                         </div>
                     </div>
@@ -466,17 +495,31 @@ const PipelinePage = () => {
                 </div>
 
                 <div className={styles.filterGrid}>
+                    <div className={`${styles.filterField} ${styles.searchField}`}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaSearch />
+                            <span>Buscar caso</span>
+                        </label>
+                        <input
+                            type="text"
+                            className={styles.filterInput}
+                            value={filters.search}
+                            onChange={(e) => handleFilterChange('search', e.target.value)}
+                            placeholder="Número do processo ou nome da parte"
+                        />
+                    </div>
+
                     <div className={styles.filterField}>
                         <label className={styles.filterFieldLabel}>
                             <FaBuilding />
                             <span>Cliente</span>
                         </label>
-                        <select
-                            className={styles.filterSelect}
-                            value={filters.client_id || ''}
-                            onChange={(e) => handleFilterChange('client_id', e.target.value)}
-                        >
-                            <option value="">Todos</option>
+                            <select
+                                className={styles.filterSelect}
+                                value={clientFilter}
+                                onChange={(e) => handleFilterChange('client_id', e.target.value)}
+                            >
+                                <option value="">Todos</option>
                             {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
                         </select>
                     </div>
@@ -489,7 +532,7 @@ const PipelinePage = () => {
                             </label>
                             <select
                                 className={styles.filterSelect}
-                                value={filters.lawyer_id || ''}
+                                value={lawyerFilter}
                                 onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}
                             >
                                 <option value="" disabled>Selecione um responsável</option>
@@ -505,7 +548,7 @@ const PipelinePage = () => {
                         </label>
                         <select
                             className={styles.filterSelect}
-                            value={filters.priority || ''}
+                            value={priorityFilter}
                             onChange={(e) => handleFilterChange('priority', e.target.value)}
                         >
                             <option value="">Todas</option>
@@ -522,7 +565,7 @@ const PipelinePage = () => {
                         </label>
                         <select
                             className={styles.filterSelect}
-                            value={filters.tag || ''}
+                            value={tagFilter}
                             onChange={(e) => handleFilterChange('tag', e.target.value)}
                         >
                             <option value="">Todas</option>
