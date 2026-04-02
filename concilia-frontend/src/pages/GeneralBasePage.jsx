@@ -2,11 +2,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    FaSearch, FaEye, FaDatabase,
+    FaSearch, FaEye, FaDatabase, FaEdit, FaPlus, FaTrash,
     FaChevronLeft, FaChevronRight,
     FaSort, FaSortUp, FaSortDown
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
+import EditCaseModal from '../components/EditCaseModal';
 import styles from '../styles/GeneralBase.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -40,12 +41,16 @@ const getDisplayValue = (value, fallback = '—') => {
 };
 
 const GeneralBasePage = () => {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
+    const isAdmin = user?.role === 'administrador';
 
     const [cases, setCases] = useState([]);
+    const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [editingCase, setEditingCase] = useState(null);
+    const [isCaseModalLoading, setIsCaseModalLoading] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [perPage, setPerPage] = useState(50);
@@ -69,12 +74,19 @@ const GeneralBasePage = () => {
         const fetchDropdownData = async () => {
             if (!token) return;
             try {
-                const response = await apiClient.get('/users', {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                setLawyers(response.data.data || []);
+                const [usersResponse, clientsResponse] = await Promise.all([
+                    apiClient.get('/users', {
+                        headers: { Authorization: `Bearer ${token}` },
+                    }),
+                    apiClient.get('/clients', {
+                        headers: { Authorization: `Bearer ${token}` },
+                    }),
+                ]);
+
+                setLawyers(usersResponse.data.data || []);
+                setClients(Array.isArray(clientsResponse.data) ? clientsResponse.data : []);
             } catch (err) {
-                console.error('Erro ao buscar advogados', err);
+                console.error('Erro ao buscar dados auxiliares da base geral', err);
             }
         };
         fetchDropdownData();
@@ -149,6 +161,62 @@ const GeneralBasePage = () => {
     const formatValue = (value) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
+    const handleOpenEditModal = async (legalCase) => {
+        if (!isAdmin || !legalCase?.id) {
+            return;
+        }
+
+        try {
+            setIsCaseModalLoading(true);
+            const response = await apiClient.get(`/cases/${legalCase.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            const caseData = response.data?.data && !response.data?.id
+                ? response.data.data
+                : response.data;
+
+            setEditingCase(caseData);
+        } catch (err) {
+            console.error('Erro ao carregar caso para edição na base geral:', err);
+            window.alert('Não foi possível abrir o caso para edição.');
+        } finally {
+            setIsCaseModalLoading(false);
+        }
+    };
+
+    const handleDeleteCase = async (legalCase) => {
+        if (!isAdmin || !legalCase?.id) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Tem certeza que deseja excluir o processo ${legalCase.case_number || `#${legalCase.id}`}?`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            await apiClient.delete(`/cases/${legalCase.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            const shouldGoToPreviousPage = cases.length === 1 && currentPage > 1;
+
+            if (shouldGoToPreviousPage) {
+                setCurrentPage((page) => Math.max(1, page - 1));
+                return;
+            }
+
+            fetchCases();
+        } catch (err) {
+            console.error('Erro ao excluir caso da base geral:', err);
+            window.alert('Não foi possível excluir o caso selecionado.');
+        }
+    };
+
     const scopeContent = {
         general_base: {
             subtitle: 'Casos sem alçada — aguardando inclusão na planilha semanal',
@@ -182,6 +250,13 @@ const GeneralBasePage = () => {
                     <h1><FaDatabase style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />Base Geral</h1>
                     <p>{currentScopeContent.subtitle}</p>
                 </div>
+                {isAdmin && (
+                    <div className={styles.headerActions}>
+                        <Link to="/cases/create" className={styles.newCaseButton}>
+                            <FaPlus /> Novo Caso
+                        </Link>
+                    </div>
+                )}
             </header>
 
             <div className={styles.infoBanner}>
@@ -287,11 +362,11 @@ const GeneralBasePage = () => {
                                         style={{ cursor: 'pointer', userSelect: 'none' }}
                                         onClick={() => handleSort('cause_value')}
                                     >
-                                        Valor da Causa {getSortIcon('cause_value')}
+                                        Valores {getSortIcon('cause_value')}
                                     </th>
                                     <th>Status</th>
                                     <th>Advogado</th>
-                                    <th>Ver</th>
+                                    <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -304,9 +379,21 @@ const GeneralBasePage = () => {
                                 ) : cases.map(legalCase => (
                                     <tr key={legalCase.id}>
                                         <td>
-                                            <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>
-                                                #{legalCase.id}
-                                            </Link>
+                                            {isAdmin ? (
+                                                <button
+                                                    type="button"
+                                                    className={styles.caseLinkButton}
+                                                    onClick={() => handleOpenEditModal(legalCase)}
+                                                    disabled={isCaseModalLoading}
+                                                    title="Editar caso em modal"
+                                                >
+                                                    #{legalCase.id}
+                                                </button>
+                                            ) : (
+                                                <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>
+                                                    #{legalCase.id}
+                                                </Link>
+                                            )}
                                             <div className={styles.subText}>{legalCase.case_number}</div>
                                         </td>
                                         <td>
@@ -315,13 +402,42 @@ const GeneralBasePage = () => {
                                         </td>
                                         <td>{getDisplayValue(legalCase.actionObject || legalCase.action_object)}</td>
                                         <td>{legalCase.comarca || '—'}</td>
-                                        <td>{formatValue(legalCase.cause_value)}</td>
+                                        <td>
+                                            <div>{formatValue(legalCase.cause_value)}</div>
+                                            <div className={styles.subText}>
+                                                Alçada: {formatValue(legalCase.original_value)}
+                                            </div>
+                                        </td>
                                         <td><StatusTag status={legalCase.status} /></td>
                                         <td>{legalCase.lawyer?.name || <span style={{ color: '#E53E3E' }}>Sem advogado</span>}</td>
                                         <td>
-                                            <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}>
-                                                <FaEye />
-                                            </Link>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon} title="Visualizar caso">
+                                                    <FaEye />
+                                                </Link>
+                                                {isAdmin && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            className={styles.actionIconButton}
+                                                            title="Editar caso em modal"
+                                                            onClick={() => handleOpenEditModal(legalCase)}
+                                                            disabled={isCaseModalLoading}
+                                                        >
+                                                            <FaEdit />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className={styles.actionIcon}
+                                                            title="Excluir caso"
+                                                            onClick={() => handleDeleteCase(legalCase)}
+                                                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#dc2626' }}
+                                                        >
+                                                            <FaTrash />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -350,6 +466,16 @@ const GeneralBasePage = () => {
                     </>
                 )}
             </section>
+
+            {editingCase && (
+                <EditCaseModal
+                    legalCase={editingCase}
+                    onClose={() => setEditingCase(null)}
+                    onCaseUpdated={fetchCases}
+                    clients={clients}
+                    lawyers={lawyers}
+                />
+            )}
         </div>
     );
 };

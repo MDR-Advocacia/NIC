@@ -47,6 +47,6 @@ class LegalCasePolicy
     public function delete(User $user, LegalCase $legalCase): bool
     {
         // SEGURANÇA: Apenas administradores podem excluir
-        return $user->role === 'admin';
+        return in_array($user->role, ['administrador', 'admin'], true);
     }
 }
