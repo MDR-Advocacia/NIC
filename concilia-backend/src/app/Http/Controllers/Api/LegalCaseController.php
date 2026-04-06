@@ -33,11 +33,18 @@ class LegalCaseController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', LegalCase::class);
+
         try {
             AuditService::log('view_pipeline', 'O usuário acessou o pipeline de acordos.');
         } catch (\Exception $e) {}
         
         $user = Auth::user();
+        $indicatorFilterRequested = $request->filled('indicator_user_id');
+
+        if ($indicatorFilterRequested && !$this->legalCasesTableHasIndicatorUserId()) {
+            return response()->json(['message' => 'Filtro por indicador indisponível.'], 422);
+        }
         
         // Começa a query base, carregando todos os relacionamentos importantes
         $query = LegalCase::with($this->caseRelationshipLoads());
@@ -55,7 +62,17 @@ class LegalCaseController extends Controller
         // scope=all → sem filtro de alçada
 
         if ($user->role === 'indicador') {
-            $query->where('status', LegalCase::STATUS_INITIAL_ANALYSIS);
+            if ($indicatorFilterRequested) {
+                if ((string) $request->input('indicator_user_id') !== (string) $user->id) {
+                    return response()->json(['message' => 'Acesso negado.'], 403);
+                }
+
+                $query->where('indicator_user_id', $user->id);
+            } else {
+                $query->where('status', LegalCase::STATUS_INITIAL_ANALYSIS);
+            }
+        } elseif ($indicatorFilterRequested) {
+            $query->where('indicator_user_id', $request->input('indicator_user_id'));
         }
 
         // --- LÓGICA DE PERMISSÃO (RBAC) ---
@@ -273,10 +290,6 @@ class LegalCaseController extends Controller
     public function show(LegalCase $case): JsonResponse
     {
         $this->authorize('view', $case);
-
-        if (Auth::user()?->role === 'indicador' && $case->status !== LegalCase::STATUS_INITIAL_ANALYSIS) {
-            return response()->json(['message' => 'Acesso negado.'], 403);
-        }
 
         // Carrega todos os relacionamentos para exibição completa
         return response()->json($case->load($this->caseRelationshipLoads([
