@@ -70,9 +70,18 @@ class LegalCaseController extends Controller
 
         // Filtro de busca por termo
         if ($request->has('search') && $request->input('search') != '') {
-            $searchTerm = $request->input('search');
-            $query->where(function ($q) use ($searchTerm) {
+            $searchTerm = trim((string) $request->input('search'));
+            $isCaseNumberSearch = $this->isCaseNumberSearch($searchTerm);
+            $normalizedCaseNumberSearch = preg_replace('/\D/', '', $searchTerm);
+
+            $query->where(function ($q) use ($searchTerm, $isCaseNumberSearch, $normalizedCaseNumberSearch) {
                 $q->where('case_number', 'like', "%{$searchTerm}%")
+                    ->when($isCaseNumberSearch && $normalizedCaseNumberSearch !== '', function ($caseNumberQuery) use ($normalizedCaseNumberSearch) {
+                        $caseNumberQuery->orWhereRaw(
+                            $this->normalizedCaseNumberSql() . ' like ?',
+                            ['%' . $normalizedCaseNumberSearch . '%']
+                        );
+                    })
                     ->orWhere('opposing_party', 'like', "%{$searchTerm}%") // Busca legado (texto)
                     ->orWhereHas('plaintiff', function($q2) use ($searchTerm) { // Busca na tabela de Autores
                         $q2->where('name', 'like', "%{$searchTerm}%");
@@ -128,8 +137,11 @@ class LegalCaseController extends Controller
         if ($perPage > 200) $perPage = 200;
         if ($perPage < 1) $perPage = 50;
 
-        // Retorna os resultados paginados
-        return response()->json($query->paginate($perPage));
+        $paginatedCases = $query->paginate($perPage);
+        $response = $paginatedCases->toArray();
+        $response['search_feedback'] = $this->buildSearchFeedback($request, $user, (int) ($response['total'] ?? 0));
+
+        return response()->json($response);
     }
 
     /**
@@ -1832,6 +1844,72 @@ class LegalCaseController extends Controller
         }
 
         return true;
+    }
+
+    private function buildSearchFeedback(Request $request, ?User $user, int $visibleTotal): ?array
+    {
+        $searchTerm = trim((string) $request->input('search', ''));
+
+        if ($searchTerm === '' || $visibleTotal > 0) {
+            return null;
+        }
+
+        if (!$this->isCaseNumberSearch($searchTerm)) {
+            return [
+                'type' => 'no_results',
+                'search' => $searchTerm,
+            ];
+        }
+
+        $normalizedSearchTerm = preg_replace('/\D/', '', $searchTerm);
+        $caseExistsInBase = LegalCase::query()
+            ->where('case_number', 'like', '%' . $searchTerm . '%')
+            ->when($normalizedSearchTerm !== '', function ($query) use ($normalizedSearchTerm) {
+                $query->orWhereRaw(
+                    $this->normalizedCaseNumberSql() . ' like ?',
+                    ['%' . $normalizedSearchTerm . '%']
+                );
+            })
+            ->exists();
+
+        if (!$caseExistsInBase) {
+            return [
+                'type' => 'case_number_not_found',
+                'search' => $searchTerm,
+            ];
+        }
+
+        if ($user?->role === 'indicador') {
+            return [
+                'type' => 'case_number_unavailable_for_indicator',
+                'search' => $searchTerm,
+            ];
+        }
+
+        return [
+            'type' => 'case_number_filtered_out',
+            'search' => $searchTerm,
+        ];
+    }
+
+    private function isCaseNumberSearch(string $searchTerm): bool
+    {
+        $trimmedSearch = trim($searchTerm);
+
+        if ($trimmedSearch === '') {
+            return false;
+        }
+
+        if (!preg_match('/^[0-9.\-\/\s]+$/', $trimmedSearch)) {
+            return false;
+        }
+
+        return strlen(preg_replace('/\D/', '', $trimmedSearch)) >= 7;
+    }
+
+    private function normalizedCaseNumberSql(string $column = 'case_number'): string
+    {
+        return "REPLACE(REPLACE(REPLACE(REPLACE({$column}, '.', ''), '-', ''), '/', ''), ' ', '')";
     }
 
     private function normalizeImportedCaseNumber(string $caseNumber): string

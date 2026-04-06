@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { 
     FaPlus, FaSearch, FaEye, FaEdit, FaTrash, 
-    FaCheckSquare, FaExchangeAlt, FaTrashAlt, FaTimes, 
+    FaCheckSquare, FaTrashAlt, FaTimes, 
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
     FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser
@@ -114,6 +114,7 @@ const CaseManagementPage = () => {
     const [clients, setClients] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [searchFeedback, setSearchFeedback] = useState(null);
     const [editingCase, setEditingCase] = useState(null);
     const [indicationCase, setIndicationCase] = useState(null);
 
@@ -167,6 +168,8 @@ const CaseManagementPage = () => {
     const fetchCases = useCallback(async () => {
         if (!token) return;
         setLoading(true);
+        setError('');
+        setSearchFeedback(null);
         setSelectedCaseIds([]); 
         setBatchActionType(null);
         
@@ -185,6 +188,7 @@ const CaseManagementPage = () => {
             
             if (response.data && response.data.data) {
                 setCases(response.data.data);
+                setSearchFeedback(response.data.search_feedback || null);
                 setPaginationData({
                     last_page: response.data.last_page,
                     total: response.data.total,
@@ -193,10 +197,12 @@ const CaseManagementPage = () => {
                 });
             } else {
                 setCases(response.data);
+                setSearchFeedback(null);
             }
 
         } catch (err) {
             setError('Não foi possível carregar os casos.');
+            setSearchFeedback(null);
             console.error(err);
         } finally {
             setLoading(false);
@@ -338,6 +344,61 @@ const CaseManagementPage = () => {
     }
 
     const activeFilterCount = activeFilterChips.length;
+    const trimmedSearch = filters.search.trim();
+    const emptyStateContent = (() => {
+        if (cases.length > 0) {
+            return null;
+        }
+
+        if (searchFeedback?.type === 'case_number_not_found') {
+            return {
+                title: `O processo ${searchFeedback.search} não consta na base de dados.`,
+                description: 'Confira o número informado e, se necessário, solicite o cadastro do processo antes de tentar a indicação.',
+            };
+        }
+
+        if (searchFeedback?.type === 'case_number_unavailable_for_indicator') {
+            return {
+                title: `O processo ${searchFeedback.search} foi localizado, mas não está disponível para indicação.`,
+                description: 'O perfil Indicador visualiza apenas casos da fila de Analise Inicial que atendem aos filtros atuais.',
+            };
+        }
+
+        if (searchFeedback?.type === 'case_number_filtered_out') {
+            return {
+                title: `O processo ${searchFeedback.search} foi localizado, mas não aparece na lista atual.`,
+                description: 'Revise os filtros aplicados para verificar se eles estão restringindo a visualização do processo.',
+            };
+        }
+
+        if (trimmedSearch) {
+            return {
+                title: 'Nenhum caso encontrado para a busca informada.',
+                description: isIndicator
+                    ? 'Tente outro número de processo ou limpe os filtros para voltar a visualizar os casos disponíveis para indicação.'
+                    : 'Ajuste a busca ou limpe os filtros para carregar novamente a carteira.',
+            };
+        }
+
+        if (activeFilterCount > 0) {
+            return {
+                title: 'Nenhum caso corresponde aos filtros atuais.',
+                description: 'Remova alguns filtros para ampliar a lista de resultados.',
+            };
+        }
+
+        if (isIndicator) {
+            return {
+                title: 'Nenhum caso disponível para indicação no momento.',
+                description: 'Quando houver processos em Analise Inicial aptos para a sua fila, eles aparecerão aqui.',
+            };
+        }
+
+        return {
+            title: 'Nenhum caso encontrado.',
+            description: 'Ajuste os filtros ou tente novamente em alguns instantes.',
+        };
+    })();
 
     return (
         <div className={styles.pageContainer}>
@@ -504,130 +565,154 @@ const CaseManagementPage = () => {
                             </div>
                         </div>
 
-                        <table className={styles.table}>
-                            <thead>
-                                <tr>
-                                    {canUseBatchActions && (
-                                        <th style={{width: '40px', textAlign: 'center'}}>
-                                            <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className={styles.checkboxInput} />
-                                        </th>
-                                    )}
-                                    
-                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('id')}>
-                                        ID/Processo {getSortIcon('id')}
-                                    </th>
-                                    <th>Cliente/Local</th>
-                                    <th>Partes</th>
-                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('cause_value')}>
-                                        Valores {getSortIcon('cause_value')}
-                                    </th>
-                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('priority')}>
-                                        Status/Prioridade {getSortIcon('priority')}
-                                    </th>
-                                    
-                                    <th>Responsavel / Indicador</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {cases.map(legalCase => (
-                                    <tr key={legalCase.id} className={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id) ? styles.rowSelected : ''}>
-                                        {canUseBatchActions && (
-                                            <td style={{textAlign: 'center'}}>
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id)} 
-                                                    onChange={() => handleSelectCase(legalCase.id)}
-                                                    className={styles.checkboxInput}
-                                                />
-                                            </td>
-                                        )}
-                                        <td>
-                                            <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>{legalCase.id}</Link>
-                                            <div className={styles.subText}>{legalCase.case_number}</div>
-                                        </td>
-                                        <td>
-                                            <div>{legalCase.client?.name || '-'}</div>
-                                            <div className={styles.subText}>{legalCase.comarca}</div>
-                                        </td>
-                                        <td>
-                                            <div><small>A:</small> {legalCase.opposing_party}</div>
-                                            <div className={styles.subText}><small>R:</small> {legalCase.defendant}</div>
-                                        </td>
-                                        <td>
-                                            <div>{formatValue(legalCase.cause_value)}</div>
-                                            {renderSettlementTerms(legalCase, formatValue)}
-                                        </td>
-                                        <td>
-                                            <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
-                                            <PriorityTag priority={legalCase.priority} />
-                                        </td>
-                                        <td>
-                                            <div>{getResponsibleName(legalCase)}</div>
-                                            <div className={styles.subText}>
-                                                {getIndicatorName(legalCase) ? `Indicador: ${getIndicatorName(legalCase)}` : 'Sem indicador'}
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
-                                                {!isIndicator && (
-                                                    <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
+                        {cases.length > 0 ? (
+                            <>
+                                <table className={styles.table}>
+                                    <thead>
+                                        <tr>
+                                            {canUseBatchActions && (
+                                                <th style={{width: '40px', textAlign: 'center'}}>
+                                                    <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className={styles.checkboxInput} />
+                                                </th>
+                                            )}
+                                            
+                                            <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('id')}>
+                                                ID/Processo {getSortIcon('id')}
+                                            </th>
+                                            <th>Cliente/Local</th>
+                                            <th>Partes</th>
+                                            <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('cause_value')}>
+                                                Valores {getSortIcon('cause_value')}
+                                            </th>
+                                            <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('priority')}>
+                                                Status/Prioridade {getSortIcon('priority')}
+                                            </th>
+                                            
+                                            <th>Responsavel / Indicador</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {cases.map(legalCase => (
+                                            <tr key={legalCase.id} className={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id) ? styles.rowSelected : ''}>
+                                                {canUseBatchActions && (
+                                                    <td style={{textAlign: 'center'}}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id)} 
+                                                            onChange={() => handleSelectCase(legalCase.id)}
+                                                            className={styles.checkboxInput}
+                                                        />
+                                                    </td>
                                                 )}
-                                                {isIndicator && legalCase.status === 'initial_analysis' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setIndicationCase(legalCase)}
-                                                        style={{
-                                                            border: 'none',
-                                                            borderRadius: '8px',
-                                                            background: '#1d4ed8',
-                                                            color: '#fff',
-                                                            padding: '8px 12px',
-                                                            fontWeight: 700,
-                                                            cursor: 'pointer',
-                                                        }}
-                                                    >
-                                                        Indicar Caso para acordo
-                                                    </button>
-                                                )}
-                                                
-                                                {/* SÓ MOSTRA SE FOR ADMIN */}
-                                                {user?.role === 'admin' && !isIndicator && (
-                                                    <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase.id)}>
-                                                        <FaTrash />
-                                                    </span>
-                                                )}
+                                                <td>
+                                                    <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>{legalCase.id}</Link>
+                                                    <div className={styles.subText}>{legalCase.case_number}</div>
+                                                </td>
+                                                <td>
+                                                    <div>{legalCase.client?.name || '-'}</div>
+                                                    <div className={styles.subText}>{legalCase.comarca}</div>
+                                                </td>
+                                                <td>
+                                                    <div><small>A:</small> {legalCase.opposing_party}</div>
+                                                    <div className={styles.subText}><small>R:</small> {legalCase.defendant}</div>
+                                                </td>
+                                                <td>
+                                                    <div>{formatValue(legalCase.cause_value)}</div>
+                                                    {renderSettlementTerms(legalCase, formatValue)}
+                                                </td>
+                                                <td>
+                                                    <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
+                                                    <PriorityTag priority={legalCase.priority} />
+                                                </td>
+                                                <td>
+                                                    <div>{getResponsibleName(legalCase)}</div>
+                                                    <div className={styles.subText}>
+                                                        {getIndicatorName(legalCase) ? `Indicador: ${getIndicatorName(legalCase)}` : 'Sem indicador'}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                                        <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
+                                                        {!isIndicator && (
+                                                            <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
+                                                        )}
+                                                        {isIndicator && legalCase.status === 'initial_analysis' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIndicationCase(legalCase)}
+                                                                style={{
+                                                                    border: 'none',
+                                                                    borderRadius: '8px',
+                                                                    background: '#1d4ed8',
+                                                                    color: '#fff',
+                                                                    padding: '8px 12px',
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                }}
+                                                            >
+                                                                Indicar Caso para acordo
+                                                            </button>
+                                                        )}
+                                                        
+                                                        {/* SÓ MOSTRA SE FOR ADMIN */}
+                                                        {user?.role === 'admin' && !isIndicator && (
+                                                            <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase.id)}>
+                                                                <FaTrash />
+                                                            </span>
+                                                        )}
 
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
 
-                        {/* --- CONTROLES DE PAGINAÇÃO (RODAPÉ) --- */}
-                        <div className={styles.paginationFooter}>
-                            <button 
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}
-                                className={styles.paginationBtn}
-                            >
-                                <FaChevronLeft /> Anterior
-                            </button>
+                                {/* --- CONTROLES DE PAGINAÇÃO (RODAPÉ) --- */}
+                                <div className={styles.paginationFooter}>
+                                    <button 
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className={styles.paginationBtn}
+                                    >
+                                        <FaChevronLeft /> Anterior
+                                    </button>
 
-                            <span className={styles.paginationPageInfo}>
-                                Página {currentPage} de {paginationData.last_page || 1}
-                            </span>
+                                    <span className={styles.paginationPageInfo}>
+                                        Página {currentPage} de {paginationData.last_page || 1}
+                                    </span>
 
-                            <button 
-                                onClick={() => setCurrentPage(p => Math.min(paginationData.last_page, p + 1))}
-                                disabled={currentPage >= paginationData.last_page}
-                                className={styles.paginationBtn}
-                            >
-                                Próxima <FaChevronRight />
-                            </button>
-                        </div>
+                                    <button 
+                                        onClick={() => setCurrentPage(p => Math.min(paginationData.last_page, p + 1))}
+                                        disabled={currentPage >= paginationData.last_page}
+                                        className={styles.paginationBtn}
+                                    >
+                                        Próxima <FaChevronRight />
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <div className={styles.emptyState}>
+                                <div className={styles.emptyStateIcon}>
+                                    <FaGavel />
+                                </div>
+                                <div className={styles.emptyStateContent}>
+                                    <h3>{emptyStateContent?.title}</h3>
+                                    <p>{emptyStateContent?.description}</p>
+                                </div>
+                                {activeFilterCount > 0 && (
+                                    <button
+                                        type="button"
+                                        className={styles.emptyStateAction}
+                                        onClick={handleClearFilters}
+                                    >
+                                        <FaEraser />
+                                        Limpar filtros
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </>
                 )}
             </section>
