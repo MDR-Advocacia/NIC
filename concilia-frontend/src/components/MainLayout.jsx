@@ -11,6 +11,7 @@ import {
     canAccessInbox,
     canAccessLogs,
     canManageUsers,
+    isIndicatorRole,
 } from '../constants/access';
 import {
     FaTachometerAlt, FaInbox, FaStream, FaSuitcase,
@@ -29,6 +30,7 @@ const MainLayout = () => {
 
     const isAdmin = canAccessLogs(user?.role);
     const canManageUsersSection = canManageUsers(user?.role);
+    const pipelineLabel = isIndicatorRole(user?.role) ? 'Indicações' : 'Pipeline de Acordos';
     const configRoutes = ['/cases', '/import', '/base-geral', '/users', '/logs'];
     const isConfigSectionActive = configRoutes.some((route) => location.pathname.startsWith(route));
     const [isConfigOpen, setIsConfigOpen] = useState(isConfigSectionActive);
@@ -86,7 +88,7 @@ const MainLayout = () => {
                         )}
                         <li className={styles.navItem}>
                             <NavLink to="/pipeline" className={getNavLinkClass}>
-                                <FaStream /> <span>Pipeline de Acordos</span>
+                                <FaStream /> <span>{pipelineLabel}</span>
                             </NavLink>
                         </li>
                         {hasConfigSection && (
