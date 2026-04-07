@@ -40,7 +40,8 @@ const TeamPerformancePanel = ({ data, onOpenModal, onViewDetails }) => {
                         isLeader: index === 0,
                         score: lawyerBackend.score || 0,
                         ranking: index + 1,
-                        total_cases: lawyerBackend.total_cases || 0, // Essencial para o cálculo
+                        total_cases: lawyerBackend.total_cases || 0,
+                        worked_cases: lawyerBackend.worked_cases || 0,
                         
                         performance: { 
                             economy: formatCurrency(lawyerBackend.economy), 

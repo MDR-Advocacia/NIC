@@ -29,6 +29,9 @@ class LegalCaseController extends Controller
 {
     use AuthorizesRequests;
 
+    private const MULTI_CASE_NUMBER_MIN_DIGITS = 15;
+    private const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
+
     /**
      * Display a listing of the resource.
      */
@@ -87,27 +90,8 @@ class LegalCaseController extends Controller
         }
 
         // Filtro de busca por termo
-        if ($request->has('search') && $request->input('search') != '') {
-            $searchTerm = trim((string) $request->input('search'));
-            $isCaseNumberSearch = $this->isCaseNumberSearch($searchTerm);
-            $normalizedCaseNumberSearch = preg_replace('/\D/', '', $searchTerm);
-
-            $query->where(function ($q) use ($searchTerm, $isCaseNumberSearch, $normalizedCaseNumberSearch) {
-                $q->where('case_number', 'like', "%{$searchTerm}%")
-                    ->when($isCaseNumberSearch && $normalizedCaseNumberSearch !== '', function ($caseNumberQuery) use ($normalizedCaseNumberSearch) {
-                        $caseNumberQuery->orWhereRaw(
-                            $this->normalizedCaseNumberSql() . ' like ?',
-                            ['%' . $normalizedCaseNumberSearch . '%']
-                        );
-                    })
-                    ->orWhere('opposing_party', 'like', "%{$searchTerm}%") // Busca legado (texto)
-                    ->orWhereHas('plaintiff', function($q2) use ($searchTerm) { // Busca na tabela de Autores
-                        $q2->where('name', 'like', "%{$searchTerm}%");
-                    })
-                    ->orWhereHas('defendantRel', function($q3) use ($searchTerm) { // Busca na tabela de Réus
-                        $q3->where('name', 'like', "%{$searchTerm}%");
-                    });
-            });
+        if ($request->filled('search')) {
+            $this->applySearchFilter($query, (string) $request->input('search'));
         }
 
         // Filtro por Status
@@ -226,7 +210,7 @@ class LegalCaseController extends Controller
             'case_number' => 'required|string|max:255',
             'start_date' => 'nullable|date',
             'client_id' => 'required|exists:clients,id',
-            'user_id' => 'required|exists:users,id',
+            'user_id' => ['required', 'integer', $this->activeOperatorUserExistsRule()],
             
             // Dados legados (Texto)
             'opposing_party' => 'required|string|max:255',
@@ -329,7 +313,7 @@ class LegalCaseController extends Controller
             'case_number' => 'sometimes|required|string|max:255',
             'start_date' => 'nullable|date',
             'client_id' => 'sometimes|required|exists:clients,id',
-            'user_id' => 'sometimes|required|exists:users,id',
+            'user_id' => ['sometimes', 'nullable', 'integer', $this->activeOperatorUserExistsRule()],
             
             'opposing_party' => 'sometimes|required|string|max:255',
             'defendant' => 'sometimes|required|string|max:255',
@@ -664,12 +648,8 @@ class LegalCaseController extends Controller
             $query->where('user_id', $request->input('lawyer_id')); 
         }
 
-        if ($request->has('search') && $request->input('search') != '') {
-            $searchTerm = $request->input('search');
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('case_number', 'like', "%{$searchTerm}%")
-                    ->orWhere('opposing_party', 'like', "%{$searchTerm}%");
-            });
+        if ($request->filled('search')) {
+            $this->applySearchFilter($query, (string) $request->input('search'));
         }
         if ($request->has('status') && $request->input('status') != '') {
             $query->where('status', $request->input('status'));
@@ -1133,6 +1113,18 @@ class LegalCaseController extends Controller
         $action = $validated['action'];
         $value = $validated['value'];
 
+        if (
+            $action === 'transfer_user'
+            && !in_array($value, [null, '', self::UNASSIGNED_RESPONSIBLE_VALUE], true)
+        ) {
+            Validator::make(
+                ['value' => $value],
+                ['value' => ['required', 'integer', $this->activeOperatorUserExistsRule()]],
+                [],
+                ['value' => 'responsável do caso']
+            )->validate();
+        }
+
         DB::beginTransaction();
         try {
             $query = LegalCase::whereIn('id', $caseIds);
@@ -1152,10 +1144,19 @@ class LegalCaseController extends Controller
                     break;
 
                 case 'transfer_user':
-                    // $value é o user_id do novo responsável
-                    $query->update(['user_id' => $value]);
-                    $newOwner = User::find($value);
-                    $ownerName = $newOwner ? $newOwner->name : 'ID ' . $value;
+                    $responsibleUserId = in_array($value, [null, '', self::UNASSIGNED_RESPONSIBLE_VALUE], true)
+                        ? null
+                        : (int) $value;
+
+                    $query->update(['user_id' => $responsibleUserId]);
+
+                    if ($responsibleUserId === null) {
+                        $logDetails = "Removeu o responsável de {$count} processos";
+                        break;
+                    }
+
+                    $newOwner = User::find($responsibleUserId);
+                    $ownerName = $newOwner ? $newOwner->name : 'ID ' . $responsibleUserId;
                     $logDetails = "Transferiu {$count} processos para {$ownerName}";
                     break;
                 
@@ -1294,6 +1295,15 @@ class LegalCaseController extends Controller
         }
 
         return $caseData;
+    }
+
+    private function activeOperatorUserExistsRule()
+    {
+        return Rule::exists('users', 'id')->where(function ($query) {
+            $query
+                ->where('role', 'operador')
+                ->where('status', 'ativo');
+        });
     }
 
     private function getImportClientName(int|string|null $clientId): ?string
@@ -1901,6 +1911,36 @@ class LegalCaseController extends Controller
             return null;
         }
 
+        $multipleCaseNumberTerms = $this->extractMultipleCaseNumberTerms($searchTerm);
+        if ($multipleCaseNumberTerms !== []) {
+            $totalTerms = count($multipleCaseNumberTerms);
+            $matchedCount = min($this->countExistingCaseNumberMatches($multipleCaseNumberTerms), $totalTerms);
+            $missingCount = max($totalTerms - $matchedCount, 0);
+
+            if ($matchedCount === 0) {
+                return [
+                    'type' => 'case_number_list_not_found',
+                    'total_terms' => $totalTerms,
+                ];
+            }
+
+            if ($user?->role === 'indicador') {
+                return [
+                    'type' => 'case_number_list_unavailable_for_indicator',
+                    'total_terms' => $totalTerms,
+                    'matched_count' => $matchedCount,
+                    'missing_count' => $missingCount,
+                ];
+            }
+
+            return [
+                'type' => 'case_number_list_filtered_out',
+                'total_terms' => $totalTerms,
+                'matched_count' => $matchedCount,
+                'missing_count' => $missingCount,
+            ];
+        }
+
         if (!$this->isCaseNumberSearch($searchTerm)) {
             return [
                 'type' => 'no_results',
@@ -1939,12 +1979,106 @@ class LegalCaseController extends Controller
         ];
     }
 
+    private function applySearchFilter($query, string $searchTerm): void
+    {
+        $trimmedSearchTerm = trim($searchTerm);
+
+        if ($trimmedSearchTerm === '') {
+            return;
+        }
+
+        $multipleCaseNumberTerms = $this->extractMultipleCaseNumberTerms($trimmedSearchTerm);
+
+        if ($multipleCaseNumberTerms !== []) {
+            $query->whereIn(DB::raw($this->normalizedCaseNumberSql()), $multipleCaseNumberTerms);
+
+            return;
+        }
+
+        $isCaseNumberSearch = $this->isCaseNumberSearch($trimmedSearchTerm);
+        $normalizedCaseNumberSearch = preg_replace('/\D/', '', $trimmedSearchTerm);
+
+        $query->where(function ($q) use ($trimmedSearchTerm, $isCaseNumberSearch, $normalizedCaseNumberSearch) {
+            $q->where('case_number', 'like', "%{$trimmedSearchTerm}%")
+                ->when($isCaseNumberSearch && $normalizedCaseNumberSearch !== '', function ($caseNumberQuery) use ($normalizedCaseNumberSearch) {
+                    $caseNumberQuery->orWhereRaw(
+                        $this->normalizedCaseNumberSql() . ' like ?',
+                        ['%' . $normalizedCaseNumberSearch . '%']
+                    );
+                })
+                ->orWhere('opposing_party', 'like', "%{$trimmedSearchTerm}%")
+                ->orWhereHas('plaintiff', function ($q2) use ($trimmedSearchTerm) {
+                    $q2->where('name', 'like', "%{$trimmedSearchTerm}%");
+                })
+                ->orWhereHas('defendantRel', function ($q3) use ($trimmedSearchTerm) {
+                    $q3->where('name', 'like', "%{$trimmedSearchTerm}%");
+                });
+        });
+    }
+
+    private function extractMultipleCaseNumberTerms(string $searchTerm): array
+    {
+        $terms = $this->extractCaseNumberSearchTerms($searchTerm, self::MULTI_CASE_NUMBER_MIN_DIGITS);
+
+        return count($terms) > 1 ? $terms : [];
+    }
+
+    private function extractCaseNumberSearchTerms(string $searchTerm, int $minimumDigits = 7): array
+    {
+        $trimmedSearch = trim($searchTerm);
+
+        if ($trimmedSearch === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\s,;]+/u', $trimmedSearch) ?: [];
+        $normalizedTerms = [];
+
+        foreach ($parts as $part) {
+            $candidate = trim((string) $part);
+            $candidate = trim($candidate, "\"'");
+
+            if ($candidate === '') {
+                continue;
+            }
+
+            if (!preg_match('/^[0-9.\-\/]+$/', $candidate)) {
+                return [];
+            }
+
+            $normalizedCaseNumber = preg_replace('/\D/', '', $candidate);
+
+            if ($normalizedCaseNumber === '' || strlen($normalizedCaseNumber) < $minimumDigits) {
+                return [];
+            }
+
+            $normalizedTerms[$normalizedCaseNumber] = $normalizedCaseNumber;
+        }
+
+        return array_values($normalizedTerms);
+    }
+
+    private function countExistingCaseNumberMatches(array $normalizedCaseNumbers): int
+    {
+        if ($normalizedCaseNumbers === []) {
+            return 0;
+        }
+
+        return (int) LegalCase::query()
+            ->whereIn(DB::raw($this->normalizedCaseNumberSql()), $normalizedCaseNumbers)
+            ->count();
+    }
+
     private function isCaseNumberSearch(string $searchTerm): bool
     {
         $trimmedSearch = trim($searchTerm);
 
         if ($trimmedSearch === '') {
             return false;
+        }
+
+        if ($this->extractMultipleCaseNumberTerms($trimmedSearch) !== []) {
+            return true;
         }
 
         if (!preg_match('/^[0-9.\-\/\s]+$/', $trimmedSearch)) {

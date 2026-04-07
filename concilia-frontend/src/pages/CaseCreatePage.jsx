@@ -124,9 +124,9 @@ const CaseCreatePage = () => {
         const fetchDependencies = async () => {
             if (!token) return;
             try {
-                const [clientsRes, usersRes, lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes, caseTagsRes] = await Promise.all([
+                const [clientsRes, operatorsRes, lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes, caseTagsRes] = await Promise.all([
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
-                    apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/action-objects', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/plaintiffs', { headers: { Authorization: `Bearer ${token}` } }), // Fetch Autores
@@ -134,7 +134,7 @@ const CaseCreatePage = () => {
                     apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
                 ]);
                 setClients(Array.isArray(clientsRes.data) ? clientsRes.data : []);
-                setLawyers(Array.isArray(usersRes.data?.data) ? usersRes.data.data : []);
+                setLawyers(Array.isArray(operatorsRes.data) ? operatorsRes.data : []);
                 setOpposingLawyersList(Array.isArray(lawyersRes.data) ? lawyersRes.data : []);
                 setActionObjectsList(Array.isArray(actionObjectsRes.data) ? actionObjectsRes.data : []);
                 setPlaintiffsList(Array.isArray(plaintiffsRes.data) ? plaintiffsRes.data : []);

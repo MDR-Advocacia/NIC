@@ -43,7 +43,7 @@ const LawyerDetailModal = ({ isOpen, onClose, lawyer }) => {
     const conversionStr = lawyer.performance?.conversion || 0;
     const dealsCount = lawyer.performance?.deals || 0;
     
-    const totalCases = lawyer.total_cases || (dealsCount + 5); 
+    const totalCases = lawyer.worked_cases || lawyer.total_cases || (dealsCount + 5); 
     
     const economyNum = parseCurrency(economyStr);
     const metaValue = 500000;

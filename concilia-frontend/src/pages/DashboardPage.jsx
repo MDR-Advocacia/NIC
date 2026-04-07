@@ -120,11 +120,11 @@ const DashboardPage = () => {
         try {
             const [clientsResponse, lawyersResponse] = await Promise.all([
                 apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
-                apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
+                apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
             ]);
 
             setClients(clientsResponse.data);
-            setLawyers(lawyersResponse.data.data || []);
+            setLawyers(Array.isArray(lawyersResponse.data) ? lawyersResponse.data : []);
         } catch (err) {
             console.error('Erro ao carregar opções de filtro:', err);
             setClients([]);
@@ -216,11 +216,16 @@ const DashboardPage = () => {
                 return formatCurrency(value);
             case 'conversion_rate':
             case 'indication_flow_conversion_rate':
-                return `${parseFloat(value || 0).toFixed(2)}%`;
+                return `${Math.round(Number.parseFloat(value || 0) || 0)}%`;
             default:
                 return value;
         }
     };
+
+    const indicationMetrics = dashboardData?.indication_metrics || {};
+    const indicationsReceived = Number(indicationMetrics.indications_received || 0);
+    const agreementsViaIndication = Number(indicationMetrics.agreements_via_indication || 0);
+    const roundedIndicationRate = Math.round(Number.parseFloat(indicationMetrics.indication_flow_conversion_rate || 0) || 0);
 
     const kpiTitles = {
         total_original_value: "Total em alçadas",
@@ -235,7 +240,7 @@ const DashboardPage = () => {
         conversion_rate: "Taxa de Conversão",
         indications_received: "Indicações Recebidas",
         agreements_via_indication: "Acordos via Indicação",
-        indication_flow_conversion_rate: "Taxa de Conversão do Fluxo"
+        indication_flow_conversion_rate: "Taxa de Indicação"
     };
 
     const renderKpiGrid = (data, order) => {
@@ -410,10 +415,25 @@ const DashboardPage = () => {
                         {renderKpiGrid(dashboardData?.kpis, GENERAL_KPI_ORDER)}
                     </section>
 
-                    <section className={styles.kpiSection}>
+                    <section className={`${styles.kpiSection} ${styles.indicationSection}`}>
                         <div className={styles.kpiSectionHeader}>
-                            <h3 className={styles.kpiSectionTitle}>Fluxo de Indicação</h3>
-                            <p className={styles.kpiSectionSubtitle}>Acompanhamento separado dos casos que vieram de indicação.</p>
+                            <div className={styles.indicationHeaderContent}>
+                                <span className={styles.indicationBadge}>Fluxo dedicado</span>
+                                <h3 className={styles.kpiSectionTitle}>Fluxo de Indicação</h3>
+                                <p className={styles.kpiSectionSubtitle}>Acompanhamento separado dos casos que vieram de indicação.</p>
+                            </div>
+
+                            <div className={styles.indicationHighlights}>
+                                <span className={styles.indicationHighlight}>
+                                    {indicationsReceived} recebidas
+                                </span>
+                                <span className={styles.indicationHighlight}>
+                                    {agreementsViaIndication} convertidas
+                                </span>
+                                <span className={styles.indicationHighlight}>
+                                    {roundedIndicationRate}% de taxa
+                                </span>
+                            </div>
                         </div>
                         {renderKpiGrid(dashboardData?.indication_metrics, INDICATION_KPI_ORDER)}
                     </section>

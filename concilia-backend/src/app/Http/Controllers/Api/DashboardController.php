@@ -30,6 +30,10 @@ class DashboardController extends Controller
 
         $kpiRow = (clone $baseCasesQuery)
             ->selectRaw('COUNT(*) as total_cases')
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN status <> ? THEN 1 ELSE 0 END), 0) as worked_cases',
+                [LegalCase::STATUS_INITIAL_ANALYSIS]
+            )
             ->selectRaw('COALESCE(SUM(COALESCE(agreement_value, 0)), 0) as total_agreement_value')
             ->selectRaw('COALESCE(SUM(COALESCE(original_value, 0)), 0) as total_original_value')
             ->selectRaw(
@@ -63,16 +67,18 @@ class DashboardController extends Controller
             ->first();
 
         $totalCases = (int) ($kpiRow->total_cases ?? 0);
+        $workedCases = (int) ($kpiRow->worked_cases ?? 0);
         $closedCases = (int) ($kpiRow->closed_cases ?? 0);
-        $conversionRate = $totalCases > 0 ? ($closedCases / $totalCases) * 100 : 0;
+        $conversionRate = $workedCases > 0 ? ($closedCases / $workedCases) * 100 : 0;
 
         $statusCounts = (clone $baseCasesQuery)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        $indicationCasesQuery = clone $baseCasesQuery;
-        $this->applyIndicationFilter($indicationCasesQuery);
+        $indicationCasesQuery = LegalCase::query();
+        $this->applyCaseFilters($indicationCasesQuery, $request, $user, $dateRange, null);
+        $this->applyIndicationFilter($indicationCasesQuery, $dateRange);
 
         $indicationKpiRow = $indicationCasesQuery
             ->selectRaw('COUNT(*) as indications_received')
@@ -112,6 +118,7 @@ class DashboardController extends Controller
         return response()->json([
             'kpis' => [
                 'total_cases' => $totalCases,
+                'worked_cases' => $workedCases,
                 'active_cases' => (int) ($kpiRow->active_cases ?? 0),
                 'closed_deals_today' => (int) ($kpiRow->closed_deals_today ?? 0),
                 'total_agreement_value' => (float) ($kpiRow->total_agreement_value ?? 0),
@@ -148,6 +155,10 @@ class DashboardController extends Controller
             ->select('users.id', 'users.name')
             ->selectRaw('COUNT(legal_cases.id) as total_cases')
             ->selectRaw(
+                'COALESCE(SUM(CASE WHEN legal_cases.status <> ? THEN 1 ELSE 0 END), 0) as worked_cases',
+                [LegalCase::STATUS_INITIAL_ANALYSIS]
+            )
+            ->selectRaw(
                 'COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as closed_deals',
                 [LegalCase::STATUS_CLOSED_DEAL]
             )
@@ -175,9 +186,10 @@ class DashboardController extends Controller
             ->get()
             ->map(function (User $lawyer) {
                 $totalCases = (int) ($lawyer->total_cases ?? 0);
+                $workedCases = (int) ($lawyer->worked_cases ?? 0);
                 $closedDeals = (int) ($lawyer->closed_deals ?? 0);
                 $economy = (float) ($lawyer->economy ?? 0);
-                $conversionRate = $totalCases > 0 ? ($closedDeals / $totalCases) * 100 : 0;
+                $conversionRate = $workedCases > 0 ? ($closedDeals / $workedCases) * 100 : 0;
                 $score = ($closedDeals * 10) + ($economy / 1000);
                 $productsCount = (int) ceil($closedDeals * 0.4);
                 $productsValue = $productsCount * 2500;
@@ -187,6 +199,7 @@ class DashboardController extends Controller
                     'id' => $lawyer->id,
                     'name' => $lawyer->name,
                     'total_cases' => $totalCases,
+                    'worked_cases' => $workedCases,
                     'closed_deals' => $closedDeals,
                     'economy' => $economy,
                     'conversion_rate' => round($conversionRate, 1),
@@ -246,7 +259,7 @@ class DashboardController extends Controller
         Request $request,
         User $user,
         array $dateRange,
-        string $dateColumn = 'created_at'
+        ?string $dateColumn = 'created_at'
     ): Builder {
         $query = LegalCase::query();
         $this->applyCaseFilters($query, $request, $user, $dateRange, $dateColumn);
@@ -259,7 +272,7 @@ class DashboardController extends Controller
         Request $request,
         User $user,
         array $dateRange,
-        string $dateColumn = 'created_at'
+        ?string $dateColumn = 'created_at'
     ): void {
         if ($user->role === 'operador') {
             $query->where('user_id', $user->id);
@@ -274,7 +287,7 @@ class DashboardController extends Controller
         Builder $query,
         Request $request,
         array $dateRange,
-        string $dateColumn = 'created_at'
+        ?string $dateColumn = 'created_at'
     ): void {
         $query->where('has_alcada', true);
 
@@ -286,11 +299,11 @@ class DashboardController extends Controller
             $query->where('status', $request->input('status'));
         }
 
-        if ($dateRange['start'] instanceof Carbon) {
+        if ($dateColumn !== null && $dateRange['start'] instanceof Carbon) {
             $query->where($dateColumn, '>=', $dateRange['start']);
         }
 
-        if ($dateRange['end'] instanceof Carbon) {
+        if ($dateColumn !== null && $dateRange['end'] instanceof Carbon) {
             $query->where($dateColumn, '<=', $dateRange['end']);
         }
     }
@@ -321,9 +334,29 @@ class DashboardController extends Controller
         }
     }
 
-    private function applyIndicationFilter(Builder $query): void
+    private function applyIndicationFilter(Builder $query, ?array $dateRange = null): void
     {
         $query->whereRaw("JSON_EXTRACT(agreement_checklist_data, '$.indication_checklist') IS NOT NULL");
+
+        if ($dateRange === null) {
+            return;
+        }
+
+        $indicationDateSql = $this->indicationCompletedDateSql();
+
+        if (($dateRange['start'] ?? null) instanceof Carbon) {
+            $query->whereRaw(
+                "{$indicationDateSql} >= ?",
+                [$dateRange['start']->toDateString()]
+            );
+        }
+
+        if (($dateRange['end'] ?? null) instanceof Carbon) {
+            $query->whereRaw(
+                "{$indicationDateSql} <= ?",
+                [$dateRange['end']->toDateString()]
+            );
+        }
     }
 
     private function resolveDateRange(Request $request): array
@@ -358,5 +391,10 @@ class DashboardController extends Controller
     private function buildMonthKey(int $year, int $month): string
     {
         return sprintf('%04d-%02d', $year, $month);
+    }
+
+    private function indicationCompletedDateSql(string $column = 'agreement_checklist_data'): string
+    {
+        return "SUBSTR(JSON_UNQUOTE(JSON_EXTRACT({$column}, '$.indication_checklist.completed_at')), 1, 10)";
     }
 }

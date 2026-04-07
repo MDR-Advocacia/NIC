@@ -75,7 +75,7 @@ const GeneralBasePage = () => {
             if (!token) return;
             try {
                 const [usersResponse, clientsResponse] = await Promise.all([
-                    apiClient.get('/users', {
+                    apiClient.get('/users/operators', {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
                     apiClient.get('/clients', {
@@ -83,7 +83,7 @@ const GeneralBasePage = () => {
                     }),
                 ]);
 
-                setLawyers(usersResponse.data.data || []);
+                setLawyers(Array.isArray(usersResponse.data) ? usersResponse.data : []);
                 setClients(Array.isArray(clientsResponse.data) ? clientsResponse.data : []);
             } catch (err) {
                 console.error('Erro ao buscar dados auxiliares da base geral', err);

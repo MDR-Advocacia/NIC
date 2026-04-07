@@ -31,8 +31,6 @@ import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants
 import { 
     canAccessCaseCreation,
     isIndicatorRole,
-    normalizeUserRole,
-    USER_ROLES,
 } from '../constants/access';
 import IndicationChecklistModal from '../components/IndicationChecklistModal';
 
@@ -177,16 +175,11 @@ const PipelinePage = () => {
         try {
             const [clientsResponse, lawyersResponse, caseTagsResponse] = await Promise.all([
                 apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
-                fetchAllPaginatedResults('/users', token),
+                apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
                 apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
             ]);
 
-            const fetchedLawyers = Array.isArray(lawyersResponse)
-                ? lawyersResponse.filter(
-                    (lawyer) => lawyer?.status === 'ativo'
-                        && normalizeUserRole(lawyer?.role) === USER_ROLES.OPERADOR
-                )
-                : [];
+            const fetchedLawyers = Array.isArray(lawyersResponse.data) ? lawyersResponse.data : [];
 
             const effectiveFilters = {
                 search: debouncedSearch,

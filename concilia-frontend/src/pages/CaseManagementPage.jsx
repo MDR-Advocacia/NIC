@@ -35,12 +35,59 @@ const PRIORITY_OPTIONS = Object.entries(PRIORITY_DETAILS).map(([value, details])
     name: details.name,
 }));
 
+const MULTI_CASE_NUMBER_MIN_DIGITS = 15;
+const CASE_NUMBER_TOKEN_PATTERN = /^[0-9./-]+$/;
+const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
+
 const INITIAL_FILTERS = {
     search: '',
     status: '',
     priority: '',
     lawyer_id: '',
 };
+
+const extractMultipleCaseNumberTerms = (value) => {
+    const trimmedValue = String(value || '').trim();
+
+    if (!trimmedValue) {
+        return [];
+    }
+
+    const rawParts = trimmedValue
+        .split(/[\s,;]+/)
+        .map((part) => part.trim().replace(/^["']+|["']+$/g, ''))
+        .filter(Boolean);
+
+    if (rawParts.length < 2) {
+        return [];
+    }
+
+    const normalizedTerms = [];
+    const seenTerms = new Set();
+
+    for (const part of rawParts) {
+        if (!CASE_NUMBER_TOKEN_PATTERN.test(part)) {
+            return [];
+        }
+
+        const normalizedDigits = part.replace(/\D/g, '');
+
+        if (normalizedDigits.length < MULTI_CASE_NUMBER_MIN_DIGITS) {
+            return [];
+        }
+
+        if (seenTerms.has(normalizedDigits)) {
+            continue;
+        }
+
+        seenTerms.add(normalizedDigits);
+        normalizedTerms.push(normalizedDigits);
+    }
+
+    return normalizedTerms;
+};
+
+const formatProcessCount = (count) => `${count} ${count === 1 ? 'processo' : 'processos'}`;
 
 const StatusTag = ({ status }) => {
     const currentStatus = getLegalCaseStatusDetails(status);
@@ -148,14 +195,14 @@ const CaseManagementPage = () => {
                 ];
 
                 if (!isIndicator) {
-                    requests.unshift(apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }));
+                    requests.unshift(apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }));
                 }
 
                 const responses = await Promise.all(requests);
                 const usersResponse = isIndicator ? null : responses[0];
                 const clientsResponse = isIndicator ? responses[0] : responses[1];
 
-                setLawyers(usersResponse?.data?.data || []);
+                setLawyers(Array.isArray(usersResponse?.data) ? usersResponse.data : []);
                 setClients(clientsResponse.data || []);
             } catch (err) { 
                 console.error("Erro ao buscar dados de apoio", err); 
@@ -272,7 +319,8 @@ const CaseManagementPage = () => {
     };
 
     const executeBatchUpdate = async (action, value) => {
-        if (!value && action !== 'delete') return; 
+        const isUnassignTransfer = action === 'transfer_user' && value === UNASSIGNED_RESPONSIBLE_VALUE;
+        if ((!value || value === '') && action !== 'delete' && !isUnassignTransfer) return;
         if (!window.confirm(`Aplicar alteração em ${selectedCaseIds.length} processos?`)) return;
 
         setIsBatchProcessing(true);
@@ -332,9 +380,15 @@ const CaseManagementPage = () => {
         visibleCaseIds.length > 0 && selectedVisibleCaseIds.length === visibleCaseIds.length;
     const selectedLawyer = lawyers.find(lawyer => String(lawyer.id) === String(filters.lawyer_id));
     const activeFilterChips = [];
+    const pastedCaseNumberTerms = extractMultipleCaseNumberTerms(filters.search);
 
     if (filters.search.trim()) {
-        activeFilterChips.push({ key: 'search', label: `Busca: ${filters.search.trim()}` });
+        activeFilterChips.push({
+            key: 'search',
+            label: pastedCaseNumberTerms.length > 1
+                ? `Busca: ${formatProcessCount(pastedCaseNumberTerms.length)}`
+                : `Busca: ${filters.search.trim()}`,
+        });
     }
 
     if (filters.status) {
@@ -372,10 +426,32 @@ const CaseManagementPage = () => {
             };
         }
 
+        if (searchFeedback?.type === 'case_number_list_not_found') {
+            const totalTerms = Number(searchFeedback.total_terms || pastedCaseNumberTerms.length || 0);
+
+            return {
+                title: `Nenhum dos ${formatProcessCount(totalTerms)} informados consta na base de dados.`,
+                description: 'Cole a lista novamente, revise os números e, se necessário, solicite o cadastro dos processos antes de tentar a transferência.',
+            };
+        }
+
         if (searchFeedback?.type === 'case_number_unavailable_for_indicator') {
             return {
                 title: `O processo ${searchFeedback.search} foi localizado, mas não está disponível para indicação.`,
-                description: 'O perfil Indicador visualiza apenas casos da fila de Analise Inicial que atendem aos filtros atuais.',
+                description: 'O perfil Indicador visualiza apenas casos da fila de Análise Inicial que atendem aos filtros atuais.',
+            };
+        }
+
+        if (searchFeedback?.type === 'case_number_list_unavailable_for_indicator') {
+            const totalTerms = Number(searchFeedback.total_terms || pastedCaseNumberTerms.length || 0);
+            const matchedCount = Number(searchFeedback.matched_count || 0);
+            const missingCount = Number(searchFeedback.missing_count || Math.max(totalTerms - matchedCount, 0));
+
+            return {
+                title: `Encontramos ${formatProcessCount(matchedCount)} da lista, mas nenhum está disponível para indicação.`,
+                description: missingCount > 0
+                    ? `${formatProcessCount(missingCount)} não foram localizados e os demais não entram na fila atual de Análise Inicial.`
+                    : 'Os processos encontrados não entram na fila atual de Análise Inicial.',
             };
         }
 
@@ -383,6 +459,19 @@ const CaseManagementPage = () => {
             return {
                 title: `O processo ${searchFeedback.search} foi localizado, mas não aparece na lista atual.`,
                 description: 'Revise os filtros aplicados para verificar se eles estão restringindo a visualização do processo.',
+            };
+        }
+
+        if (searchFeedback?.type === 'case_number_list_filtered_out') {
+            const totalTerms = Number(searchFeedback.total_terms || pastedCaseNumberTerms.length || 0);
+            const matchedCount = Number(searchFeedback.matched_count || 0);
+            const missingCount = Number(searchFeedback.missing_count || Math.max(totalTerms - matchedCount, 0));
+
+            return {
+                title: `Encontramos ${formatProcessCount(matchedCount)} da lista, mas eles não aparecem com os filtros atuais.`,
+                description: missingCount > 0
+                    ? `${formatProcessCount(missingCount)} não foram localizados na base. Revise os filtros para exibir os processos encontrados.`
+                    : 'Revise os filtros aplicados para exibir os processos encontrados.',
             };
         }
 
@@ -405,7 +494,7 @@ const CaseManagementPage = () => {
         if (isIndicator) {
             return {
                 title: 'Nenhum caso disponível para indicação no momento.',
-                description: 'Quando houver processos em Analise Inicial aptos para a sua fila, eles aparecerão aqui.',
+                description: 'Quando houver processos em Análise Inicial aptos para a sua fila, eles aparecerão aqui.',
             };
         }
 
@@ -427,17 +516,13 @@ const CaseManagementPage = () => {
             </header>
 
             {isIndicator && (
-                <div style={{
-                    marginBottom: '18px',
-                    padding: '14px 18px',
-                    borderRadius: '12px',
-                    border: '1px solid #bfdbfe',
-                    background: '#eff6ff',
-                    color: '#1e3a8a',
-                    fontWeight: 600,
-                }}>
-                    Esta fila mostra os casos em Analise Inicial disponiveis para indicacao de acordo.
-                </div>
+                <section className={styles.indicatorNotice}>
+                    <div className={styles.indicatorNoticeLabel}>Fluxo de indicação</div>
+                    <div className={styles.indicatorNoticeTitle}>Fila pronta para triagem inicial</div>
+                    <p className={styles.indicatorNoticeText}>
+                        Esta fila mostra os casos em Análise Inicial disponíveis para indicação de acordo.
+                    </p>
+                </section>
             )}
             
             <section className={styles.kpiGrid}>
@@ -471,12 +556,16 @@ const CaseManagementPage = () => {
                         </span>
                         <input
                             type="text"
-                            placeholder="Processo, cliente ou palavra-chave"
+                            placeholder="Cole um ou vários processos, cliente ou palavra-chave"
                             className={styles.filterControl}
                             name="search"
                             value={filters.search}
                             onChange={handleFilterChange}
+                            title="Voce pode colar varios numeros de processo separados por espaco ou quebra de linha."
                         />
+                        <small className={styles.filterHelp}>
+                            Cole varios numeros de processo separados por espaco ou quebra de linha.
+                        </small>
                     </label>
 
                     <label className={styles.filterField}>
@@ -603,7 +692,7 @@ const CaseManagementPage = () => {
                                                 Status/Prioridade {getSortIcon('priority')}
                                             </th>
                                             
-                                            <th>Responsavel / Indicador</th>
+                                            <th>Responsável / Indicador</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
@@ -656,17 +745,9 @@ const CaseManagementPage = () => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIndicationCase(legalCase)}
-                                                                style={{
-                                                                    border: 'none',
-                                                                    borderRadius: '8px',
-                                                                    background: '#1d4ed8',
-                                                                    color: '#fff',
-                                                                    padding: '8px 12px',
-                                                                    fontWeight: 700,
-                                                                    cursor: 'pointer',
-                                                                }}
+                                                                className={styles.indicateButton}
                                                             >
-                                                                Indicar Caso para acordo
+                                                                Indicar caso para acordo
                                                             </button>
                                                         )}
                                                         
@@ -786,6 +867,7 @@ const CaseManagementPage = () => {
                                 {batchActionType === 'lawyer' && (
                                     <select className={styles.batchSelect} onChange={(e) => executeBatchUpdate('transfer_user', e.target.value)} defaultValue="">
                                         <option value="" disabled>Novo Responsável...</option>
+                                        <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
                                         {lawyers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                                     </select>
                                 )}

@@ -61,16 +61,22 @@ class UserController extends Controller
     public function operators(Request $request): JsonResponse
     {
         $currentUser = auth()->user();
+        $currentRole = strtolower(trim((string) $currentUser?->role));
 
-        if (!$currentUser || !in_array($currentUser->role, ['administrador', 'supervisor', 'indicador'], true)) {
+        if (!$currentUser || !in_array($currentRole, ['administrador', 'admin', 'supervisor', 'indicador', 'operador'], true)) {
             return response()->json(['message' => 'Acesso negado.'], 403);
         }
 
-        $operators = User::query()
+        $operatorsQuery = User::query()
             ->where('role', 'operador')
             ->where('status', 'ativo')
-            ->orderBy('name')
-            ->get(['id', 'name', 'email', 'role', 'status']);
+            ->orderBy('name');
+
+        if ($currentRole === 'operador') {
+            $operatorsQuery->where('id', $currentUser->id);
+        }
+
+        $operators = $operatorsQuery->get(['id', 'name', 'email', 'role', 'status']);
 
         return response()->json($operators);
     }

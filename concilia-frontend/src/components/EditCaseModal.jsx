@@ -446,8 +446,8 @@ const DetailsTab = ({
                     </div>
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Colaborador</label>
-                        <select className={styles.select} name="lawyer_id" value={formData.lawyer_id || ''} onChange={handleChange} required>
-                            <option value="">Selecione...</option>
+                        <select className={styles.select} name="lawyer_id" value={formData.lawyer_id || ''} onChange={handleChange}>
+                            <option value="">Sem responsável</option>
                             {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
                         </select>
                     </div>
