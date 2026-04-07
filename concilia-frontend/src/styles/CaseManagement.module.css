@@ -164,6 +164,15 @@
     padding-right: 20px;
     border-right: 1px solid var(--border-color-light);
     white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.batchSubInfo {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-weight: 500;
 }
 
 .batchActions {
@@ -394,6 +403,15 @@
     padding-right: 20px;
     border-right: 1px solid var(--border-color-light);
     white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.batchSubInfo {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-weight: 500;
 }
 
 .batchActions {

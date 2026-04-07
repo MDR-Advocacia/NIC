@@ -170,8 +170,6 @@ const CaseManagementPage = () => {
         setLoading(true);
         setError('');
         setSearchFeedback(null);
-        setSelectedCaseIds([]); 
-        setBatchActionType(null);
         
         try {
             const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
@@ -219,6 +217,12 @@ const CaseManagementPage = () => {
         return () => clearTimeout(timer);
     }, [fetchCases]);
 
+    useEffect(() => {
+        if (!Array.isArray(selectedCaseIds) || selectedCaseIds.length === 0) {
+            setBatchActionType(null);
+        }
+    }, [selectedCaseIds]);
+
     // --- MANIPULADORES DE ORDENAÇÃO ---
     const handleSort = (key) => {
         setSortConfig(current => {
@@ -247,10 +251,12 @@ const CaseManagementPage = () => {
     };
 
     const handleSelectAll = (e) => {
+        const visibleIds = cases.map((legalCase) => legalCase.id).filter(Boolean);
+
         if (e.target.checked) {
-            setSelectedCaseIds(cases.map(c => c.id));
+            setSelectedCaseIds(prev => Array.from(new Set([...(Array.isArray(prev) ? prev : []), ...visibleIds])));
         } else {
-            setSelectedCaseIds([]);
+            setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => !visibleIds.includes(id)));
         }
     };
 
@@ -278,6 +284,8 @@ const CaseManagementPage = () => {
             }, { headers: { Authorization: `Bearer ${token}` } });
 
             alert('Ação em lote concluída!');
+            setSelectedCaseIds([]);
+            setBatchActionType(null);
             fetchCases(); 
         } catch (err) {
             console.error(err);
@@ -292,6 +300,7 @@ const CaseManagementPage = () => {
             try {
                 await apiClient.delete(`/cases/${caseId}`, { headers: { Authorization: `Bearer ${token}` } });
                 setCases(prev => prev.filter(c => c.id !== caseId));
+                setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => id !== caseId));
             } catch (err) { alert('Erro ao excluir.'); }
         }
     };
@@ -314,7 +323,13 @@ const CaseManagementPage = () => {
         }, 0)
     };
 
-    const isAllSelected = cases.length > 0 && Array.isArray(selectedCaseIds) && selectedCaseIds.length === cases.length;
+    const visibleCaseIds = cases.map((legalCase) => legalCase.id).filter(Boolean);
+    const selectedVisibleCaseIds = (Array.isArray(selectedCaseIds) ? selectedCaseIds : []).filter((id) =>
+        visibleCaseIds.includes(id)
+    );
+    const selectedHiddenCount = Math.max((selectedCaseIds?.length || 0) - selectedVisibleCaseIds.length, 0);
+    const isAllSelected =
+        visibleCaseIds.length > 0 && selectedVisibleCaseIds.length === visibleCaseIds.length;
     const selectedLawyer = lawyers.find(lawyer => String(lawyer.id) === String(filters.lawyer_id));
     const activeFilterChips = [];
 
@@ -722,6 +737,10 @@ const CaseManagementPage = () => {
                 <div className={styles.batchActionBar}>
                     <div className={styles.batchInfo}>
                         <strong>{selectedCaseIds.length}</strong> selecionados
+                        <span className={styles.batchSubInfo}>
+                            {selectedVisibleCaseIds.length} na lista atual
+                            {selectedHiddenCount > 0 ? ` • ${selectedHiddenCount} fora do filtro` : ''}
+                        </span>
                     </div>
                     <div className={styles.batchActions}>
                         
@@ -775,7 +794,15 @@ const CaseManagementPage = () => {
                             </div>
                         )}
 
-                        <button className={styles.batchClose} onClick={() => setSelectedCaseIds([])}><FaTimes /></button>
+                        <button
+                            className={styles.batchClose}
+                            onClick={() => {
+                                setSelectedCaseIds([]);
+                                setBatchActionType(null);
+                            }}
+                        >
+                            <FaTimes />
+                        </button>
                     </div>
                 </div>
             )}
