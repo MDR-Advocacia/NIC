@@ -712,6 +712,72 @@
     transform: none;
 }
 
+.emptyState {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 1.4rem;
+    border: 1px dashed #bfdbfe;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #f8fbff 0%, #eff6ff 100%);
+}
+
+.emptyStateIcon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff;
+    box-shadow: 0 14px 26px rgba(37, 99, 235, 0.2);
+    flex-shrink: 0;
+    font-size: 1.2rem;
+}
+
+.emptyStateContent {
+    flex: 1;
+    min-width: 0;
+}
+
+.emptyStateContent h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.02rem;
+    font-weight: 700;
+}
+
+.emptyStateContent p {
+    margin: 0.35rem 0 0;
+    color: #475569;
+    line-height: 1.55;
+}
+
+.emptyStateAction {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 0.85rem 1.1rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    background: #ffffff;
+    color: #334155;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.emptyStateAction:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+    transform: translateY(-1px);
+}
+
 @media (min-width: 992px) {
     .searchField {
         grid-column: span 2;
@@ -735,6 +801,15 @@
     .filtersFooter {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .emptyState {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .emptyStateAction {
+        width: 100%;
     }
 
     .clearFiltersButton {

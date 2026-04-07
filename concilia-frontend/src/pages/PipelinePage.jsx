@@ -2,7 +2,7 @@
 // ATUALIZADO: Implementação completa de DragOver para suportar colunas vazias
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom'; 
+import { Link, useNavigate } from 'react-router-dom'; 
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
@@ -13,8 +13,6 @@ import {
     useSensor, 
     useSensors,
     closestCorners,
-    DragOverlay,
-    defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import styles from '../styles/Pipeline.module.css';
@@ -30,7 +28,7 @@ import {
     FaTag,
 } from 'react-icons/fa';
 import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants/legalCaseStatus';
-import {
+import { 
     canAccessCaseCreation,
     isIndicatorRole,
     normalizeUserRole,
@@ -80,6 +78,7 @@ const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
 
 const PipelinePage = () => {
     const { token, user } = useAuth();
+    const navigate = useNavigate();
     const isIndicator = isIndicatorRole(user?.role);
     const canChooseResponsible = ['administrador', 'supervisor'].includes(user?.role);
 
@@ -121,12 +120,17 @@ const PipelinePage = () => {
     ].filter(Boolean);
     const activeFilterCount = activeFilterChips.length;
 
-    const handleOpenEditModal = (caseToEdit) => {
-        if (isIndicator) {
+    const handleOpenCase = (caseToOpen) => {
+        if (!caseToOpen?.id) {
             return;
         }
 
-        setEditingCase(caseToEdit);
+        if (isIndicator) {
+            navigate(`/cases/${caseToOpen.id}`);
+            return;
+        }
+
+        setEditingCase(caseToOpen);
     };
     const handleCloseEditModal = () => setEditingCase(null);
     const handleOpenIndicationModal = (caseToIndicate) => setIndicationCase(caseToIndicate);
@@ -225,11 +229,37 @@ const PipelinePage = () => {
                 }
             }
 
-            let fetchedCases = await fetchAllPaginatedResults('/cases', token, {
-                ...effectiveFilters,
-                sort_by: 'updated_at',
-                sort_order: 'desc',
-            });
+            let fetchedCases = [];
+
+            if (isIndicator) {
+                const [availableCases, indicatedCases] = await Promise.all([
+                    fetchAllPaginatedResults('/cases', token, {
+                        ...effectiveFilters,
+                        sort_by: 'updated_at',
+                        sort_order: 'desc',
+                    }),
+                    fetchAllPaginatedResults('/cases', token, {
+                        ...effectiveFilters,
+                        indicator_user_id: String(user?.id || ''),
+                        sort_by: 'updated_at',
+                        sort_order: 'desc',
+                    }),
+                ]);
+
+                const mergedCases = new Map();
+
+                [...availableCases, ...indicatedCases].forEach((legalCase) => {
+                    mergedCases.set(String(legalCase.id), legalCase);
+                });
+
+                fetchedCases = Array.from(mergedCases.values());
+            } else {
+                fetchedCases = await fetchAllPaginatedResults('/cases', token, {
+                    ...effectiveFilters,
+                    sort_by: 'updated_at',
+                    sort_order: 'desc',
+                });
+            }
 
             // Filtro de Atraso
             if (showDelayedOnly) {
@@ -253,7 +283,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, priorityFilter, tagFilter, debouncedSearch, showDelayedOnly, canChooseResponsible, user?.id]);
+    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, priorityFilter, tagFilter, debouncedSearch, showDelayedOnly, canChooseResponsible, isIndicator, user?.id]);
 
     useEffect(() => {
         fetchAllData();
@@ -457,13 +487,32 @@ const PipelinePage = () => {
         setShowDelayedOnly(false);
     };
 
+    const boardContent = (
+        <div className={styles.boardShell}>
+            <div className={styles.boardGrid}>
+                {pipelineData?.titles && Object.entries(pipelineData.titles).map(([statusKey, statusTitle]) => (
+                    <PipelineColumn
+                        key={statusKey}
+                        id={statusKey}
+                        title={statusTitle}
+                        cases={pipelineData.grouped[statusKey] || []}
+                        onCardClick={handleOpenCase}
+                        enableDrag={!isIndicator}
+                        canIndicateCase={isIndicator}
+                        onIndicateCase={handleOpenIndicationModal}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+
     if (loading && !pipelineData) return <p>Carregando pipeline...</p>;
     if (error) return <p style={{ color: 'red' }}>{error}</p>;
 
     return (
         <div className={styles.pageContainer}>
             <div className={styles.header}>
-                <h1>Pipeline de Acordos</h1>
+                <h1>{isIndicator ? 'Indicações e Acompanhamento' : 'Pipeline de Acordos'}</h1>
                 <div className={styles.headerActions}>
                     {canAccessCaseCreation(user?.role) && (
                         <Link to="/cases/create" className={styles.newCaseButton}>
@@ -480,9 +529,11 @@ const PipelinePage = () => {
                             <FaSlidersH />
                         </div>
                         <div>
-                            <h2 className={styles.filterPanelTitle}>Filtros do Pipeline</h2>
+                            <h2 className={styles.filterPanelTitle}>{isIndicator ? 'Filtros das Indicações' : 'Filtros do Pipeline'}</h2>
                             <p className={styles.filterPanelSubtitle}>
-                                Refine os cards por caso, cliente, responsável, prioridade e destaque rapidamente os casos parados.
+                                {isIndicator
+                                    ? 'Os casos em Análise Inicial continuam disponíveis para indicação, e os processos já indicados por você seguem visíveis nas demais fases apenas para acompanhamento.'
+                                    : 'Refine os cards por caso, cliente, responsável, prioridade e destaque rapidamente os casos parados.'}
                             </p>
                         </div>
                     </div>
@@ -629,7 +680,7 @@ const PipelinePage = () => {
                     color: '#1e3a8a',
                     fontWeight: 600,
                 }}>
-                    Os casos em Analise Inicial podem ser avaliados aqui e indicados para acordo pelo checklist obrigatorio.
+                    Você pode indicar casos na coluna de Análise Inicial. Depois da indicação, o acompanhamento das próximas fases continua disponível aqui em modo somente leitura.
                 </div>
             )}
 
@@ -650,35 +701,20 @@ const PipelinePage = () => {
                 onClose={handleCloseIndicationModal}
                 onSuccess={handleCaseIndicated}
             />
-            
-            <DndContext 
-                sensors={sensors} 
-                collisionDetection={closestCorners}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragEnd={handleDragEnd}
-            >
-                <div className={styles.boardShell}>
-                    <div className={styles.boardGrid}>
-                    {pipelineData?.titles && Object.entries(pipelineData.titles)
-                        .filter(([statusKey]) => !isIndicator || statusKey === 'initial_analysis')
-                        .map(([statusKey, statusTitle]) => (
-                            <PipelineColumn
-                                key={statusKey}
-                                id={statusKey}
-                                title={statusTitle}
-                                cases={pipelineData.grouped[statusKey] || []}
-                                onCardClick={handleOpenEditModal}
-                                enableDrag={!isIndicator}
-                                canIndicateCase={isIndicator}
-                                onIndicateCase={handleOpenIndicationModal}
-                            />
-                        ))}
-                    </div>
-                </div>
-                {/* Overlay opcional para feedback visual melhorado durante o arraste */}
-                {/* <DragOverlay> ... </DragOverlay> */}
-            </DndContext>
+
+            {isIndicator ? (
+                boardContent
+            ) : (
+                <DndContext 
+                    sensors={sensors} 
+                    collisionDetection={closestCorners}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDragEnd={handleDragEnd}
+                >
+                    {boardContent}
+                </DndContext>
+            )}
         </div>
     );
 };

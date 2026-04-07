@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\LegalCase;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class LegalCasePolicy
 {
@@ -21,7 +20,19 @@ class LegalCasePolicy
      */
     public function view(User $user, LegalCase $legalCase): bool
     {
-        return true;
+        if (in_array($user->role, ['administrador', 'admin', 'supervisor', 'operador'], true)) {
+            return true;
+        }
+
+        if ($user->role === 'indicador') {
+            if ($legalCase->status === LegalCase::STATUS_INITIAL_ANALYSIS) {
+                return true;
+            }
+
+            return (string) ($legalCase->indicator_user_id ?? '') === (string) $user->id;
+        }
+
+        return false;
     }
 
     /**
@@ -29,7 +40,7 @@ class LegalCasePolicy
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->role !== 'indicador';
     }
 
     /**
@@ -37,8 +48,7 @@ class LegalCasePolicy
      */
     public function update(User $user, LegalCase $legalCase): bool
     {
-        // Permite que qualquer usuário logado atualize (mantido conforme anterior)
-        return true;
+        return $user->role !== 'indicador';
     }
 
     /**

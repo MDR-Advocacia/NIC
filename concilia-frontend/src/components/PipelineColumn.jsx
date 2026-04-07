@@ -17,7 +17,7 @@ const PipelineColumn = ({
     canIndicateCase = false,
     onIndicateCase,
 }) => {
-    const { setNodeRef } = useDroppable({ id });
+    const { setNodeRef } = useDroppable({ id, disabled: !enableDrag });
     const caseIds = cases.map(c => c.id);
 
     const { theme } = useTheme();
@@ -36,33 +36,41 @@ const PipelineColumn = ({
         '--pipeline-column-empty': secondaryText,
     };
 
+    const columnBody = (
+        <div className={styles.pipelineColumnBody}>
+            {cases.length > 0 ? (
+                cases.map(legalCase => (
+                    <CaseCard 
+                        key={legalCase.id} 
+                        id={legalCase.id} 
+                        legalCase={legalCase} 
+                        onClick={() => onCardClick(legalCase)}
+                        enableDrag={enableDrag}
+                        canIndicate={canIndicateCase && legalCase.status === 'initial_analysis'}
+                        onIndicate={onIndicateCase}
+                    />
+                ))
+            ) : (
+                <p className={styles.pipelineEmptyState}>
+                    Nenhum caso nesta etapa.
+                </p>
+            )}
+        </div>
+    );
+
     return (
-        <div ref={setNodeRef} className={styles.pipelineColumn} style={columnStyle}>
+        <div ref={enableDrag ? setNodeRef : undefined} className={styles.pipelineColumn} style={columnStyle}>
             <h3 className={styles.pipelineColumnHeader}>
                 {title} ({cases.length})
             </h3>
-            
-            <SortableContext id={id} items={caseIds}>
-                <div className={styles.pipelineColumnBody}>
-                    {cases.length > 0 ? (
-                        cases.map(legalCase => (
-                            <CaseCard 
-                                key={legalCase.id} 
-                                id={legalCase.id} 
-                                legalCase={legalCase} 
-                                onClick={() => onCardClick(legalCase)}
-                                enableDrag={enableDrag}
-                                canIndicate={canIndicateCase && legalCase.status === 'initial_analysis'}
-                                onIndicate={onIndicateCase}
-                            />
-                        ))
-                    ) : (
-                        <p className={styles.pipelineEmptyState}>
-                            Nenhum caso nesta etapa.
-                        </p>
-                    )}
-                </div>
-            </SortableContext>
+
+            {enableDrag ? (
+                <SortableContext id={id} items={caseIds}>
+                    {columnBody}
+                </SortableContext>
+            ) : (
+                columnBody
+            )}
         </div>
     );
 };
