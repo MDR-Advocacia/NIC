@@ -7,18 +7,34 @@ services:
     container_name: concilia_app
     restart: unless-stopped
     working_dir: /var/www/html
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_URL: ${APP_URL:-http://localhost:8123}
+      APP_KEY: ${APP_KEY:-}
+      DB_CONNECTION: ${DB_CONNECTION:-mysql}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_DATABASE: ${DB_DATABASE:-concilia_db}
+      DB_USERNAME: ${DB_USERNAME:-conciliauser}
+      DB_PASSWORD: ${DB_PASSWORD:-root}
+      CACHE_STORE: ${CACHE_STORE:-array}
+      SESSION_DRIVER: ${SESSION_DRIVER:-array}
+      QUEUE_CONNECTION: ${QUEUE_CONNECTION:-sync}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-localhost,localhost:5173,127.0.0.1,127.0.0.1:5173}
     # volumes:  
     #   - ./concilia-backend/src:/var/www/html
-    networks:
-      - concilia_network
     depends_on:
       - db
     command: >
-      sh -c "mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions bootstrap/cache resources/views && 
-      chmod -R 777 storage bootstrap/cache && 
-      php artisan key:generate --force && 
+      sh -c "[ -f .env ] || cp .env.example .env &&
+      grep -q '^APP_KEY=' .env || printf '\nAPP_KEY=\n' >> .env &&
+      mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions bootstrap/cache resources/views &&
+      chmod -R 777 storage bootstrap/cache &&
+      if [ -z \"${APP_KEY:-}\" ]; then php artisan key:generate --force; fi &&
       php artisan config:clear &&
-      (php-fpm || php artisan serve --host=0.0.0.0 --port=80)"
+      exec php-fpm"
 
   # --- SERVIDOR WEB (NGINX) ---
   nginx:
@@ -32,9 +48,6 @@ services:
       - ./concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
-    networks:
-      - concilia_network
-
   # --- BANCO DE DADOS (MYSQL) ---
   db:
     image: mysql:8.0
@@ -49,14 +62,13 @@ services:
       - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
-    networks:
-      - concilia_network
-
   # --- FRONTEND (REACT/VITE) ---
   frontend:
     build:
       context: ./concilia-frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8123/api}
     container_name: concilia_frontend
     restart: unless-stopped
     ports:
@@ -64,18 +76,12 @@ services:
     # volumes:
     #   - ./concilia-frontend:/app
     #   - /app/node_modules
-    networks:
-      - concilia_network
     deploy:
       resources:
         limits:
           memory: 1024M
     environment:
-      VITE_API_URL: http://localhost:8123/api
-
-networks:
-  concilia_network:
-    driver: bridge
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8123/api}
 
 volumes:
   db_data:
