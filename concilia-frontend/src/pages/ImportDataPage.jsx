@@ -16,8 +16,9 @@ import styles from '../styles/ImportDataPage.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 
-const IMPORT_BATCH_SIZE = 500;
-const MAX_IMPORT_FILE_SIZE_BYTES = 500 * 1024;
+const MAX_IMPORT_BATCH_ROWS = 500;
+const MAX_IMPORT_BATCH_PAYLOAD_BYTES = 900 * 1024;
+const MAX_IMPORT_FILE_SIZE_BYTES = 1024 * 1024;
 
 const spreadsheetLayouts = {
   GENERIC: 'generic',
@@ -165,6 +166,53 @@ const formatFileSize = (bytes) => {
   }
 
   return `${(bytes / 1024).toFixed(bytes >= 100 * 1024 ? 0 : 1)} KB`;
+};
+
+const measureImportPayloadBytes = (clientId, rows) =>
+  new TextEncoder().encode(
+    JSON.stringify({
+      client_id: clientId,
+      cases: rows.map((row) => row.data),
+    })
+  ).length;
+
+const buildImportBatches = (rowsToSend, clientId) => {
+  const batches = [];
+  let currentBatch = [];
+
+  rowsToSend.forEach((row) => {
+    const nextBatch = [...currentBatch, row];
+    const exceedsRowLimit = nextBatch.length > MAX_IMPORT_BATCH_ROWS;
+    const exceedsPayloadLimit =
+      measureImportPayloadBytes(clientId, nextBatch) > MAX_IMPORT_BATCH_PAYLOAD_BYTES;
+
+    if ((exceedsRowLimit || exceedsPayloadLimit) && currentBatch.length > 0) {
+      batches.push(currentBatch);
+      currentBatch = [row];
+
+      if (measureImportPayloadBytes(clientId, currentBatch) > MAX_IMPORT_BATCH_PAYLOAD_BYTES) {
+        throw new Error(
+          `A linha ${row.lineNumber} gera um lote acima do limite do servidor. Divida o conteúdo dessa linha ou remova colunas muito extensas antes de reenviar.`
+        );
+      }
+
+      return;
+    }
+
+    if (exceedsPayloadLimit) {
+      throw new Error(
+        `A linha ${row.lineNumber} gera um lote acima do limite do servidor. Divida o conteúdo dessa linha ou remova colunas muito extensas antes de reenviar.`
+      );
+    }
+
+    currentBatch = nextBatch;
+  });
+
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
 };
 
 const compactMappedRow = (row) =>
@@ -595,7 +643,7 @@ const ImportDataPage = () => {
     try {
       if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
         throw new Error(
-          `O arquivo excede o limite de 500 KB (${formatFileSize(file.size)}). Divida a planilha antes de importar.`
+          `O arquivo excede o limite de 1 MB (${formatFileSize(file.size)}). Divida a planilha antes de importar.`
         );
       }
 
@@ -643,10 +691,7 @@ const ImportDataPage = () => {
     setUploadProgress('');
 
     try {
-      const rowBatches = [];
-      for (let index = 0; index < rowsToSend.length; index += IMPORT_BATCH_SIZE) {
-        rowBatches.push(rowsToSend.slice(index, index + IMPORT_BATCH_SIZE));
-      }
+      const rowBatches = buildImportBatches(rowsToSend, selectedClient);
 
       let workingRows = [...rows];
       let totalSuccess = 0;
@@ -766,7 +811,13 @@ const ImportDataPage = () => {
       });
     } catch (error) {
       console.error('Erro ao importar:', error);
-      setPageError('O servidor não conseguiu processar a importação agora. Tente novamente.');
+      if (error.response?.status === 413) {
+        setPageError(
+          'O lote excedeu o tamanho aceito pela API publicada. Esta versão do importador reduz automaticamente os lotes, mas o ambiente de produção precisa estar atualizado com essa correção.'
+        );
+      } else {
+        setPageError(error.message || 'O servidor não conseguiu processar a importação agora. Tente novamente.');
+      }
     } finally {
       setIsUploading(false);
       setUploadProgress('');
@@ -937,7 +988,7 @@ const ImportDataPage = () => {
           <div className={styles.cardHeader}>
             <div>
               <h2>Importador de planilhas</h2>
-              <p>CSV, XLSX e XLS de at&eacute; 500 KB. O importador reconhece os layouts homologados, ignora linhas vazias e atualiza processos existentes pelo n&uacute;mero do processo.</p>
+              <p>CSV, XLSX e XLS de at&eacute; 1 MB. O importador reconhece os layouts homologados, ignora linhas vazias e atualiza processos existentes pelo n&uacute;mero do processo.</p>
             </div>
             <span className={styles.clientBadge}>{selectedClientName || 'Cliente não definido'}</span>
           </div>
@@ -985,7 +1036,7 @@ const ImportDataPage = () => {
           {uploadProgress && <p className={styles.progressText}>{uploadProgress}</p>}
 
           <div className={styles.helpBox}>
-            <strong>Fluxo:</strong> selecione uma planilha homologada de at&eacute; 500 KB, envie e o sistema identifica o layout pelos cabe&ccedil;alhos. Linhas vazias s&atilde;o desconsideradas automaticamente. Se o processo j&aacute; existir, ele &eacute; atualizado pelo n&uacute;mero do processo; se n&atilde;o existir, &eacute; criado.
+            <strong>Fluxo:</strong> selecione uma planilha homologada de at&eacute; 1 MB, envie e o sistema identifica o layout pelos cabe&ccedil;alhos. Linhas vazias s&atilde;o desconsideradas automaticamente. O envio &eacute; repartido em lotes menores para respeitar o limite da API. Se o processo j&aacute; existir, ele &eacute; atualizado pelo n&uacute;mero do processo; se n&atilde;o existir, &eacute; criado.
           </div>
         </article>
 
