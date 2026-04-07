@@ -75,5 +75,4 @@ const AddEditPlaintiffModal = ({ onClose, onSuccess, initialName = '' }) => {
         </div>
     );
 };
-
 export default AddEditPlaintiffModal;
