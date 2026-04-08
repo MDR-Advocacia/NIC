@@ -173,13 +173,14 @@ const styles = {
     alignItems: 'flex-end',
     gap: '10px',
   }),
-  bubble: (mine) => ({
-    maxWidth: '72%',
+  bubble: (mine, isTemplate = false) => ({
+    maxWidth: isTemplate ? '88%' : '72%',
+    width: isTemplate ? 'min(88%, 760px)' : 'auto',
     padding: '14px 16px',
     borderRadius: mine ? '18px 18px 6px 18px' : '18px 18px 18px 6px',
-    backgroundColor: mine ? '#dbeafe' : '#ffffff',
-    border: '1px solid #dbe3ee',
-    boxShadow: '0 8px 18px rgba(16, 35, 63, 0.05)',
+    backgroundColor: isTemplate ? '#fff6df' : mine ? '#dbeafe' : '#ffffff',
+    border: isTemplate ? '1px solid #f9c86b' : '1px solid #dbe3ee',
+    boxShadow: isTemplate ? '0 10px 22px rgba(249, 200, 107, 0.16)' : '0 8px 18px rgba(16, 35, 63, 0.05)',
   }),
   attachmentCard: {
     marginBottom: '10px',
@@ -1949,6 +1950,7 @@ const InboxPage = () => {
                 mensagens.map((mensagem, index) => {
                   const minha = mensagem.message_type === 'outgoing' || mensagem.message_type === 1;
                   const iniciais = mensagem.sender?.name?.charAt(0).toUpperCase() || 'C';
+                  const templateMensagem = mensagem.content_type === 'template';
 
                   return (
                     <div key={mensagem.id || index} style={styles.messageRow(minha)}>
@@ -1959,10 +1961,37 @@ const InboxPage = () => {
                           iniciais
                         )}
                       </div>
-                      <div style={{ ...styles.bubble(minha), borderColor: mensagem.status === 'failed' ? '#fca5a5' : '#dbe3ee' }}>
+                      <div
+                        style={{
+                          ...styles.bubble(minha, templateMensagem),
+                          borderColor: mensagem.status === 'failed' ? '#fca5a5' : templateMensagem ? '#f9c86b' : '#dbe3ee',
+                        }}
+                      >
                         {renderizarAnexos(mensagem)}
-                        {getConteudoVisivelMensagem(mensagem) ? <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{getConteudoVisivelMensagem(mensagem)}</div> : null}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
+                        {templateMensagem ? (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              marginBottom: '10px',
+                              padding: '5px 10px',
+                              borderRadius: '999px',
+                              backgroundColor: 'rgba(255,255,255,0.72)',
+                              color: '#9a6700',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Template do WhatsApp
+                          </div>
+                        ) : null}
+                        {getConteudoVisivelMensagem(mensagem) ? (
+                          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.75, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                            {getConteudoVisivelMensagem(mensagem)}
+                          </div>
+                        ) : null}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', flexWrap: 'wrap', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
                           {formatarHorario(mensagem.created_at)}
                           {minha ? <span style={styles.statusTag(mensagem.status)}>{getStatusMensagem(mensagem.status)}</span> : null}
                         </div>

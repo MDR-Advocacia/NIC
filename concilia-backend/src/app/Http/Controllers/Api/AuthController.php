@@ -60,12 +60,51 @@ class AuthController extends Controller
             ], 401);
         }
 
-        if (! Hash::check($password, $user->password)) {
+        if (($user->status ?? 'ativo') !== 'ativo') {
+            return response()->json([
+                'message' => 'Sua conta esta inativa. Procure um administrador do sistema.',
+            ], 403);
+        }
+
+        $storedPassword = trim((string) $user->password);
+        $passwordMatches = false;
+        $mustRehashPassword = false;
+
+        try {
+            $passwordMatches = Hash::check($password, $storedPassword);
+            $mustRehashPassword = $passwordMatches && Hash::needsRehash($storedPassword);
+        } catch (\Throwable $exception) {
+            $passwordMatches = false;
+        }
+
+        // Compatibilidade com contas legadas que possam ter sido migradas sem hash.
+        if (! $passwordMatches && $storedPassword !== '' && hash_equals($storedPassword, $password)) {
+            $passwordMatches = true;
+            $mustRehashPassword = true;
+        }
+
+        // Compatibilidade adicional com hashes MD5 legados.
+        if (! $passwordMatches && preg_match('/^[a-f0-9]{32}$/i', $storedPassword) === 1) {
+            $passwordMatches = hash_equals(Str::lower($storedPassword), md5($password));
+            $mustRehashPassword = $passwordMatches;
+        }
+
+        if (! $passwordMatches) {
             return response()->json([
                 'message' => 'A senha esta incorreta.',
                 'debug_email' => $email,
             ], 401);
         }
+
+        if ($mustRehashPassword) {
+            $user->forceFill([
+                'password' => Hash::make($password),
+            ])->save();
+        }
+
+        $user->forceFill([
+            'last_login_at' => now(),
+        ])->save();
 
         // Mantemos tokens anteriores para nao derrubar sessoes validas
         // abertas no lab, local ou outros dispositivos da equipe.
