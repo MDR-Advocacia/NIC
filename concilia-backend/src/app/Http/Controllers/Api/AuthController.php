@@ -12,6 +12,40 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
+    private function normalizeLoginEmail(?string $email): string
+    {
+        $normalized = trim((string) $email);
+        $normalized = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $normalized) ?? $normalized;
+        $normalized = trim($normalized, " \t\n\r\0\x0B\"'");
+
+        return Str::lower($normalized);
+    }
+
+    private function normalizeStoredSecret(?string $value): string
+    {
+        $normalized = trim((string) $value);
+        $normalized = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $normalized) ?? $normalized;
+        $normalized = trim($normalized, " \t\n\r\0\x0B");
+
+        if (
+            strlen($normalized) >= 2
+            && (
+                (str_starts_with($normalized, '"') && str_ends_with($normalized, '"'))
+                || (str_starts_with($normalized, "'") && str_ends_with($normalized, "'"))
+            )
+        ) {
+            $decoded = json_decode($normalized, true);
+
+            if (is_string($decoded) && $decoded !== '') {
+                return trim($decoded);
+            }
+
+            $normalized = substr($normalized, 1, -1);
+        }
+
+        return trim($normalized);
+    }
+
     /**
      * Handle a registration request for the application.
      */
@@ -40,7 +74,7 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        $email = Str::lower(trim((string) $request->input('email')));
+        $email = $this->normalizeLoginEmail((string) $request->input('email'));
         $password = (string) $request->input('password');
 
         $request->merge([
@@ -52,7 +86,13 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+        $user = User::whereRaw('LOWER(TRIM(email)) = ?', [$email])->first();
+
+        if (! $user) {
+            $user = User::query()->get()->first(function (User $candidate) use ($email) {
+                return $this->normalizeLoginEmail((string) $candidate->email) === $email;
+            });
+        }
 
         if (! $user) {
             return response()->json([
@@ -60,13 +100,15 @@ class AuthController extends Controller
             ], 401);
         }
 
-        if (($user->status ?? 'ativo') !== 'ativo') {
+        $normalizedStatus = Str::lower(trim((string) ($user->status ?? 'ativo')));
+
+        if ($normalizedStatus !== 'ativo') {
             return response()->json([
                 'message' => 'Sua conta esta inativa. Procure um administrador do sistema.',
             ], 403);
         }
 
-        $storedPassword = trim((string) $user->password);
+        $storedPassword = $this->normalizeStoredSecret((string) $user->password);
         $passwordMatches = false;
         $mustRehashPassword = false;
 
