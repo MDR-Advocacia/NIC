@@ -1,7 +1,7 @@
 // src/components/StatusDistributionChartJS.jsx
 // ATUALIZADO: Cores do texto (legenda e centro) agora usam o ThemeContext
 
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Doughnut, getElementAtEvent } from 'react-chartjs-2';
 import {
     Chart as ChartJS,
@@ -47,6 +47,29 @@ const StatusDistributionChartJS = ({ data, onStageClick }) => {
         ],
     };
 
+    const totalCases = chartDataMap.reduce((sum, item) => sum + item.value, 0);
+    const centerTextPlugin = useMemo(() => ({
+        id: 'statusDistributionCenterText',
+        afterDatasetsDraw(chart) {
+            const firstArc = chart.getDatasetMeta(0)?.data?.[0];
+            if (!firstArc) {
+                return;
+            }
+
+            const { ctx } = chart;
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = primaryTextColor;
+            ctx.font = '800 28px Segoe UI';
+            ctx.fillText(String(totalCases), firstArc.x, firstArc.y - 10);
+            ctx.fillStyle = secondaryTextColor;
+            ctx.font = '500 13px Segoe UI';
+            ctx.fillText('Total de Casos', firstArc.x, firstArc.y + 22);
+            ctx.restore();
+        },
+    }), [primaryTextColor, secondaryTextColor, totalCases]);
+
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
@@ -91,29 +114,15 @@ const StatusDistributionChartJS = ({ data, onStageClick }) => {
         return <p>Não há dados de distribuição para exibir.</p>;
     }
 
-    const totalCases = chartDataMap.reduce((sum, item) => sum + item.value, 0);
-
     return (
-        <div style={{ position: 'relative', height: '300px' }}>
+        <div style={{ height: '300px' }}>
             <Doughnut 
                 ref={chartRef}
                 data={chartData} 
                 options={chartOptions}
+                plugins={[centerTextPlugin]}
                 onClick={handleChartClick}
             />
-            {/* 5. APLICA A COR DINÂMICA NO TEXTO CENTRAL */}
-            <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '35%', 
-                transform: 'translate(-50%, -50%)',
-                textAlign: 'center',
-                pointerEvents: 'none'
-            }}>
-                <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: primaryTextColor }}>{totalCases}</span>
-                <br />
-                <span style={{ fontSize: '0.9rem', color: secondaryTextColor }}>Total de Casos</span>
-            </div>
         </div>
     );
 };

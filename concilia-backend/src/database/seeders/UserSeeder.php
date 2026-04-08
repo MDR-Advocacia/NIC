@@ -10,17 +10,16 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::table('users')->insert([
-            // USUÁRIO 1: O ADMIN (Obrigatório ser 'admin')
+        DB::table('users')->updateOrInsert(
+            ['email' => 'admin@concilia.app'],
             [
                 'name' => 'Admin Sistema',
-                'email' => 'admin@concilia.app',
                 'password' => Hash::make('password'),
-                'role' => 'administrador', 
+                'role' => 'administrador',
                 'status' => 'ativo',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
-        ]);
+            ]
+        );
     }
 }

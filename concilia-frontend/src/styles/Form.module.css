@@ -1,11 +1,11 @@
 .formModalContent {
-    max-width: 700px; /* Um pouco menor que o modal principal */
+    max-width: 720px;
 }
 
 .formGrid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
     margin-bottom: 1.5rem;
 }
 
@@ -16,30 +16,47 @@
 }
 
 .formGroup label {
-    font-weight: 500;
-    color: #a0aec0;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-secondary);
 }
 
 .formGroup input,
 .formGroup textarea,
 .formGroup select {
     width: 100%;
-    padding: 0.75rem;
-    border-radius: 5px;
-    border: 1px solid #4a5568;
-    background-color: #2d3748;
-    color: white;
+    min-height: 48px;
+    padding: 0.85rem 0.95rem;
+    border-radius: 14px;
+    border: 1px solid var(--border-color-dark);
+    background-color: var(--bg-input);
+    color: var(--text-primary);
     box-sizing: border-box;
-    font-size: 1rem;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.formGroup textarea {
+    min-height: 110px;
+    resize: vertical;
+}
+
+.formGroup input:focus,
+.formGroup textarea:focus,
+.formGroup select:focus {
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
 }
 
 .checkboxGroup {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    background-color: #2d3748;
+    background-color: rgba(148, 163, 184, 0.08);
     padding: 1rem;
-    border-radius: 6px;
+    border-radius: 18px;
+    border: 1px solid var(--border-color-light);
 }
 
 .checkboxItem {
@@ -54,45 +71,72 @@
 }
 
 .checkboxItem label {
-    font-weight: normal;
-    color: white;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 .formActions {
     display: flex;
     justify-content: flex-end;
-    gap: 1rem;
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #4a5568;
+    gap: 0.75rem;
+    margin-top: 1.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-color-light);
 }
 
-.cancelButton, .saveButton {
-    padding: 0.75rem 1.5rem;
-    border-radius: 5px;
-    font-weight: bold;
+.cancelButton,
+.saveButton {
+    min-height: 44px;
+    padding: 0 1rem;
+    border-radius: 14px;
+    font-weight: 700;
     cursor: pointer;
-    border: none;
-    transition: background-color 0.2s;
+    transition: transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
 }
 
 .cancelButton {
-    background-color: #4a5568;
-    color: white;
+    border: 1px solid var(--border-color-light);
+    background-color: #ffffff;
+    color: var(--text-secondary);
+}
+
+.cancelButton:hover {
+    background-color: #f8fafc;
+    border-color: var(--border-color-dark);
+    color: var(--text-primary);
 }
 
 .saveButton {
-    background-color: #3b82f6;
-    color: white;
+    border: none;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
+    color: #ffffff;
 }
 
-/* Adicionar em src/styles/Form.module.css */
+.saveButton:hover {
+    transform: translateY(-1px);
+}
+
 .error {
-    color: #e53e3e;
+    color: #b91c1c;
     text-align: center;
-    margin-top: 1rem;
-    padding: 0.5rem;
-    background-color: rgba(229, 62, 62, 0.1);
-    border: 1px solid #e53e3e;
-    border-radius: 5px;
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.85rem;
+    background-color: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.16);
+    border-radius: 14px;
+}
+
+@media (max-width: 768px) {
+    .formGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .formActions {
+        flex-direction: column-reverse;
+    }
+
+    .cancelButton,
+    .saveButton {
+        width: 100%;
+    }
 }

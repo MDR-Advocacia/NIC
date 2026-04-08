@@ -16,7 +16,22 @@ import styles from '../styles/ImportDataPage.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 
-const IMPORT_BATCH_SIZE = 500;
+const MAX_IMPORT_BATCH_ROWS = 500;
+const MAX_IMPORT_BATCH_PAYLOAD_BYTES = 900 * 1024;
+const MAX_IMPORT_FILE_SIZE_BYTES = 1024 * 1024;
+
+const spreadsheetLayouts = {
+  GENERIC: 'generic',
+  WEEKLY_BANK: 'weekly_bank',
+};
+
+const weeklyBankLayoutMarkers = [
+  'TX_NR_IVT',
+  'NR_PRC1',
+  'NM_RZSC_CLI',
+  'NM_TIP_EST_ACRD1',
+  'Comarca',
+];
 
 const columnMapping = {
   NPJ: 'internal_number',
@@ -71,7 +86,7 @@ const fieldLabels = {
   case_number: 'Processo',
   opposing_party: 'Autor',
   defendant: 'Réu',
-  action_object: 'Objeto da ação',
+  action_object: 'Causa de pedir',
   lawyer_name: 'Advogado responsável',
   comarca: 'Comarca',
   cause_value: 'Valor da causa',
@@ -143,6 +158,212 @@ const normalizeValue = (value) => {
     return value.toISOString().slice(0, 10);
   }
   return String(value).trim();
+};
+
+const formatFileSize = (bytes) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 KB';
+  }
+
+  return `${(bytes / 1024).toFixed(bytes >= 100 * 1024 ? 0 : 1)} KB`;
+};
+
+const measureImportPayloadBytes = (clientId, rows) =>
+  new TextEncoder().encode(
+    JSON.stringify({
+      client_id: clientId,
+      cases: rows.map((row) => row.data),
+    })
+  ).length;
+
+const buildImportBatches = (rowsToSend, clientId) => {
+  const batches = [];
+  let currentBatch = [];
+
+  rowsToSend.forEach((row) => {
+    const nextBatch = [...currentBatch, row];
+    const exceedsRowLimit = nextBatch.length > MAX_IMPORT_BATCH_ROWS;
+    const exceedsPayloadLimit =
+      measureImportPayloadBytes(clientId, nextBatch) > MAX_IMPORT_BATCH_PAYLOAD_BYTES;
+
+    if ((exceedsRowLimit || exceedsPayloadLimit) && currentBatch.length > 0) {
+      batches.push(currentBatch);
+      currentBatch = [row];
+
+      if (measureImportPayloadBytes(clientId, currentBatch) > MAX_IMPORT_BATCH_PAYLOAD_BYTES) {
+        throw new Error(
+          `A linha ${row.lineNumber} gera um lote acima do limite do servidor. Divida o conteúdo dessa linha ou remova colunas muito extensas antes de reenviar.`
+        );
+      }
+
+      return;
+    }
+
+    if (exceedsPayloadLimit) {
+      throw new Error(
+        `A linha ${row.lineNumber} gera um lote acima do limite do servidor. Divida o conteúdo dessa linha ou remova colunas muito extensas antes de reenviar.`
+      );
+    }
+
+    currentBatch = nextBatch;
+  });
+
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+};
+
+const compactMappedRow = (row) =>
+  Object.fromEntries(
+    Object.entries(row).filter(([, value]) => normalizeValue(value) !== '')
+  );
+
+const pickFirstFilledValue = (...values) => {
+  for (const value of values) {
+    const normalized = normalizeValue(value);
+    if (normalized !== '') {
+      return normalized;
+    }
+  }
+
+  return '';
+};
+
+const buildLabeledImportNote = (label, value) => {
+  const normalized = normalizeValue(value);
+  return normalized ? `${label}: ${normalized}` : '';
+};
+
+const buildImportNote = (segments) =>
+  segments
+    .map((segment) => normalizeValue(segment))
+    .filter(Boolean)
+    .join(' | ');
+
+const buildSpreadsheetRowByHeader = (headers, row) => {
+  const rowByHeader = {};
+
+  headers.forEach((header, index) => {
+    if (!header) return;
+    rowByHeader[header] = row[index];
+  });
+
+  return rowByHeader;
+};
+
+const resolveWorksheetDataRange = (worksheet) => {
+  const fallbackRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
+  const cellAddresses = Object.keys(worksheet).filter((address) => !address.startsWith('!'));
+
+  if (!cellAddresses.length) {
+    return XLSX.utils.encode_range(fallbackRange);
+  }
+
+  let minRow = fallbackRange.s.r;
+  let minCol = fallbackRange.s.c;
+  let maxRow = fallbackRange.s.r;
+  let maxCol = fallbackRange.s.c;
+  let hasValueCell = false;
+
+  cellAddresses.forEach((address) => {
+    const cell = worksheet[address];
+    const rawValue = cell?.w ?? cell?.v;
+
+    if (normalizeValue(rawValue) === '') {
+      return;
+    }
+
+    const decodedCell = XLSX.utils.decode_cell(address);
+
+    minRow = Math.min(minRow, decodedCell.r);
+    minCol = Math.min(minCol, decodedCell.c);
+    maxRow = Math.max(maxRow, decodedCell.r);
+    maxCol = Math.max(maxCol, decodedCell.c);
+    hasValueCell = true;
+  });
+
+  if (!hasValueCell) {
+    return XLSX.utils.encode_range(fallbackRange);
+  }
+
+  return XLSX.utils.encode_range({
+    s: { r: minRow, c: minCol },
+    e: { r: maxRow, c: maxCol },
+  });
+};
+
+const detectSpreadsheetLayout = (headers) => {
+  const comparableHeaders = new Set(headers.map(normalizeComparableText).filter(Boolean));
+
+  const isWeeklyBankLayout = weeklyBankLayoutMarkers.every((header) =>
+    comparableHeaders.has(normalizeComparableText(header))
+  );
+
+  return isWeeklyBankLayout ? spreadsheetLayouts.WEEKLY_BANK : spreadsheetLayouts.GENERIC;
+};
+
+const mapGenericSpreadsheetRow = (headers, row) => {
+  const mappedRow = {};
+
+  headers.forEach((header, index) => {
+    if (!header) return;
+    const dbField = columnMapping[header] || header;
+    mappedRow[dbField] = normalizeValue(row[index]);
+  });
+
+  return compactMappedRow(mappedRow);
+};
+
+const mapWeeklyBankSpreadsheetRow = (headers, row) => {
+  const rowByHeader = buildSpreadsheetRowByHeader(headers, row);
+  const caseType = normalizeValue(rowByHeader['TX_TIP_ACAO']);
+  const actionObject = pickFirstFilledValue(rowByHeader['Causa de Pedir'], caseType);
+  const productDescriptor = buildImportNote([
+    normalizeValue(rowByHeader['Nome do Produto']),
+    normalizeValue(rowByHeader['Modalidade do Produto']),
+  ]);
+  const courtDescriptor = buildImportNote([
+    normalizeValue(rowByHeader['NM_ORG_TST']),
+    normalizeValue(rowByHeader['NM_CMPT_ORG_TST']),
+  ]);
+
+  return compactMappedRow({
+    case_number: pickFirstFilledValue(rowByHeader.TX_NR_IVT, rowByHeader['Número do Processo']),
+    internal_number: pickFirstFilledValue(rowByHeader.NR_PRC1, rowByHeader.NPJ),
+    lawyer_name: rowByHeader.NM_RZSC_CLI,
+    action_object: actionObject,
+    opposing_lawyer: rowByHeader.Advogado_Adverso,
+    comarca: rowByHeader.Comarca,
+    city: rowByHeader.Comarca,
+    state: rowByHeader['UF da Comarca'],
+    special_court: pickFirstFilledValue(rowByHeader.NM_CMPT_ORG_TST, rowByHeader.NM_ORG_TST),
+    cause_value: rowByHeader.VL_PRC,
+    original_value: pickFirstFilledValue(
+      rowByHeader.VL_PRM_FNCO1,
+      rowByHeader.VL_CPRP1,
+      rowByHeader.VL_ACRD1
+    ),
+    pcond_probability: rowByHeader.VL_CPRP1,
+    agreement_value: rowByHeader.VL_ACRD1,
+    description: pickFirstFilledValue(
+      rowByHeader.TX_OBS_ACRD1,
+      buildImportNote([
+        buildLabeledImportNote('Status do acordo', rowByHeader.NM_TIP_EST_ACRD1),
+        buildLabeledImportNote('Fase no banco', rowByHeader.TX_EST_PRC),
+      ])
+    ),
+    campaign_observations: buildImportNote([
+      buildLabeledImportNote('Polo', rowByHeader.Polo),
+      buildLabeledImportNote('Tipo de ação', caseType),
+      buildLabeledImportNote('Status do acordo', rowByHeader.NM_TIP_EST_ACRD1),
+      buildLabeledImportNote('Produto', productDescriptor),
+      buildLabeledImportNote('Órgão julgador', courtDescriptor),
+      buildLabeledImportNote('Observação do banco', rowByHeader.TX_OBS_ACRD1),
+    ]),
+    polo: rowByHeader.Polo,
+  });
 };
 
 const parseLineIndex = (lineLabel) => {
@@ -337,6 +558,7 @@ const ImportDataPage = () => {
     }
 
     const headers = matrix[0].map(normalizeHeader);
+    const detectedLayout = detectSpreadsheetLayout(headers);
     const dataRows = matrix.slice(1).filter((row) =>
       row.some((cell) => normalizeValue(cell) !== '')
     );
@@ -346,15 +568,11 @@ const ImportDataPage = () => {
     }
 
     const mappedRows = dataRows
-      .map((row) => {
-        const mappedRow = {};
-        headers.forEach((header, index) => {
-          if (!header) return;
-          const dbField = columnMapping[header] || header;
-          mappedRow[dbField] = normalizeValue(row[index]);
-        });
-        return mappedRow;
-      })
+      .map((row) =>
+        detectedLayout === spreadsheetLayouts.WEEKLY_BANK
+          ? mapWeeklyBankSpreadsheetRow(headers, row)
+          : mapGenericSpreadsheetRow(headers, row)
+      )
       .filter((row) => !isSpreadsheetMetadataRow(row));
 
     if (!mappedRows.length) {
@@ -370,7 +588,7 @@ const ImportDataPage = () => {
     if (extension === 'csv') {
       return new Promise((resolve, reject) => {
         Papa.parse(file, {
-          skipEmptyLines: true,
+          skipEmptyLines: 'greedy',
           complete: (results) => {
             try {
               resolve(mapImportedRows(results.data));
@@ -387,7 +605,14 @@ const ImportDataPage = () => {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const matrix = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '', raw: false });
+      const dataRange = resolveWorksheetDataRange(firstSheet);
+      const matrix = XLSX.utils.sheet_to_json(firstSheet, {
+        header: 1,
+        defval: '',
+        raw: false,
+        blankrows: false,
+        range: dataRange,
+      });
       return mapImportedRows(matrix);
     }
 
@@ -416,6 +641,12 @@ const ImportDataPage = () => {
     setFilterCode('');
 
     try {
+      if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
+        throw new Error(
+          `O arquivo excede o limite de 1 MB (${formatFileSize(file.size)}). Divida a planilha antes de importar.`
+        );
+      }
+
       const parsedRows = await parseSpreadsheetFile(file);
       const draftedRows = parsedRows.map((row, index) => createRowDraft(row, index));
 
@@ -460,10 +691,7 @@ const ImportDataPage = () => {
     setUploadProgress('');
 
     try {
-      const rowBatches = [];
-      for (let index = 0; index < rowsToSend.length; index += IMPORT_BATCH_SIZE) {
-        rowBatches.push(rowsToSend.slice(index, index + IMPORT_BATCH_SIZE));
-      }
+      const rowBatches = buildImportBatches(rowsToSend, selectedClient);
 
       let workingRows = [...rows];
       let totalSuccess = 0;
@@ -583,7 +811,13 @@ const ImportDataPage = () => {
       });
     } catch (error) {
       console.error('Erro ao importar:', error);
-      setPageError('O servidor não conseguiu processar a importação agora. Tente novamente.');
+      if (error.response?.status === 413) {
+        setPageError(
+          'O lote excedeu o tamanho aceito pela API publicada. Esta versão do importador reduz automaticamente os lotes, mas o ambiente de produção precisa estar atualizado com essa correção.'
+        );
+      } else {
+        setPageError(error.message || 'O servidor não conseguiu processar a importação agora. Tente novamente.');
+      }
     } finally {
       setIsUploading(false);
       setUploadProgress('');
@@ -734,7 +968,7 @@ const ImportDataPage = () => {
       <header className={styles.header}>
         <div>
           <h1>Importação de casos</h1>
-          <p>Importador único para as 3 planilhas, com atualização automática por número do processo.</p>
+          <p>Importador único para os layouts homologados, com atualização automática por número do processo.</p>
         </div>
         <button type="button" className={styles.templateButton} onClick={handleDownloadTemplate}>
           <FaDownload />
@@ -754,7 +988,7 @@ const ImportDataPage = () => {
           <div className={styles.cardHeader}>
             <div>
               <h2>Importador de planilhas</h2>
-              <p>CSV, XLSX e XLS. O importador reconhece os 3 layouts e atualiza processos existentes pelo número do processo.</p>
+              <p>CSV, XLSX e XLS de at&eacute; 1 MB. O importador reconhece os layouts homologados, ignora linhas vazias e atualiza processos existentes pelo n&uacute;mero do processo.</p>
             </div>
             <span className={styles.clientBadge}>{selectedClientName || 'Cliente não definido'}</span>
           </div>
@@ -802,7 +1036,7 @@ const ImportDataPage = () => {
           {uploadProgress && <p className={styles.progressText}>{uploadProgress}</p>}
 
           <div className={styles.helpBox}>
-            <strong>Fluxo:</strong> selecione qualquer uma das 3 planilhas, envie e o sistema identifica o layout pelos cabeçalhos. Se o processo já existir, ele é atualizado pelo número do processo; se não existir, é criado.
+            <strong>Fluxo:</strong> selecione uma planilha homologada de at&eacute; 1 MB, envie e o sistema identifica o layout pelos cabe&ccedil;alhos. Linhas vazias s&atilde;o desconsideradas automaticamente. O envio &eacute; repartido em lotes menores para respeitar o limite da API. Se o processo j&aacute; existir, ele &eacute; atualizado pelo n&uacute;mero do processo; se n&atilde;o existir, &eacute; criado.
           </div>
         </article>
 

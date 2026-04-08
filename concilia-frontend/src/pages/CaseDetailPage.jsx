@@ -13,6 +13,7 @@ import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
 import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
+import { isIndicatorRole } from '../constants/access';
 import {
     formatLiveloPoints,
     getSettlementBenefitType,
@@ -27,8 +28,9 @@ const PRIORITY_DETAILS = {
 };
 
 const CaseDetailPage = () => {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const { caseId } = useParams();
+    const isIndicator = isIndicatorRole(user?.role);
     const [legalCase, setLegalCase] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -190,7 +192,9 @@ const CaseDetailPage = () => {
                     <pre style={{whiteSpace: 'pre-wrap', fontSize: '0.85rem'}}>{debugInfo}</pre>
                 </div>
             )}
-            <Link to="/pipeline" style={{display:'inline-block', marginTop:'15px', color:'#3182ce'}}>Voltar para a Lista</Link>
+            <Link to="/pipeline" style={{display:'inline-block', marginTop:'15px', color:'#3182ce'}}>
+                {isIndicator ? 'Voltar para Indicações' : 'Voltar para a Lista'}
+            </Link>
         </div>
     );
 
@@ -279,7 +283,9 @@ const CaseDetailPage = () => {
             {/* CABEÇALHO */}
             <div className={styles.header}>
                 <div>
-                    <Link to="/pipeline" className={styles.backLink}>{"< Voltar"}</Link>
+                    <Link to="/pipeline" className={styles.backLink}>
+                        {isIndicator ? '< Voltar para Indicações' : '< Voltar'}
+                    </Link>
                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                         <h1 className={styles.title}>Processo #{legalCase.case_number || 'S/N'}</h1>
                         {legalCase.internal_number && (
@@ -314,6 +320,12 @@ const CaseDetailPage = () => {
                         <strong>Atenção: Litigante Abusivo Identificado</strong>
                         <p style={{margin:0, fontSize: '0.9rem'}}>O advogado adverso deste caso está marcado como litigante abusivo/habitual. Redobre a atenção na negociação.</p>
                     </div>
+                </div>
+            )}
+
+            {isIndicator && (
+                <div style={{background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', padding: '1rem', borderRadius: '10px', marginBottom: '1.5rem', fontWeight: 600}}>
+                    Este detalhe está disponível em modo somente leitura para acompanhamento das suas indicações.
                 </div>
             )}
 
@@ -368,7 +380,8 @@ const CaseDetailPage = () => {
                             ) : (
                                 <AgreementChecklist 
                                     checklistData={legalCase.agreement_checklist_data} 
-                                    onUpdate={() => {}} 
+                                    onUpdate={() => {}}
+                                    readOnly={isIndicator}
                                 />
                             )}
                         </div>
@@ -384,7 +397,7 @@ const CaseDetailPage = () => {
                                 messages={messages}
                                 onSendMessage={handleSendMessage}
                                 isSending={isSending}
-                                isInteractive={true}
+                                isInteractive={!isIndicator}
                                 contactName={conversation.contact_name}
                                 contactNumber={conversation.contact_phone}
                             />

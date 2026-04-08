@@ -66,4 +66,17 @@ class UserPolicy
 
         return true;
     }
+
+    /**
+     * Quem pode resetar a senha de outro usuário?
+     * Apenas Admin e nunca na própria conta.
+     */
+    public function resetPassword(User $user, User $model): bool
+    {
+        if (!in_array($user->role, ['administrador', 'admin'], true)) {
+            return false;
+        }
+
+        return $user->id !== $model->id;
+    }
 }

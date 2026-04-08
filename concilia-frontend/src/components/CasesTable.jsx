@@ -21,6 +21,8 @@ const CasesTable = ({ cases }) => {
         return <p>Nenhum caso encontrado.</p>;
     }
 
+    const hasRecentAlcadaContext = cases.some((legalCase) => Boolean(legalCase.recent_alcada_event_at));
+
     const formatCurrency = (value) => {
         if (value === null || value === undefined) return 'N/A';
         return new Intl.NumberFormat('pt-BR', {
@@ -35,6 +37,12 @@ const CasesTable = ({ cases }) => {
         return new Intl.DateTimeFormat('pt-BR').format(date);
     };
 
+    const getRecentAlcadaEventLabel = (legalCase) => (
+        legalCase.recent_alcada_event_type === 'created'
+            ? 'Entrou na alçada'
+            : 'Alçada atualizada'
+    );
+
     return (
         <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
             <thead>
@@ -42,9 +50,14 @@ const CasesTable = ({ cases }) => {
                     <th style={{ padding: '12px', textAlign: 'left' }}>Processo</th>
                     <th style={{ padding: '12px', textAlign: 'left' }}>Cliente</th>
                     <th style={{ padding: '12px', textAlign: 'left' }}>Autor</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Valor da Causa</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>
+                        {hasRecentAlcadaContext ? 'Valor da Alçada' : 'Valor da Causa'}
+                    </th>
                     <th style={{ padding: '12px', textAlign: 'left' }}>Status</th>
                     <th style={{ padding: '12px', textAlign: 'left' }}>Advogado</th>
+                    {hasRecentAlcadaContext && (
+                        <th style={{ padding: '12px', textAlign: 'left' }}>Movimentação da Alçada</th>
+                    )}
                     <th style={{ padding: '12px', textAlign: 'left' }}>Data Distribuição</th>
                 </tr>
             </thead>
@@ -62,7 +75,7 @@ const CasesTable = ({ cases }) => {
                             <td style={{ padding: '12px' }}>{legalCase.client?.name || 'N/A'}</td>
                             <td style={{ padding: '12px' }}>{legalCase.opposing_party}</td>
                             <td style={{ padding: '12px' }}>
-                                {formatCurrency(legalCase.cause_value)}
+                                {formatCurrency(hasRecentAlcadaContext ? legalCase.original_value : legalCase.cause_value)}
                             </td>
                             
                             {/* --- CÉLULA DE STATUS MODIFICADA --- */}
@@ -78,6 +91,18 @@ const CasesTable = ({ cases }) => {
                             {/* --- FIM DA MODIFICAÇÃO --- */}
                             
                             <td style={{ padding: '12px' }}>{legalCase.lawyer?.name || 'N/A'}</td>
+                            {hasRecentAlcadaContext && (
+                                <td style={{ padding: '12px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                        <strong style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>
+                                            {getRecentAlcadaEventLabel(legalCase)}
+                                        </strong>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                            {formatDate(legalCase.recent_alcada_event_at)}
+                                        </span>
+                                    </div>
+                                </td>
+                            )}
                             <td style={{ padding: '12px' }}>{formatDate(legalCase.start_date || legalCase.created_at)}</td>
                         </tr>
                     );

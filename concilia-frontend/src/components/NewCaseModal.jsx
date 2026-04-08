@@ -238,8 +238,8 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
                 <input className={styles.input} type="text" id="case_number" name="case_number" value={formData.case_number} onChange={handleChange} required placeholder="Digite o número" />
               </div>
               <div className={styles.formGroup}>
-                <label className={styles.label} htmlFor="action_object">Objeto da Ação</label>
-                <input className={styles.input} type="text" id="action_object" name="action_object" value={formData.action_object} onChange={handleChange} required placeholder="Digite o objeto da ação" />
+                <label className={styles.label} htmlFor="action_object">Causa de Pedir</label>
+                <input className={styles.input} type="text" id="action_object" name="action_object" value={formData.action_object} onChange={handleChange} required placeholder="Digite a causa de pedir" />
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.label} htmlFor="start_date">Data de Distribuição</label>

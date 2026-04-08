@@ -68,6 +68,8 @@ const TeamPerformanceModal = ({ isOpen, onClose, onViewDetails, data }) => {
                                 isLeader: index === 0,
                                 score: lawyerBackend.score,
                                 ranking: index + 1,
+                                total_cases: lawyerBackend.total_cases,
+                                worked_cases: lawyerBackend.worked_cases,
                                 performance: { 
                                     economy: formatCurrency(lawyerBackend.economy), 
                                     conversion: lawyerBackend.conversion_rate, 
