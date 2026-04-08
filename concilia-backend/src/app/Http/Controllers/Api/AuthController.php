@@ -14,8 +14,9 @@ class AuthController extends Controller
 {
     private function normalizeLoginEmail(?string $email): string
     {
-        $normalized = trim((string) $email);
+        $normalized = (string) $email;
         $normalized = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $normalized) ?? $normalized;
+        $normalized = preg_replace('/[\p{Z}\s]+/u', '', $normalized) ?? $normalized;
         $normalized = trim($normalized, " \t\n\r\0\x0B\"'");
 
         return Str::lower($normalized);
@@ -23,8 +24,9 @@ class AuthController extends Controller
 
     private function normalizeStoredSecret(?string $value): string
     {
-        $normalized = trim((string) $value);
+        $normalized = (string) $value;
         $normalized = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $normalized) ?? $normalized;
+        $normalized = preg_replace('/^[\p{Z}\s]+|[\p{Z}\s]+$/u', '', $normalized) ?? $normalized;
         $normalized = trim($normalized, " \t\n\r\0\x0B");
 
         if (
