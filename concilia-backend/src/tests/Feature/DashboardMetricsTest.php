@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Client;
+use App\Models\CaseHistory;
 use App\Models\LegalCase;
 use App\Models\User;
 use Carbon\Carbon;
@@ -101,6 +102,228 @@ class DashboardMetricsTest extends TestCase
             ->assertJsonPath('indication_metrics.indication_flow_conversion_rate', '50.0');
     }
 
+    public function test_dashboard_returns_state_macro_and_indicator_breakdowns_for_closed_deals(): void
+    {
+        $manager = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $operator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        $indicatorOne = User::factory()->create([
+            'name' => 'Indicador Um',
+            'role' => 'indicador',
+            'status' => 'ativo',
+        ]);
+
+        $indicatorTwo = User::factory()->create([
+            'name' => 'Indicador Dois',
+            'role' => 'indicador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, '08011957020268205004', [
+            'state' => 'SP',
+            'original_value' => 12000,
+            'agreement_value' => 6000,
+            'indicator_user_id' => $indicatorOne->id,
+            'agreement_checklist_data' => [
+                'indication_checklist' => [
+                    'completed_at' => '2026-01-05T10:00:00-03:00',
+                ],
+            ],
+        ]);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, '06014605620248045300', [
+            'state' => 'RJ',
+            'original_value' => 3500,
+            'agreement_value' => 3300,
+            'livelo_points' => 9000,
+            'indicator_user_id' => $indicatorOne->id,
+            'agreement_checklist_data' => [
+                'indication_checklist' => [
+                    'completed_at' => '2026-01-10T10:00:00-03:00',
+                ],
+            ],
+        ]);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, '60084600220268030001', [
+            'state' => 'RJ',
+            'original_value' => 3000,
+            'agreement_value' => 2800,
+            'ourocap_value' => 750,
+            'indicator_user_id' => $indicatorTwo->id,
+            'agreement_checklist_data' => [
+                'indication_checklist' => [
+                    'completed_at' => '2026-01-15T10:00:00-03:00',
+                ],
+            ],
+        ]);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, '08000666820268205153', [
+            'state' => 'MG',
+            'original_value' => 4000,
+            'agreement_value' => 3900,
+        ]);
+
+        $response = $this->getJson('/api/dashboard');
+
+        $response
+            ->assertOk()
+            ->assertJsonFragment([
+                'uf' => 'SP',
+                'name' => 'Sao Paulo',
+                'count' => 1,
+            ])
+            ->assertJsonFragment([
+                'uf' => 'RJ',
+                'name' => 'Rio de Janeiro',
+                'count' => 2,
+            ])
+            ->assertJsonFragment([
+                'uf' => 'MG',
+                'name' => 'Minas Gerais',
+                'count' => 1,
+            ])
+            ->assertJsonFragment([
+                'key' => 'high_savings',
+                'label' => 'Economia > R$ 5 mil',
+                'value' => 1,
+            ])
+            ->assertJsonFragment([
+                'key' => 'livelo',
+                'label' => 'Acordos Livelo',
+                'value' => 1,
+            ])
+            ->assertJsonFragment([
+                'key' => 'ourocap',
+                'label' => 'Acordos Ourocap',
+                'value' => 1,
+            ])
+            ->assertJsonFragment([
+                'key' => 'general',
+                'label' => 'Acordos Gerais',
+                'value' => 1,
+            ])
+            ->assertJsonFragment([
+                'name' => 'Indicador Um',
+                'indications_count' => 2,
+                'closed_deals' => 2,
+                'conversion_rate' => 100,
+            ])
+            ->assertJsonFragment([
+                'name' => 'Indicador Dois',
+                'indications_count' => 1,
+                'closed_deals' => 1,
+                'conversion_rate' => 100,
+            ]);
+    }
+
+    public function test_dashboard_recent_cases_follow_recent_alcada_events_with_pagination(): void
+    {
+        $manager = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $operator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        for ($index = 1; $index <= 20; $index++) {
+            $this->createLegalCase($operator, LegalCase::STATUS_INITIAL_ANALYSIS, sprintf('FILLER-%02d', $index), [
+                'original_value' => 1000 + $index,
+                'cause_value' => 1000 + $index,
+                'created_at' => Carbon::parse(sprintf('2026-03-%02d 09:00:00', min($index, 28))),
+            ]);
+        }
+
+        $createdWithAlcada = $this->createLegalCase($operator, LegalCase::STATUS_INITIAL_ANALYSIS, 'RECENT-CREATED', [
+            'original_value' => 4800,
+            'cause_value' => 4800,
+            'created_at' => Carbon::parse('2026-04-05 09:00:00'),
+        ]);
+
+        $gainedAlcada = $this->createLegalCase($operator, LegalCase::STATUS_INITIAL_ANALYSIS, 'RECENT-GAINED', [
+            'original_value' => 0,
+            'cause_value' => 0,
+            'created_at' => Carbon::parse('2026-03-10 09:00:00'),
+        ]);
+        $this->createHistoryEntry(
+            $gainedAlcada,
+            [
+                'original_value' => 0,
+                'has_alcada' => false,
+            ],
+            [
+                'original_value' => 2500,
+                'has_alcada' => true,
+            ],
+            Carbon::parse('2026-04-06 10:00:00')
+        );
+        $gainedAlcada->timestamps = false;
+        $gainedAlcada->forceFill([
+            'original_value' => 2500,
+            'cause_value' => 2500,
+            'updated_at' => Carbon::parse('2026-04-06 10:00:00'),
+        ])->saveQuietly();
+
+        $updatedAlcada = $this->createLegalCase($operator, LegalCase::STATUS_INITIAL_ANALYSIS, 'RECENT-UPDATED', [
+            'original_value' => 1800,
+            'cause_value' => 1800,
+            'created_at' => Carbon::parse('2026-03-12 09:00:00'),
+        ]);
+        $this->createHistoryEntry(
+            $updatedAlcada,
+            [
+                'original_value' => 1800,
+                'has_alcada' => true,
+            ],
+            [
+                'original_value' => 3200,
+                'has_alcada' => true,
+            ],
+            Carbon::parse('2026-04-07 11:00:00')
+        );
+        $updatedAlcada->timestamps = false;
+        $updatedAlcada->forceFill([
+            'original_value' => 3200,
+            'cause_value' => 3200,
+            'updated_at' => Carbon::parse('2026-04-07 11:00:00'),
+        ])->saveQuietly();
+
+        $response = $this->getJson('/api/dashboard?recent_cases_per_page=20&recent_cases_page=1');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('recent_cases.current_page', 1)
+            ->assertJsonPath('recent_cases.per_page', 20)
+            ->assertJsonPath('recent_cases.last_page', 2)
+            ->assertJsonPath('recent_cases.total', 23)
+            ->assertJsonPath('recent_cases.data.0.case_number', 'RECENT-UPDATED')
+            ->assertJsonPath('recent_cases.data.0.recent_alcada_event_type', 'updated')
+            ->assertJsonPath('recent_cases.data.1.case_number', 'RECENT-GAINED')
+            ->assertJsonPath('recent_cases.data.1.recent_alcada_event_type', 'updated')
+            ->assertJsonPath('recent_cases.data.2.case_number', 'RECENT-CREATED')
+            ->assertJsonPath('recent_cases.data.2.recent_alcada_event_type', 'created');
+
+        $secondPageResponse = $this->getJson('/api/dashboard?recent_cases_per_page=20&recent_cases_page=2');
+
+        $secondPageResponse
+            ->assertOk()
+            ->assertJsonPath('recent_cases.current_page', 2)
+            ->assertJsonCount(3, 'recent_cases.data');
+    }
+
     private function createLegalCase(User $operator, string $status, string $caseNumber, array $overrides = []): LegalCase
     {
         $client = Client::firstOrCreate([
@@ -135,5 +358,23 @@ class DashboardMetricsTest extends TestCase
         }
 
         return $legalCase->fresh();
+    }
+
+    private function createHistoryEntry(LegalCase $legalCase, array $oldValues, array $newValues, Carbon $createdAt): void
+    {
+        $historyEntry = CaseHistory::create([
+            'legal_case_id' => $legalCase->id,
+            'user_id' => $legalCase->user_id,
+            'event_type' => 'update',
+            'description' => 'Atualização de alçada para o dashboard.',
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+        ]);
+
+        $historyEntry->timestamps = false;
+        $historyEntry->forceFill([
+            'created_at' => $createdAt,
+            'updated_at' => $createdAt,
+        ])->saveQuietly();
     }
 }

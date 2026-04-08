@@ -24,6 +24,7 @@ import {
     validateSettlementBenefit
 } from '../constants/settlementBenefit';
 import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
+import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 
 // --- Ícones SVG Inline ---
 const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#4299e1'}}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
@@ -44,7 +45,40 @@ const HistoryItem = ({ entry }) => {
         original_value: 'Valor de Alçada', agreement_value: 'Valor do Acordo', cause_value: 'Valor da Causa',
         ourocap_value: 'Valor Ourocap', livelo_points: 'Pontos Livelo',
         internal_number: 'Nº Interno', city: 'Cidade', action_object: 'Objeto da Ação',
-        pcond_probability: 'Valor da PCOND', updated_condemnation_value: 'Condenação Atualizada'
+        pcond_probability: 'Valor da PCOND', updated_condemnation_value: 'Condenação Atualizada',
+        user_id: 'Responsável do caso',
+        indicator_user_id: 'Indicador',
+        lawyer_id: 'Responsável do caso',
+    };
+
+    const priorityTranslations = {
+        alta: 'Alta',
+        media: 'Média',
+        baixa: 'Baixa',
+    };
+
+    const formatHistoryValue = (key, value) => {
+        if (value === null || value === undefined || value === '') {
+            return 'vazio';
+        }
+
+        if (key === 'status') {
+            return getLegalCaseStatusDetails(value).name;
+        }
+
+        if (key === 'priority') {
+            return priorityTranslations[value] || String(value);
+        }
+
+        if (key === 'user_id' || key === 'indicator_user_id' || key === 'lawyer_id') {
+            return `ID ${value}`;
+        }
+
+        if (typeof value === 'boolean') {
+            return value ? 'Sim' : 'Não';
+        }
+
+        return String(value);
     };
 
     const renderChanges = () => {
@@ -56,7 +90,7 @@ const HistoryItem = ({ entry }) => {
                     const fieldName = fieldTranslations[key] || key;
                     return (
                         <li key={key}>
-                            <strong>{fieldName}:</strong> de <em>"{oldValue || 'vazio'}"</em> para <em>"{newValue || 'vazio'}"</em>
+                            <strong>{fieldName}:</strong> de <em>"{formatHistoryValue(key, oldValue)}"</em> para <em>"{formatHistoryValue(key, newValue)}"</em>
                         </li>
                     );
                 })}

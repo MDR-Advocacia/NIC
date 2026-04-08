@@ -81,6 +81,29 @@ class UserController extends Controller
         return response()->json($operators);
     }
 
+    public function indicators(Request $request): JsonResponse
+    {
+        $currentUser = auth()->user();
+        $currentRole = strtolower(trim((string) $currentUser?->role));
+
+        if (!$currentUser || !in_array($currentRole, ['administrador', 'admin', 'supervisor', 'indicador', 'operador'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $indicatorsQuery = User::query()
+            ->where('role', 'indicador')
+            ->where('status', 'ativo')
+            ->orderBy('name');
+
+        if ($currentRole === 'indicador') {
+            $indicatorsQuery->where('id', $currentUser->id);
+        }
+
+        $indicators = $indicatorsQuery->get(['id', 'name', 'email', 'role', 'status']);
+
+        return response()->json($indicators);
+    }
+
     public function store(Request $request)
     {
         $this->authorize('create', User::class);

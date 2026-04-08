@@ -4,7 +4,8 @@ import apiClient from '../api';
 import styles from '../styles/UserManagement.module.css';
 import { 
     FaUserPlus, FaSync, FaEdit, FaTrash, FaPlus, FaTimes, FaSave, 
-    FaChevronLeft, FaChevronRight, FaCheckSquare, FaBan, FaTrashAlt, FaUserTag 
+    FaChevronLeft, FaChevronRight, FaCheckSquare, FaBan, FaTrashAlt, FaUserTag,
+    FaSearch, FaSlidersH, FaEraser, FaBuilding
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import AddDepartmentModal from '../components/AddDepartmentModal';
@@ -106,6 +107,28 @@ const UserManagementPage = () => {
         return users.filter(user => user.area === filterArea);
     }, [users, filterArea]);
 
+    const selectedDepartmentName = departments.find((department) => String(department.id) === String(filters.department_id))?.name;
+    const roleLabelMap = {
+        administrador: 'Administrador',
+        supervisor: 'Supervisor',
+        operador: 'Operador',
+        indicador: 'Indicador',
+    };
+    const statusLabelMap = {
+        ativo: 'Ativo',
+        inativo: 'Inativo',
+    };
+
+    const activeFilterChips = [
+        filters.search.trim() ? `Busca: ${filters.search.trim()}` : null,
+        filters.status ? `Status: ${statusLabelMap[filters.status] || filters.status}` : null,
+        filters.role ? `Função: ${roleLabelMap[filters.role] || filters.role}` : null,
+        filters.department_id ? `Departamento: ${selectedDepartmentName || 'Selecionado'}` : null,
+        filterArea ? `Área: ${filterArea}` : null,
+    ].filter(Boolean);
+
+    const activeFilterCount = activeFilterChips.length;
+
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
         if (name === 'area') {
@@ -113,6 +136,11 @@ const UserManagementPage = () => {
         } else {
             setFilters(prev => ({ ...prev, [name]: value })); 
         }
+    };
+
+    const handleClearFilters = () => {
+        setFilters({ search: '', status: '', role: '', department_id: '' });
+        setFilterArea('');
     };
 
     const handlePageChange = (newPage) => {
@@ -256,27 +284,113 @@ const UserManagementPage = () => {
             </section>
 
             <section className={styles.filtersContainer}>
-                <input type="text" name="search" placeholder="Buscar..." className={styles.searchInput} value={filters.search} onChange={handleFilterChange} />
-                <select name="status" className={styles.filterSelect} value={filters.status} onChange={handleFilterChange}>
-                    <option value="">Status: Todos</option>
-                    <option value="ativo">Ativo</option>
-                    <option value="inativo">Inativo</option>
-                </select>
-                <select name="role" className={styles.filterSelect} value={filters.role} onChange={handleFilterChange}>
-                    <option value="">Função: Todas</option>
-                    <option value="administrador">Administrador</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="operador">Operador</option>
-                    <option value="indicador">Indicador</option>
-                </select>
-                <select name="department_id" className={styles.filterSelect} value={filters.department_id} onChange={handleFilterChange}>
-                    <option value="">Depto: Todos</option>
-                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-                <select name="area" className={styles.filterSelect} value={filterArea} onChange={handleFilterChange}>
-                    <option value="">Área: Todas</option>
-                    {AREAS_LIST.map(area => (<option key={area} value={area}>{area}</option>))}
-                </select>
+                <div className={styles.filtersHeader}>
+                    <div className={styles.filtersTitleBlock}>
+                        <div className={styles.filtersIcon}>
+                            <FaSlidersH />
+                        </div>
+                        <div className={styles.filtersHeading}>
+                            <h3>Filtros da Gestão de Usuários</h3>
+                            <p>
+                                Refine a operação por nome, status, função, departamento e área para administrar a equipe com mais clareza.
+                            </p>
+                        </div>
+                    </div>
+                    <span className={styles.filterCount}>
+                        {activeFilterCount} {activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}
+                    </span>
+                </div>
+
+                <div className={styles.filterGrid}>
+                    <label className={`${styles.filterField} ${styles.searchField}`}>
+                        <span className={styles.filterLabel}>
+                            <FaSearch />
+                            Buscar usuário
+                        </span>
+                        <input
+                            type="text"
+                            name="search"
+                            placeholder="Nome, email ou informação relevante..."
+                            className={styles.filterControl}
+                            value={filters.search}
+                            onChange={handleFilterChange}
+                        />
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaBan />
+                            Status
+                        </span>
+                        <select name="status" className={styles.filterControl} value={filters.status} onChange={handleFilterChange}>
+                            <option value="">Todos os status</option>
+                            <option value="ativo">Ativo</option>
+                            <option value="inativo">Inativo</option>
+                        </select>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaUserTag />
+                            Função
+                        </span>
+                        <select name="role" className={styles.filterControl} value={filters.role} onChange={handleFilterChange}>
+                            <option value="">Todas as funções</option>
+                            <option value="administrador">Administrador</option>
+                            <option value="supervisor">Supervisor</option>
+                            <option value="operador">Operador</option>
+                            <option value="indicador">Indicador</option>
+                        </select>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaBuilding />
+                            Departamento
+                        </span>
+                        <select name="department_id" className={styles.filterControl} value={filters.department_id} onChange={handleFilterChange}>
+                            <option value="">Todos os departamentos</option>
+                            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaUserTag />
+                            Área
+                        </span>
+                        <select name="area" className={styles.filterControl} value={filterArea} onChange={handleFilterChange}>
+                            <option value="">Todas as áreas</option>
+                            {AREAS_LIST.map(area => (<option key={area} value={area}>{area}</option>))}
+                        </select>
+                    </label>
+                </div>
+
+                <div className={styles.filtersFooter}>
+                    <div className={styles.filtersSummary}>
+                        {activeFilterCount > 0 ? (
+                            activeFilterChips.map((chip) => (
+                                <span key={chip} className={styles.filterChip}>
+                                    {chip}
+                                </span>
+                            ))
+                        ) : (
+                            <span className={styles.filtersHint}>
+                                A tabela está exibindo a visão completa da equipe nesta página.
+                            </span>
+                        )}
+                    </div>
+
+                    <button
+                        type="button"
+                        className={styles.clearFiltersButton}
+                        onClick={handleClearFilters}
+                        disabled={activeFilterCount === 0}
+                    >
+                        <FaEraser />
+                        Limpar filtros
+                    </button>
+                </div>
             </section>
 
             <section className={styles.tableContainer}>
@@ -322,9 +436,23 @@ const UserManagementPage = () => {
                                         <td><StatusTag status={user.status} /></td>
                                         {canManage && (
                                             <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                                    <FaEdit title="Editar" size={18} style={{ cursor: 'pointer', color: '#718096' }} onClick={() => handleOpenEditModal(user)} />
-                                                    <FaTrash title="Excluir" size={18} style={{ cursor: 'pointer', color: '#718096' }} onClick={() => handleDelete(user.id)} />
+                                                <div className={styles.rowActions}>
+                                                    <button
+                                                        type="button"
+                                                        className={styles.actionIconButton}
+                                                        title="Editar"
+                                                        onClick={() => handleOpenEditModal(user)}
+                                                    >
+                                                        <FaEdit />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`${styles.actionIconButton} ${styles.actionIconButtonDanger}`}
+                                                        title="Excluir"
+                                                        onClick={() => handleDelete(user.id)}
+                                                    >
+                                                        <FaTrash />
+                                                    </button>
                                                 </div>
                                             </td>
                                         )}
@@ -335,21 +463,23 @@ const UserManagementPage = () => {
                         
                         {/* PAGINAÇÃO */}
                         {pagination.last_page > 1 && (
-                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', padding: '20px' }}>
+                            <div className={styles.paginationFooter}>
                                 <button 
+                                    type="button"
+                                    className={styles.paginationBtn}
                                     onClick={() => handlePageChange(pagination.current_page - 1)}
                                     disabled={pagination.current_page === 1}
-                                    style={{ padding: '8px 16px', cursor: 'pointer', opacity: pagination.current_page === 1 ? 0.5 : 1 }}
                                 >
                                     <FaChevronLeft /> Anterior
                                 </button>
-                                <span style={{ color: '#64748b' }}>
+                                <span className={styles.paginationPageInfo}>
                                     Página <strong>{pagination.current_page}</strong> de <strong>{pagination.last_page}</strong>
                                 </span>
                                 <button 
+                                    type="button"
+                                    className={styles.paginationBtn}
                                     onClick={() => handlePageChange(pagination.current_page + 1)}
                                     disabled={pagination.current_page === pagination.last_page}
-                                    style={{ padding: '8px 16px', cursor: 'pointer', opacity: pagination.current_page === pagination.last_page ? 0.5 : 1 }}
                                 >
                                     Próxima <FaChevronRight />
                                 </button>

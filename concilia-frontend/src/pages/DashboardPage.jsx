@@ -8,12 +8,15 @@ import KpiCard from '../components/KpiCard';
 import StatusDistributionChart from '../components/StatusDistributionChartJS';
 import ProcessStageChart from '../components/ProcessStageChart';
 import MonthlyEvolutionChart from '../components/MonthlyEvolutionChart';
+import AgreementVolumeChart from '../components/AgreementVolumeChart';
+import AgreementMacroPieChart from '../components/AgreementMacroPieChart';
+import BrazilAgreementMap from '../components/BrazilAgreementMap';
 import TeamPerformancePanel from '../components/TeamPerformancePanel';
 import TeamPerformanceModal from '../components/TeamPerformanceModal';
 import LawyerDetailModal from '../components/LawyerDetailModal';
 import CasesListModal from '../components/CasesListModal';
+import TopIndicatorsPanel from '../components/TopIndicatorsPanel';
 import {
-    FaTrophy,
     FaArrowRight,
     FaBriefcase,
     FaSlidersH,
@@ -56,6 +59,16 @@ const DashboardPage = () => {
 
     const [dashboardData, setDashboardData] = useState(null);
     const [cases, setCases] = useState([]);
+    const [recentCasesMeta, setRecentCasesMeta] = useState({
+        currentPage: 1,
+        lastPage: 1,
+        perPage: 20,
+        total: 0,
+        from: 0,
+        to: 0,
+    });
+    const [recentCasesPage, setRecentCasesPage] = useState(1);
+    const [recentCasesPerPage, setRecentCasesPerPage] = useState(20);
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -138,6 +151,8 @@ const DashboardPage = () => {
         selectedClient: filterClient = '',
         selectedLawyer: filterLawyer = '',
         selectedStatus: filterStatus = '',
+        recentCasesPage: filterRecentCasesPage = 1,
+        recentCasesPerPage: filterRecentCasesPerPage = 20,
     } = {}) => {
         if (!token) return;
 
@@ -155,13 +170,38 @@ const DashboardPage = () => {
             }
 
             if (filterStatus) params.append('status', filterStatus);
+            params.append('recent_cases_page', String(filterRecentCasesPage));
+            params.append('recent_cases_per_page', String(filterRecentCasesPerPage));
 
             const response = await apiClient.get(`/dashboard?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             setDashboardData(response.data);
-            setCases(response.data.recent_cases || []);
+            const recentCasesResponse = response.data.recent_cases;
+
+            if (Array.isArray(recentCasesResponse)) {
+                setCases(recentCasesResponse);
+                setRecentCasesMeta({
+                    currentPage: 1,
+                    lastPage: 1,
+                    perPage: recentCasesResponse.length || filterRecentCasesPerPage,
+                    total: recentCasesResponse.length,
+                    from: recentCasesResponse.length > 0 ? 1 : 0,
+                    to: recentCasesResponse.length,
+                });
+            } else {
+                const recentCaseItems = Array.isArray(recentCasesResponse?.data) ? recentCasesResponse.data : [];
+                setCases(recentCaseItems);
+                setRecentCasesMeta({
+                    currentPage: Number(recentCasesResponse?.current_page || filterRecentCasesPage || 1),
+                    lastPage: Number(recentCasesResponse?.last_page || 1),
+                    perPage: Number(recentCasesResponse?.per_page || filterRecentCasesPerPage || 20),
+                    total: Number(recentCasesResponse?.total || recentCaseItems.length),
+                    from: Number(recentCasesResponse?.from || (recentCaseItems.length > 0 ? 1 : 0)),
+                    to: Number(recentCasesResponse?.to || recentCaseItems.length),
+                });
+            }
         } catch (err) {
             console.error("Erro ao buscar dados:", err);
             setError('Não foi possível carregar os dados.');
@@ -171,14 +211,17 @@ const DashboardPage = () => {
     }, [token, isManager]);
 
     const handleApplyFilters = useCallback(() => {
+        setRecentCasesPage(1);
         fetchDashboardData({
             startDate,
             endDate,
             selectedClient,
             selectedLawyer,
             selectedStatus,
+            recentCasesPage: 1,
+            recentCasesPerPage,
         });
-    }, [fetchDashboardData, startDate, endDate, selectedClient, selectedLawyer, selectedStatus]);
+    }, [fetchDashboardData, startDate, endDate, selectedClient, selectedLawyer, selectedStatus, recentCasesPerPage]);
 
     const handleResetFilters = useCallback(() => {
         setStartDate('');
@@ -186,17 +229,75 @@ const DashboardPage = () => {
         setSelectedClient('');
         setSelectedLawyer('');
         setSelectedStatus('');
-        fetchDashboardData();
-    }, [fetchDashboardData]);
+        setRecentCasesPage(1);
+        fetchDashboardData({
+            recentCasesPage: 1,
+            recentCasesPerPage,
+        });
+    }, [fetchDashboardData, recentCasesPerPage]);
+
+    const handleRecentCasesPageSizeChange = useCallback((nextPerPage) => {
+        if (nextPerPage === recentCasesPerPage) {
+            return;
+        }
+
+        setRecentCasesPerPage(nextPerPage);
+        setRecentCasesPage(1);
+        fetchDashboardData({
+            startDate,
+            endDate,
+            selectedClient,
+            selectedLawyer,
+            selectedStatus,
+            recentCasesPage: 1,
+            recentCasesPerPage: nextPerPage,
+        });
+    }, [fetchDashboardData, recentCasesPerPage, startDate, endDate, selectedClient, selectedLawyer, selectedStatus]);
+
+    const handleRecentCasesPageChange = useCallback((nextPage) => {
+        if (nextPage < 1 || nextPage > recentCasesMeta.lastPage || nextPage === recentCasesPage) {
+            return;
+        }
+
+        setRecentCasesPage(nextPage);
+        fetchDashboardData({
+            startDate,
+            endDate,
+            selectedClient,
+            selectedLawyer,
+            selectedStatus,
+            recentCasesPage: nextPage,
+            recentCasesPerPage,
+        });
+    }, [
+        fetchDashboardData,
+        recentCasesMeta.lastPage,
+        recentCasesPage,
+        recentCasesPerPage,
+        startDate,
+        endDate,
+        selectedClient,
+        selectedLawyer,
+        selectedStatus,
+    ]);
 
     useEffect(() => {
         if (token) {
             if (isManager) {
-                Promise.all([loadFilterOptions(), fetchDashboardData()]);
+                Promise.all([
+                    loadFilterOptions(),
+                    fetchDashboardData({
+                        recentCasesPage,
+                        recentCasesPerPage,
+                    }),
+                ]);
                 return;
             }
 
-            fetchDashboardData();
+            fetchDashboardData({
+                recentCasesPage,
+                recentCasesPerPage,
+            });
         }
     }, [token, isManager, loadFilterOptions, fetchDashboardData]);
 
@@ -226,6 +327,20 @@ const DashboardPage = () => {
     const indicationsReceived = Number(indicationMetrics.indications_received || 0);
     const agreementsViaIndication = Number(indicationMetrics.agreements_via_indication || 0);
     const roundedIndicationRate = Math.round(Number.parseFloat(indicationMetrics.indication_flow_conversion_rate || 0) || 0);
+    const agreementsByState = Array.isArray(dashboardData?.agreements_by_state) ? dashboardData.agreements_by_state : [];
+    const agreementMacroDistribution = Array.isArray(dashboardData?.agreement_macro_distribution)
+        ? dashboardData.agreement_macro_distribution
+        : [];
+    const indicatorLeaderboard = Array.isArray(dashboardData?.indicator_leaderboard)
+        ? dashboardData.indicator_leaderboard
+        : [];
+    const indicatorDealsForChart = indicatorLeaderboard.filter((indicator) => Number(indicator.closed_deals || 0) > 0).slice(0, 8);
+    const closedDealsByIndicatorChart = {
+        labels: indicatorDealsForChart.map((indicator) => indicator.name),
+        values: indicatorDealsForChart.map((indicator) => Number(indicator.closed_deals || 0)),
+    };
+    const recentCasesCurrentPage = Math.min(recentCasesMeta.currentPage || 1, recentCasesMeta.lastPage || 1);
+    const recentCasesHasPagination = Number(recentCasesMeta.total || 0) > Number(recentCasesMeta.perPage || 20);
 
     const kpiTitles = {
         total_original_value: "Total em alçadas",
@@ -481,68 +596,171 @@ const DashboardPage = () => {
                         ) : <p>Não há dados de distribuição para exibir.</p>}
                     </div>
 
-                    <div className={styles.recentCases}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '15px',
-                            borderBottom: '1px solid #2d3748',
-                            paddingBottom: '10px'
-                        }}>
-                            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <FaBriefcase color="#A0AEC0" size={18} /> Casos Recentes
-                            </h3>
+                    <section className={styles.analyticsSection}>
+                        <div className={styles.analyticsSectionHeader}>
+                            <div>
+                                <h3 className={styles.analyticsSectionTitle}>Inteligência de Acordos</h3>
+                                <p className={styles.analyticsSectionSubtitle}>
+                                    Leitura territorial dos acordos fechados e conversão por indicação no mesmo painel.
+                                </p>
+                            </div>
+                        </div>
 
-                            <Link to="/cases" style={{ textDecoration: 'none' }}>
-                                <button
-                                    style={{
-                                        background: 'transparent',
-                                        border: '1px solid transparent',
-                                        cursor: 'pointer',
-                                        fontSize: '0.85rem',
-                                        fontWeight: '600',
-                                        color: '#63b3ed',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '6px 12px',
-                                        borderRadius: '6px',
-                                        transition: 'all 0.2s ease-in-out'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'rgba(99, 179, 237, 0.1)';
-                                        e.currentTarget.style.color = '#ffffff';
-                                        e.currentTarget.style.transform = 'translateX(2px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'transparent';
-                                        e.currentTarget.style.color = '#63b3ed';
-                                        e.currentTarget.style.transform = 'translateX(0)';
-                                    }}
-                                >
-                                    Ver Todos <FaArrowRight size={12} />
-                                </button>
-                            </Link>
+                        <div className={styles.analyticsGrid}>
+                            <article className={`${styles.analyticsCard} ${styles.mapCard}`}>
+                                <div className={styles.analyticsCardHeader}>
+                                    <h4 className={styles.analyticsCardTitle}>Mapa do Brasil por Estado</h4>
+                                    <p className={styles.analyticsCardSubtitle}>
+                                        Estados ficam brancos sem acordos e avançam para verde escuro conforme o volume de acordos fechados cresce.
+                                    </p>
+                                </div>
+                                <BrazilAgreementMap data={agreementsByState} />
+                            </article>
+
+                            <div className={styles.analyticsSidebar}>
+                                <article className={`${styles.analyticsCard} ${styles.compactAnalyticsCard}`}>
+                                    <div className={styles.analyticsCardHeader}>
+                                        <h4 className={styles.analyticsCardTitle}>Acordos Fechados por Indicador</h4>
+                                        <p className={styles.analyticsCardSubtitle}>
+                                            Ranking em barras dos indicadores com maior volume de acordos convertidos no fluxo de indicação.
+                                        </p>
+                                    </div>
+                                    <AgreementVolumeChart
+                                        data={closedDealsByIndicatorChart}
+                                        datasetLabel="Acordos fechados por indicador"
+                                        color="#16a34a"
+                                        emptyMessage="Não há acordos fechados por indicação com os filtros atuais."
+                                        tooltipLabelFormatter={(context) => `${context.raw || 0} acordo(s) fechado(s)`}
+                                    />
+                                </article>
+
+                                <article className={`${styles.analyticsCard} ${styles.compactAnalyticsCard} ${styles.fillAnalyticsCard}`}>
+                                    <div className={styles.analyticsCardHeader}>
+                                        <h4 className={styles.analyticsCardTitle}>Quem Mais Indicou e Converteu</h4>
+                                        <p className={styles.analyticsCardSubtitle}>
+                                            Exibição dos 3 principais indicadores, com opção de inverter a leitura para quem menos converteu.
+                                        </p>
+                                    </div>
+                                    <TopIndicatorsPanel data={indicatorLeaderboard} />
+                                </article>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className={styles.macroSection}>
+                        <article className={`${styles.analyticsCard} ${styles.macroStandaloneCard}`}>
+                            <div className={styles.analyticsCardHeader}>
+                                <h4 className={styles.analyticsCardTitle}>Visão Macro de Acordos</h4>
+                                <p className={styles.analyticsCardSubtitle}>
+                                    Distribuição exclusiva entre alta economia, Livelo, Ourocap e carteira geral.
+                                </p>
+                            </div>
+                            <AgreementMacroPieChart data={agreementMacroDistribution} />
+                        </article>
+                    </section>
+
+                    {isManager && (
+                        <section className={styles.teamPerformanceSection}>
+                            <div className={styles.teamPerformanceSectionHeader}>
+                                <h3>Performance da Equipe</h3>
+                                <p>
+                                    Destaque dos advogados com melhor score no período filtrado, mantendo o acesso ao ranking completo.
+                                </p>
+                            </div>
+
+                            <div className={styles.teamPerformancePanelWrap}>
+                                <TeamPerformancePanel
+                                    data={dashboardData?.team_performance || []}
+                                    onOpenModal={() => setIsPerformanceModalOpen(true)}
+                                    onViewDetails={handleOpenDetailModal}
+                                />
+                            </div>
+                        </section>
+                    )}
+
+                    <div className={styles.recentCases}>
+                        <div className={styles.recentCasesHeader}>
+                            <div className={styles.recentCasesTitleGroup}>
+                                <h3 className={styles.recentCasesTitle}>
+                                    <FaBriefcase color="#A0AEC0" size={18} /> Casos Recentes na Alçada
+                                </h3>
+                                <p className={styles.recentCasesSubtitle}>
+                                    A lista considera os casos que entraram na alçada ou tiveram o valor da alçada atualizado mais recentemente.
+                                </p>
+                            </div>
+
+                            <div className={styles.recentCasesHeaderActions}>
+                                <div className={styles.recentCasesPageSize}>
+                                    <button
+                                        type="button"
+                                        className={`${styles.recentCasesPageSizeButton} ${recentCasesPerPage === 20 ? styles.recentCasesPageSizeButtonActive : ''}`}
+                                        onClick={() => handleRecentCasesPageSizeChange(20)}
+                                    >
+                                        20
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`${styles.recentCasesPageSizeButton} ${recentCasesPerPage === 50 ? styles.recentCasesPageSizeButtonActive : ''}`}
+                                        onClick={() => handleRecentCasesPageSizeChange(50)}
+                                    >
+                                        50
+                                    </button>
+                                </div>
+
+                                <Link to="/cases" className={styles.viewAllLink}>
+                                    <button type="button" className={styles.viewAllBtn}>
+                                        Ver Todos <FaArrowRight size={12} />
+                                    </button>
+                                </Link>
+                            </div>
                         </div>
 
                         <CasesTable cases={cases} />
+
+                        <div className={styles.recentCasesFooter}>
+                            <span className={styles.recentCasesMeta}>
+                                Mostrando {recentCasesMeta.from || 0}-{recentCasesMeta.to || 0} de {recentCasesMeta.total || 0} casos recentes
+                            </span>
+
+                            <div className={styles.recentCasesPagination}>
+                                <button
+                                    type="button"
+                                    className={styles.recentCasesPaginationButton}
+                                    onClick={() => handleRecentCasesPageChange(1)}
+                                    disabled={!recentCasesHasPagination || recentCasesCurrentPage <= 1}
+                                >
+                                    {'<<'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className={styles.recentCasesPaginationButton}
+                                    onClick={() => handleRecentCasesPageChange(recentCasesCurrentPage - 1)}
+                                    disabled={!recentCasesHasPagination || recentCasesCurrentPage <= 1}
+                                >
+                                    {'<'}
+                                </button>
+                                <span className={styles.recentCasesCurrentPage}>{recentCasesCurrentPage}</span>
+                                <button
+                                    type="button"
+                                    className={styles.recentCasesPaginationButton}
+                                    onClick={() => handleRecentCasesPageChange(recentCasesCurrentPage + 1)}
+                                    disabled={!recentCasesHasPagination || recentCasesCurrentPage >= recentCasesMeta.lastPage}
+                                >
+                                    {'>'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className={styles.recentCasesPaginationButton}
+                                    onClick={() => handleRecentCasesPageChange(recentCasesMeta.lastPage)}
+                                    disabled={!recentCasesHasPagination || recentCasesCurrentPage >= recentCasesMeta.lastPage}
+                                >
+                                    {'>>'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* 3. PERFORMANCE DE EQUIPE (Gestor) */}
-                {isManager && (
-                    <div className={styles.rightSidebar}>
-                        <div className={styles.chartCard}>
-                            <h3><FaTrophy /> Performance da Equipe</h3>
-                            <TeamPerformancePanel
-                                data={dashboardData?.team_performance || []}
-                                onOpenModal={() => setIsPerformanceModalOpen(true)}
-                                onViewDetails={handleOpenDetailModal}
-                            />
-                        </div>
-                    </div>
-                )}
             </div>
 
             <TeamPerformanceModal

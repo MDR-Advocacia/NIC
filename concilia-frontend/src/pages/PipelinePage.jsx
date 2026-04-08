@@ -22,6 +22,7 @@ import {
     FaSlidersH,
     FaBuilding,
     FaUserTie,
+    FaUserTag,
     FaSignal,
     FaEraser,
     FaBolt,
@@ -39,6 +40,7 @@ const INITIAL_FILTERS = {
     search: '',
     client_id: '',
     lawyer_id: '',
+    indicator_user_id: '',
     priority: '',
     tag: '',
 };
@@ -79,12 +81,14 @@ const PipelinePage = () => {
     const navigate = useNavigate();
     const isIndicator = isIndicatorRole(user?.role);
     const canChooseResponsible = ['administrador', 'supervisor'].includes(user?.role);
+    const canChooseIndicator = !isIndicator;
 
     const [pipelineData, setPipelineData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
+    const [indicators, setIndicators] = useState([]);
     const [savedTags, setSavedTags] = useState([]);
     
     const [editingCase, setEditingCase] = useState(null);
@@ -97,10 +101,12 @@ const PipelinePage = () => {
     const searchTerm = filters.search.trim();
     const clientFilter = filters.client_id || '';
     const lawyerFilter = filters.lawyer_id || '';
+    const indicatorFilter = canChooseIndicator ? (filters.indicator_user_id || '') : '';
     const priorityFilter = filters.priority || '';
     const tagFilter = filters.tag || '';
     const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
     const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const selectedIndicatorName = indicators.find((indicator) => String(indicator.id) === String(filters.indicator_user_id))?.name;
     const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
         || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
     const priorityLabelMap = {
@@ -112,6 +118,7 @@ const PipelinePage = () => {
         searchTerm ? `Busca: ${searchTerm}` : null,
         selectedClientName ? `Cliente: ${selectedClientName}` : null,
         selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
+        selectedIndicatorName ? `Indicador: ${selectedIndicatorName}` : null,
         filters.priority ? priorityLabelMap[filters.priority] : null,
         selectedTagName ? `Etiqueta: ${selectedTagName}` : null,
         showDelayedOnly ? 'Apenas atrasados (+5 dias)' : null,
@@ -173,18 +180,23 @@ const PipelinePage = () => {
         if (!token) return;
         setLoading(true);
         try {
-            const [clientsResponse, lawyersResponse, caseTagsResponse] = await Promise.all([
+            const [clientsResponse, lawyersResponse, caseTagsResponse, indicatorsResponse] = await Promise.all([
                 apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
                 apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
                 apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
+                canChooseIndicator
+                    ? apiClient.get('/users/indicators', { headers: { Authorization: `Bearer ${token}` } })
+                    : Promise.resolve({ data: [] }),
             ]);
 
             const fetchedLawyers = Array.isArray(lawyersResponse.data) ? lawyersResponse.data : [];
+            const fetchedIndicators = Array.isArray(indicatorsResponse.data) ? indicatorsResponse.data : [];
 
             const effectiveFilters = {
                 search: debouncedSearch,
                 client_id: clientFilter,
                 lawyer_id: lawyerFilter,
+                indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
                 tag: tagFilter,
             };
@@ -204,6 +216,21 @@ const PipelinePage = () => {
                     const nextFilters = { ...currentFilters };
                     delete nextFilters.lawyer_id;
                     return nextFilters;
+                });
+            }
+
+            const hasValidIndicatorSelected = fetchedIndicators.some(
+                (indicator) => String(indicator.id) === String(indicatorFilter)
+            );
+
+            if (indicatorFilter && !hasValidIndicatorSelected) {
+                delete effectiveFilters.indicator_user_id;
+                setFilters((currentFilters) => {
+                    if (!currentFilters.indicator_user_id) {
+                        return currentFilters;
+                    }
+
+                    return { ...currentFilters, indicator_user_id: '' };
                 });
             }
 
@@ -269,6 +296,7 @@ const PipelinePage = () => {
             setPipelineData(groupedCases);
             setClients(clientsResponse.data);
             setLawyers(fetchedLawyers);
+            setIndicators(fetchedIndicators);
             setSavedTags(Array.isArray(caseTagsResponse.data) ? caseTagsResponse.data : []);
         } catch (err) {
             console.error("Erro pipeline:", err);
@@ -276,7 +304,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, priorityFilter, tagFilter, debouncedSearch, showDelayedOnly, canChooseResponsible, isIndicator, user?.id]);
+    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, showDelayedOnly, canChooseResponsible, canChooseIndicator, isIndicator, user?.id]);
 
     useEffect(() => {
         fetchAllData();
@@ -526,7 +554,7 @@ const PipelinePage = () => {
                             <p className={styles.filterPanelSubtitle}>
                                 {isIndicator
                                     ? 'Os casos em Análise Inicial continuam disponíveis para indicação, e os processos já indicados por você seguem visíveis nas demais fases apenas para acompanhamento.'
-                                    : 'Refine os cards por caso, cliente, responsável, prioridade e destaque rapidamente os casos parados.'}
+                                    : 'Refine os cards por caso, cliente, responsável, indicador, prioridade e destaque rapidamente os casos parados.'}
                             </p>
                         </div>
                     </div>
@@ -581,6 +609,27 @@ const PipelinePage = () => {
                             >
                                 <option value="" disabled>Selecione um responsável</option>
                                 {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
+                            </select>
+                        </div>
+                    )}
+
+                    {canChooseIndicator && (
+                        <div className={styles.filterField}>
+                            <label className={styles.filterFieldLabel}>
+                                <FaUserTag />
+                                <span>Indicador</span>
+                            </label>
+                            <select
+                                className={styles.filterSelect}
+                                value={indicatorFilter}
+                                onChange={(e) => handleFilterChange('indicator_user_id', e.target.value)}
+                            >
+                                <option value="">Todos</option>
+                                {indicators.map((indicator) => (
+                                    <option key={indicator.id} value={indicator.id}>
+                                        {indicator.name}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                     )}

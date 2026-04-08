@@ -23,6 +23,7 @@ const MainLayout = () => {
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const location = useLocation();
+    const isInboxRoute = location.pathname.startsWith('/inbox');
 
     const getNavLinkClass = ({ isActive }) => {
         return `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`;
@@ -47,6 +48,11 @@ const MainLayout = () => {
         styles.navLink,
         styles.submenuToggle,
         isConfigSectionActive ? styles.navLinkActive : '',
+    ].filter(Boolean).join(' ');
+
+    const mainContentClass = [
+        styles.mainContent,
+        isInboxRoute ? styles.mainContentInbox : '',
     ].filter(Boolean).join(' ');
 
     return (
@@ -159,7 +165,7 @@ const MainLayout = () => {
                 <div className={styles.footer}>
                     <div className={styles.userInfo}>
                         <p>{user?.name}</p>
-                        <p style={{ fontSize: '10px', color: '#888' }}>
+                        <p className={styles.userRole}>
                             {user?.role?.toUpperCase()}
                         </p>
                         <button 
@@ -176,7 +182,7 @@ const MainLayout = () => {
                 </div>
             </aside>
 
-            <main className={styles.mainContent}>
+            <main className={mainContentClass}>
                 <Outlet />
             </main>
         </div>

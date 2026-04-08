@@ -1,72 +1,116 @@
 /* src/index.css */
-/* ATUALIZADO: Fundo da página (Modo Claro) mais escuro para contraste */
 
 :root {
-  /* Fontes (Mantidas) */
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  /* --- PALETA MODO CLARO (Padrão) --- */
   color-scheme: light;
-  
-  /* ATUALIZADO: Este cinza é mais escuro e dá mais contraste */
-  --bg-page: #dee2e6; /* Era #e9ecef */
-  
-  --bg-card: #ffffff;
-  --bg-menu: #ffffff;
-  --bg-input: #ffffff;
-  --bg-hover: #f1f3f5;
-  --bg-overlay: rgba(0, 0, 0, 0.5);
-  
-  --text-primary: #212529;
-  --text-secondary: #6c757d;
+
+  --bg-page: #edf3fb;
+  --bg-page-elevated: #f9fbff;
+  --bg-card: rgba(255, 255, 255, 0.94);
+  --bg-menu: rgba(255, 255, 255, 0.84);
+  --bg-input: #f8fbff;
+  --bg-hover: #edf4ff;
+  --bg-overlay: rgba(15, 23, 42, 0.52);
+
+  --text-primary: #0f172a;
+  --text-secondary: #52637a;
+  --text-muted: #7b8ba1;
   --text-on-accent: #ffffff;
-  
-  --accent-primary: #3b82f6;
-  --accent-primary-hover: #2563eb;
-  
-  --border-color-light: #dee2e6;
-  --border-color-dark: #ced4da;
-  
-  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+
+  --accent-primary: #2563eb;
+  --accent-primary-hover: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.12);
+  --accent-soft-strong: rgba(37, 99, 235, 0.18);
+
+  --border-color: #d3deeb;
+  --border-color-light: #d8e2ef;
+  --border-color-dark: #c5d2e3;
+
+  --card-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  --card-shadow-strong: 0 24px 56px rgba(15, 23, 42, 0.14);
+  --focus-ring: 0 0 0 4px rgba(37, 99, 235, 0.14);
 }
 
-/* --- PALETA MODO NOTURNO --- */
 body.dark {
   color-scheme: dark;
 
-  --bg-page: #2d3748;
-  --bg-card: #1a202c;
-  --bg-menu: #1a202c;
-  --bg-input: #2d3748;
-  --bg-hover: #2d3748;
-  --bg-overlay: rgba(0, 0, 0, 0.8);
+  --bg-page: #09111f;
+  --bg-page-elevated: #111c2f;
+  --bg-card: rgba(15, 23, 42, 0.92);
+  --bg-menu: rgba(15, 23, 42, 0.84);
+  --bg-input: #13233b;
+  --bg-hover: #162842;
+  --bg-overlay: rgba(2, 8, 23, 0.76);
 
   --text-primary: #e2e8f0;
-  --text-secondary: #a0aec0;
+  --text-secondary: #a9b7ca;
+  --text-muted: #8595ab;
   --text-on-accent: #ffffff;
 
-  --accent-primary: #3b82f6;
-  --accent-primary-hover: #2563eb;
-  
-  --border-color-light: #4a5568;
-  --border-color-dark: #2d3748;
-  
-  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --accent-primary: #60a5fa;
+  --accent-primary-hover: #3b82f6;
+  --accent-soft: rgba(96, 165, 250, 0.18);
+  --accent-soft-strong: rgba(96, 165, 250, 0.24);
+
+  --border-color: #22334d;
+  --border-color-light: #24344f;
+  --border-color-dark: #1b2a42;
+
+  --card-shadow: 0 20px 44px rgba(2, 8, 23, 0.42);
+  --card-shadow-strong: 0 28px 64px rgba(2, 8, 23, 0.56);
+  --focus-ring: 0 0 0 4px rgba(96, 165, 250, 0.2);
 }
 
-/* --- ESTILOS GLOBAIS --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: var(--bg-page);
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 24%),
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.1), transparent 22%),
+    linear-gradient(180deg, var(--bg-page-elevated) 0%, var(--bg-page) 100%);
   color: var(--text-primary);
-  transition: background-color 0.2s, color 0.2s;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+body.dark {
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.2), transparent 22%),
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.14), transparent 20%),
+    linear-gradient(180deg, var(--bg-page-elevated) 0%, var(--bg-page) 100%);
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent-soft-strong);
 }
 
 h1 {

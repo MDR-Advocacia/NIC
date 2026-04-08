@@ -1,66 +1,63 @@
-/* src/styles/Modal.module.css */
-
-/* Overlay escuro com transparência */
 .overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.75); /* Um pouco mais escuro para foco */
+    inset: 0;
+    background-color: var(--bg-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 2000; /* Garante que fica acima de tudo */
-    backdrop-filter: blur(2px); /* Efeito de desfoque opcional no fundo */
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+    padding: 1.25rem;
 }
 
-/* Modal com fundo Escuro (#2d3748 é um cinza azulado escuro padrão moderno) */
 .modal {
-    background-color: #2d3748; 
-    padding: 2rem;
-    border-radius: 8px;
+    background-color: var(--bg-card);
+    padding: 1.8rem;
+    border-radius: 24px;
     width: 90%;
     max-width: 600px;
     position: relative;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); /* Sombra mais forte */
-    color: #f7fafc; /* Texto branco/claro */
-    border: 1px solid #4a5568; /* Borda sutil para destacar do fundo */
+    box-shadow: var(--card-shadow-strong);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color-light);
 }
 
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
-    border-bottom: 1px solid #4a5568; /* Linha divisória sutil */
+    margin-bottom: 1.4rem;
+    border-bottom: 1px solid var(--border-color-light);
     padding-bottom: 1rem;
 }
 
 .header h2 {
     margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #ffffff;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-primary);
 }
 
 .closeButton {
-    background: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
     border: none;
-    font-size: 1.8rem;
+    background: transparent;
+    font-size: 1.3rem;
     cursor: pointer;
-    color: #a0aec0; /* Cinza claro */
-    transition: color 0.2s;
+    color: var(--text-secondary);
+    transition: background-color 0.18s ease, color 0.18s ease;
     line-height: 1;
 }
 
 .closeButton:hover {
-    color: #ffffff; /* Fica branco ao passar o mouse */
+    background: rgba(239, 68, 68, 0.08);
+    color: #dc2626;
 }
 
-/* --- Formulário --- */
 .form {
     display: flex;
     flex-direction: column;
@@ -75,102 +72,100 @@
 
 .row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.25rem;
 }
 
 .label {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #e2e8f0; /* Texto das labels bem claro */
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-secondary);
 }
 
-/* Inputs em modo escuro */
 .input {
-    padding: 0.7rem;
-    background-color: #1a202c; /* Fundo do input mais escuro que o modal */
-    border: 1px solid #4a5568; /* Borda cinza médio */
-    border-radius: 6px;
-    font-size: 1rem;
+    min-height: 48px;
+    padding: 0.85rem 0.95rem;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color-dark);
+    border-radius: 14px;
+    font-size: 0.95rem;
     width: 100%;
-    color: #ffffff; /* Texto digitado branco */
+    color: var(--text-primary);
     box-sizing: border-box;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .input::placeholder {
-    color: #718096; /* Placeholder cinza discreto */
+    color: var(--text-muted);
 }
 
 .input:focus {
     outline: none;
-    border-color: #63b3ed; /* Azul claro ao focar */
-    box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.2);
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
 }
 
-/* --- Rodapé --- */
 .footer {
     display: flex;
     justify-content: flex-end;
-    gap: 1rem;
+    gap: 0.75rem;
     margin-top: 1rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #4a5568;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-color-light);
+}
+
+.cancelButton,
+.saveButton {
+    min-height: 44px;
+    padding: 0 1rem;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
 }
 
 .cancelButton {
-    padding: 0.6rem 1.2rem;
-    background: #4a5568; /* Cinza médio */
-    color: #ffffff;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background-color 0.2s;
+    background: #ffffff;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color-light);
 }
 
 .cancelButton:hover {
-    background: #718096; /* Clareia ao passar o mouse */
+    background: #f8fafc;
+    border-color: var(--border-color-dark);
+    color: var(--text-primary);
 }
 
 .saveButton {
-    padding: 0.6rem 1.2rem;
-    background: #3182ce; /* Azul padrão */
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
     color: white;
     border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background-color 0.2s;
 }
 
 .saveButton:hover {
-    background: #4299e1; /* Azul mais claro no hover */
+    transform: translateY(-1px);
 }
 
 .saveButton:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    background: #2b6cb0;
 }
 
-/* Mensagem de Erro */
 .errorBanner {
-    background-color: #742a2a; /* Fundo vermelho escuro */
-    color: #feb2b2; /* Texto vermelho claro */
-    padding: 0.75rem;
-    border-radius: 6px;
+    background-color: rgba(239, 68, 68, 0.08);
+    color: #b91c1c;
+    padding: 0.85rem 0.95rem;
+    border-radius: 14px;
     margin-bottom: 1rem;
     font-size: 0.9rem;
-    border: 1px solid #9b2c2c;
+    border: 1px solid rgba(239, 68, 68, 0.16);
 }
-
 
 .switch {
   position: relative;
   display: inline-block;
-  width: 40px;
-  height: 22px;
+  width: 44px;
+  height: 24px;
   margin-right: 8px;
 }
 
@@ -187,40 +182,52 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #4a5568; /* Cinza desligado */
-  transition: .4s;
-  border-radius: 34px;
+  background-color: var(--border-color-dark);
+  transition: .3s;
+  border-radius: 999px;
 }
 
 .slider:before {
   position: absolute;
   content: "";
-  height: 16px;
-  width: 16px;
+  height: 18px;
+  width: 18px;
   left: 3px;
   bottom: 3px;
   background-color: white;
-  transition: .4s;
+  transition: .3s;
   border-radius: 50%;
 }
 
-/* Quando marcado (Ligado - Abusivo = Vermelho) */
 .switch input:checked + .slider {
-  background-color: #e53e3e; 
+  background-color: #dc2626; 
 }
 
-/* Movimento da bolinha */
 .switch input:checked + .slider:before {
-  transform: translateX(18px);
+  transform: translateX(20px);
 }
 
-/* Texto ao lado do switch */
 .switchLabel {
     font-size: 0.85rem;
-    font-weight: 500;
-    color: #cbd5e0;
+    font-weight: 600;
+    color: var(--text-secondary);
 }
 
 .switchLabel.active {
-    color: #fc8181; /* Texto avermelhado quando ativo */
+    color: #dc2626;
+}
+
+@media (max-width: 768px) {
+    .row {
+        grid-template-columns: 1fr;
+    }
+
+    .footer {
+        flex-direction: column-reverse;
+    }
+
+    .cancelButton,
+    .saveButton {
+        width: 100%;
+    }
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/UserManagement.module.css';
-import { FaSync, FaSearch, FaShieldAlt, FaExclamationTriangle } from 'react-icons/fa';
+import { FaSync, FaSearch, FaShieldAlt, FaExclamationTriangle, FaSlidersH, FaEraser } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 
 const SystemLogsPage = () => {
@@ -33,6 +33,9 @@ const SystemLogsPage = () => {
     useEffect(() => {
         fetchLogs();
     }, []);
+
+    const activeFilterChips = search.trim() ? [`Busca: ${search.trim()}`] : [];
+    const activeFilterCount = activeFilterChips.length;
 
     // Filtragem local
     const filteredLogs = logs.filter(log => 
@@ -70,16 +73,63 @@ const SystemLogsPage = () => {
             </section>
 
             <section className={styles.filtersContainer}>
-                <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <FaSearch style={{ position: 'absolute', left: 15, color: '#94a3b8' }} />
-                    <input 
-                        type="text" 
-                        placeholder="Buscar por usuário, ação..." 
-                        className={styles.searchInput}
-                        style={{ paddingLeft: '40px' }}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
+                <div className={styles.filtersHeader}>
+                    <div className={styles.filtersTitleBlock}>
+                        <div className={styles.filtersIcon}>
+                            <FaSlidersH />
+                        </div>
+                        <div className={styles.filtersHeading}>
+                            <h3>Filtros da Auditoria</h3>
+                            <p>
+                                Busque rapidamente por usuário, ação ou detalhe técnico para revisar o histórico com mais agilidade.
+                            </p>
+                        </div>
+                    </div>
+                    <span className={styles.filterCount}>
+                        {activeFilterCount} {activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}
+                    </span>
+                </div>
+
+                <div className={styles.filterGrid}>
+                    <label className={`${styles.filterField} ${styles.searchField}`}>
+                        <span className={styles.filterLabel}>
+                            <FaSearch />
+                            Buscar nos logs
+                        </span>
+                        <input 
+                            type="text" 
+                            placeholder="Usuário, ação ou detalhe..." 
+                            className={styles.filterControl}
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </label>
+                </div>
+
+                <div className={styles.filtersFooter}>
+                    <div className={styles.filtersSummary}>
+                        {activeFilterCount > 0 ? (
+                            activeFilterChips.map((chip) => (
+                                <span key={chip} className={styles.filterChip}>
+                                    {chip}
+                                </span>
+                            ))
+                        ) : (
+                            <span className={styles.filtersHint}>
+                                O histórico completo está visível no momento.
+                            </span>
+                        )}
+                    </div>
+
+                    <button
+                        type="button"
+                        className={styles.clearFiltersButton}
+                        onClick={() => setSearch('')}
+                        disabled={activeFilterCount === 0}
+                    >
+                        <FaEraser />
+                        Limpar filtros
+                    </button>
                 </div>
             </section>
 
