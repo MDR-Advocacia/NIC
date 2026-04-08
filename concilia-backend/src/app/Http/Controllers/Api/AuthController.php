@@ -46,6 +46,18 @@ class AuthController extends Controller
         return trim($normalized);
     }
 
+    private function buildPasswordCandidates(?string $password): array
+    {
+        $raw = (string) $password;
+        $candidates = [
+            $raw,
+            trim($raw),
+            $this->normalizeStoredSecret($raw),
+        ];
+
+        return array_values(array_unique(array_filter($candidates, static fn ($candidate) => $candidate !== '')));
+    }
+
     /**
      * Handle a registration request for the application.
      */
@@ -76,6 +88,7 @@ class AuthController extends Controller
     {
         $email = $this->normalizeLoginEmail((string) $request->input('email'));
         $password = (string) $request->input('password');
+        $passwordCandidates = $this->buildPasswordCandidates($password);
 
         $request->merge([
             'email' => $email,
@@ -111,24 +124,43 @@ class AuthController extends Controller
         $storedPassword = $this->normalizeStoredSecret((string) $user->password);
         $passwordMatches = false;
         $mustRehashPassword = false;
+        $matchedPassword = $password;
 
         try {
-            $passwordMatches = Hash::check($password, $storedPassword);
-            $mustRehashPassword = $passwordMatches && Hash::needsRehash($storedPassword);
+            foreach ($passwordCandidates as $passwordCandidate) {
+                if (Hash::check($passwordCandidate, $storedPassword)) {
+                    $passwordMatches = true;
+                    $mustRehashPassword = Hash::needsRehash($storedPassword);
+                    $matchedPassword = $passwordCandidate;
+                    break;
+                }
+            }
         } catch (\Throwable $exception) {
             $passwordMatches = false;
         }
 
         // Compatibilidade com contas legadas que possam ter sido migradas sem hash.
-        if (! $passwordMatches && $storedPassword !== '' && hash_equals($storedPassword, $password)) {
-            $passwordMatches = true;
-            $mustRehashPassword = true;
+        if (! $passwordMatches && $storedPassword !== '') {
+            foreach ($passwordCandidates as $passwordCandidate) {
+                if (hash_equals($storedPassword, $passwordCandidate)) {
+                    $passwordMatches = true;
+                    $mustRehashPassword = true;
+                    $matchedPassword = $passwordCandidate;
+                    break;
+                }
+            }
         }
 
         // Compatibilidade adicional com hashes MD5 legados.
         if (! $passwordMatches && preg_match('/^[a-f0-9]{32}$/i', $storedPassword) === 1) {
-            $passwordMatches = hash_equals(Str::lower($storedPassword), md5($password));
-            $mustRehashPassword = $passwordMatches;
+            foreach ($passwordCandidates as $passwordCandidate) {
+                if (hash_equals(Str::lower($storedPassword), md5($passwordCandidate))) {
+                    $passwordMatches = true;
+                    $mustRehashPassword = true;
+                    $matchedPassword = $passwordCandidate;
+                    break;
+                }
+            }
         }
 
         if (! $passwordMatches) {
@@ -140,7 +172,7 @@ class AuthController extends Controller
 
         if ($mustRehashPassword) {
             $user->forceFill([
-                'password' => Hash::make($password),
+                'password' => Hash::make($matchedPassword),
             ])->save();
         }
 
