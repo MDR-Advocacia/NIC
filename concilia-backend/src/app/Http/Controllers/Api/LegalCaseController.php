@@ -104,6 +104,20 @@ class LegalCaseController extends Controller
             $query->where('priority', $request->input('priority'));
         }
 
+        if ($request->filled('action_object')) {
+            $actionObjectSearch = trim((string) $request->input('action_object'));
+
+            if ($actionObjectSearch !== '') {
+                $query->where(function ($actionObjectQuery) use ($actionObjectSearch) {
+                    $actionObjectQuery
+                        ->where('action_object', 'like', "%{$actionObjectSearch}%")
+                        ->orWhereHas('actionObject', function ($relatedActionObjectQuery) use ($actionObjectSearch) {
+                            $relatedActionObjectQuery->where('name', 'like', "%{$actionObjectSearch}%");
+                        });
+                });
+            }
+        }
+
         if ($request->filled('tag')) {
             $normalizedTag = CaseTag::normalizeTag($request->input('tag'));
 
@@ -723,7 +737,7 @@ class LegalCaseController extends Controller
         $customAttributes = [
             'case_number' => 'Número do Processo',
             'internal_number' => 'Número Interno',
-            'action_object' => 'Objeto da Ação',
+            'action_object' => 'Causa de Pedir',
             'start_date' => 'Data de Distribuição',
             'opposing_party' => 'Autor',
             'defendant' => 'Réu',

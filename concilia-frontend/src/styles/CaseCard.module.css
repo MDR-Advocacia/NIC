@@ -103,25 +103,24 @@
     color: var(--text-primary);
 }
 
-.priorityTag {
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: bold;
-    color: white; 
+.tagsStrip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: -0.2rem 0 0.9rem;
 }
-.priorityTagAlta { background-color: #e53e3e; }
-.priorityTagMedia { background-color: #dd6b20; }
-.priorityTagBaixa { background-color: #38a169; }
 
-.statusTag {
-    padding: 0.2rem 0.65rem;
+.tagChip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0.3rem 0.75rem;
     border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .body {

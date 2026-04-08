@@ -41,6 +41,7 @@ const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
 
 const INITIAL_FILTERS = {
     search: '',
+    action_object: '',
     status: '',
     priority: '',
     lawyer_id: '',
@@ -389,6 +390,7 @@ const CaseManagementPage = () => {
     const selectedIndicator = indicators.find(indicator => String(indicator.id) === String(filters.indicator_user_id));
     const activeFilterChips = [];
     const pastedCaseNumberTerms = extractMultipleCaseNumberTerms(filters.search);
+    const trimmedActionObject = filters.action_object.trim();
 
     if (filters.search.trim()) {
         activeFilterChips.push({
@@ -396,6 +398,13 @@ const CaseManagementPage = () => {
             label: pastedCaseNumberTerms.length > 1
                 ? `Busca: ${formatProcessCount(pastedCaseNumberTerms.length)}`
                 : `Busca: ${filters.search.trim()}`,
+        });
+    }
+
+    if (trimmedActionObject) {
+        activeFilterChips.push({
+            key: 'action_object',
+            label: `Causa de pedir: ${trimmedActionObject}`,
         });
     }
 
@@ -555,7 +564,7 @@ const CaseManagementPage = () => {
                         </div>
                         <div className={styles.filtersHeading}>
                             <h3>Filtros da Gestão</h3>
-                            <p>Refine a carteira por status, prioridade, responsável e indicador enquanto a tabela atualiza automaticamente.</p>
+                            <p>Refine a carteira por causa de pedir, status, prioridade, responsável e indicador enquanto a tabela atualiza automaticamente.</p>
                         </div>
                     </div>
                     <span className={styles.filterCount}>
@@ -581,6 +590,21 @@ const CaseManagementPage = () => {
                         <small className={styles.filterHelp}>
                             Cole varios numeros de processo separados por espaco ou quebra de linha.
                         </small>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaGavel />
+                            Causa de Pedir
+                        </span>
+                        <input
+                            type="text"
+                            placeholder="Digite a causa de pedir"
+                            className={styles.filterControl}
+                            name="action_object"
+                            value={filters.action_object}
+                            onChange={handleFilterChange}
+                        />
                     </label>
 
                     <label className={styles.filterField}>

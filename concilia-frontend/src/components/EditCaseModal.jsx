@@ -24,7 +24,7 @@ import {
     validateSettlementBenefit
 } from '../constants/settlementBenefit';
 import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
-import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
+import { getLegalCaseStatusDetails, LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 
 // --- Ícones SVG Inline ---
 const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#4299e1'}}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
@@ -44,7 +44,7 @@ const HistoryItem = ({ entry }) => {
         description: 'Descrição', opposing_party: 'Autor', defendant: 'Réu',
         original_value: 'Valor de Alçada', agreement_value: 'Valor do Acordo', cause_value: 'Valor da Causa',
         ourocap_value: 'Valor Ourocap', livelo_points: 'Pontos Livelo',
-        internal_number: 'Nº Interno', city: 'Cidade', action_object: 'Objeto da Ação',
+        internal_number: 'Nº Interno', city: 'Cidade', action_object: 'Causa de Pedir',
         pcond_probability: 'Valor da PCOND', updated_condemnation_value: 'Condenação Atualizada',
         user_id: 'Responsável do caso',
         indicator_user_id: 'Indicador',
@@ -218,7 +218,7 @@ const DetailsTab = ({
     handleCreateLawyer,
     handleOpenListModal,
 
-    // Props Objeto da Ação
+    // Props Causa de Pedir
     actionObjectsList,
     actionObjectSearchTerm,
     setActionObjectSearchTerm,
@@ -307,7 +307,17 @@ const DetailsTab = ({
                         <input className={styles.input} type="text" name="internal_number" value={formData.internal_number || ''} onChange={handleChange} />
                     </div>
                     <div className={styles.formGroup}>
-                        <label className={styles.label}>Objeto da Ação</label>
+                        <label className={styles.label}>Status</label>
+                        <select className={styles.select} name="status" value={formData.status || ''} onChange={handleChange} required>
+                            {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
+                                <option key={statusOption.value} value={statusOption.value}>
+                                    {statusOption.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Causa de Pedir</label>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                             <div style={{ position: 'relative', flex: 1 }}>
                                 <input
@@ -322,7 +332,7 @@ const DetailsTab = ({
                                         handleChange(e);
                                     }}
                                     onFocus={() => setShowActionObjectDropdown(true)}
-                                    placeholder="Pesquisar objeto da ação..."
+                                    placeholder="Pesquisar causa de pedir..."
                                     autoComplete="off"
                                 />
                                 {showActionObjectDropdown && actionObjectSearchTerm && (
@@ -342,7 +352,7 @@ const DetailsTab = ({
                                 )}
                                 {showActionObjectDropdown && <div style={{position: 'fixed', inset:0, zIndex: 40}} onClick={() => setShowActionObjectDropdown(false)} />}
                             </div>
-                            <button type="button" onClick={handleOpenActionObjectListModal} title="Buscar e gerenciar objetos da ação"
+                            <button type="button" onClick={handleOpenActionObjectListModal} title="Buscar e gerenciar causas de pedir"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: '#4a5568', color: 'white', border: 'none',
@@ -350,7 +360,7 @@ const DetailsTab = ({
                                 }}>
                                 <IconSearch />
                             </button>
-                            <button type="button" onClick={handleCreateActionObject} title="Cadastrar novo objeto da ação"
+                            <button type="button" onClick={handleCreateActionObject} title="Cadastrar nova causa de pedir"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: '#3182ce', color: 'white', border: 'none',
@@ -835,7 +845,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         }
     }, [legalCase]);
 
-    // --- HANDLERS OBJETO DA AÇÃO ---
+    // --- HANDLERS CAUSA DE PEDIR ---
     const handleSelectActionObject = (actionObject) => {
         setFormData(prev => ({
             ...prev,
@@ -1078,7 +1088,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     handleCreateLawyer={handleCreateLawyer}
                                     handleOpenListModal={handleOpenListModal}
 
-                                    // Props Objeto da Ação
+                                    // Props Causa de Pedir
                                     actionObjectsList={actionObjectsList}
                                     actionObjectSearchTerm={actionObjectSearchTerm}
                                     setActionObjectSearchTerm={setActionObjectSearchTerm}

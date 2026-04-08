@@ -5,12 +5,13 @@ import styles from '../styles/UserManagement.module.css';
 import { 
     FaUserPlus, FaSync, FaEdit, FaTrash, FaPlus, FaTimes, FaSave, 
     FaChevronLeft, FaChevronRight, FaCheckSquare, FaBan, FaTrashAlt, FaUserTag,
-    FaSearch, FaSlidersH, FaEraser, FaBuilding
+    FaSearch, FaSlidersH, FaEraser, FaBuilding, FaKey
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import AddDepartmentModal from '../components/AddDepartmentModal';
 
 const AREAS_LIST = ["Recuperação de Crédito", "Contencioso Passivo", "Atendente"];
+const DEFAULT_RESET_PASSWORD = 'Mudar.123@';
 
 const STATUS_DETAILS = {
     'ativo': { name: 'Ativo', color: '#38a169', textColor: '#FFFFFF' },
@@ -34,8 +35,9 @@ const RoleTag = ({ role }) => {
 };
 
 const UserManagementPage = () => {
-    const { token, user } = useAuth();
-    const canManage = ['administrador', 'supervisor'].includes(user?.role);
+    const { token, user: loggedInUser } = useAuth();
+    const canManage = ['administrador', 'supervisor'].includes(loggedInUser?.role);
+    const canResetPasswords = ['administrador', 'admin'].includes(loggedInUser?.role);
 
     const [users, setUsers] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -60,6 +62,7 @@ const UserManagementPage = () => {
     const [selectedUsers, setSelectedUsers] = useState([]); // Array de IDs
     const [isBatchProcessing, setIsBatchProcessing] = useState(false);
     const [showBatchRoleSelect, setShowBatchRoleSelect] = useState(false); // Para mostrar select de cargo na barra
+    const [resettingUserId, setResettingUserId] = useState(null);
 
     const [formData, setFormData] = useState({
         name: '', email: '', password: '', role: 'operador', department_id: '', status: 'ativo', area: ''
@@ -251,6 +254,34 @@ const UserManagementPage = () => {
         }
     };
 
+    const handleResetPassword = async (managedUser) => {
+        if (!managedUser?.id) {
+            return;
+        }
+
+        const confirmationMessage = `Resetar a senha de ${managedUser.name} para "${DEFAULT_RESET_PASSWORD}"?\n\nO usuário será desconectado e precisará trocar a senha no próximo login.`;
+
+        if (!window.confirm(confirmationMessage)) {
+            return;
+        }
+
+        setResettingUserId(managedUser.id);
+
+        try {
+            await apiClient.post(`/users/${managedUser.id}/reset-password`, {}, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            alert(`Senha de ${managedUser.name} resetada para ${DEFAULT_RESET_PASSWORD}.`);
+            fetchData(pagination.current_page);
+        } catch (error) {
+            console.error(error);
+            alert(error.response?.data?.message || 'Erro ao resetar senha.');
+        } finally {
+            setResettingUserId(null);
+        }
+    };
+
     const getInitials = (n) => {
         if(!n) return ''; 
         const p = n.split(' '); 
@@ -413,27 +444,27 @@ const UserManagementPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {displayedUsers.map(user => (
-                                    <tr key={user.id} className={selectedUsers.includes(user.id) ? styles.rowSelected : ''}>
+                                {displayedUsers.map((managedUser) => (
+                                    <tr key={managedUser.id} className={selectedUsers.includes(managedUser.id) ? styles.rowSelected : ''}>
                                         {/* CHECKBOX ROW */}
                                         <td style={{ textAlign: 'center' }}>
                                             <input 
                                                 type="checkbox" 
-                                                checked={selectedUsers.includes(user.id)}
-                                                onChange={() => handleSelectUser(user.id)}
+                                                checked={selectedUsers.includes(managedUser.id)}
+                                                onChange={() => handleSelectUser(managedUser.id)}
                                                 className={styles.checkboxInput}
                                             />
                                         </td>
                                         <td>
                                             <div className={styles.userCell}>
-                                                <div className={styles.userAvatar}>{getInitials(user.name)}</div>
-                                                <div><div className={styles.userName}>{user.name}</div><div className={styles.userEmail}>{user.email}</div></div>
+                                                <div className={styles.userAvatar}>{getInitials(managedUser.name)}</div>
+                                                <div><div className={styles.userName}>{managedUser.name}</div><div className={styles.userEmail}>{managedUser.email}</div></div>
                                             </div>
                                         </td>
-                                        <td><RoleTag role={user.role} /></td>
-                                        <td>{user.area ? <span className={styles.tagArea}>{user.area}</span> : <span style={{color:'#cbd5e1'}}>-</span>}</td>
-                                        <td>{user.department?.name || '-'}</td>
-                                        <td><StatusTag status={user.status} /></td>
+                                        <td><RoleTag role={managedUser.role} /></td>
+                                        <td>{managedUser.area ? <span className={styles.tagArea}>{managedUser.area}</span> : <span style={{color:'#cbd5e1'}}>-</span>}</td>
+                                        <td>{managedUser.department?.name || '-'}</td>
+                                        <td><StatusTag status={managedUser.status} /></td>
                                         {canManage && (
                                             <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
                                                 <div className={styles.rowActions}>
@@ -441,15 +472,26 @@ const UserManagementPage = () => {
                                                         type="button"
                                                         className={styles.actionIconButton}
                                                         title="Editar"
-                                                        onClick={() => handleOpenEditModal(user)}
+                                                        onClick={() => handleOpenEditModal(managedUser)}
                                                     >
                                                         <FaEdit />
                                                     </button>
+                                                    {canResetPasswords && loggedInUser?.id !== managedUser.id && (
+                                                        <button
+                                                            type="button"
+                                                            className={`${styles.actionIconButton} ${styles.actionIconButtonWarning}`}
+                                                            title="Resetar senha para o padrão"
+                                                            onClick={() => handleResetPassword(managedUser)}
+                                                            disabled={resettingUserId === managedUser.id}
+                                                        >
+                                                            <FaKey />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         type="button"
                                                         className={`${styles.actionIconButton} ${styles.actionIconButtonDanger}`}
                                                         title="Excluir"
-                                                        onClick={() => handleDelete(user.id)}
+                                                        onClick={() => handleDelete(managedUser.id)}
                                                     >
                                                         <FaTrash />
                                                     </button>

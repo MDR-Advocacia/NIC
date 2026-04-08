@@ -17,6 +17,8 @@ class UserController extends Controller
 {
     use AuthorizesRequests;
 
+    private const DEFAULT_RESET_PASSWORD = 'Mudar.123@';
+
     public function index(Request $request)
     {
         // 1. Policy permite a entrada (agora inclui operador)
@@ -179,6 +181,35 @@ class UserController extends Controller
         }
 
         return response()->json($user);
+    }
+
+    public function resetPassword(Request $request, User $user): JsonResponse
+    {
+        $this->authorize('resetPassword', $user);
+
+        $user->forceFill([
+            'password' => Hash::make(self::DEFAULT_RESET_PASSWORD),
+            'must_change_password' => true,
+            'remember_token' => null,
+        ])->save();
+
+        $user->tokens()->delete();
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Reset de Senha de Usuário',
+                'details' => "Resetou a senha do usuário: {$user->name} ({$user->email})",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("ERRO AO SALVAR LOG (Reset de Senha): " . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => 'Senha resetada com sucesso. O usuário precisará alterar a senha no próximo login.',
+        ]);
     }
 
     public function destroy(User $user)

@@ -22,7 +22,7 @@ const ActionObjectListModal = ({ onClose, onSelect }) => {
       });
       setActionObjects(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Erro ao buscar objetos da ação:', error);
+      console.error('Erro ao buscar causas de pedir:', error);
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ const ActionObjectListModal = ({ onClose, onSelect }) => {
       <div className={styles.overlay}>
         <div className={styles.modal} style={{ maxWidth: '720px' }}>
           <div className={styles.header}>
-            <h2>Selecionar Objeto da Ação</h2>
+            <h2>Selecionar Causa de Pedir</h2>
             <button onClick={onClose} className={styles.closeButton}>
               &times;
             </button>
@@ -150,7 +150,7 @@ const ActionObjectListModal = ({ onClose, onSelect }) => {
               </table>
             ) : (
               <div style={{ padding: '3rem', textAlign: 'center', color: '#718096' }}>
-                <p style={{ marginBottom: '10px', fontSize: '1.1rem' }}>Nenhum objeto da ação encontrado.</p>
+                <p style={{ marginBottom: '10px', fontSize: '1.1rem' }}>Nenhuma causa de pedir encontrada.</p>
                 <p style={{ fontSize: '0.9rem' }}>Tente outro termo ou cadastre um novo.</p>
               </div>
             )}

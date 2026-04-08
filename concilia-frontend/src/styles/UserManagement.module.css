@@ -398,6 +398,16 @@
     transform: translateY(-1px);
 }
 
+.actionIconButton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.actionIconButtonWarning:hover {
+    color: #b45309;
+}
+
 .actionIconButtonDanger:hover {
     color: #dc2626;
 }

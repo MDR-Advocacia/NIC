@@ -457,7 +457,7 @@ const GeneralBasePage = () => {
                                         ID/Processo {getSortIcon('id')}
                                     </th>
                                     <th>Autor / Réu</th>
-                                    <th>Objeto da Ação</th>
+                                    <th>Causa de Pedir</th>
                                     <th>Comarca</th>
                                     <th
                                         style={{ cursor: 'pointer', userSelect: 'none' }}

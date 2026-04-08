@@ -21,6 +21,7 @@ import {
     FaSearch,
     FaSlidersH,
     FaBuilding,
+    FaGavel,
     FaUserTie,
     FaUserTag,
     FaSignal,
@@ -38,6 +39,7 @@ import IndicationChecklistModal from '../components/IndicationChecklistModal';
 const MAX_API_PAGE_SIZE = 200;
 const INITIAL_FILTERS = {
     search: '',
+    action_object: '',
     client_id: '',
     lawyer_id: '',
     indicator_user_id: '',
@@ -95,10 +97,12 @@ const PipelinePage = () => {
     const [indicationCase, setIndicationCase] = useState(null);
     const [filters, setFilters] = useState(INITIAL_FILTERS);
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [debouncedActionObject, setDebouncedActionObject] = useState('');
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
     const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
 
     const searchTerm = filters.search.trim();
+    const actionObjectFilter = filters.action_object.trim();
     const clientFilter = filters.client_id || '';
     const lawyerFilter = filters.lawyer_id || '';
     const indicatorFilter = canChooseIndicator ? (filters.indicator_user_id || '') : '';
@@ -116,6 +120,7 @@ const PipelinePage = () => {
     };
     const activeFilterChips = [
         searchTerm ? `Busca: ${searchTerm}` : null,
+        actionObjectFilter ? `Causa de pedir: ${actionObjectFilter}` : null,
         selectedClientName ? `Cliente: ${selectedClientName}` : null,
         selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
         selectedIndicatorName ? `Indicador: ${selectedIndicatorName}` : null,
@@ -158,6 +163,14 @@ const PipelinePage = () => {
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedActionObject(actionObjectFilter);
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [actionObjectFilter]);
+
     const groupCasesByStatus = useCallback((cases) => {
         const initialGroups = LEGAL_CASE_STATUS_ORDER.reduce((acc, statusKey) => {
             acc[statusKey] = LEGAL_CASE_STATUS_DETAILS[statusKey].name;
@@ -194,6 +207,7 @@ const PipelinePage = () => {
 
             const effectiveFilters = {
                 search: debouncedSearch,
+                action_object: debouncedActionObject,
                 client_id: clientFilter,
                 lawyer_id: lawyerFilter,
                 indicator_user_id: indicatorFilter,
@@ -304,7 +318,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, showDelayedOnly, canChooseResponsible, canChooseIndicator, isIndicator, user?.id]);
+    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseResponsible, canChooseIndicator, isIndicator, user?.id]);
 
     useEffect(() => {
         fetchAllData();
@@ -554,7 +568,7 @@ const PipelinePage = () => {
                             <p className={styles.filterPanelSubtitle}>
                                 {isIndicator
                                     ? 'Os casos em Análise Inicial continuam disponíveis para indicação, e os processos já indicados por você seguem visíveis nas demais fases apenas para acompanhamento.'
-                                    : 'Refine os cards por caso, cliente, responsável, indicador, prioridade e destaque rapidamente os casos parados.'}
+                                    : 'Refine os cards por caso, causa de pedir, cliente, responsável, indicador, prioridade e destaque rapidamente os casos parados.'}
                             </p>
                         </div>
                     </div>
@@ -578,6 +592,20 @@ const PipelinePage = () => {
                             value={filters.search}
                             onChange={(e) => handleFilterChange('search', e.target.value)}
                             placeholder="Número do processo ou nome da parte"
+                        />
+                    </div>
+
+                    <div className={styles.filterField}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaGavel />
+                            <span>Causa de Pedir</span>
+                        </label>
+                        <input
+                            type="text"
+                            className={styles.filterInput}
+                            value={filters.action_object}
+                            onChange={(e) => handleFilterChange('action_object', e.target.value)}
+                            placeholder="Digite a causa de pedir"
                         />
                     </div>
 
