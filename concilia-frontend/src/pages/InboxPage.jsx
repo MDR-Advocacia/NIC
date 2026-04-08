@@ -844,7 +844,7 @@ const InboxPage = () => {
 
   const modalTemplatesEmpilhado = viewportWidth <= 1180;
   const modalTemplatesUltraCompacto = viewportWidth <= 860;
-  const modalTemplatesVariaveisEmColuna = viewportWidth <= 960;
+  const modalTemplatesVariaveisEmColuna = viewportWidth <= 1200;
 
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
@@ -1702,7 +1702,7 @@ const InboxPage = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '320px minmax(0, 1fr)',
+                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '300px minmax(0, 1fr)',
                 minHeight: 0,
                 flex: 1,
                 overflow: 'hidden',
@@ -1716,6 +1716,7 @@ const InboxPage = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '14px',
+                  minWidth: 0,
                   minHeight: 0,
                   maxHeight: modalTemplatesEmpilhado ? '34vh' : 'none',
                 }}
@@ -1734,6 +1735,7 @@ const InboxPage = () => {
                     color: '#f8fafc',
                     outline: 'none',
                     fontSize: '14px',
+                    boxSizing: 'border-box',
                   }}
                 />
 
@@ -1804,7 +1806,7 @@ const InboxPage = () => {
                     {variaveisDetectadas.length > 0 ? (
                       <div>
                         <div style={{ marginBottom: '10px', color: '#94a3b8', fontSize: '13px', fontWeight: 700 }}>VARIAVEIS</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: modalTemplatesVariaveisEmColuna ? '1fr' : '1fr 1fr', gap: '12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: modalTemplatesVariaveisEmColuna ? '1fr' : '1fr 1fr', gap: '12px', minWidth: 0 }}>
                           {variaveisDetectadas.map((indice) => (
                             <div key={indice} style={{ minWidth: 0 }}>
                               <label style={{ display: 'block', marginBottom: '6px', color: '#cbd5e1', fontSize: '12px', fontWeight: 700 }}>{`Valor ${indice}`}</label>
@@ -1813,7 +1815,7 @@ const InboxPage = () => {
                                 value={variaveisTemplate[indice] || ''}
                                 onChange={(event) => setVariaveisTemplate((anterior) => ({ ...anterior, [indice]: event.target.value }))}
                                 placeholder={`Insira o valor para ${indice}`}
-                                style={{ width: '100%', minWidth: 0, padding: '13px 14px', borderRadius: '14px', border: '1px solid rgba(148, 163, 184, 0.16)', backgroundColor: '#17212b', color: '#f8fafc', outline: 'none', fontSize: '14px' }}
+                                style={{ width: '100%', minWidth: 0, maxWidth: '100%', padding: '13px 14px', borderRadius: '14px', border: '1px solid rgba(148, 163, 184, 0.16)', backgroundColor: '#17212b', color: '#f8fafc', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
                               />
                             </div>
                           ))}
