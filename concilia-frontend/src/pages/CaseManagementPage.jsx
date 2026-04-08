@@ -41,9 +41,11 @@ const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
 
 const INITIAL_FILTERS = {
     search: '',
+    action_object: '',
     status: '',
     priority: '',
     lawyer_id: '',
+    indicator_user_id: '',
 };
 
 const extractMultipleCaseNumberTerms = (value) => {
@@ -158,6 +160,7 @@ const CaseManagementPage = () => {
     
     const [cases, setCases] = useState([]);
     const [lawyers, setLawyers] = useState([]);
+    const [indicators, setIndicators] = useState([]);
     const [clients, setClients] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -195,14 +198,19 @@ const CaseManagementPage = () => {
                 ];
 
                 if (!isIndicator) {
-                    requests.unshift(apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }));
+                    requests.unshift(
+                        apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
+                        apiClient.get('/users/indicators', { headers: { Authorization: `Bearer ${token}` } })
+                    );
                 }
 
                 const responses = await Promise.all(requests);
                 const usersResponse = isIndicator ? null : responses[0];
-                const clientsResponse = isIndicator ? responses[0] : responses[1];
+                const indicatorsResponse = isIndicator ? null : responses[1];
+                const clientsResponse = isIndicator ? responses[0] : responses[2];
 
                 setLawyers(Array.isArray(usersResponse?.data) ? usersResponse.data : []);
+                setIndicators(Array.isArray(indicatorsResponse?.data) ? indicatorsResponse.data : []);
                 setClients(clientsResponse.data || []);
             } catch (err) { 
                 console.error("Erro ao buscar dados de apoio", err); 
@@ -379,8 +387,10 @@ const CaseManagementPage = () => {
     const isAllSelected =
         visibleCaseIds.length > 0 && selectedVisibleCaseIds.length === visibleCaseIds.length;
     const selectedLawyer = lawyers.find(lawyer => String(lawyer.id) === String(filters.lawyer_id));
+    const selectedIndicator = indicators.find(indicator => String(indicator.id) === String(filters.indicator_user_id));
     const activeFilterChips = [];
     const pastedCaseNumberTerms = extractMultipleCaseNumberTerms(filters.search);
+    const trimmedActionObject = filters.action_object.trim();
 
     if (filters.search.trim()) {
         activeFilterChips.push({
@@ -388,6 +398,13 @@ const CaseManagementPage = () => {
             label: pastedCaseNumberTerms.length > 1
                 ? `Busca: ${formatProcessCount(pastedCaseNumberTerms.length)}`
                 : `Busca: ${filters.search.trim()}`,
+        });
+    }
+
+    if (trimmedActionObject) {
+        activeFilterChips.push({
+            key: 'action_object',
+            label: `Causa de pedir: ${trimmedActionObject}`,
         });
     }
 
@@ -409,6 +426,13 @@ const CaseManagementPage = () => {
         activeFilterChips.push({
             key: 'lawyer_id',
             label: `Responsável: ${selectedLawyer?.name || 'Selecionado'}`,
+        });
+    }
+
+    if (!isIndicator && filters.indicator_user_id) {
+        activeFilterChips.push({
+            key: 'indicator_user_id',
+            label: `Indicador: ${selectedIndicator?.name || 'Selecionado'}`,
         });
     }
 
@@ -540,7 +564,7 @@ const CaseManagementPage = () => {
                         </div>
                         <div className={styles.filtersHeading}>
                             <h3>Filtros da Gestão</h3>
-                            <p>Refine a carteira e a tabela atualiza automaticamente enquanto você trabalha.</p>
+                            <p>Refine a carteira por causa de pedir, status, prioridade, responsável e indicador enquanto a tabela atualiza automaticamente.</p>
                         </div>
                     </div>
                     <span className={styles.filterCount}>
@@ -566,6 +590,21 @@ const CaseManagementPage = () => {
                         <small className={styles.filterHelp}>
                             Cole varios numeros de processo separados por espaco ou quebra de linha.
                         </small>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaGavel />
+                            Causa de Pedir
+                        </span>
+                        <input
+                            type="text"
+                            placeholder="Digite a causa de pedir"
+                            className={styles.filterControl}
+                            name="action_object"
+                            value={filters.action_object}
+                            onChange={handleFilterChange}
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -599,20 +638,37 @@ const CaseManagementPage = () => {
                     </label>
 
                     {!isIndicator && (
-                        <label className={styles.filterField}>
-                            <span className={styles.filterLabel}>
-                                <FaUserTag />
-                                Responsável do caso
-                            </span>
-                            <select className={styles.filterControl} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
-                                <option value="">Todos os responsáveis</option>
-                                {lawyers.map((lawyer) => (
-                                    <option key={lawyer.id} value={lawyer.id}>
-                                        {lawyer.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                        <>
+                            <label className={styles.filterField}>
+                                <span className={styles.filterLabel}>
+                                    <FaUserTag />
+                                    Responsável do caso
+                                </span>
+                                <select className={styles.filterControl} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
+                                    <option value="">Todos os responsáveis</option>
+                                    {lawyers.map((lawyer) => (
+                                        <option key={lawyer.id} value={lawyer.id}>
+                                            {lawyer.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label className={styles.filterField}>
+                                <span className={styles.filterLabel}>
+                                    <FaUserTag />
+                                    Indicador
+                                </span>
+                                <select className={styles.filterControl} name="indicator_user_id" value={filters.indicator_user_id} onChange={handleFilterChange}>
+                                    <option value="">Todos os indicadores</option>
+                                    {indicators.map((indicator) => (
+                                        <option key={indicator.id} value={indicator.id}>
+                                            {indicator.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        </>
                     )}
                 </div>
 

@@ -400,16 +400,113 @@ select.filterControl {
     color: var(--text-primary);
 }
 
-.dashboardGrid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    grid-template-areas: "main sidebar";
-    gap: 2rem;
+.analyticsSection {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.analyticsSectionHeader {
+    display: flex;
     align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--border-color-light);
+}
+
+.analyticsSectionTitle {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+.analyticsSectionSubtitle {
+    margin: 0.35rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    max-width: 70ch;
+}
+
+.analyticsGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
+    gap: 1.5rem;
+    align-items: stretch;
+}
+
+.analyticsSidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-width: 0;
+    height: 100%;
+    align-self: stretch;
+}
+
+.analyticsCard {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.35rem;
+    border-radius: 24px;
+    border: 1px solid var(--border-color-light);
+    background:
+        radial-gradient(circle at top right, rgba(187, 247, 208, 0.18), transparent 35%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
+    box-shadow: var(--card-shadow);
+    min-height: 0;
+    align-self: start;
+}
+
+.mapCard {
+    min-height: 520px;
+}
+
+.compactAnalyticsCard {
+    min-height: 0;
+}
+
+.fillAnalyticsCard {
+    flex: 1;
+    min-height: 0;
+}
+
+.macroSection {
+    display: flex;
+    justify-content: center;
+}
+
+.macroStandaloneCard {
+    width: min(100%, 760px);
+    min-height: 0;
+}
+
+.analyticsCardHeader {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.analyticsCardTitle {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.02rem;
+}
+
+.analyticsCardSubtitle {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.dashboardGrid {
+    display: block;
 }
 
 .mainContent {
-    grid-area: main;
     display: flex;
     flex-direction: column;
     gap: 2rem;
@@ -419,14 +516,10 @@ select.filterControl {
     box-shadow: var(--card-shadow);
 }
 
-.rightSidebar {
-    grid-area: sidebar;
-    position: sticky;
-    top: 2rem;
-}
-
 .mainContent > .chartsGrid > .chartCard,
 .mainContent > .statusDistribution,
+.mainContent > .analyticsSection,
+.mainContent > .teamPerformanceSection,
 .mainContent > .recentCases {
     background-color: transparent;
     padding: 0;
@@ -437,13 +530,179 @@ select.filterControl {
 }
 
 .mainContent > .chartsGrid > .chartCard h3,
-.mainContent > .statusDistribution h3,
-.mainContent > .recentCases h3 {
+.mainContent > .statusDistribution h3 {
     margin-top: 0;
     margin-bottom: 1.5rem;
     border-bottom: 1px solid var(--border-color-light);
     padding-bottom: 1rem;
     color: var(--text-primary);
+}
+
+.teamPerformanceSection {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.teamPerformanceSectionHeader {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--border-color-light);
+}
+
+.teamPerformanceSectionHeader h3 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.teamPerformanceSectionHeader p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.6;
+}
+
+.teamPerformancePanelWrap {
+    width: 100%;
+}
+
+.recentCasesHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color-light);
+    flex-wrap: wrap;
+}
+
+.recentCasesTitleGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 260px;
+}
+
+.recentCasesTitle {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--text-primary);
+}
+
+.recentCasesSubtitle {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    max-width: 72ch;
+}
+
+.recentCasesHeaderActions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+}
+
+.recentCasesPageSize {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color-light);
+    background: rgba(248, 250, 252, 0.9);
+}
+
+.recentCasesPageSizeButton {
+    min-width: 46px;
+    min-height: 36px;
+    padding: 0 0.9rem;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.recentCasesPageSizeButton:hover {
+    color: var(--accent-primary);
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.recentCasesPageSizeButtonActive {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(14, 165, 233, 0.18));
+    color: var(--accent-primary);
+    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.12);
+}
+
+.recentCasesFooter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.recentCasesMeta {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+}
+
+.recentCasesPagination {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.recentCasesPaginationButton {
+    min-width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color-light);
+    background: rgba(255, 255, 255, 0.88);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.recentCasesPaginationButton:hover:not(:disabled) {
+    border-color: rgba(59, 130, 246, 0.28);
+    color: var(--accent-primary);
+    transform: translateY(-1px);
+}
+
+.recentCasesPaginationButton:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.recentCasesCurrentPage {
+    min-width: 40px;
+    height: 40px;
+    padding: 0 0.85rem;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(14, 165, 233, 0.18));
+    color: var(--accent-primary);
+    font-size: 0.9rem;
+    font-weight: 800;
+    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.14);
 }
 
 .sectionHeader {
@@ -453,9 +712,13 @@ select.filterControl {
     margin-bottom: 15px;
 }
 
+.viewAllLink {
+    text-decoration: none;
+}
+
 .viewAllBtn {
     background: transparent;
-    border: none;
+    border: 1px solid transparent;
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 600;
@@ -463,13 +726,16 @@ select.filterControl {
     display: flex;
     align-items: center;
     gap: 6px;
+    padding: 0.55rem 0.8rem;
+    border-radius: 12px;
     text-decoration: none;
     transition: all 0.2s ease;
 }
 
 .viewAllBtn:hover {
-    color: #fff;
-    transform: translateX(4px);
+    background-color: rgba(99, 179, 237, 0.1);
+    color: #ffffff;
+    transform: translateX(2px);
 }
 
 @media (max-width: 768px) {
@@ -514,22 +780,33 @@ select.filterControl {
         justify-content: center;
     }
 
-    .dashboardGrid {
-        grid-template-columns: 1fr;
-        grid-template-areas:
-            "main"
-            "sidebar";
-    }
-
     .chartsGrid {
         grid-template-columns: 1fr;
     }
 
-    .rightSidebar {
-        position: static;
+    .analyticsGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .analyticsSidebar {
+        width: 100%;
     }
 
     .mainContent {
         padding: 1rem;
+    }
+
+    .recentCasesHeaderActions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .recentCasesFooter {
+        align-items: stretch;
+    }
+
+    .recentCasesPagination {
+        width: 100%;
+        justify-content: flex-start;
     }
 }

@@ -173,13 +173,14 @@ const styles = {
     alignItems: 'flex-end',
     gap: '10px',
   }),
-  bubble: (mine) => ({
-    maxWidth: '72%',
+  bubble: (mine, isTemplate = false) => ({
+    maxWidth: isTemplate ? '88%' : '72%',
+    width: isTemplate ? 'min(88%, 760px)' : 'auto',
     padding: '14px 16px',
     borderRadius: mine ? '18px 18px 6px 18px' : '18px 18px 18px 6px',
-    backgroundColor: mine ? '#dbeafe' : '#ffffff',
-    border: '1px solid #dbe3ee',
-    boxShadow: '0 8px 18px rgba(16, 35, 63, 0.05)',
+    backgroundColor: isTemplate ? '#fff6df' : mine ? '#dbeafe' : '#ffffff',
+    border: isTemplate ? '1px solid #f9c86b' : '1px solid #dbe3ee',
+    boxShadow: isTemplate ? '0 10px 22px rgba(249, 200, 107, 0.16)' : '0 8px 18px rgba(16, 35, 63, 0.05)',
   }),
   attachmentCard: {
     marginBottom: '10px',
@@ -428,6 +429,7 @@ const InboxPage = () => {
   const [imagemAberta, setImagemAberta] = useState(null);
   const [painelContatoAberto, setPainelContatoAberto] = useState(false);
   const [modalVinculoAberto, setModalVinculoAberto] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
   const [processoVinculado, setProcessoVinculado] = useState(null);
   const [formContato, setFormContato] = useState({ id: '', name: '', email: '', phone_number: '' });
   const [salvandoContato, setSalvandoContato] = useState(false);
@@ -839,6 +841,10 @@ const InboxPage = () => {
     () => variaveisDetectadas.filter((indice) => !(variaveisTemplate[indice] || '').trim()),
     [variaveisDetectadas, variaveisTemplate]
   );
+
+  const modalTemplatesEmpilhado = viewportWidth <= 1180;
+  const modalTemplatesUltraCompacto = viewportWidth <= 860;
+  const modalTemplatesVariaveisEmColuna = viewportWidth <= 1200;
 
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
@@ -1290,6 +1296,16 @@ const InboxPage = () => {
     setErroTemplates('');
   }, [conversaSelecionada]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleResize = () => setViewportWidth(window.innerWidth);
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const carregarMensagensConversa = async (chatId, options = {}) => {
     const silent = options.silent === true;
     const token = getCleanToken();
@@ -1653,8 +1669,8 @@ const InboxPage = () => {
         <div style={styles.modalOverlay}>
           <div
             style={{
-              width: 'min(1020px, calc(100vw - 48px))',
-              maxHeight: '86vh',
+              width: modalTemplatesUltraCompacto ? 'min(100%, calc(100vw - 16px))' : 'min(1120px, calc(100vw - 32px))',
+              maxHeight: 'min(88vh, 860px)',
               borderRadius: '24px',
               backgroundColor: '#101820',
               color: '#f8fafc',
@@ -1666,7 +1682,7 @@ const InboxPage = () => {
           >
             <div
               style={{
-                padding: '22px 24px',
+                padding: modalTemplatesUltraCompacto ? '18px 16px' : '22px 24px',
                 borderBottom: '1px solid rgba(148, 163, 184, 0.18)',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -1675,7 +1691,7 @@ const InboxPage = () => {
               }}
             >
               <div>
-                <div style={{ fontSize: '34px', fontWeight: 800, lineHeight: 1.1 }}>Templates do WhatsApp</div>
+                <div style={{ fontSize: modalTemplatesUltraCompacto ? '26px' : '34px', fontWeight: 800, lineHeight: 1.1 }}>Templates do WhatsApp</div>
                 <div style={{ marginTop: '8px', color: '#94a3b8' }}>Selecione um template, preencha as variaveis e envie quando estiver pronto.</div>
               </div>
               <button type="button" style={{ border: 'none', background: 'transparent', color: '#cbd5e1', fontSize: '28px', lineHeight: 1, cursor: 'pointer' }} onClick={() => setModalTemplatesAberto(false)}>
@@ -1683,15 +1699,26 @@ const InboxPage = () => {
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', minHeight: 0, flex: 1 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '300px minmax(0, 1fr)',
+                minHeight: 0,
+                flex: 1,
+                overflow: 'hidden',
+              }}
+            >
               <div
                 style={{
-                  padding: '20px',
-                  borderRight: '1px solid rgba(148, 163, 184, 0.16)',
+                  padding: modalTemplatesUltraCompacto ? '16px' : '20px',
+                  borderRight: modalTemplatesEmpilhado ? 'none' : '1px solid rgba(148, 163, 184, 0.16)',
+                  borderBottom: modalTemplatesEmpilhado ? '1px solid rgba(148, 163, 184, 0.16)' : 'none',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '14px',
+                  minWidth: 0,
                   minHeight: 0,
+                  maxHeight: modalTemplatesEmpilhado ? '34vh' : 'none',
                 }}
               >
                 <input
@@ -1708,10 +1735,11 @@ const InboxPage = () => {
                     color: '#f8fafc',
                     outline: 'none',
                     fontSize: '14px',
+                    boxSizing: 'border-box',
                   }}
                 />
 
-                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {carregandoTemplates ? <div style={{ color: '#94a3b8' }}>Carregando templates...</div> : null}
                   {!carregandoTemplates && erroTemplates ? <div style={{ color: '#fda4af', lineHeight: 1.6 }}>{erroTemplates}</div> : null}
                   {!carregandoTemplates && !erroTemplates && templatesFiltrados.length === 0 ? <div style={{ color: '#94a3b8' }}>Nenhum template encontrado para esta inbox.</div> : null}
@@ -1729,11 +1757,12 @@ const InboxPage = () => {
                               border: ativo ? '1px solid rgba(96, 165, 250, 0.75)' : '1px solid rgba(148, 163, 184, 0.12)',
                               backgroundColor: ativo ? '#162235' : '#141d26',
                               cursor: 'pointer',
+                              overflow: 'hidden',
                             }}
                             onClick={() => prepararTemplate(template)}
                           >
-                            <div style={{ fontWeight: 700, fontSize: '15px', color: '#f8fafc' }}>{template.name}</div>
-                            <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.6, color: '#94a3b8' }}>
+                            <div style={{ fontWeight: 700, fontSize: '15px', color: '#f8fafc', lineHeight: 1.4, overflowWrap: 'anywhere' }}>{template.name}</div>
+                            <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.6, color: '#94a3b8', overflowWrap: 'anywhere' }}>
                               {getTextoTemplate(template).slice(0, 132)}
                               {getTextoTemplate(template).length > 132 ? '...' : ''}
                             </div>
@@ -1744,22 +1773,32 @@ const InboxPage = () => {
                 </div>
               </div>
 
-              <div style={{ padding: '20px 24px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div
+                style={{
+                  padding: modalTemplatesUltraCompacto ? '16px' : '20px 24px 24px',
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '18px',
+                  minWidth: 0,
+                }}
+              >
                 {templateSelecionado ? (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '18px', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ fontSize: '26px', fontWeight: 800 }}>{templateSelecionado.name}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-start' }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: modalTemplatesUltraCompacto ? '22px' : '26px', fontWeight: 800, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{templateSelecionado.name}</div>
                         <div style={{ marginTop: '6px', color: '#94a3b8' }}>Idioma: {templateSelecionado.language || 'pt_BR'}</div>
                       </div>
-                      <div style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#162235', color: '#93c5fd', fontSize: '12px', fontWeight: 700 }}>
+                      <div style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#162235', color: '#93c5fd', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
                         {templateSelecionado.category || 'UTILITY'}
                       </div>
                     </div>
 
                     <div>
                       <div style={{ marginBottom: '8px', color: '#94a3b8', fontSize: '13px', fontWeight: 700 }}>PREVIEW</div>
-                      <div style={{ padding: '18px', borderRadius: '18px', backgroundColor: '#141d26', border: '1px solid rgba(148, 163, 184, 0.12)', whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '15px', color: '#e2e8f0' }}>
+                      <div style={{ padding: modalTemplatesUltraCompacto ? '14px' : '18px', borderRadius: '18px', backgroundColor: '#141d26', border: '1px solid rgba(148, 163, 184, 0.12)', whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: modalTemplatesUltraCompacto ? '14px' : '15px', color: '#e2e8f0', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                         {formatarPreviewTemplate(templateSelecionado, variaveisTemplate)}
                       </div>
                     </div>
@@ -1767,16 +1806,16 @@ const InboxPage = () => {
                     {variaveisDetectadas.length > 0 ? (
                       <div>
                         <div style={{ marginBottom: '10px', color: '#94a3b8', fontSize: '13px', fontWeight: 700 }}>VARIAVEIS</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: modalTemplatesVariaveisEmColuna ? '1fr' : '1fr 1fr', gap: '12px', minWidth: 0 }}>
                           {variaveisDetectadas.map((indice) => (
-                            <div key={indice}>
+                            <div key={indice} style={{ minWidth: 0 }}>
                               <label style={{ display: 'block', marginBottom: '6px', color: '#cbd5e1', fontSize: '12px', fontWeight: 700 }}>{`Valor ${indice}`}</label>
                               <input
                                 type="text"
                                 value={variaveisTemplate[indice] || ''}
                                 onChange={(event) => setVariaveisTemplate((anterior) => ({ ...anterior, [indice]: event.target.value }))}
                                 placeholder={`Insira o valor para ${indice}`}
-                                style={{ width: '100%', padding: '13px 14px', borderRadius: '14px', border: '1px solid rgba(148, 163, 184, 0.16)', backgroundColor: '#17212b', color: '#f8fafc', outline: 'none', fontSize: '14px' }}
+                                style={{ width: '100%', minWidth: 0, maxWidth: '100%', padding: '13px 14px', borderRadius: '14px', border: '1px solid rgba(148, 163, 184, 0.16)', backgroundColor: '#17212b', color: '#f8fafc', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
                               />
                             </div>
                           ))}
@@ -1788,15 +1827,15 @@ const InboxPage = () => {
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginTop: 'auto' }}>
-                      <div style={{ color: variaveisPendentes.length > 0 ? '#fca5a5' : '#94a3b8', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: modalTemplatesUltraCompacto ? 'stretch' : 'center', flexDirection: modalTemplatesUltraCompacto ? 'column' : 'row', gap: '16px', marginTop: 'auto' }}>
+                      <div style={{ color: variaveisPendentes.length > 0 ? '#fca5a5' : '#94a3b8', fontSize: '13px', minWidth: 0 }}>
                         {variaveisPendentes.length > 0 ? 'Preencha todas as variaveis para liberar o envio.' : `Destino: ${telefoneDestino || 'sem telefone identificado'}`}
                       </div>
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button type="button" style={{ ...styles.secondaryButton, color: '#10233f' }} onClick={() => setModalTemplatesAberto(false)}>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', width: modalTemplatesUltraCompacto ? '100%' : 'auto' }}>
+                        <button type="button" style={{ ...styles.secondaryButton, color: '#10233f', flex: modalTemplatesUltraCompacto ? 1 : '0 0 auto' }} onClick={() => setModalTemplatesAberto(false)}>
                           Voltar
                         </button>
-                        <button type="button" style={styles.primaryButton} onClick={enviarTemplateSelecionado} disabled={enviandoTemplate} aria-busy={enviandoTemplate}>
+                        <button type="button" style={{ ...styles.primaryButton, flex: modalTemplatesUltraCompacto ? 1 : '0 0 auto' }} onClick={enviarTemplateSelecionado} disabled={enviandoTemplate} aria-busy={enviandoTemplate}>
                           {enviandoTemplate ? 'Enviando...' : 'Enviar Template'}
                         </button>
                       </div>
@@ -1949,6 +1988,7 @@ const InboxPage = () => {
                 mensagens.map((mensagem, index) => {
                   const minha = mensagem.message_type === 'outgoing' || mensagem.message_type === 1;
                   const iniciais = mensagem.sender?.name?.charAt(0).toUpperCase() || 'C';
+                  const templateMensagem = mensagem.content_type === 'template';
 
                   return (
                     <div key={mensagem.id || index} style={styles.messageRow(minha)}>
@@ -1959,10 +1999,37 @@ const InboxPage = () => {
                           iniciais
                         )}
                       </div>
-                      <div style={{ ...styles.bubble(minha), borderColor: mensagem.status === 'failed' ? '#fca5a5' : '#dbe3ee' }}>
+                      <div
+                        style={{
+                          ...styles.bubble(minha, templateMensagem),
+                          borderColor: mensagem.status === 'failed' ? '#fca5a5' : templateMensagem ? '#f9c86b' : '#dbe3ee',
+                        }}
+                      >
                         {renderizarAnexos(mensagem)}
-                        {getConteudoVisivelMensagem(mensagem) ? <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{getConteudoVisivelMensagem(mensagem)}</div> : null}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
+                        {templateMensagem ? (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              marginBottom: '10px',
+                              padding: '5px 10px',
+                              borderRadius: '999px',
+                              backgroundColor: 'rgba(255,255,255,0.72)',
+                              color: '#9a6700',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Template do WhatsApp
+                          </div>
+                        ) : null}
+                        {getConteudoVisivelMensagem(mensagem) ? (
+                          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.75, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                            {getConteudoVisivelMensagem(mensagem)}
+                          </div>
+                        ) : null}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', flexWrap: 'wrap', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
                           {formatarHorario(mensagem.created_at)}
                           {minha ? <span style={styles.statusTag(mensagem.status)}>{getStatusMensagem(mensagem.status)}</span> : null}
                         </div>

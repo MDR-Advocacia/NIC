@@ -506,7 +506,7 @@ const CaseCreatePage = () => {
                             {errors.case_number && <span className={styles.errorMessage}>{errors.case_number}</span>}
                         </div>
                         <div className={styles.formGroup}>
-                            <label className={styles.label}>Objeto da Ação <span className={styles.required}>*</span></label>
+                            <label className={styles.label}>Causa de Pedir <span className={styles.required}>*</span></label>
                             <div className={styles.inputGroupWithButtons}>
                                 <div className={styles.inputWrapper}>
                                     <input
@@ -516,7 +516,7 @@ const CaseCreatePage = () => {
                                         value={formData.action_object}
                                         onChange={handleChange}
                                         onFocus={() => setShowActionObjectDropdown(true)}
-                                        placeholder="Pesquisar objeto da ação..."
+                                        placeholder="Pesquisar causa de pedir..."
                                         autoComplete="off"
                                     />
                                     {showActionObjectDropdown && actionObjectSearchTerm && (
@@ -533,8 +533,8 @@ const CaseCreatePage = () => {
                                     )}
                                     {showActionObjectDropdown && <div style={{position: 'fixed', inset:0, zIndex: 90}} onClick={() => setShowActionObjectDropdown(false)} />}
                                 </div>
-                                <button type="button" onClick={handleOpenActionObjectListModal} className={`${styles.iconButton} ${styles.searchButton}`} title="Buscar e gerenciar objetos da ação"><IconSearch /></button>
-                                <button type="button" onClick={handleCreateActionObject} className={`${styles.iconButton} ${styles.addButtonIcon}`} title="Cadastrar novo objeto da ação"><IconPlus /></button>
+                                <button type="button" onClick={handleOpenActionObjectListModal} className={`${styles.iconButton} ${styles.searchButton}`} title="Buscar e gerenciar causas de pedir"><IconSearch /></button>
+                                <button type="button" onClick={handleCreateActionObject} className={`${styles.iconButton} ${styles.addButtonIcon}`} title="Cadastrar nova causa de pedir"><IconPlus /></button>
                             </div>
                             {(errors.action_object || errors.action_object_id) && <span className={styles.errorMessage}>{errors.action_object || errors.action_object_id}</span>}
                         </div>

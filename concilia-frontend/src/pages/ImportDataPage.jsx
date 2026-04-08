@@ -86,7 +86,7 @@ const fieldLabels = {
   case_number: 'Processo',
   opposing_party: 'Autor',
   defendant: 'Réu',
-  action_object: 'Objeto da ação',
+  action_object: 'Causa de pedir',
   lawyer_name: 'Advogado responsável',
   comarca: 'Comarca',
   cause_value: 'Valor da causa',

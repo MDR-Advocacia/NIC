@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import {
     FaSearch, FaEye, FaDatabase, FaEdit, FaPlus, FaTrash,
     FaChevronLeft, FaChevronRight,
-    FaSort, FaSortUp, FaSortDown
+    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaUserTie
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
@@ -158,6 +158,15 @@ const GeneralBasePage = () => {
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleClearFilters = () => {
+        setFilters({
+            search: '',
+            status: '',
+            lawyer_id: '',
+            scope: 'general_base',
+        });
+    };
+
     const formatValue = (value) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
@@ -242,6 +251,26 @@ const GeneralBasePage = () => {
     };
 
     const currentScopeContent = scopeContent[filters.scope] || scopeContent.general_base;
+    const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const activeFilterChips = [];
+
+    if (filters.search.trim()) {
+        activeFilterChips.push(`Busca: ${filters.search.trim()}`);
+    }
+
+    if (filters.scope !== 'general_base') {
+        activeFilterChips.push(`Alçada: ${filters.scope === 'pipeline' ? 'Com alçada' : 'Todos'}`);
+    }
+
+    if (filters.status) {
+        activeFilterChips.push(`Status: ${getLegalCaseStatusDetails(filters.status).name}`);
+    }
+
+    if (filters.lawyer_id) {
+        activeFilterChips.push(`Responsável: ${selectedLawyerName || 'Selecionado'}`);
+    }
+
+    const activeFilterCount = activeFilterChips.length;
 
     return (
         <div className={styles.pageContainer}>
@@ -272,48 +301,120 @@ const GeneralBasePage = () => {
             </section>
 
             <section className={styles.filtersContainer}>
-                <h3><FaSearch /> Filtros</h3>
-                <div className={styles.filterControls}>
-                    <input
-                        type="text"
-                        placeholder="Buscar por processo ou parte..."
-                        className={styles.searchInput}
-                        name="search"
-                        value={filters.search}
-                        onChange={handleFilterChange}
-                    />
-                    <select
-                        className={styles.filterSelect}
-                        name="scope"
-                        value={filters.scope}
-                        onChange={handleFilterChange}
+                <div className={styles.filtersHeader}>
+                    <div className={styles.filtersTitleBlock}>
+                        <div className={styles.filtersIcon}>
+                            <FaSlidersH />
+                        </div>
+                        <div className={styles.filtersHeading}>
+                            <h3>Filtros da Base Geral</h3>
+                            <p>
+                                Refine os registros por processo, status, alçada e responsável para navegar pela base com mais contexto.
+                            </p>
+                        </div>
+                    </div>
+                    <span className={styles.filterCount}>
+                        {activeFilterCount} {activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}
+                    </span>
+                </div>
+
+                <div className={styles.filterGrid}>
+                    <label className={`${styles.filterField} ${styles.searchField}`}>
+                        <span className={styles.filterLabel}>
+                            <FaSearch />
+                            Buscar caso
+                        </span>
+                        <input
+                            type="text"
+                            placeholder="Buscar por processo ou parte..."
+                            className={styles.filterControl}
+                            name="search"
+                            value={filters.search}
+                            onChange={handleFilterChange}
+                        />
+                        <span className={styles.filterHelp}>
+                            Use o número do processo ou o nome de alguma parte para localizar mais rápido.
+                        </span>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaDatabase />
+                            Alçada
+                        </span>
+                        <select
+                            className={styles.filterControl}
+                            name="scope"
+                            value={filters.scope}
+                            onChange={handleFilterChange}
+                        >
+                            <option value="general_base">Sem alçada</option>
+                            <option value="pipeline">Com alçada</option>
+                            <option value="all">Todos</option>
+                        </select>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaSort />
+                            Status
+                        </span>
+                        <select
+                            className={styles.filterControl}
+                            name="status"
+                            value={filters.status}
+                            onChange={handleFilterChange}
+                        >
+                            <option value="">Todos os status</option>
+                            {LEGAL_CASE_STATUS_OPTIONS.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.name}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaUserTie />
+                            Responsável
+                        </span>
+                        <select
+                            className={styles.filterControl}
+                            name="lawyer_id"
+                            value={filters.lawyer_id}
+                            onChange={handleFilterChange}
+                        >
+                            <option value="">Todos os responsáveis</option>
+                            {lawyers.map(l => (
+                                <option key={l.id} value={l.id}>{l.name}</option>
+                            ))}
+                        </select>
+                    </label>
+                </div>
+
+                <div className={styles.filtersFooter}>
+                    <div className={styles.filtersSummary}>
+                        {activeFilterCount > 0 ? (
+                            activeFilterChips.map((chip) => (
+                                <span key={chip} className={styles.filterChip}>
+                                    {chip}
+                                </span>
+                            ))
+                        ) : (
+                            <span className={styles.filtersHint}>
+                                A listagem mostra a configuração padrão da base geral no momento.
+                            </span>
+                        )}
+                    </div>
+
+                    <button
+                        type="button"
+                        className={styles.clearFiltersButton}
+                        onClick={handleClearFilters}
+                        disabled={activeFilterCount === 0}
                     >
-                        <option value="general_base">Alçada: Sem alçada</option>
-                        <option value="pipeline">Alçada: Com alçada</option>
-                        <option value="all">Alçada: Todos</option>
-                    </select>
-                    <select
-                        className={styles.filterSelect}
-                        name="status"
-                        value={filters.status}
-                        onChange={handleFilterChange}
-                    >
-                        <option value="">Status: Todos</option>
-                        {LEGAL_CASE_STATUS_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.name}</option>
-                        ))}
-                    </select>
-                    <select
-                        className={styles.filterSelect}
-                        name="lawyer_id"
-                        value={filters.lawyer_id}
-                        onChange={handleFilterChange}
-                    >
-                        <option value="">Advogado: Todos</option>
-                        {lawyers.map(l => (
-                            <option key={l.id} value={l.id}>{l.name}</option>
-                        ))}
-                    </select>
+                        <FaEraser />
+                        Limpar filtros
+                    </button>
                 </div>
             </section>
 
@@ -356,7 +457,7 @@ const GeneralBasePage = () => {
                                         ID/Processo {getSortIcon('id')}
                                     </th>
                                     <th>Autor / Réu</th>
-                                    <th>Objeto da Ação</th>
+                                    <th>Causa de Pedir</th>
                                     <th>Comarca</th>
                                     <th
                                         style={{ cursor: 'pointer', userSelect: 'none' }}
