@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/chat/inboxes/{inboxId}/agents', [ChatController::class, 'addAgentToInbox']);
     Route::get('/chat/contacts', [ChatController::class, 'getContacts']);
     Route::post('/chat/contacts', [ChatController::class, 'createContact']);
+    Route::post('/chat/contacts/{contactId}/conversation', [ChatController::class, 'createConversationForContact']);
     Route::put('/chat/contacts/{contactId}', [ChatController::class, 'updateContact']);
 
     Route::get('/cases/{legal_case}/conversation', [ChatController::class, 'getConversationByCase']);
@@ -51,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/case-tags', [CaseTagController::class, 'index']);
+    Route::delete('/case-tags/{caseTag}', [CaseTagController::class, 'destroy']);
     Route::get('/users/operators', [UserController::class, 'operators']);
     Route::get('/users/indicators', [UserController::class, 'indicators']);
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);

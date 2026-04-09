@@ -757,6 +757,13 @@ const InboxPage = () => {
     return data;
   };
 
+  const extrairConversaResposta = (data) => {
+    if (data?.payload?.id) return data.payload;
+    if (data?.data?.payload?.id) return data.data.payload;
+    if (data?.data?.id) return data.data;
+    return data;
+  };
+
   const conversaAtual = useMemo(
     () => conversas.find((conversa) => conversa.id === conversaSelecionada) || null,
     [conversas, conversaSelecionada]
@@ -842,9 +849,11 @@ const InboxPage = () => {
     [variaveisDetectadas, variaveisTemplate]
   );
 
-  const modalTemplatesEmpilhado = viewportWidth <= 1380;
-  const modalTemplatesUltraCompacto = viewportWidth <= 980;
-  const modalTemplatesVariaveisEmColuna = viewportWidth <= 1480;
+  const larguraSidebarLayout = viewportWidth > 1080 ? 292 : 0;
+  const larguraUtilModalTemplates = Math.max(viewportWidth - larguraSidebarLayout, 320);
+  const modalTemplatesEmpilhado = larguraUtilModalTemplates <= 1040;
+  const modalTemplatesUltraCompacto = larguraUtilModalTemplates <= 760;
+  const modalTemplatesVariaveisEmColuna = larguraUtilModalTemplates <= 1180;
 
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
@@ -1557,13 +1566,60 @@ const InboxPage = () => {
         body: JSON.stringify(novoContato),
       });
 
+      const data = await response.json();
+
       if (response.ok) {
+        const inboxId = Number(novoContato.inbox_id);
+        const contatoCriado = extrairContatoResposta(data);
+
         setModalAberto(false);
         setNovoContato({ name: '', email: '', phone_number: '', inbox_id: '' });
-        carregarDadosIniciais();
+        await carregarDadosIniciais();
+
+        if (contatoCriado?.id && inboxId) {
+          const conversaResponse = await fetch(`${API_BASE}/chat/contacts/${contatoCriado.id}/conversation`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+            body: JSON.stringify({ inbox_id: inboxId }),
+          });
+
+          const conversaData = await conversaResponse.json();
+
+          if (conversaResponse.ok) {
+            const conversaCriada = extrairConversaResposta(conversaData);
+
+            setVisaoAtiva('conversas');
+            setInboxSelecionada(String(inboxId));
+            setContatoParaDetalhar(contatoCriado);
+            setPainelContatoAberto(false);
+            buscarConversas(abaAtiva);
+
+            if (conversaCriada?.id) {
+              abrirConversa(conversaCriada.id);
+              definirFeedback('Contato criado e conversa iniciada com sucesso.');
+              return;
+            }
+          }
+
+          setVisaoAtiva('contatos');
+          setContatoParaDetalhar(contatoCriado);
+          setPainelContatoAberto(true);
+          window.alert(conversaData?.message || 'Contato criado, mas nao foi possivel abrir a conversa automaticamente.');
+          return;
+        }
+
+        setVisaoAtiva('contatos');
+        return;
       }
+
+      window.alert(data?.message || 'Nao foi possivel criar o contato.');
     } catch (error) {
       console.error(error);
+      window.alert('Falha ao criar o contato.');
     }
   };
 
@@ -1651,13 +1707,16 @@ const InboxPage = () => {
                     </option>
                   ))}
                 </select>
+                <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.5, color: '#6b7d96' }}>
+                  Depois do cadastro, o NIC tenta abrir a conversa automaticamente para voce iniciar o atendimento.
+                </div>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="button" onClick={() => setModalAberto(false)} style={{ ...styles.secondaryButton, flex: 1 }}>
                   Cancelar
                 </button>
                 <button type="submit" style={{ ...styles.primaryButton, flex: 1 }}>
-                  Criar Contato
+                  Criar e abrir conversa
                 </button>
               </div>
             </form>
@@ -1666,14 +1725,20 @@ const InboxPage = () => {
       ) : null}
 
       {modalTemplatesAberto ? (
-        <div style={styles.modalOverlay}>
+        <div
+          style={{
+            ...styles.modalOverlay,
+            paddingTop: modalTemplatesUltraCompacto ? '12px' : '24px',
+            paddingRight: modalTemplatesUltraCompacto ? '12px' : '24px',
+            paddingBottom: modalTemplatesUltraCompacto ? '12px' : '24px',
+            paddingLeft: larguraSidebarLayout > 0 ? `${larguraSidebarLayout + 24}px` : modalTemplatesUltraCompacto ? '12px' : '24px',
+            boxSizing: 'border-box',
+          }}
+        >
           <div
             style={{
-              width: modalTemplatesUltraCompacto
-                ? 'min(100%, calc(100vw - 16px))'
-                : modalTemplatesEmpilhado
-                  ? 'min(900px, calc(100vw - 40px))'
-                  : 'min(1020px, calc(100vw - 48px))',
+              width: '100%',
+              maxWidth: modalTemplatesUltraCompacto ? '100%' : modalTemplatesEmpilhado ? '840px' : '940px',
               maxHeight: 'min(88vh, 860px)',
               borderRadius: '24px',
               backgroundColor: '#101820',
@@ -1695,8 +1760,8 @@ const InboxPage = () => {
               }}
             >
               <div>
-                <div style={{ fontSize: modalTemplatesUltraCompacto ? '24px' : modalTemplatesEmpilhado ? '30px' : '34px', fontWeight: 800, lineHeight: 1.1 }}>Templates do WhatsApp</div>
-                <div style={{ marginTop: '8px', color: '#94a3b8' }}>Selecione um template, preencha as variaveis e envie quando estiver pronto.</div>
+                <div style={{ fontSize: modalTemplatesUltraCompacto ? '22px' : modalTemplatesEmpilhado ? '27px' : '32px', fontWeight: 800, lineHeight: 1.1, maxWidth: '100%', overflowWrap: 'anywhere' }}>Templates do WhatsApp</div>
+                <div style={{ marginTop: '8px', color: '#94a3b8', fontSize: modalTemplatesUltraCompacto ? '13px' : '14px', lineHeight: 1.5, maxWidth: '100%' }}>Selecione um template, preencha as variaveis e envie quando estiver pronto.</div>
               </div>
               <button type="button" style={{ border: 'none', background: 'transparent', color: '#cbd5e1', fontSize: '28px', lineHeight: 1, cursor: 'pointer' }} onClick={() => setModalTemplatesAberto(false)}>
                 x
@@ -1706,7 +1771,7 @@ const InboxPage = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '280px minmax(0, 1fr)',
+                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '248px minmax(0, 1fr)',
                 minHeight: 0,
                 flex: 1,
                 overflow: 'hidden',
@@ -1722,7 +1787,7 @@ const InboxPage = () => {
                   gap: '14px',
                   minWidth: 0,
                   minHeight: 0,
-                  maxHeight: modalTemplatesEmpilhado ? '30vh' : 'none',
+                  maxHeight: modalTemplatesEmpilhado ? '28vh' : 'none',
                 }}
               >
                 <input
@@ -1732,7 +1797,7 @@ const InboxPage = () => {
                   placeholder="Pesquisar modelos"
                   style={{
                     width: '100%',
-                    padding: '13px 14px',
+                    padding: modalTemplatesUltraCompacto ? '12px 13px' : '13px 14px',
                     borderRadius: '14px',
                     border: '1px solid rgba(148, 163, 184, 0.16)',
                     backgroundColor: '#17212b',
@@ -1756,20 +1821,37 @@ const InboxPage = () => {
                           <div
                             key={template.id || template.name}
                             style={{
-                              padding: '14px',
-                              borderRadius: '16px',
+                              padding: modalTemplatesUltraCompacto ? '0 12px' : '0 14px',
+                              borderRadius: '14px',
                               border: ativo ? '1px solid rgba(96, 165, 250, 0.75)' : '1px solid rgba(148, 163, 184, 0.12)',
                               backgroundColor: ativo ? '#162235' : '#141d26',
                               cursor: 'pointer',
                               overflow: 'hidden',
+                              minHeight: modalTemplatesUltraCompacto ? '46px' : '50px',
+                              display: 'flex',
+                              flexDirection: 'row',
+                              justifyContent: 'flex-start',
+                              alignItems: 'center',
                             }}
                             onClick={() => prepararTemplate(template)}
                           >
-                            <div style={{ fontWeight: 700, fontSize: '15px', color: '#f8fafc', lineHeight: 1.4, overflowWrap: 'anywhere' }}>{template.name}</div>
-                            <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.6, color: '#94a3b8', overflowWrap: 'anywhere' }}>
-                              {getTextoTemplate(template).slice(0, 132)}
-                              {getTextoTemplate(template).length > 132 ? '...' : ''}
-                            </div>
+                            <span
+                              style={{
+                                display: 'block',
+                                width: '100%',
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                fontWeight: 700,
+                                fontSize: modalTemplatesUltraCompacto ? '12px' : '13px',
+                                lineHeight: 1.2,
+                                color: '#f8fafc',
+                              }}
+                              title={template.name}
+                            >
+                              {template.name}
+                            </span>
                           </div>
                         );
                       })
@@ -1792,7 +1874,7 @@ const InboxPage = () => {
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-start' }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: modalTemplatesUltraCompacto ? '22px' : '26px', fontWeight: 800, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{templateSelecionado.name}</div>
+                        <div style={{ fontSize: modalTemplatesUltraCompacto ? '20px' : '24px', fontWeight: 800, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{templateSelecionado.name}</div>
                         <div style={{ marginTop: '6px', color: '#94a3b8' }}>Idioma: {templateSelecionado.language || 'pt_BR'}</div>
                       </div>
                       <div style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#162235', color: '#93c5fd', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>

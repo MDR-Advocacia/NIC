@@ -431,6 +431,12 @@ const CaseDetailPage = () => {
                             <span>Valor atual trabalhado</span>
                         </div>
 
+                        <div className={styles.valueBlock} style={{marginTop:'10px'}}>
+                            <label>Data do Fechamento do Acordo</label>
+                            <p>{formatDate(legalCase.agreement_closed_at)}</p>
+                            <span>Data real considerada pelo dashboard</span>
+                        </div>
+
                         {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
                             <div className={styles.valueBlock} style={{ background: 'rgba(217, 119, 6, 0.12)', border: '1px solid #d97706', marginTop: '10px' }}>
                                 <label>Ourocap</label>

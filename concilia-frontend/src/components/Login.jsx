@@ -56,7 +56,7 @@ const Login = () => {
           <FaEnvelope className={styles.icon} />
           <input
             type="email"
-            placeholder="E-mail Corporativo"
+            placeholder="Email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required

@@ -11,6 +11,7 @@ import {
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
+import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -19,7 +20,7 @@ import {
     LEGAL_CASE_STATUS_OPTIONS,
     getLegalCaseStatusDetails,
 } from '../constants/legalCaseStatus';
-import { canAccessCaseCreation, isIndicatorRole } from '../constants/access';
+import { canAccessCaseCreation, isIndicatorRole, normalizeUserRole } from '../constants/access';
 import { formatLiveloPoints } from '../constants/settlementBenefit';
 
 // --- COMPONENTES AUXILIARES ---
@@ -156,8 +157,11 @@ const renderSettlementTerms = (legalCase, formatCurrency) => {
 const CaseManagementPage = () => {
     // Adicionado 'user' para verificar a role
     const { token, user } = useAuth();
+    const normalizedUserRole = normalizeUserRole(user?.role);
     const isIndicator = isIndicatorRole(user?.role);
     const canUseBatchActions = !isIndicator;
+    const canDeleteCases = ['administrador', 'admin'].includes(normalizedUserRole);
+    const canManageSavedTags = ['administrador', 'admin'].includes(normalizedUserRole);
     
     const [cases, setCases] = useState([]);
     const [lawyers, setLawyers] = useState([]);
@@ -310,6 +314,45 @@ const CaseManagementPage = () => {
         setFilters({ ...INITIAL_FILTERS });
     };
 
+    const handleSelectSavedTagFilter = (tag) => {
+        const tagText = tag?.text || tag?.name || '';
+        setFilters((prev) => ({
+            ...prev,
+            tag: prev.tag === tagText ? '' : tagText,
+        }));
+    };
+
+    const handleDeleteSavedTag = async (tagToDelete) => {
+        if (!tagToDelete?.id) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Tem certeza que deseja excluir a etiqueta "${tagToDelete.text || tagToDelete.name}"?\n\nEssa ação removerá a etiqueta do catálogo e de todos os casos que a utilizam.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await apiClient.delete(`/case-tags/${tagToDelete.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+            setFilters((prev) => ({
+                ...prev,
+                tag: prev.tag === (tagToDelete.text || tagToDelete.name) ? '' : prev.tag,
+            }));
+            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+            fetchCases();
+        } catch (err) {
+            console.error('Erro ao excluir etiqueta salva:', err);
+            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+        }
+    };
+
     const handleSelectAll = (e) => {
         const visibleIds = cases.map((legalCase) => legalCase.id).filter(Boolean);
 
@@ -334,7 +377,12 @@ const CaseManagementPage = () => {
     const executeBatchUpdate = async (action, value) => {
         const isUnassignTransfer = action === 'transfer_user' && value === UNASSIGNED_RESPONSIBLE_VALUE;
         if ((!value || value === '') && action !== 'delete' && !isUnassignTransfer) return;
-        if (!window.confirm(`Aplicar alteração em ${selectedCaseIds.length} processos?`)) return;
+
+        const confirmMessage = action === 'delete'
+            ? `Tem certeza que deseja excluir ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?\n\nEssa ação não pode ser desfeita e removerá os casos definitivamente.`
+            : `Aplicar alteração em ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?`;
+
+        if (!window.confirm(confirmMessage)) return;
 
         setIsBatchProcessing(true);
         try {
@@ -350,19 +398,24 @@ const CaseManagementPage = () => {
             fetchCases(); 
         } catch (err) {
             console.error(err);
-            alert('Erro ao processar lote.');
+            alert(err?.response?.data?.message || 'Erro ao processar lote.');
         } finally {
             setIsBatchProcessing(false);
         }
     };
 
-    const handleDeleteCase = async (caseId) => {
-        if (window.confirm('Tem certeza que deseja excluir?')) {
+    const handleDeleteCase = async (legalCase) => {
+        const caseLabel = legalCase?.case_number || `#${legalCase?.id}`;
+        const confirmMessage = `Tem certeza que deseja excluir o processo ${caseLabel}?\n\nEssa ação não pode ser desfeita.`;
+
+        if (window.confirm(confirmMessage)) {
             try {
-                await apiClient.delete(`/cases/${caseId}`, { headers: { Authorization: `Bearer ${token}` } });
-                setCases(prev => prev.filter(c => c.id !== caseId));
-                setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => id !== caseId));
-            } catch (err) { alert('Erro ao excluir.'); }
+                await apiClient.delete(`/cases/${legalCase.id}`, { headers: { Authorization: `Bearer ${token}` } });
+                setCases(prev => prev.filter(c => c.id !== legalCase.id));
+                setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => id !== legalCase.id));
+            } catch (err) {
+                alert(err?.response?.data?.message || 'Erro ao excluir.');
+            }
         }
     };
 
@@ -701,6 +754,19 @@ const CaseManagementPage = () => {
                     )}
                 </div>
 
+                <SavedCaseTagsPanel
+                    tags={savedTags}
+                    title="Etiquetas salvas"
+                    subtitle="Clique para aplicar rapidamente no filtro. Administradores podem excluir etiquetas do catálogo por aqui."
+                    onSelectTag={handleSelectSavedTagFilter}
+                    onDeleteTag={handleDeleteSavedTag}
+                    canDelete={canManageSavedTags}
+                    selectedValue={filters.tag}
+                    selectionMode="filter"
+                    compact
+                    emptyMessage="Nenhuma etiqueta salva cadastrada até o momento."
+                />
+
                 <div className={styles.filtersFooter}>
                     <div className={styles.filtersSummary}>
                         {activeFilterCount > 0 ? (
@@ -837,8 +903,8 @@ const CaseManagementPage = () => {
                                                         )}
                                                         
                                                         {/* SÓ MOSTRA SE FOR ADMIN */}
-                                                        {user?.role === 'admin' && !isIndicator && (
-                                                            <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase.id)}>
+                                                        {canDeleteCases && !isIndicator && (
+                                                            <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase)}>
                                                                 <FaTrash />
                                                             </span>
                                                         )}
@@ -923,8 +989,12 @@ const CaseManagementPage = () => {
                                 </button>
                                 
                                 {/* SÓ MOSTRA SE FOR ADMIN */}
-                                {user?.role === 'admin' && (
-                                    <button className={`${styles.batchBtn} ${styles.btnDanger}`} onClick={() => executeBatchUpdate('delete')}>
+                                {canDeleteCases && (
+                                    <button
+                                        className={`${styles.batchBtn} ${styles.btnDanger}`}
+                                        onClick={() => executeBatchUpdate('delete')}
+                                        disabled={isBatchProcessing}
+                                    >
                                         <FaTrashAlt /> Excluir
                                     </button>
                                 )}

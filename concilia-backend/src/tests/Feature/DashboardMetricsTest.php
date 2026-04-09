@@ -403,6 +403,90 @@ class DashboardMetricsTest extends TestCase
             ->assertJsonPath('recent_cases.data.1.recent_alcada_event_type', 'created');
     }
 
+    public function test_dashboard_uses_agreement_closed_at_for_closed_deal_timeline_metrics(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-04-09 12:00:00'));
+
+        try {
+            $manager = User::factory()->create([
+                'role' => 'administrador',
+                'status' => 'ativo',
+            ]);
+
+            $operator = User::factory()->create([
+                'role' => 'operador',
+                'status' => 'ativo',
+            ]);
+
+            Sanctum::actingAs($manager);
+
+            $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, 'CLOSE-DATE-REAL', [
+                'agreement_value' => 950,
+                'created_at' => Carbon::parse('2026-04-01 09:00:00'),
+                'updated_at' => Carbon::parse('2026-02-10 14:00:00'),
+                'agreement_closed_at' => '2026-04-09',
+            ]);
+
+            $response = $this->getJson('/api/dashboard?start_date=2026-04-01&end_date=2026-04-30');
+
+            $response
+                ->assertOk()
+                ->assertJsonPath('kpis.closed_deals_today', 1)
+                ->assertJsonPath('monthly_evolution.closed.11', 1);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_dashboard_separates_portfolio_and_closing_periods(): void
+    {
+        $manager = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $operator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_IN_NEGOTIATION, 'PORTFOLIO-ONLY', [
+            'original_value' => 1800,
+            'cause_value' => 1800,
+            'created_at' => Carbon::parse('2026-03-08 09:00:00'),
+        ]);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, 'CLOSING-ONLY', [
+            'state' => 'SP',
+            'original_value' => 2500,
+            'agreement_value' => 1500,
+            'created_at' => Carbon::parse('2026-02-20 09:00:00'),
+            'updated_at' => Carbon::parse('2026-04-06 10:00:00'),
+            'agreement_closed_at' => '2026-04-06',
+        ]);
+
+        $response = $this->getJson(
+            '/api/dashboard?portfolio_start_date=2026-03-01&portfolio_end_date=2026-03-31'
+            . '&closing_start_date=2026-04-01&closing_end_date=2026-04-30'
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('kpis.total_cases', 1)
+            ->assertJsonPath('kpis.active_cases', 1)
+            ->assertJsonPath('kpis.total_original_value', 1800.0)
+            ->assertJsonPath('kpis.total_agreement_value', 1500.0)
+            ->assertJsonPath('kpis.total_economy', 1000.0)
+            ->assertJsonPath('kpis.closed_deals_today', 1)
+            ->assertJsonFragment([
+                'uf' => 'SP',
+                'name' => 'Sao Paulo',
+                'count' => 1,
+            ]);
+    }
+
     private function createLegalCase(User $operator, string $status, string $caseNumber, array $overrides = []): LegalCase
     {
         $client = Client::firstOrCreate([
@@ -425,6 +509,11 @@ class DashboardMetricsTest extends TestCase
             'created_at',
             'updated_at',
         ])));
+
+        if ($status === LegalCase::STATUS_CLOSED_DEAL && !array_key_exists('agreement_closed_at', $payload)) {
+            $referenceDate = $overrides['updated_at'] ?? $overrides['created_at'] ?? now();
+            $payload['agreement_closed_at'] = Carbon::parse($referenceDate)->toDateString();
+        }
 
         $legalCase = LegalCase::create($payload);
 

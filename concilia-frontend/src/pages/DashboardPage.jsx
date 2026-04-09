@@ -75,8 +75,10 @@ const DashboardPage = () => {
     const [error, setError] = useState('');
 
     // Filtros
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [portfolioStartDate, setPortfolioStartDate] = useState('');
+    const [portfolioEndDate, setPortfolioEndDate] = useState('');
+    const [closingStartDate, setClosingStartDate] = useState('');
+    const [closingEndDate, setClosingEndDate] = useState('');
     const [selectedClient, setSelectedClient] = useState('');
     const [selectedLawyer, setSelectedLawyer] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('');
@@ -89,7 +91,15 @@ const DashboardPage = () => {
     const [modalStatusKey, setModalStatusKey] = useState(null);
     const [modalStatusName, setModalStatusName] = useState('');
 
-    const activeFilterCount = [startDate, endDate, selectedClient, selectedLawyer, selectedStatus]
+    const activeFilterCount = [
+        portfolioStartDate,
+        portfolioEndDate,
+        closingStartDate,
+        closingEndDate,
+        selectedClient,
+        selectedLawyer,
+        selectedStatus,
+    ]
         .filter(Boolean)
         .length;
 
@@ -106,13 +116,30 @@ const DashboardPage = () => {
         return new Intl.DateTimeFormat('pt-BR').format(parsedDate);
     };
 
+    const buildDateRangeChip = (label, startValue, endValue) => {
+        if (!startValue && !endValue) {
+            return null;
+        }
+
+        if (startValue && endValue) {
+            return `${label}: ${formatFilterDate(startValue)} a ${formatFilterDate(endValue)}`;
+        }
+
+        if (startValue) {
+            return `${label}: a partir de ${formatFilterDate(startValue)}`;
+        }
+
+        return `${label}: até ${formatFilterDate(endValue)}`;
+    };
+
     const selectedClientName = clients.find((client) => String(client.id) === String(selectedClient))?.name;
     const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(selectedLawyer))?.name;
     const selectedStatusName = LEGAL_CASE_STATUS_OPTIONS.find((statusOption) => statusOption.value === selectedStatus)?.name;
+    const hasClosingDateFilter = Boolean(closingStartDate || closingEndDate);
 
     const activeFilterChips = [
-        startDate ? `A partir de ${formatFilterDate(startDate)}` : null,
-        endDate ? `Até ${formatFilterDate(endDate)}` : null,
+        buildDateRangeChip('Carteira', portfolioStartDate, portfolioEndDate),
+        buildDateRangeChip('Fechamento', closingStartDate, closingEndDate),
         selectedClientName ? `Cliente: ${selectedClientName}` : null,
         selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
         selectedStatusName ? `Status: ${selectedStatusName}` : null,
@@ -146,8 +173,10 @@ const DashboardPage = () => {
     }, [token, isManager]);
 
     const fetchDashboardData = useCallback(async ({
-        startDate: filterStartDate = '',
-        endDate: filterEndDate = '',
+        portfolioStartDate: filterPortfolioStartDate = '',
+        portfolioEndDate: filterPortfolioEndDate = '',
+        closingStartDate: filterClosingStartDate = '',
+        closingEndDate: filterClosingEndDate = '',
         selectedClient: filterClient = '',
         selectedLawyer: filterLawyer = '',
         selectedStatus: filterStatus = '',
@@ -161,8 +190,10 @@ const DashboardPage = () => {
 
         try {
             const params = new URLSearchParams();
-            if (filterStartDate) params.append('start_date', filterStartDate);
-            if (filterEndDate) params.append('end_date', filterEndDate);
+            if (filterPortfolioStartDate) params.append('portfolio_start_date', filterPortfolioStartDate);
+            if (filterPortfolioEndDate) params.append('portfolio_end_date', filterPortfolioEndDate);
+            if (filterClosingStartDate) params.append('closing_start_date', filterClosingStartDate);
+            if (filterClosingEndDate) params.append('closing_end_date', filterClosingEndDate);
 
             if (isManager) {
                 if (filterClient) params.append('client_id', filterClient);
@@ -213,19 +244,33 @@ const DashboardPage = () => {
     const handleApplyFilters = useCallback(() => {
         setRecentCasesPage(1);
         fetchDashboardData({
-            startDate,
-            endDate,
+            portfolioStartDate,
+            portfolioEndDate,
+            closingStartDate,
+            closingEndDate,
             selectedClient,
             selectedLawyer,
             selectedStatus,
             recentCasesPage: 1,
             recentCasesPerPage,
         });
-    }, [fetchDashboardData, startDate, endDate, selectedClient, selectedLawyer, selectedStatus, recentCasesPerPage]);
+    }, [
+        fetchDashboardData,
+        portfolioStartDate,
+        portfolioEndDate,
+        closingStartDate,
+        closingEndDate,
+        selectedClient,
+        selectedLawyer,
+        selectedStatus,
+        recentCasesPerPage,
+    ]);
 
     const handleResetFilters = useCallback(() => {
-        setStartDate('');
-        setEndDate('');
+        setPortfolioStartDate('');
+        setPortfolioEndDate('');
+        setClosingStartDate('');
+        setClosingEndDate('');
         setSelectedClient('');
         setSelectedLawyer('');
         setSelectedStatus('');
@@ -244,15 +289,27 @@ const DashboardPage = () => {
         setRecentCasesPerPage(nextPerPage);
         setRecentCasesPage(1);
         fetchDashboardData({
-            startDate,
-            endDate,
+            portfolioStartDate,
+            portfolioEndDate,
+            closingStartDate,
+            closingEndDate,
             selectedClient,
             selectedLawyer,
             selectedStatus,
             recentCasesPage: 1,
             recentCasesPerPage: nextPerPage,
         });
-    }, [fetchDashboardData, recentCasesPerPage, startDate, endDate, selectedClient, selectedLawyer, selectedStatus]);
+    }, [
+        fetchDashboardData,
+        recentCasesPerPage,
+        portfolioStartDate,
+        portfolioEndDate,
+        closingStartDate,
+        closingEndDate,
+        selectedClient,
+        selectedLawyer,
+        selectedStatus,
+    ]);
 
     const handleRecentCasesPageChange = useCallback((nextPage) => {
         if (nextPage < 1 || nextPage > recentCasesMeta.lastPage || nextPage === recentCasesPage) {
@@ -261,8 +318,10 @@ const DashboardPage = () => {
 
         setRecentCasesPage(nextPage);
         fetchDashboardData({
-            startDate,
-            endDate,
+            portfolioStartDate,
+            portfolioEndDate,
+            closingStartDate,
+            closingEndDate,
             selectedClient,
             selectedLawyer,
             selectedStatus,
@@ -274,8 +333,10 @@ const DashboardPage = () => {
         recentCasesMeta.lastPage,
         recentCasesPage,
         recentCasesPerPage,
-        startDate,
-        endDate,
+        portfolioStartDate,
+        portfolioEndDate,
+        closingStartDate,
+        closingEndDate,
         selectedClient,
         selectedLawyer,
         selectedStatus,
@@ -350,7 +411,7 @@ const DashboardPage = () => {
         total_economy: "Economia gerada",
         total_cases: "Casos Totais",
         active_cases: "Casos Ativos",
-        closed_deals_today: "Acordos Fechados Hoje",
+        closed_deals_today: hasClosingDateFilter ? "Acordos Fechados no Período" : "Acordos Fechados Hoje",
         average_ticket: "Ticket Médio",
         livelo_closed_deals: "Acordos Livelo",
         ourocap_closed_deals: "Acordos Ourocap",
@@ -412,7 +473,7 @@ const DashboardPage = () => {
                             <div>
                                 <h2 className={styles.filtersTitle}>Filtros do Dashboard</h2>
                                 <p className={styles.filtersSubtitle}>
-                                    Ajuste a leitura dos indicadores por período, cliente, responsável e etapa do caso.
+                                    Separe a leitura entre carteira em andamento e acordos já fechados, mantendo cliente, responsável e status no mesmo painel.
                                 </p>
                             </div>
                         </div>
@@ -423,33 +484,85 @@ const DashboardPage = () => {
                         </div>
                     </div>
 
+                    <div className={styles.filterGroups}>
+                        <section className={styles.filterGroupCard}>
+                            <div className={styles.filterGroupHeader}>
+                                <span className={styles.filterGroupEyebrow}>Carteira</span>
+                                <h3 className={styles.filterGroupTitle}>Período da carteira</h3>
+                                <p className={styles.filterGroupSubtitle}>
+                                    Afeta totais, status, performance da equipe, fluxo de indicação e casos recentes na alçada.
+                                </p>
+                            </div>
+
+                            <div className={styles.filtersGrid}>
+                                <div className={styles.filterField}>
+                                    <label className={styles.filterLabel}>
+                                        <FaCalendarAlt />
+                                        <span>Data inicial da carteira</span>
+                                    </label>
+                                    <input
+                                        className={styles.filterControl}
+                                        type="date"
+                                        value={portfolioStartDate}
+                                        onChange={(e) => setPortfolioStartDate(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className={styles.filterField}>
+                                    <label className={styles.filterLabel}>
+                                        <FaCalendarAlt />
+                                        <span>Data final da carteira</span>
+                                    </label>
+                                    <input
+                                        className={styles.filterControl}
+                                        type="date"
+                                        value={portfolioEndDate}
+                                        onChange={(e) => setPortfolioEndDate(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className={styles.filterGroupCard}>
+                            <div className={styles.filterGroupHeader}>
+                                <span className={styles.filterGroupEyebrow}>Fechamento</span>
+                                <h3 className={styles.filterGroupTitle}>Período de fechamento</h3>
+                                <p className={styles.filterGroupSubtitle}>
+                                    Usa a data real do fechamento do acordo para valores, economia, ticket e visões de acordos fechados.
+                                </p>
+                            </div>
+
+                            <div className={styles.filtersGrid}>
+                                <div className={styles.filterField}>
+                                    <label className={styles.filterLabel}>
+                                        <FaCalendarAlt />
+                                        <span>Data inicial do fechamento</span>
+                                    </label>
+                                    <input
+                                        className={styles.filterControl}
+                                        type="date"
+                                        value={closingStartDate}
+                                        onChange={(e) => setClosingStartDate(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className={styles.filterField}>
+                                    <label className={styles.filterLabel}>
+                                        <FaCalendarAlt />
+                                        <span>Data final do fechamento</span>
+                                    </label>
+                                    <input
+                                        className={styles.filterControl}
+                                        type="date"
+                                        value={closingEndDate}
+                                        onChange={(e) => setClosingEndDate(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
                     <div className={styles.filtersGrid}>
-                        <div className={styles.filterField}>
-                            <label className={styles.filterLabel}>
-                                <FaCalendarAlt />
-                                <span>Data inicial</span>
-                            </label>
-                            <input
-                                className={styles.filterControl}
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                            />
-                        </div>
-
-                        <div className={styles.filterField}>
-                            <label className={styles.filterLabel}>
-                                <FaCalendarAlt />
-                                <span>Data final</span>
-                            </label>
-                            <input
-                                className={styles.filterControl}
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                            />
-                        </div>
-
                         <div className={styles.filterField}>
                             <label className={styles.filterLabel}>
                                 <FaBuilding />
@@ -536,7 +649,9 @@ const DashboardPage = () => {
                     <section className={styles.kpiSection}>
                         <div className={styles.kpiSectionHeader}>
                             <h3 className={styles.kpiSectionTitle}>Visão Geral de Acordos</h3>
-                            <p className={styles.kpiSectionSubtitle}>Indicadores dos casos com alçada na gestão de casos.</p>
+                            <p className={styles.kpiSectionSubtitle}>
+                                Casos, status e conversão seguem o período da carteira; métricas de acordo fechado respeitam a data real do fechamento.
+                            </p>
                         </div>
                         {renderKpiGrid(dashboardData?.kpis, GENERAL_KPI_ORDER)}
                     </section>
