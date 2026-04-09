@@ -54,26 +54,30 @@ class DashboardController extends Controller
             return response()->json(['message' => 'Acesso negado.'], 403);
         }
 
-        $dateRange = $this->resolveDateRange($request);
+        $portfolioDateRange = $this->resolveDateRange(
+            $request,
+            'portfolio_start_date',
+            'portfolio_end_date',
+            ['start_date', 'end_date']
+        );
+        $closingDateRange = $this->resolveDateRange(
+            $request,
+            'closing_start_date',
+            'closing_end_date',
+            ['start_date', 'end_date']
+        );
         $todayRange = $this->resolveTodayRange();
-        $baseCasesQuery = $this->newFilteredCaseQuery($request, $user, $dateRange);
+        $portfolioCasesQuery = $this->newFilteredCaseQuery($request, $user, $portfolioDateRange);
+        $closedDealsQuery = $this->newClosedDealsQuery($request, $user, $closingDateRange, 'agreement_closed_at');
+        $closedDealsWindowRange = $this->dateRangeHasBounds($closingDateRange) ? $closingDateRange : $todayRange;
 
-        $kpiRow = (clone $baseCasesQuery)
+        $portfolioKpiRow = (clone $portfolioCasesQuery)
             ->selectRaw('COUNT(*) as total_cases')
             ->selectRaw(
                 'COALESCE(SUM(CASE WHEN status <> ? THEN 1 ELSE 0 END), 0) as worked_cases',
                 [LegalCase::STATUS_INITIAL_ANALYSIS]
             )
-            ->selectRaw('COALESCE(SUM(COALESCE(agreement_value, 0)), 0) as total_agreement_value')
             ->selectRaw('COALESCE(SUM(COALESCE(original_value, 0)), 0) as total_original_value')
-            ->selectRaw(
-                'COALESCE(AVG(CASE WHEN status = ? AND COALESCE(agreement_value, 0) > 0 THEN agreement_value END), 0) as average_ticket',
-                [LegalCase::STATUS_CLOSED_DEAL]
-            )
-            ->selectRaw(
-                'COALESCE(SUM(CASE WHEN status = ? THEN COALESCE(original_value, 0) - COALESCE(agreement_value, 0) ELSE 0 END), 0) as total_economy',
-                [LegalCase::STATUS_CLOSED_DEAL]
-            )
             ->selectRaw(
                 'COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as closed_cases',
                 [LegalCase::STATUS_CLOSED_DEAL]
@@ -82,33 +86,41 @@ class DashboardController extends Controller
                 'COALESCE(SUM(CASE WHEN status NOT IN (?, ?, ?) THEN 1 ELSE 0 END), 0) as active_cases',
                 LegalCase::TERMINAL_STATUSES
             )
+            ->first();
+
+        $closedDealsKpiRow = (clone $closedDealsQuery)
+            ->selectRaw('COUNT(*) as total_closed_deals')
+            ->selectRaw('COALESCE(SUM(COALESCE(agreement_value, 0)), 0) as total_agreement_value')
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN status = ? AND updated_at BETWEEN ? AND ? THEN 1 ELSE 0 END), 0) as closed_deals_today',
-                [LegalCase::STATUS_CLOSED_DEAL, $todayRange['start'], $todayRange['end']]
+                'COALESCE(AVG(CASE WHEN COALESCE(agreement_value, 0) > 0 THEN agreement_value END), 0) as average_ticket'
             )
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN status = ? AND COALESCE(livelo_points, 0) > 0 THEN 1 ELSE 0 END), 0) as livelo_closed_deals',
-                [LegalCase::STATUS_CLOSED_DEAL]
+                'COALESCE(SUM(COALESCE(original_value, 0) - COALESCE(agreement_value, 0)), 0) as total_economy'
             )
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN status = ? AND COALESCE(ourocap_value, 0) > 0 THEN 1 ELSE 0 END), 0) as ourocap_closed_deals',
-                [LegalCase::STATUS_CLOSED_DEAL]
+                'COALESCE(SUM(CASE WHEN COALESCE(livelo_points, 0) > 0 THEN 1 ELSE 0 END), 0) as livelo_closed_deals'
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN COALESCE(ourocap_value, 0) > 0 THEN 1 ELSE 0 END), 0) as ourocap_closed_deals'
             )
             ->first();
 
-        $totalCases = (int) ($kpiRow->total_cases ?? 0);
-        $workedCases = (int) ($kpiRow->worked_cases ?? 0);
-        $closedCases = (int) ($kpiRow->closed_cases ?? 0);
+        $closedDealsInWindow = $this->newClosedDealsQuery($request, $user, $closedDealsWindowRange, 'agreement_closed_at')
+            ->count();
+
+        $totalCases = (int) ($portfolioKpiRow->total_cases ?? 0);
+        $workedCases = (int) ($portfolioKpiRow->worked_cases ?? 0);
+        $closedCases = (int) ($portfolioKpiRow->closed_cases ?? 0);
         $conversionRate = $workedCases > 0 ? ($closedCases / $workedCases) * 100 : 0;
 
-        $statusCounts = (clone $baseCasesQuery)
+        $statusCounts = (clone $portfolioCasesQuery)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
 
         $indicationCasesQuery = LegalCase::query();
-        $this->applyCaseFilters($indicationCasesQuery, $request, $user, $dateRange, null);
-        $this->applyIndicationFilter($indicationCasesQuery, $dateRange);
+        $this->applyCaseFilters($indicationCasesQuery, $request, $user, $portfolioDateRange, null);
+        $this->applyIndicationFilter($indicationCasesQuery, $portfolioDateRange);
 
         $indicationKpiRow = $indicationCasesQuery
             ->selectRaw('COUNT(*) as indications_received')
@@ -123,21 +135,21 @@ class DashboardController extends Controller
         $indicationFlowConversionRate = $indicationsReceived > 0
             ? ($agreementsViaIndication / $indicationsReceived) * 100
             : 0;
-        $indicatorLeaderboard = $this->buildIndicatorLeaderboard($request, $user, $dateRange);
-        $recentCases = $this->buildRecentCases($request, $user, $dateRange);
+        $indicatorLeaderboard = $this->buildIndicatorLeaderboard($request, $user, $portfolioDateRange);
+        $recentCases = $this->buildRecentCases($request, $user, $portfolioDateRange);
 
         return response()->json([
             'kpis' => [
                 'total_cases' => $totalCases,
                 'worked_cases' => $workedCases,
-                'active_cases' => (int) ($kpiRow->active_cases ?? 0),
-                'closed_deals_today' => (int) ($kpiRow->closed_deals_today ?? 0),
-                'total_agreement_value' => (float) ($kpiRow->total_agreement_value ?? 0),
-                'total_original_value' => (float) ($kpiRow->total_original_value ?? 0),
-                'average_ticket' => (float) ($kpiRow->average_ticket ?? 0),
-                'total_economy' => (float) ($kpiRow->total_economy ?? 0),
-                'livelo_closed_deals' => (int) ($kpiRow->livelo_closed_deals ?? 0),
-                'ourocap_closed_deals' => (int) ($kpiRow->ourocap_closed_deals ?? 0),
+                'active_cases' => (int) ($portfolioKpiRow->active_cases ?? 0),
+                'closed_deals_today' => $closedDealsInWindow,
+                'total_agreement_value' => (float) ($closedDealsKpiRow->total_agreement_value ?? 0),
+                'total_original_value' => (float) ($portfolioKpiRow->total_original_value ?? 0),
+                'average_ticket' => (float) ($closedDealsKpiRow->average_ticket ?? 0),
+                'total_economy' => (float) ($closedDealsKpiRow->total_economy ?? 0),
+                'livelo_closed_deals' => (int) ($closedDealsKpiRow->livelo_closed_deals ?? 0),
+                'ourocap_closed_deals' => (int) ($closedDealsKpiRow->ourocap_closed_deals ?? 0),
                 'conversion_rate' => number_format($conversionRate, 1),
             ],
             'indication_metrics' => [
@@ -154,11 +166,11 @@ class DashboardController extends Controller
                 LegalCase::STATUS_CLOSED_DEAL => (int) ($statusCounts[LegalCase::STATUS_CLOSED_DEAL] ?? 0),
                 LegalCase::STATUS_FAILED_DEAL => (int) ($statusCounts[LegalCase::STATUS_FAILED_DEAL] ?? 0),
             ],
-            'monthly_evolution' => $this->buildMonthlyEvolution($request, $user, $dateRange),
-            'agreements_by_state' => $this->buildAgreementsByState($request, $user, $dateRange),
-            'agreement_macro_distribution' => $this->buildAgreementMacroDistribution($request, $user, $dateRange),
+            'monthly_evolution' => $this->buildMonthlyEvolution($request, $user, $portfolioDateRange, $closingDateRange),
+            'agreements_by_state' => $this->buildAgreementsByState($request, $user, $closingDateRange),
+            'agreement_macro_distribution' => $this->buildAgreementMacroDistribution($request, $user, $closingDateRange),
             'indicator_leaderboard' => $indicatorLeaderboard,
-            'team_performance' => $this->buildTeamPerformance($request, $user, $dateRange),
+            'team_performance' => $this->buildTeamPerformance($request, $user, $portfolioDateRange),
             'recent_cases' => $recentCases,
         ]);
     }
@@ -228,24 +240,28 @@ class DashboardController extends Controller
             ->all();
     }
 
-    private function buildMonthlyEvolution(Request $request, User $user, array $dateRange): array
+    private function buildMonthlyEvolution(
+        Request $request,
+        User $user,
+        array $portfolioDateRange,
+        array $closingDateRange
+    ): array
     {
         $currentMonth = now()->startOfMonth();
         $windowStart = $currentMonth->copy()->subMonths(11);
         $windowEnd = $currentMonth->copy()->endOfMonth();
 
-        $createdCounts = $this->newFilteredCaseQuery($request, $user, $dateRange, 'created_at')
+        $createdCounts = $this->newFilteredCaseQuery($request, $user, $portfolioDateRange, 'created_at')
             ->whereBetween('created_at', [$windowStart, $windowEnd])
             ->selectRaw('YEAR(created_at) as year_number, MONTH(created_at) as month_number, COUNT(*) as total')
             ->groupByRaw('YEAR(created_at), MONTH(created_at)')
             ->get()
             ->mapWithKeys(fn ($row) => [$this->buildMonthKey((int) $row->year_number, (int) $row->month_number) => (int) $row->total]);
 
-        $closedCounts = $this->newFilteredCaseQuery($request, $user, $dateRange, 'updated_at')
-            ->where('status', LegalCase::STATUS_CLOSED_DEAL)
-            ->whereBetween('updated_at', [$windowStart, $windowEnd])
-            ->selectRaw('YEAR(updated_at) as year_number, MONTH(updated_at) as month_number, COUNT(*) as total')
-            ->groupByRaw('YEAR(updated_at), MONTH(updated_at)')
+        $closedCounts = $this->newClosedDealsQuery($request, $user, $closingDateRange, 'agreement_closed_at')
+            ->whereBetween('agreement_closed_at', [$windowStart->toDateString(), $windowEnd->toDateString()])
+            ->selectRaw('YEAR(agreement_closed_at) as year_number, MONTH(agreement_closed_at) as month_number, COUNT(*) as total')
+            ->groupByRaw('YEAR(agreement_closed_at), MONTH(agreement_closed_at)')
             ->get()
             ->mapWithKeys(fn ($row) => [$this->buildMonthKey((int) $row->year_number, (int) $row->month_number) => (int) $row->total]);
 
@@ -271,7 +287,7 @@ class DashboardController extends Controller
 
     private function buildAgreementsByState(Request $request, User $user, array $dateRange): array
     {
-        $countsByState = $this->newClosedDealsQuery($request, $user, $dateRange, 'updated_at')
+        $countsByState = $this->newClosedDealsQuery($request, $user, $dateRange, 'agreement_closed_at')
             ->whereNotNull('state')
             ->whereRaw("TRIM(state) <> ''")
             ->selectRaw('UPPER(TRIM(state)) as state_code, COUNT(*) as total')
@@ -293,7 +309,7 @@ class DashboardController extends Controller
         $savingsExpression = '(COALESCE(original_value, 0) - COALESCE(agreement_value, 0))';
 
         // As fatias precisam ser exclusivas para o grafico de pizza. A prioridade segue a ordem solicitada.
-        $distribution = $this->newClosedDealsQuery($request, $user, $dateRange, 'updated_at')
+        $distribution = $this->newClosedDealsQuery($request, $user, $dateRange, 'agreement_closed_at')
             ->selectRaw(
                 "COALESCE(SUM(CASE WHEN {$savingsExpression} > 5000 THEN 1 ELSE 0 END), 0) as high_savings"
             )
@@ -468,10 +484,11 @@ class DashboardController extends Controller
         Request $request,
         User $user,
         array $dateRange,
-        ?string $dateColumn = 'updated_at'
+        ?string $dateColumn = 'agreement_closed_at'
     ): Builder {
         $query = $this->newFilteredCaseQuery($request, $user, $dateRange, $dateColumn);
         $query->where($this->qualifyLegalCaseColumn('status'), LegalCase::STATUS_CLOSED_DEAL);
+        $query->whereNotNull($this->qualifyLegalCaseColumn('agreement_closed_at'));
 
         return $query;
     }
@@ -575,13 +592,21 @@ class DashboardController extends Controller
         }
     }
 
-    private function resolveDateRange(Request $request): array
+    private function resolveDateRange(
+        Request $request,
+        string $startKey = 'start_date',
+        string $endKey = 'end_date',
+        ?array $fallbackKeys = null
+    ): array
     {
-        $startDate = $request->filled('start_date')
-            ? Carbon::parse($request->input('start_date'))
+        $startDateInput = $this->resolveDateInput($request, $startKey, $fallbackKeys[0] ?? null);
+        $endDateInput = $this->resolveDateInput($request, $endKey, $fallbackKeys[1] ?? null);
+
+        $startDate = $startDateInput !== null
+            ? Carbon::parse($startDateInput)
             : null;
-        $endDate = $request->filled('end_date')
-            ? Carbon::parse($request->input('end_date'))
+        $endDate = $endDateInput !== null
+            ? Carbon::parse($endDateInput)
             : null;
 
         if ($startDate instanceof Carbon && $endDate instanceof Carbon && $startDate->gt($endDate)) {
@@ -592,6 +617,24 @@ class DashboardController extends Controller
             'start' => $startDate?->startOfDay(),
             'end' => $endDate?->endOfDay(),
         ];
+    }
+
+    private function resolveDateInput(Request $request, string $primaryKey, ?string $fallbackKey = null): ?string
+    {
+        if ($request->filled($primaryKey)) {
+            return $request->input($primaryKey);
+        }
+
+        if ($fallbackKey !== null && $request->filled($fallbackKey)) {
+            return $request->input($fallbackKey);
+        }
+
+        return null;
+    }
+
+    private function dateRangeHasBounds(array $dateRange): bool
+    {
+        return ($dateRange['start'] ?? null) instanceof Carbon || ($dateRange['end'] ?? null) instanceof Carbon;
     }
 
     private function resolveTodayRange(): array

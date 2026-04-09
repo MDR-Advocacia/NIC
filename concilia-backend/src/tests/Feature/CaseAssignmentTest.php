@@ -69,6 +69,58 @@ class CaseAssignmentTest extends TestCase
             ->assertJsonValidationErrors('value');
     }
 
+    public function test_administrator_can_delete_cases_in_batch(): void
+    {
+        $administrator = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $operator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($administrator);
+
+        $firstCase = $this->createLegalCase($operator, '11111111111111111');
+        $secondCase = $this->createLegalCase($operator, '22222222222222222');
+
+        $this->postJson('/api/cases/batch-update', [
+            'case_ids' => [$firstCase->id, $secondCase->id],
+            'action' => 'delete',
+        ])->assertOk()
+            ->assertJsonPath('affected_count', 2);
+
+        $this->assertDatabaseMissing('legal_cases', ['id' => $firstCase->id]);
+        $this->assertDatabaseMissing('legal_cases', ['id' => $secondCase->id]);
+    }
+
+    public function test_non_administrator_cannot_delete_cases_in_batch(): void
+    {
+        $supervisor = User::factory()->create([
+            'role' => 'supervisor',
+            'status' => 'ativo',
+        ]);
+
+        $operator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($supervisor);
+
+        $legalCase = $this->createLegalCase($operator, '33333333333333333');
+
+        $this->postJson('/api/cases/batch-update', [
+            'case_ids' => [$legalCase->id],
+            'action' => 'delete',
+        ])->assertForbidden()
+            ->assertJsonPath('message', 'Apenas administradores podem excluir processos em lote.');
+
+        $this->assertDatabaseHas('legal_cases', ['id' => $legalCase->id]);
+    }
+
     private function createLegalCase(User $operator, string $caseNumber): LegalCase
     {
         $client = Client::firstOrCreate([

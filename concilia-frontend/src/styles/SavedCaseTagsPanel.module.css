@@ -1,0 +1,151 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--border-color-light);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(247, 250, 252, 0.92) 100%);
+}
+
+.compact {
+  padding: 0.85rem;
+  border-radius: 16px;
+  gap: 0.7rem;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.tagCard {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--tag-color-border);
+  background: var(--tag-color-soft);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.tagCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+}
+
+.tagCardActive {
+  border-color: var(--tag-color);
+  background: linear-gradient(135deg, var(--tag-color-strong), var(--tag-color));
+}
+
+.tagButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.72rem 0.95rem;
+  border: none;
+  background: transparent;
+  color: var(--tag-color);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tagCardActive .tagButton {
+  color: #ffffff;
+}
+
+.tagIcon {
+  width: 1.3rem;
+  height: 1.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--tag-color);
+  font-size: 0.68rem;
+  flex-shrink: 0;
+}
+
+.tagCardActive .tagIcon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.tagText {
+  white-space: nowrap;
+}
+
+.deleteButton {
+  width: 2rem;
+  height: 2rem;
+  margin-right: 0.28rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #b91c1c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+
+.deleteButton:hover {
+  transform: scale(1.05);
+  background: #fee2e2;
+}
+
+.tagCardActive .deleteButton {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.tagCardActive .deleteButton:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.emptyState {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .panel {
+    padding: 0.9rem;
+  }
+
+  .grid {
+    gap: 0.5rem;
+  }
+
+  .tagButton {
+    padding: 0.68rem 0.85rem;
+    font-size: 0.84rem;
+  }
+}
