@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/chat/inboxes/{inboxId}/agents', [ChatController::class, 'addAgentToInbox']);
     Route::get('/chat/contacts', [ChatController::class, 'getContacts']);
     Route::post('/chat/contacts', [ChatController::class, 'createContact']);
+    Route::post('/chat/contacts/{contactId}/conversation', [ChatController::class, 'createConversationForContact']);
     Route::put('/chat/contacts/{contactId}', [ChatController::class, 'updateContact']);
 
     Route::get('/cases/{legal_case}/conversation', [ChatController::class, 'getConversationByCase']);

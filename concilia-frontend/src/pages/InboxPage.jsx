@@ -757,6 +757,13 @@ const InboxPage = () => {
     return data;
   };
 
+  const extrairConversaResposta = (data) => {
+    if (data?.payload?.id) return data.payload;
+    if (data?.data?.payload?.id) return data.data.payload;
+    if (data?.data?.id) return data.data;
+    return data;
+  };
+
   const conversaAtual = useMemo(
     () => conversas.find((conversa) => conversa.id === conversaSelecionada) || null,
     [conversas, conversaSelecionada]
@@ -1559,13 +1566,60 @@ const InboxPage = () => {
         body: JSON.stringify(novoContato),
       });
 
+      const data = await response.json();
+
       if (response.ok) {
+        const inboxId = Number(novoContato.inbox_id);
+        const contatoCriado = extrairContatoResposta(data);
+
         setModalAberto(false);
         setNovoContato({ name: '', email: '', phone_number: '', inbox_id: '' });
-        carregarDadosIniciais();
+        await carregarDadosIniciais();
+
+        if (contatoCriado?.id && inboxId) {
+          const conversaResponse = await fetch(`${API_BASE}/chat/contacts/${contatoCriado.id}/conversation`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+            body: JSON.stringify({ inbox_id: inboxId }),
+          });
+
+          const conversaData = await conversaResponse.json();
+
+          if (conversaResponse.ok) {
+            const conversaCriada = extrairConversaResposta(conversaData);
+
+            setVisaoAtiva('conversas');
+            setInboxSelecionada(String(inboxId));
+            setContatoParaDetalhar(contatoCriado);
+            setPainelContatoAberto(false);
+            buscarConversas(abaAtiva);
+
+            if (conversaCriada?.id) {
+              abrirConversa(conversaCriada.id);
+              definirFeedback('Contato criado e conversa iniciada com sucesso.');
+              return;
+            }
+          }
+
+          setVisaoAtiva('contatos');
+          setContatoParaDetalhar(contatoCriado);
+          setPainelContatoAberto(true);
+          window.alert(conversaData?.message || 'Contato criado, mas nao foi possivel abrir a conversa automaticamente.');
+          return;
+        }
+
+        setVisaoAtiva('contatos');
+        return;
       }
+
+      window.alert(data?.message || 'Nao foi possivel criar o contato.');
     } catch (error) {
       console.error(error);
+      window.alert('Falha ao criar o contato.');
     }
   };
 
@@ -1653,13 +1707,16 @@ const InboxPage = () => {
                     </option>
                   ))}
                 </select>
+                <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.5, color: '#6b7d96' }}>
+                  Depois do cadastro, o NIC tenta abrir a conversa automaticamente para voce iniciar o atendimento.
+                </div>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="button" onClick={() => setModalAberto(false)} style={{ ...styles.secondaryButton, flex: 1 }}>
                   Cancelar
                 </button>
                 <button type="submit" style={{ ...styles.primaryButton, flex: 1 }}>
-                  Criar Contato
+                  Criar e abrir conversa
                 </button>
               </div>
             </form>

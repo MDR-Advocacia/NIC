@@ -95,6 +95,45 @@ class ChatController extends Controller
         return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
     }
 
+    public function createConversationForContact(Request $request, $contactId)
+    {
+        $validated = $request->validate([
+            'inbox_id' => 'required|integer',
+        ]);
+
+        $inboxId = (int) $validated['inbox_id'];
+
+        $contactResponse = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}");
+
+        if ($contactResponse->failed()) {
+            return response()->json([
+                'message' => 'Nao foi possivel carregar o contato para iniciar a conversa.',
+                'details' => $contactResponse->json() ?? ['body' => $contactResponse->body()],
+            ], $contactResponse->status());
+        }
+
+        $contact = $this->extractChatwootContact($contactResponse->json());
+        $sourceId = $this->resolveContactInboxSourceId($contact, $inboxId);
+
+        if (blank($sourceId)) {
+            return response()->json([
+                'message' => 'O contato foi criado, mas nao foi possivel localizar o source_id da inbox para abrir a conversa.',
+                'contact' => $contact,
+            ], 422);
+        }
+
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", [
+                'source_id' => (string) $sourceId,
+                'inbox_id' => $inboxId,
+                'contact_id' => (int) $contactId,
+                'status' => 'open',
+            ]);
+
+        return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
+    }
+
     public function getInboxAgents($inboxId)
     {
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
@@ -548,6 +587,42 @@ class ChatController extends Controller
             ->filter(fn ($template) => filled($template['name']))
             ->values()
             ->all();
+    }
+
+    private function extractChatwootContact(array $data): array
+    {
+        if (is_array($data['payload']['contact'] ?? null)) {
+            return $data['payload']['contact'];
+        }
+
+        if (is_array($data['payload'] ?? null)) {
+            return $data['payload'];
+        }
+
+        if (is_array($data['contact'] ?? null)) {
+            return $data['contact'];
+        }
+
+        return $data;
+    }
+
+    private function resolveContactInboxSourceId(array $contact, int $inboxId): ?string
+    {
+        $contactInboxes = collect($contact['contact_inboxes'] ?? []);
+
+        $match = $contactInboxes->first(function ($contactInbox) use ($inboxId) {
+            $currentInboxId = data_get($contactInbox, 'inbox.id')
+                ?? data_get($contactInbox, 'inbox_id')
+                ?? data_get($contactInbox, 'source.inbox_id');
+
+            return (int) $currentInboxId === (int) $inboxId;
+        });
+
+        $sourceId = data_get($match, 'source_id')
+            ?? data_get($match, 'source.id')
+            ?? data_get($match, 'identifier');
+
+        return filled($sourceId) ? (string) $sourceId : null;
     }
 
     private function fetchMetaTemplates(?int $inboxId): array
