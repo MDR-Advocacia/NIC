@@ -7,7 +7,7 @@ import {
     FaCheckSquare, FaTrashAlt, FaTimes, 
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
-    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser
+    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
@@ -44,6 +44,7 @@ const INITIAL_FILTERS = {
     action_object: '',
     status: '',
     priority: '',
+    tag: '',
     lawyer_id: '',
     indicator_user_id: '',
 };
@@ -162,6 +163,7 @@ const CaseManagementPage = () => {
     const [lawyers, setLawyers] = useState([]);
     const [indicators, setIndicators] = useState([]);
     const [clients, setClients] = useState([]); 
+    const [savedTags, setSavedTags] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchFeedback, setSearchFeedback] = useState(null);
@@ -195,6 +197,7 @@ const CaseManagementPage = () => {
             try {
                 const requests = [
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
                 ];
 
                 if (!isIndicator) {
@@ -208,10 +211,12 @@ const CaseManagementPage = () => {
                 const usersResponse = isIndicator ? null : responses[0];
                 const indicatorsResponse = isIndicator ? null : responses[1];
                 const clientsResponse = isIndicator ? responses[0] : responses[2];
+                const caseTagsResponse = isIndicator ? responses[1] : responses[3];
 
                 setLawyers(Array.isArray(usersResponse?.data) ? usersResponse.data : []);
                 setIndicators(Array.isArray(indicatorsResponse?.data) ? indicatorsResponse.data : []);
                 setClients(clientsResponse.data || []);
+                setSavedTags(Array.isArray(caseTagsResponse?.data) ? caseTagsResponse.data : []);
             } catch (err) { 
                 console.error("Erro ao buscar dados de apoio", err); 
             }
@@ -388,6 +393,8 @@ const CaseManagementPage = () => {
         visibleCaseIds.length > 0 && selectedVisibleCaseIds.length === visibleCaseIds.length;
     const selectedLawyer = lawyers.find(lawyer => String(lawyer.id) === String(filters.lawyer_id));
     const selectedIndicator = indicators.find(indicator => String(indicator.id) === String(filters.indicator_user_id));
+    const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
+        || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
     const activeFilterChips = [];
     const pastedCaseNumberTerms = extractMultipleCaseNumberTerms(filters.search);
     const trimmedActionObject = filters.action_object.trim();
@@ -419,6 +426,13 @@ const CaseManagementPage = () => {
         activeFilterChips.push({
             key: 'priority',
             label: `Prioridade: ${PRIORITY_DETAILS[filters.priority]?.name || filters.priority}`,
+        });
+    }
+
+    if (filters.tag) {
+        activeFilterChips.push({
+            key: 'tag',
+            label: `Etiqueta: ${selectedTagName || filters.tag}`,
         });
     }
 
@@ -564,7 +578,7 @@ const CaseManagementPage = () => {
                         </div>
                         <div className={styles.filtersHeading}>
                             <h3>Filtros da Gestão</h3>
-                            <p>Refine a carteira por causa de pedir, status, prioridade, responsável e indicador enquanto a tabela atualiza automaticamente.</p>
+                            <p>Refine a carteira por causa de pedir, status, prioridade, etiqueta, responsável e indicador enquanto a tabela atualiza automaticamente.</p>
                         </div>
                     </div>
                     <span className={styles.filterCount}>
@@ -632,6 +646,21 @@ const CaseManagementPage = () => {
                             {PRIORITY_OPTIONS.map((priorityOption) => (
                                 <option key={priorityOption.value} value={priorityOption.value}>
                                     {priorityOption.name}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaTag />
+                            Etiqueta
+                        </span>
+                        <select className={styles.filterControl} name="tag" value={filters.tag} onChange={handleFilterChange}>
+                            <option value="">Todas as etiquetas</option>
+                            {savedTags.map((tag) => (
+                                <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
+                                    {tag.text || tag.name}
                                 </option>
                             ))}
                         </select>
