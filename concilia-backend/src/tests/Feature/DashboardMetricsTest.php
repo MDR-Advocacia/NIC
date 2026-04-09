@@ -324,6 +324,85 @@ class DashboardMetricsTest extends TestCase
             ->assertJsonCount(3, 'recent_cases.data');
     }
 
+    public function test_dashboard_recent_cases_can_be_filtered_by_lawyer_without_ambiguous_user_id_errors(): void
+    {
+        $manager = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $targetOperator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        $otherOperator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        $this->createLegalCase($targetOperator, LegalCase::STATUS_INITIAL_ANALYSIS, 'FILTER-CREATED', [
+            'original_value' => 1800,
+            'cause_value' => 1800,
+            'created_at' => Carbon::parse('2026-04-01 09:00:00'),
+        ]);
+
+        $updatedCase = $this->createLegalCase($targetOperator, LegalCase::STATUS_INITIAL_ANALYSIS, 'FILTER-UPDATED', [
+            'original_value' => 1200,
+            'cause_value' => 1200,
+            'created_at' => Carbon::parse('2026-03-20 09:00:00'),
+        ]);
+        $this->createHistoryEntry(
+            $updatedCase,
+            [
+                'original_value' => 1200,
+                'has_alcada' => true,
+            ],
+            [
+                'original_value' => 2400,
+                'has_alcada' => true,
+            ],
+            Carbon::parse('2026-04-02 10:00:00')
+        );
+        $updatedCase->timestamps = false;
+        $updatedCase->forceFill([
+            'original_value' => 2400,
+            'cause_value' => 2400,
+            'updated_at' => Carbon::parse('2026-04-02 10:00:00'),
+        ])->saveQuietly();
+
+        $otherCase = $this->createLegalCase($otherOperator, LegalCase::STATUS_INITIAL_ANALYSIS, 'FILTER-OTHER', [
+            'original_value' => 1500,
+            'cause_value' => 1500,
+            'created_at' => Carbon::parse('2026-04-03 09:00:00'),
+        ]);
+        $this->createHistoryEntry(
+            $otherCase,
+            [
+                'original_value' => 1500,
+                'has_alcada' => true,
+            ],
+            [
+                'original_value' => 2600,
+                'has_alcada' => true,
+            ],
+            Carbon::parse('2026-04-03 11:00:00')
+        );
+
+        $response = $this->getJson('/api/dashboard?lawyer_id=' . $targetOperator->id . '&recent_cases_per_page=20&recent_cases_page=1');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('recent_cases.current_page', 1)
+            ->assertJsonPath('recent_cases.total', 2)
+            ->assertJsonPath('recent_cases.data.0.case_number', 'FILTER-UPDATED')
+            ->assertJsonPath('recent_cases.data.0.recent_alcada_event_type', 'updated')
+            ->assertJsonPath('recent_cases.data.1.case_number', 'FILTER-CREATED')
+            ->assertJsonPath('recent_cases.data.1.recent_alcada_event_type', 'created');
+    }
+
     private function createLegalCase(User $operator, string $status, string $caseNumber, array $overrides = []): LegalCase
     {
         $client = Client::firstOrCreate([
