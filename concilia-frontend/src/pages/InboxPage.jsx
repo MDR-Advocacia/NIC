@@ -842,9 +842,11 @@ const InboxPage = () => {
     [variaveisDetectadas, variaveisTemplate]
   );
 
-  const modalTemplatesEmpilhado = viewportWidth <= 1380;
-  const modalTemplatesUltraCompacto = viewportWidth <= 980;
-  const modalTemplatesVariaveisEmColuna = viewportWidth <= 1480;
+  const larguraSidebarLayout = viewportWidth > 1080 ? 292 : 0;
+  const larguraUtilModalTemplates = Math.max(viewportWidth - larguraSidebarLayout, 320);
+  const modalTemplatesEmpilhado = larguraUtilModalTemplates <= 1040;
+  const modalTemplatesUltraCompacto = larguraUtilModalTemplates <= 760;
+  const modalTemplatesVariaveisEmColuna = larguraUtilModalTemplates <= 1180;
 
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
@@ -1666,14 +1668,20 @@ const InboxPage = () => {
       ) : null}
 
       {modalTemplatesAberto ? (
-        <div style={styles.modalOverlay}>
+        <div
+          style={{
+            ...styles.modalOverlay,
+            paddingTop: modalTemplatesUltraCompacto ? '12px' : '24px',
+            paddingRight: modalTemplatesUltraCompacto ? '12px' : '24px',
+            paddingBottom: modalTemplatesUltraCompacto ? '12px' : '24px',
+            paddingLeft: larguraSidebarLayout > 0 ? `${larguraSidebarLayout + 24}px` : modalTemplatesUltraCompacto ? '12px' : '24px',
+            boxSizing: 'border-box',
+          }}
+        >
           <div
             style={{
-              width: modalTemplatesUltraCompacto
-                ? 'min(100%, calc(100vw - 16px))'
-                : modalTemplatesEmpilhado
-                  ? 'min(900px, calc(100vw - 40px))'
-                  : 'min(1020px, calc(100vw - 48px))',
+              width: '100%',
+              maxWidth: modalTemplatesUltraCompacto ? '100%' : modalTemplatesEmpilhado ? '840px' : '940px',
               maxHeight: 'min(88vh, 860px)',
               borderRadius: '24px',
               backgroundColor: '#101820',
@@ -1695,8 +1703,8 @@ const InboxPage = () => {
               }}
             >
               <div>
-                <div style={{ fontSize: modalTemplatesUltraCompacto ? '24px' : modalTemplatesEmpilhado ? '30px' : '34px', fontWeight: 800, lineHeight: 1.1 }}>Templates do WhatsApp</div>
-                <div style={{ marginTop: '8px', color: '#94a3b8' }}>Selecione um template, preencha as variaveis e envie quando estiver pronto.</div>
+                <div style={{ fontSize: modalTemplatesUltraCompacto ? '22px' : modalTemplatesEmpilhado ? '27px' : '32px', fontWeight: 800, lineHeight: 1.1, maxWidth: '100%', overflowWrap: 'anywhere' }}>Templates do WhatsApp</div>
+                <div style={{ marginTop: '8px', color: '#94a3b8', fontSize: modalTemplatesUltraCompacto ? '13px' : '14px', lineHeight: 1.5, maxWidth: '100%' }}>Selecione um template, preencha as variaveis e envie quando estiver pronto.</div>
               </div>
               <button type="button" style={{ border: 'none', background: 'transparent', color: '#cbd5e1', fontSize: '28px', lineHeight: 1, cursor: 'pointer' }} onClick={() => setModalTemplatesAberto(false)}>
                 x
@@ -1706,7 +1714,7 @@ const InboxPage = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '280px minmax(0, 1fr)',
+                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '248px minmax(0, 1fr)',
                 minHeight: 0,
                 flex: 1,
                 overflow: 'hidden',
@@ -1722,7 +1730,7 @@ const InboxPage = () => {
                   gap: '14px',
                   minWidth: 0,
                   minHeight: 0,
-                  maxHeight: modalTemplatesEmpilhado ? '30vh' : 'none',
+                  maxHeight: modalTemplatesEmpilhado ? '28vh' : 'none',
                 }}
               >
                 <input
@@ -1732,7 +1740,7 @@ const InboxPage = () => {
                   placeholder="Pesquisar modelos"
                   style={{
                     width: '100%',
-                    padding: '13px 14px',
+                    padding: modalTemplatesUltraCompacto ? '12px 13px' : '13px 14px',
                     borderRadius: '14px',
                     border: '1px solid rgba(148, 163, 184, 0.16)',
                     backgroundColor: '#17212b',
@@ -1756,8 +1764,8 @@ const InboxPage = () => {
                           <div
                             key={template.id || template.name}
                             style={{
-                              padding: '14px',
-                              borderRadius: '16px',
+                              padding: modalTemplatesUltraCompacto ? '11px 12px' : '12px',
+                              borderRadius: '14px',
                               border: ativo ? '1px solid rgba(96, 165, 250, 0.75)' : '1px solid rgba(148, 163, 184, 0.12)',
                               backgroundColor: ativo ? '#162235' : '#141d26',
                               cursor: 'pointer',
@@ -1765,8 +1773,22 @@ const InboxPage = () => {
                             }}
                             onClick={() => prepararTemplate(template)}
                           >
-                            <div style={{ fontWeight: 700, fontSize: '15px', color: '#f8fafc', lineHeight: 1.4, overflowWrap: 'anywhere' }}>{template.name}</div>
-                            <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.6, color: '#94a3b8', overflowWrap: 'anywhere' }}>
+                            <div
+                              style={{
+                                fontWeight: 700,
+                                fontSize: modalTemplatesUltraCompacto ? '13px' : '14px',
+                                color: '#f8fafc',
+                                lineHeight: 1.35,
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {template.name}
+                            </div>
+                            <div style={{ marginTop: '7px', fontSize: '11px', lineHeight: 1.55, color: '#94a3b8', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
                               {getTextoTemplate(template).slice(0, 132)}
                               {getTextoTemplate(template).length > 132 ? '...' : ''}
                             </div>
@@ -1792,7 +1814,7 @@ const InboxPage = () => {
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-start' }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: modalTemplatesUltraCompacto ? '22px' : '26px', fontWeight: 800, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{templateSelecionado.name}</div>
+                        <div style={{ fontSize: modalTemplatesUltraCompacto ? '20px' : '24px', fontWeight: 800, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{templateSelecionado.name}</div>
                         <div style={{ marginTop: '6px', color: '#94a3b8' }}>Idioma: {templateSelecionado.language || 'pt_BR'}</div>
                       </div>
                       <div style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#162235', color: '#93c5fd', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
