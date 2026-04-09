@@ -847,6 +847,7 @@ const InboxPage = () => {
   const modalTemplatesEmpilhado = larguraUtilModalTemplates <= 1040;
   const modalTemplatesUltraCompacto = larguraUtilModalTemplates <= 760;
   const modalTemplatesVariaveisEmColuna = larguraUtilModalTemplates <= 1180;
+  const listaTemplatesCompacta = larguraUtilModalTemplates <= 980;
 
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
@@ -1770,6 +1771,10 @@ const InboxPage = () => {
                               backgroundColor: ativo ? '#162235' : '#141d26',
                               cursor: 'pointer',
                               overflow: 'hidden',
+                              minHeight: listaTemplatesCompacta ? '56px' : 'auto',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: listaTemplatesCompacta ? 'center' : 'flex-start',
                             }}
                             onClick={() => prepararTemplate(template)}
                           >
@@ -1778,20 +1783,24 @@ const InboxPage = () => {
                                 fontWeight: 700,
                                 fontSize: modalTemplatesUltraCompacto ? '13px' : '14px',
                                 color: '#f8fafc',
-                                lineHeight: 1.35,
-                                display: '-webkit-box',
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: 'vertical',
+                                lineHeight: listaTemplatesCompacta ? 1.2 : 1.35,
+                                display: listaTemplatesCompacta ? 'block' : '-webkit-box',
+                                WebkitLineClamp: listaTemplatesCompacta ? 'unset' : 2,
+                                WebkitBoxOrient: listaTemplatesCompacta ? 'unset' : 'vertical',
                                 overflow: 'hidden',
                                 wordBreak: 'break-word',
+                                whiteSpace: listaTemplatesCompacta ? 'nowrap' : 'normal',
+                                textOverflow: listaTemplatesCompacta ? 'ellipsis' : 'clip',
                               }}
                             >
                               {template.name}
                             </div>
-                            <div style={{ marginTop: '7px', fontSize: '11px', lineHeight: 1.55, color: '#94a3b8', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
-                              {getTextoTemplate(template).slice(0, 132)}
-                              {getTextoTemplate(template).length > 132 ? '...' : ''}
-                            </div>
+                            {!listaTemplatesCompacta ? (
+                              <div style={{ marginTop: '7px', fontSize: '11px', lineHeight: 1.55, color: '#94a3b8', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
+                                {getTextoTemplate(template).slice(0, 132)}
+                                {getTextoTemplate(template).length > 132 ? '...' : ''}
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })
