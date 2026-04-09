@@ -1775,6 +1775,7 @@ const InboxPage = () => {
                               display: 'flex',
                               flexDirection: 'column',
                               justifyContent: listaTemplatesCompacta ? 'center' : 'flex-start',
+                              alignItems: listaTemplatesCompacta ? 'stretch' : 'initial',
                             }}
                             onClick={() => prepararTemplate(template)}
                           >
@@ -1791,6 +1792,10 @@ const InboxPage = () => {
                                 wordBreak: 'break-word',
                                 whiteSpace: listaTemplatesCompacta ? 'nowrap' : 'normal',
                                 textOverflow: listaTemplatesCompacta ? 'ellipsis' : 'clip',
+                                width: '100%',
+                                minWidth: 0,
+                                alignSelf: listaTemplatesCompacta ? 'center' : 'auto',
+                                paddingRight: listaTemplatesCompacta ? '2px' : 0,
                               }}
                             >
                               {template.name}
