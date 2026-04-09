@@ -1765,47 +1765,60 @@ const InboxPage = () => {
                           <div
                             key={template.id || template.name}
                             style={{
-                              padding: modalTemplatesUltraCompacto ? '11px 12px' : '12px',
+                              padding: listaTemplatesCompacta ? '0 14px' : modalTemplatesUltraCompacto ? '11px 12px' : '12px',
                               borderRadius: '14px',
                               border: ativo ? '1px solid rgba(96, 165, 250, 0.75)' : '1px solid rgba(148, 163, 184, 0.12)',
                               backgroundColor: ativo ? '#162235' : '#141d26',
                               cursor: 'pointer',
                               overflow: 'hidden',
-                              minHeight: listaTemplatesCompacta ? '56px' : 'auto',
+                              minHeight: listaTemplatesCompacta ? '44px' : 'auto',
                               display: 'flex',
-                              flexDirection: 'column',
+                              flexDirection: listaTemplatesCompacta ? 'row' : 'column',
                               justifyContent: listaTemplatesCompacta ? 'center' : 'flex-start',
-                              alignItems: listaTemplatesCompacta ? 'stretch' : 'initial',
+                              alignItems: listaTemplatesCompacta ? 'center' : 'stretch',
                             }}
                             onClick={() => prepararTemplate(template)}
                           >
-                            <div
-                              style={{
-                                fontWeight: 700,
-                                fontSize: modalTemplatesUltraCompacto ? '13px' : '14px',
-                                color: '#f8fafc',
-                                lineHeight: listaTemplatesCompacta ? 1.2 : 1.35,
-                                display: listaTemplatesCompacta ? 'block' : '-webkit-box',
-                                WebkitLineClamp: listaTemplatesCompacta ? 'unset' : 2,
-                                WebkitBoxOrient: listaTemplatesCompacta ? 'unset' : 'vertical',
-                                overflow: 'hidden',
-                                wordBreak: 'break-word',
-                                whiteSpace: listaTemplatesCompacta ? 'nowrap' : 'normal',
-                                textOverflow: listaTemplatesCompacta ? 'ellipsis' : 'clip',
-                                width: '100%',
-                                minWidth: 0,
-                                alignSelf: listaTemplatesCompacta ? 'center' : 'auto',
-                                paddingRight: listaTemplatesCompacta ? '2px' : 0,
-                              }}
-                            >
-                              {template.name}
-                            </div>
-                            {!listaTemplatesCompacta ? (
+                            {listaTemplatesCompacta ? (
+                              <span
+                                style={{
+                                  display: 'block',
+                                  width: '100%',
+                                  minWidth: 0,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: 700,
+                                  fontSize: '13px',
+                                  lineHeight: '18px',
+                                  color: '#f8fafc',
+                                }}
+                              >
+                                {template.name}
+                              </span>
+                            ) : (
+                              <>
+                                <div
+                                  style={{
+                                    fontWeight: 700,
+                                    fontSize: modalTemplatesUltraCompacto ? '13px' : '14px',
+                                    color: '#f8fafc',
+                                    lineHeight: 1.35,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    wordBreak: 'break-word',
+                                  }}
+                                >
+                                  {template.name}
+                                </div>
                               <div style={{ marginTop: '7px', fontSize: '11px', lineHeight: 1.55, color: '#94a3b8', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
                                 {getTextoTemplate(template).slice(0, 132)}
                                 {getTextoTemplate(template).length > 132 ? '...' : ''}
                               </div>
-                            ) : null}
+                              </>
+                            )}
                           </div>
                         );
                       })
