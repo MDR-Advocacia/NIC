@@ -471,7 +471,7 @@ class DashboardController extends Controller
         ?string $dateColumn = 'updated_at'
     ): Builder {
         $query = $this->newFilteredCaseQuery($request, $user, $dateRange, $dateColumn);
-        $query->where('status', LegalCase::STATUS_CLOSED_DEAL);
+        $query->where($this->qualifyLegalCaseColumn('status'), LegalCase::STATUS_CLOSED_DEAL);
 
         return $query;
     }
@@ -491,9 +491,9 @@ class DashboardController extends Controller
         ?string $dateColumn = 'created_at'
     ): void {
         if ($user->role === 'operador') {
-            $query->where('user_id', $user->id);
+            $query->where($this->qualifyLegalCaseColumn('user_id'), $user->id);
         } elseif ($request->filled('lawyer_id')) {
-            $query->where('user_id', (int) $request->input('lawyer_id'));
+            $query->where($this->qualifyLegalCaseColumn('user_id'), (int) $request->input('lawyer_id'));
         }
 
         $this->applySharedCaseFilters($query, $request, $dateRange, $dateColumn);
@@ -505,22 +505,22 @@ class DashboardController extends Controller
         array $dateRange,
         ?string $dateColumn = 'created_at'
     ): void {
-        $query->where('has_alcada', true);
+        $query->where($this->qualifyLegalCaseColumn('has_alcada'), true);
 
         if ($request->filled('client_id')) {
-            $query->where('client_id', (int) $request->input('client_id'));
+            $query->where($this->qualifyLegalCaseColumn('client_id'), (int) $request->input('client_id'));
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
+            $query->where($this->qualifyLegalCaseColumn('status'), $request->input('status'));
         }
 
         if ($dateColumn !== null && $dateRange['start'] instanceof Carbon) {
-            $query->where($dateColumn, '>=', $dateRange['start']);
+            $query->where($this->qualifyLegalCaseColumn($dateColumn), '>=', $dateRange['start']);
         }
 
         if ($dateColumn !== null && $dateRange['end'] instanceof Carbon) {
-            $query->where($dateColumn, '<=', $dateRange['end']);
+            $query->where($this->qualifyLegalCaseColumn($dateColumn), '<=', $dateRange['end']);
         }
     }
 
@@ -638,5 +638,10 @@ class DashboardController extends Controller
     private function historyBooleanSql(string $column, string $path): string
     {
         return "CASE WHEN LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT({$column}, '{$path}')), 'false')) IN ('1', 'true') THEN 1 ELSE 0 END";
+    }
+
+    private function qualifyLegalCaseColumn(string $column): string
+    {
+        return (new LegalCase())->qualifyColumn($column);
     }
 }

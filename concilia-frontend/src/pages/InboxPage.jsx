@@ -842,9 +842,9 @@ const InboxPage = () => {
     [variaveisDetectadas, variaveisTemplate]
   );
 
-  const modalTemplatesEmpilhado = viewportWidth <= 1180;
-  const modalTemplatesUltraCompacto = viewportWidth <= 860;
-  const modalTemplatesVariaveisEmColuna = viewportWidth <= 1200;
+  const modalTemplatesEmpilhado = viewportWidth <= 1380;
+  const modalTemplatesUltraCompacto = viewportWidth <= 980;
+  const modalTemplatesVariaveisEmColuna = viewportWidth <= 1480;
 
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
@@ -1669,7 +1669,11 @@ const InboxPage = () => {
         <div style={styles.modalOverlay}>
           <div
             style={{
-              width: modalTemplatesUltraCompacto ? 'min(100%, calc(100vw - 16px))' : 'min(1120px, calc(100vw - 32px))',
+              width: modalTemplatesUltraCompacto
+                ? 'min(100%, calc(100vw - 16px))'
+                : modalTemplatesEmpilhado
+                  ? 'min(900px, calc(100vw - 40px))'
+                  : 'min(1020px, calc(100vw - 48px))',
               maxHeight: 'min(88vh, 860px)',
               borderRadius: '24px',
               backgroundColor: '#101820',
@@ -1691,7 +1695,7 @@ const InboxPage = () => {
               }}
             >
               <div>
-                <div style={{ fontSize: modalTemplatesUltraCompacto ? '26px' : '34px', fontWeight: 800, lineHeight: 1.1 }}>Templates do WhatsApp</div>
+                <div style={{ fontSize: modalTemplatesUltraCompacto ? '24px' : modalTemplatesEmpilhado ? '30px' : '34px', fontWeight: 800, lineHeight: 1.1 }}>Templates do WhatsApp</div>
                 <div style={{ marginTop: '8px', color: '#94a3b8' }}>Selecione um template, preencha as variaveis e envie quando estiver pronto.</div>
               </div>
               <button type="button" style={{ border: 'none', background: 'transparent', color: '#cbd5e1', fontSize: '28px', lineHeight: 1, cursor: 'pointer' }} onClick={() => setModalTemplatesAberto(false)}>
@@ -1702,7 +1706,7 @@ const InboxPage = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '300px minmax(0, 1fr)',
+                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '280px minmax(0, 1fr)',
                 minHeight: 0,
                 flex: 1,
                 overflow: 'hidden',
@@ -1718,7 +1722,7 @@ const InboxPage = () => {
                   gap: '14px',
                   minWidth: 0,
                   minHeight: 0,
-                  maxHeight: modalTemplatesEmpilhado ? '34vh' : 'none',
+                  maxHeight: modalTemplatesEmpilhado ? '30vh' : 'none',
                 }}
               >
                 <input
