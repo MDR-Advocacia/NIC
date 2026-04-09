@@ -847,7 +847,6 @@ const InboxPage = () => {
   const modalTemplatesEmpilhado = larguraUtilModalTemplates <= 1040;
   const modalTemplatesUltraCompacto = larguraUtilModalTemplates <= 760;
   const modalTemplatesVariaveisEmColuna = larguraUtilModalTemplates <= 1180;
-  const listaTemplatesCompacta = false;
 
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
@@ -1765,60 +1764,37 @@ const InboxPage = () => {
                           <div
                             key={template.id || template.name}
                             style={{
-                              padding: listaTemplatesCompacta ? '0 14px' : modalTemplatesUltraCompacto ? '11px 12px' : '12px',
+                              padding: modalTemplatesUltraCompacto ? '0 12px' : '0 14px',
                               borderRadius: '14px',
                               border: ativo ? '1px solid rgba(96, 165, 250, 0.75)' : '1px solid rgba(148, 163, 184, 0.12)',
                               backgroundColor: ativo ? '#162235' : '#141d26',
                               cursor: 'pointer',
                               overflow: 'hidden',
-                              minHeight: listaTemplatesCompacta ? '44px' : 'auto',
+                              minHeight: modalTemplatesUltraCompacto ? '46px' : '50px',
                               display: 'flex',
-                              flexDirection: listaTemplatesCompacta ? 'row' : 'column',
-                              justifyContent: listaTemplatesCompacta ? 'center' : 'flex-start',
-                              alignItems: listaTemplatesCompacta ? 'center' : 'stretch',
+                              flexDirection: 'row',
+                              justifyContent: 'flex-start',
+                              alignItems: 'center',
                             }}
                             onClick={() => prepararTemplate(template)}
                           >
-                            {listaTemplatesCompacta ? (
-                              <span
-                                style={{
-                                  display: 'block',
-                                  width: '100%',
-                                  minWidth: 0,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  fontWeight: 700,
-                                  fontSize: '13px',
-                                  lineHeight: '18px',
-                                  color: '#f8fafc',
-                                }}
-                              >
-                                {template.name}
-                              </span>
-                            ) : (
-                              <>
-                                <div
-                                  style={{
-                                    fontWeight: 700,
-                                    fontSize: modalTemplatesUltraCompacto ? '13px' : '14px',
-                                    color: '#f8fafc',
-                                    lineHeight: 1.35,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                    wordBreak: 'break-word',
-                                  }}
-                                >
-                                  {template.name}
-                                </div>
-                              <div style={{ marginTop: '7px', fontSize: '11px', lineHeight: 1.55, color: '#94a3b8', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
-                                {getTextoTemplate(template).slice(0, 132)}
-                                {getTextoTemplate(template).length > 132 ? '...' : ''}
-                              </div>
-                              </>
-                            )}
+                            <span
+                              style={{
+                                display: 'block',
+                                width: '100%',
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                fontWeight: 700,
+                                fontSize: modalTemplatesUltraCompacto ? '12px' : '13px',
+                                lineHeight: 1.2,
+                                color: '#f8fafc',
+                              }}
+                              title={template.name}
+                            >
+                              {template.name}
+                            </span>
                           </div>
                         );
                       })
