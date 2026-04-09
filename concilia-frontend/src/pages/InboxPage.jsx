@@ -847,7 +847,7 @@ const InboxPage = () => {
   const modalTemplatesEmpilhado = larguraUtilModalTemplates <= 1040;
   const modalTemplatesUltraCompacto = larguraUtilModalTemplates <= 760;
   const modalTemplatesVariaveisEmColuna = larguraUtilModalTemplates <= 1180;
-  const listaTemplatesCompacta = larguraUtilModalTemplates <= 980;
+  const listaTemplatesCompacta = false;
 
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
