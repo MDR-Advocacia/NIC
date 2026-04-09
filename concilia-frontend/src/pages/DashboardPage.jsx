@@ -327,6 +327,8 @@ const DashboardPage = () => {
     const indicationsReceived = Number(indicationMetrics.indications_received || 0);
     const agreementsViaIndication = Number(indicationMetrics.agreements_via_indication || 0);
     const roundedIndicationRate = Math.round(Number.parseFloat(indicationMetrics.indication_flow_conversion_rate || 0) || 0);
+    const isInitialLoading = loading && !dashboardData;
+    const isRefreshing = loading && !!dashboardData;
     const agreementsByState = Array.isArray(dashboardData?.agreements_by_state) ? dashboardData.agreements_by_state : [];
     const agreementMacroDistribution = Array.isArray(dashboardData?.agreement_macro_distribution)
         ? dashboardData.agreement_macro_distribution
@@ -384,11 +386,20 @@ const DashboardPage = () => {
         );
     };
 
-    if (loading) return <p>Carregando dashboard...</p>;
-    if (error) return <p style={{ color: 'red' }}>{error}</p>;
+    if (isInitialLoading) return <p>Carregando dashboard...</p>;
+    if (error && !dashboardData) return <p style={{ color: 'red' }}>{error}</p>;
 
     return (
         <div className={styles.dashboardContainer}>
+            {(isRefreshing || error) && (
+                <div
+                    className={`${styles.dashboardStatusNotice} ${error ? styles.dashboardStatusNoticeError : ''}`}
+                    role="status"
+                    aria-live="polite"
+                >
+                    {error ? error : 'Atualizando dados do dashboard...'}
+                </div>
+            )}
 
             {/* 1. FILTROS (Gestor) */}
             {isManager && (
@@ -695,6 +706,7 @@ const DashboardPage = () => {
                                         type="button"
                                         className={`${styles.recentCasesPageSizeButton} ${recentCasesPerPage === 20 ? styles.recentCasesPageSizeButtonActive : ''}`}
                                         onClick={() => handleRecentCasesPageSizeChange(20)}
+                                        disabled={isRefreshing}
                                     >
                                         20
                                     </button>
@@ -702,6 +714,7 @@ const DashboardPage = () => {
                                         type="button"
                                         className={`${styles.recentCasesPageSizeButton} ${recentCasesPerPage === 50 ? styles.recentCasesPageSizeButtonActive : ''}`}
                                         onClick={() => handleRecentCasesPageSizeChange(50)}
+                                        disabled={isRefreshing}
                                     >
                                         50
                                     </button>
@@ -727,7 +740,7 @@ const DashboardPage = () => {
                                     type="button"
                                     className={styles.recentCasesPaginationButton}
                                     onClick={() => handleRecentCasesPageChange(1)}
-                                    disabled={!recentCasesHasPagination || recentCasesCurrentPage <= 1}
+                                    disabled={isRefreshing || !recentCasesHasPagination || recentCasesCurrentPage <= 1}
                                 >
                                     {'<<'}
                                 </button>
@@ -735,7 +748,7 @@ const DashboardPage = () => {
                                     type="button"
                                     className={styles.recentCasesPaginationButton}
                                     onClick={() => handleRecentCasesPageChange(recentCasesCurrentPage - 1)}
-                                    disabled={!recentCasesHasPagination || recentCasesCurrentPage <= 1}
+                                    disabled={isRefreshing || !recentCasesHasPagination || recentCasesCurrentPage <= 1}
                                 >
                                     {'<'}
                                 </button>
@@ -744,7 +757,7 @@ const DashboardPage = () => {
                                     type="button"
                                     className={styles.recentCasesPaginationButton}
                                     onClick={() => handleRecentCasesPageChange(recentCasesCurrentPage + 1)}
-                                    disabled={!recentCasesHasPagination || recentCasesCurrentPage >= recentCasesMeta.lastPage}
+                                    disabled={isRefreshing || !recentCasesHasPagination || recentCasesCurrentPage >= recentCasesMeta.lastPage}
                                 >
                                     {'>'}
                                 </button>
@@ -752,7 +765,7 @@ const DashboardPage = () => {
                                     type="button"
                                     className={styles.recentCasesPaginationButton}
                                     onClick={() => handleRecentCasesPageChange(recentCasesMeta.lastPage)}
-                                    disabled={!recentCasesHasPagination || recentCasesCurrentPage >= recentCasesMeta.lastPage}
+                                    disabled={isRefreshing || !recentCasesHasPagination || recentCasesCurrentPage >= recentCasesMeta.lastPage}
                                 >
                                     {'>>'}
                                 </button>
