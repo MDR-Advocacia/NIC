@@ -51,6 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/case-tags', [CaseTagController::class, 'index']);
+    Route::delete('/case-tags/{caseTag}', [CaseTagController::class, 'destroy']);
     Route::get('/users/operators', [UserController::class, 'operators']);
     Route::get('/users/indicators', [UserController::class, 'indicators']);
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);

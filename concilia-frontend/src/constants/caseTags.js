@@ -1,5 +1,8 @@
 export const DEFAULT_CASE_TAG_COLOR = '#EF4444';
 
+export const getCaseTagKey = (tag, fallbackColor = DEFAULT_CASE_TAG_COLOR) =>
+  normalizeCaseTag(tag, fallbackColor)?.text?.toLocaleLowerCase('pt-BR') || '';
+
 export const normalizeCaseTag = (tag, fallbackColor = DEFAULT_CASE_TAG_COLOR) => {
   if (!tag) {
     return null;
@@ -59,4 +62,17 @@ export const appendCaseTag = (existingTags, nextTag, fallbackColor = DEFAULT_CAS
   }
 
   return [...normalizedExistingTags, normalizedNextTag];
+};
+
+export const removeCaseTag = (existingTags, tagToRemove, fallbackColor = DEFAULT_CASE_TAG_COLOR) => {
+  const normalizedExistingTags = normalizeCaseTags(existingTags, fallbackColor);
+  const normalizedKey = getCaseTagKey(tagToRemove, fallbackColor);
+
+  if (!normalizedKey) {
+    return normalizedExistingTags;
+  }
+
+  return normalizedExistingTags.filter(
+    (tag) => getCaseTagKey(tag, fallbackColor) !== normalizedKey
+  );
 };

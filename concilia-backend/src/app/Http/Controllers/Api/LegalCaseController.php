@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 
 class LegalCaseController extends Controller
 {
@@ -218,6 +219,7 @@ class LegalCaseController extends Controller
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
         $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
+        $request->merge($this->resolveAgreementClosedAtPayload($request->all()));
         $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
 
         $validatedData = $request->validate([
@@ -242,6 +244,7 @@ class LegalCaseController extends Controller
             'priority' => 'required|string',
             'original_value' => 'required|numeric',
             'agreement_value' => 'nullable|numeric',
+            'agreement_closed_at' => 'nullable|date',
             'ourocap_value' => $this->ourocapValidationRules($request),
             'livelo_points' => $this->liveloPointsValidationRules($request),
             'cause_value' => 'nullable|numeric',
@@ -315,6 +318,7 @@ class LegalCaseController extends Controller
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
         $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
+        $request->merge($this->resolveAgreementClosedAtPayload($request->all(), $case));
 
         if (array_key_exists('tags', $request->all())) {
             $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
@@ -344,6 +348,7 @@ class LegalCaseController extends Controller
             'priority' => 'sometimes|required|string',
             'original_value' => 'sometimes|required|numeric',
             'agreement_value' => 'nullable|numeric',
+            'agreement_closed_at' => 'nullable|date',
             'ourocap_value' => $this->ourocapValidationRules($request, $case),
             'livelo_points' => $this->liveloPointsValidationRules($request, $case),
             'cause_value' => 'nullable|numeric',
@@ -1125,7 +1130,12 @@ class LegalCaseController extends Controller
 
         $caseIds = $validated['case_ids'];
         $action = $validated['action'];
-        $value = $validated['value'];
+        $value = $validated['value'] ?? null;
+        $currentUser = Auth::user();
+
+        if ($action === 'delete' && !in_array($currentUser?->role, ['administrador', 'admin'], true)) {
+            return response()->json(['message' => 'Apenas administradores podem excluir processos em lote.'], 403);
+        }
 
         if (
             $action === 'transfer_user'
@@ -2151,6 +2161,46 @@ class LegalCaseController extends Controller
     private function syncCaseTagCatalog(mixed $tags): void
     {
         CaseTag::upsertFromCaseTags($tags);
+    }
+
+    private function resolveAgreementClosedAtPayload(array $payload, ?LegalCase $existingCase = null): array
+    {
+        if (array_key_exists('agreement_closed_at', $payload)) {
+            return [
+                'agreement_closed_at' => $this->normalizeAgreementClosedAtValue($payload['agreement_closed_at']),
+            ];
+        }
+
+        $resolvedStatus = $payload['status'] ?? $existingCase?->status;
+        if ($resolvedStatus !== LegalCase::STATUS_CLOSED_DEAL) {
+            return [];
+        }
+
+        if ($existingCase?->agreement_closed_at) {
+            return [
+                'agreement_closed_at' => $existingCase->agreement_closed_at instanceof Carbon
+                    ? $existingCase->agreement_closed_at->toDateString()
+                    : (string) $existingCase->agreement_closed_at,
+            ];
+        }
+
+        return [
+            'agreement_closed_at' => now()->toDateString(),
+        ];
+    }
+
+    private function normalizeAgreementClosedAtValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalizedValue = trim((string) $value);
+        if ($normalizedValue === '') {
+            return null;
+        }
+
+        return Carbon::parse($normalizedValue)->toDateString();
     }
 
     private function legalCasesTableHasIndicatorUserId(): bool

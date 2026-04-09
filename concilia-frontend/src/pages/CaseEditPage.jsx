@@ -205,6 +205,7 @@ const CaseEditPage = () => {
       opposing_party: '',
       description: '',
       cause_value: '',
+      agreement_closed_at: '',
       ourocap_value: '',
       livelo_points: '',
       status: 'initial_analysis',
@@ -235,6 +236,7 @@ const CaseEditPage = () => {
             opposing_party: (typeof data.opposing_party === 'object') 
                 ? (data.opposing_party.name || data.opposing_party.nome || '') 
                 : (data.opposing_party || ''),
+            agreement_closed_at: data.agreement_closed_at ? String(data.agreement_closed_at).slice(0, 10) : '',
             ourocap_value: data.ourocap_value || '',
             livelo_points: data.livelo_points || '',
             // Garante objeto para checklist
@@ -296,6 +298,7 @@ const CaseEditPage = () => {
       const dataToSubmit = { 
         ...formData, 
         client_id: formData.client?.id || formData.client_id,
+        agreement_closed_at: formData.agreement_closed_at || null,
         ...normalizeSettlementBenefitPayload({
             settlementBenefitType,
             ourocap_value: formData.ourocap_value,
@@ -382,6 +385,16 @@ const CaseEditPage = () => {
                             <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
                         ))}
                     </select>
+                </div>
+                <div>
+                    <label style={fieldLabelStyle}>Data do Fechamento do Acordo:</label>
+                    <input
+                        type="date"
+                        name="agreement_closed_at"
+                        value={formData.agreement_closed_at || ''}
+                        onChange={handleChange}
+                        style={inputStyle}
+                    />
                 </div>
                 <div>
                     <label style={fieldLabelStyle}>Benefício Complementar:</label>

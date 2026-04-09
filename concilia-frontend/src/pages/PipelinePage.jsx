@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
 import EditCaseModal from '../components/EditCaseModal';
+import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
 import { 
     DndContext, 
     PointerSensor, 
@@ -33,6 +34,7 @@ import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants
 import { 
     canAccessCaseCreation,
     isIndicatorRole,
+    normalizeUserRole,
 } from '../constants/access';
 import IndicationChecklistModal from '../components/IndicationChecklistModal';
 
@@ -84,6 +86,7 @@ const PipelinePage = () => {
     const isIndicator = isIndicatorRole(user?.role);
     const canChooseResponsible = ['administrador', 'supervisor'].includes(user?.role);
     const canChooseIndicator = !isIndicator;
+    const canManageSavedTags = ['administrador', 'admin'].includes(normalizeUserRole(user?.role));
 
     const [pipelineData, setPipelineData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -517,6 +520,45 @@ const PipelinePage = () => {
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleSelectSavedTagFilter = (tag) => {
+        const tagText = tag?.text || tag?.name || '';
+        setFilters((prev) => ({
+            ...prev,
+            tag: prev.tag === tagText ? '' : tagText,
+        }));
+    };
+
+    const handleDeleteSavedTag = async (tagToDelete) => {
+        if (!tagToDelete?.id) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Tem certeza que deseja excluir a etiqueta "${tagToDelete.text || tagToDelete.name}"?\n\nEssa ação removerá a etiqueta do catálogo e de todos os casos que a utilizam.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await apiClient.delete(`/case-tags/${tagToDelete.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+            setFilters((prev) => ({
+                ...prev,
+                tag: prev.tag === (tagToDelete.text || tagToDelete.name) ? '' : prev.tag,
+            }));
+            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+            fetchAllData();
+        } catch (err) {
+            console.error('Erro ao excluir etiqueta salva:', err);
+            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+        }
+    };
+
     const handleClearFilters = () => {
         setFilters({ ...INITIAL_FILTERS });
         setShowDelayedOnly(false);
@@ -698,6 +740,19 @@ const PipelinePage = () => {
                         </select>
                     </div>
                 </div>
+
+                <SavedCaseTagsPanel
+                    tags={savedTags}
+                    title="Etiquetas salvas"
+                    subtitle="Use as etiquetas como atalho visual de filtro. A exclusão do catálogo fica disponível só para administradores."
+                    onSelectTag={handleSelectSavedTagFilter}
+                    onDeleteTag={handleDeleteSavedTag}
+                    canDelete={canManageSavedTags}
+                    selectedValue={filters.tag}
+                    selectionMode="filter"
+                    compact
+                    emptyMessage="Nenhuma etiqueta salva cadastrada até o momento."
+                />
 
                 <div className={styles.filterPanelFooter}>
                     <div className={styles.filterSummary}>
