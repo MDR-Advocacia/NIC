@@ -61,7 +61,9 @@ const AgreementChecklist = ({ checklistData, onUpdate, readOnly = false }) => {
         }
     };
 
-    const getColor = (prob) => prob >= 70 ? '#10b981' : (prob >= 40 ? '#f59e0b' : '#ef4444');
+    const getColor = (prob) => prob >= 70
+        ? 'var(--success-primary)'
+        : (prob >= 40 ? 'var(--warning-primary)' : 'var(--danger-primary)');
 
     const formatLabel = (str) => {
         if (!str) return '';
@@ -69,7 +71,7 @@ const AgreementChecklist = ({ checklistData, onUpdate, readOnly = false }) => {
     };
 
     return (
-        <div style={{padding: '15px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#fff'}}>
+        <div style={{ padding: '15px', border: '1px solid var(--border-color-light)', borderRadius: '18px', background: 'var(--surface-panel-muted)' }}>
             <div style={{ 
                 borderLeft: `5px solid ${getColor(probability)}`, 
                 paddingLeft: '12px', 
@@ -78,14 +80,14 @@ const AgreementChecklist = ({ checklistData, onUpdate, readOnly = false }) => {
                 justifyContent: 'space-between',
                 alignItems: 'center'
             }}>
-                <h3 style={{margin: 0, color: '#1f2937', fontSize: '1.1rem'}}>Probabilidade de Acordo</h3>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.1rem' }}>Probabilidade de Acordo</h3>
                 <span style={{ color: getColor(probability), fontWeight: '800', fontSize: '1.25rem' }}>
                     {probability}%
                 </span>
             </div>
 
             <div style={{marginBottom: '24px'}}>
-                <h4 style={{margin: '0 0 12px 0', color: '#4b5563', borderBottom: '1px solid #f3f4f6', paddingBottom: '6px', fontSize: '0.95rem'}}>
+                <h4 style={{ margin: '0 0 12px 0', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color-light)', paddingBottom: '6px', fontSize: '0.95rem' }}>
                     Critérios Objetivos 
                 </h4>
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px'}}>
@@ -96,16 +98,16 @@ const AgreementChecklist = ({ checklistData, onUpdate, readOnly = false }) => {
                                 checked={!!data.objective[key]} 
                                 onChange={() => handleToggle('objective', key)}
                                 disabled={readOnly}
-                                style={{accentColor: '#3b82f6', width: '16px', height: '16px'}}
+                                style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
                             />
-                            <span style={{color: '#374151'}}>{formatLabel(key)}</span>
+                            <span style={{ color: 'var(--text-primary)' }}>{formatLabel(key)}</span>
                         </label>
                     ))}
                 </div>
             </div>
 
             <div>
-                <h4 style={{margin: '0 0 12px 0', color: '#4b5563', borderBottom: '1px solid #f3f4f6', paddingBottom: '6px', fontSize: '0.95rem'}}>
+                <h4 style={{ margin: '0 0 12px 0', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color-light)', paddingBottom: '6px', fontSize: '0.95rem' }}>
                     Critérios Subjetivos 
                 </h4>
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px'}}>
@@ -116,9 +118,9 @@ const AgreementChecklist = ({ checklistData, onUpdate, readOnly = false }) => {
                                 checked={!!data.subjective[key]} 
                                 onChange={() => handleToggle('subjective', key)}
                                 disabled={readOnly}
-                                style={{accentColor: '#3b82f6', width: '16px', height: '16px'}}
+                                style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
                             />
-                            <span style={{color: '#374151'}}>{formatLabel(key)}</span>
+                            <span style={{ color: 'var(--text-primary)' }}>{formatLabel(key)}</span>
                         </label>
                     ))}
                 </div>

@@ -47,13 +47,13 @@
 }
 
 .actionButton {
-    background: #ffffff;
+    background: var(--surface-card-elevated);
     border: 1px solid var(--border-color-light);
     color: var(--text-secondary);
 }
 
 .actionButton:hover {
-    background: #f8fafc;
+    background: var(--surface-card-muted);
     border-color: var(--border-color-dark);
     color: var(--text-primary);
     transform: translateY(-1px);
@@ -61,14 +61,14 @@
 
 .newUserButton {
     border: none;
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
-    color: #ffffff;
-    box-shadow: 0 16px 30px rgba(37, 99, 235, 0.22);
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+    box-shadow: var(--accent-shadow);
 }
 
 .newUserButton:hover {
     transform: translateY(-1px);
-    box-shadow: 0 20px 34px rgba(37, 99, 235, 0.26);
+    box-shadow: var(--accent-shadow-hover);
 }
 
 .kpiGrid {
@@ -83,9 +83,7 @@
     padding: 1.5rem;
     border-radius: 22px;
     border: 1px solid var(--border-color-light);
-    background:
-        radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 34%),
-        linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    background: var(--surface-panel-accent);
     box-shadow: var(--card-shadow);
     display: flex;
     flex-direction: column;
@@ -113,22 +111,22 @@
     border-radius: 15px;
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
-    color: #ffffff;
-    box-shadow: 0 16px 30px rgba(37, 99, 235, 0.22);
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+    box-shadow: var(--accent-shadow);
     flex-shrink: 0;
 }
 
 .filtersHeading h3 {
     margin: 0;
-    color: #0f172a;
+    color: var(--text-primary);
     font-size: 1.12rem;
     font-weight: 700;
 }
 
 .filtersHeading p {
     margin: 0.3rem 0 0;
-    color: #475569;
+    color: var(--text-secondary);
     font-size: 0.94rem;
     line-height: 1.55;
 }
@@ -139,9 +137,9 @@
     justify-content: center;
     padding: 0.52rem 0.92rem;
     border-radius: 999px;
-    border: 1px solid #bfdbfe;
-    background: #eff6ff;
-    color: #1d4ed8;
+    border: 1px solid var(--accent-border-soft);
+    background: var(--accent-pill-bg);
+    color: var(--accent-pill-text);
     font-size: 0.83rem;
     font-weight: 800;
     white-space: nowrap;
@@ -168,7 +166,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    color: #334155;
+    color: var(--text-primary);
     font-size: 0.86rem;
     font-weight: 700;
 }
@@ -180,9 +178,9 @@
     min-height: 50px;
     padding: 0.9rem 1rem;
     border-radius: 14px;
-    border: 1px solid #cbd5e1;
-    background: rgba(255, 255, 255, 0.96);
-    color: #0f172a;
+    border: 1px solid var(--border-color-dark);
+    background: var(--surface-card-elevated);
+    color: var(--text-primary);
     font-size: 0.95rem;
     transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
     outline: none;
@@ -190,7 +188,7 @@
 
 .filterControl::placeholder,
 .searchInput::placeholder {
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 .filterControl:focus,
@@ -223,15 +221,15 @@
     align-items: center;
     padding: 0.48rem 0.82rem;
     border-radius: 999px;
-    background: #e0f2fe;
-    border: 1px solid #bae6fd;
-    color: #075985;
+    background: var(--accent-surface);
+    border: 1px solid var(--accent-border-soft);
+    color: var(--accent-pill-text);
     font-size: 0.82rem;
     font-weight: 700;
 }
 
 .filtersHint {
-    color: #64748b;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     line-height: 1.5;
 }
@@ -243,10 +241,10 @@
     gap: 0.55rem;
     min-height: 46px;
     padding: 0 1.05rem;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-color-dark);
     border-radius: 14px;
-    background: #ffffff;
-    color: #334155;
+    background: var(--surface-card-elevated);
+    color: var(--text-secondary);
     font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
@@ -254,9 +252,9 @@
 }
 
 .clearFiltersButton:hover:not(:disabled) {
-    background: #f8fafc;
-    border-color: #94a3b8;
-    color: #0f172a;
+    background: var(--surface-card-muted);
+    border-color: var(--border-color-dark);
+    color: var(--text-primary);
     transform: translateY(-1px);
 }
 
@@ -280,7 +278,7 @@
 }
 
 .table th {
-    background: rgba(248, 250, 252, 0.88);
+    background: var(--surface-card-muted);
     padding: 1rem;
     text-align: left;
     font-size: 0.76rem;
@@ -307,7 +305,7 @@
 }
 
 .rowSelected {
-    background-color: rgba(37, 99, 235, 0.08);
+    background-color: var(--accent-surface);
 }
 
 .checkboxInput {
@@ -326,14 +324,14 @@
     width: 42px;
     height: 42px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(14, 165, 233, 0.08));
+    background: linear-gradient(135deg, var(--accent-surface-strong), var(--accent-surface));
     color: var(--accent-primary);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-weight: 800;
     font-size: 0.92rem;
-    border: 1px solid rgba(37, 99, 235, 0.14);
+    border: 1px solid var(--accent-border-soft);
     flex-shrink: 0;
 }
 
@@ -405,11 +403,11 @@
 }
 
 .actionIconButtonWarning:hover {
-    color: #b45309;
+    color: var(--warning-text);
 }
 
 .actionIconButtonDanger:hover {
-    color: #dc2626;
+    color: var(--danger-primary);
 }
 
 .paginationFooter {
@@ -467,7 +465,7 @@
     width: min(92vw, 860px);
     padding: 0.95rem 1.15rem;
     border-radius: 24px;
-    background: rgba(255, 255, 255, 0.94);
+    background: var(--surface-card-floating);
     border: 1px solid var(--border-color-light);
     box-shadow: var(--card-shadow-strong);
     backdrop-filter: blur(16px);
@@ -517,10 +515,10 @@
     transform: none;
 }
 
-.btnSuccess { background-color: #16a34a; }
-.btnWarning { background-color: #64748b; }
+.btnSuccess { background-color: var(--success-primary); }
+.btnWarning { background-color: var(--warning-primary); }
 .btnInfo { background-color: var(--accent-primary); }
-.btnDanger { background-color: #dc2626; }
+.btnDanger { background-color: var(--danger-primary); }
 
 .batchSelect {
     min-height: 40px;
@@ -544,8 +542,8 @@
 }
 
 .batchClose:hover {
-    background: rgba(239, 68, 68, 0.08);
-    color: #dc2626;
+    background: var(--danger-soft);
+    color: var(--danger-primary);
 }
 
 @keyframes slideUp {
@@ -611,8 +609,8 @@
 }
 
 .closeButton:hover {
-    background: rgba(239, 68, 68, 0.08);
-    color: #dc2626;
+    background: var(--danger-soft);
+    color: var(--danger-primary);
 }
 
 .formGrid {
@@ -682,21 +680,21 @@
 }
 
 .cancelButton {
-    background-color: #ffffff;
+    background-color: var(--surface-card-elevated);
     border: 1px solid var(--border-color-light);
     color: var(--text-secondary);
 }
 
 .cancelButton:hover {
-    background-color: #f8fafc;
+    background-color: var(--surface-card-muted);
     border-color: var(--border-color-dark);
     color: var(--text-primary);
 }
 
 .saveButton {
     border: none;
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
-    color: #ffffff;
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
