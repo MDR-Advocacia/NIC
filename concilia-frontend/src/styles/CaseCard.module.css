@@ -2,7 +2,7 @@
 /* ATUALIZADO: Adicionados estilos para casos atrasados (SLA) */
 
 .card {
-    background-color: var(--bg-card); 
+    background: var(--surface-card-elevated);
     padding: 1rem;
     border-radius: 8px;
     margin-bottom: 1rem;
@@ -15,17 +15,17 @@
 
 .card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    box-shadow: var(--card-shadow-strong);
 }
 
-.priorityAlta { border-left-color: #e53e3e; }
-.priorityMedia { border-left-color: #dd6b20; }
-.priorityBaixa { border-left-color: #38a169; }
+.priorityAlta { border-left-color: var(--danger-primary); }
+.priorityMedia { border-left-color: var(--warning-primary); }
+.priorityBaixa { border-left-color: var(--success-primary); }
 
 /* --- NOVO ESTILO DE SLA (ATRASADO) --- */
 /* Sobrescreve a borda se o caso estiver atrasado */
 .cardDelayed {
-    border-left-color: #ef4444 !important; /* Vermelho alerta */
+    border-left-color: var(--danger-primary) !important;
     border-left-width: 6px; /* Um pouco mais grosso para chamar atenção */
     position: relative;
 }
@@ -36,8 +36,8 @@
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: bold;
-    color: white;
-    background-color: #ef4444; /* Fundo vermelho */
+    color: var(--danger-contrast);
+    background-color: var(--danger-primary);
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -46,7 +46,7 @@
 
 /* Texto de data em vermelho se atrasado */
 .textDelayed span, .textDelayed svg {
-    color: #ef4444 !important;
+    color: var(--danger-primary) !important;
     font-weight: 500;
 }
 
@@ -119,7 +119,7 @@
     font-size: 0.76rem;
     font-weight: 800;
     letter-spacing: 0.01em;
-    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
+    box-shadow: var(--card-shadow);
     border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
@@ -158,12 +158,12 @@
 .economyPercentage {
     font-size: 0.875rem;
     font-weight: bold;
-    color: #38a169;
+    color: var(--success-primary);
 }
 .economyPercentageNegative {
     font-size: 0.875rem;
     font-weight: bold;
-    color: #e53e3e; 
+    color: var(--danger-primary);
 }
 
 .footer {
@@ -179,8 +179,27 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: #dd6b20; 
+    color: var(--warning-primary);
     text-decoration: none;
     font-size: 0.875rem;
     font-weight: bold;
+}
+
+.indicateButton {
+    margin-top: 14px;
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--accent-shadow);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.indicateButton:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--accent-shadow-hover);
 }

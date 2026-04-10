@@ -796,15 +796,7 @@ const PipelinePage = () => {
             </section>
 
             {isIndicator && (
-                <div style={{
-                    marginBottom: '18px',
-                    padding: '14px 18px',
-                    borderRadius: '12px',
-                    border: '1px solid #bfdbfe',
-                    background: '#eff6ff',
-                    color: '#1e3a8a',
-                    fontWeight: 600,
-                }}>
+                <div className={styles.indicatorInfoBanner}>
                     Você pode indicar casos na coluna de Análise Inicial. Depois da indicação, o acompanhamento das próximas fases continua disponível aqui em modo somente leitura.
                 </div>
             )}

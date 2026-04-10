@@ -72,35 +72,35 @@ const OpposingLawyerListModal = ({ onClose, onSelect }) => {
                         style={{ paddingLeft: '2.8rem' }}
                         autoFocus
                     />
-                    <FaSearch style={{ position: 'absolute', left: '12px', top: '13px', color: '#718096', fontSize: '1.1rem' }} />
+                    <FaSearch style={{ position: 'absolute', left: '12px', top: '13px', color: 'var(--text-muted)', fontSize: '1.1rem' }} />
                 </div>
 
                 {/* Lista de Resultados */}
-                <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #4a5568', borderRadius: '6px', backgroundColor: '#1a202c' }}>
+                <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid var(--border-color-light)', borderRadius: '16px', background: 'var(--surface-card-sunken)' }}>
                     {loading ? (
-                        <p style={{ padding: '2rem', textAlign: 'center', color: '#a0aec0' }}>Carregando lista...</p>
+                        <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Carregando lista...</p>
                     ) : lawyers.length > 0 ? (
-                        <table style={{ width: '100%', borderCollapse: 'collapse', color: '#f7fafc' }}>
-                            <thead style={{ background: '#2d3748', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--text-primary)' }}>
+                            <thead style={{ background: 'var(--surface-card-muted)', position: 'sticky', top: 0, zIndex: 10, boxShadow: 'var(--card-shadow)' }}>
                                 <tr>
-                                    <th style={{ padding: '12px 15px', textAlign: 'left', borderBottom: '1px solid #4a5568', width: '50%' }}>Advogado</th>
-                                    <th style={{ padding: '12px 15px', textAlign: 'center', borderBottom: '1px solid #4a5568', width: '30%' }}>Classificação</th>
-                                    <th style={{ padding: '12px 15px', textAlign: 'right', borderBottom: '1px solid #4a5568', width: '20%' }}></th>
+                                    <th style={{ padding: '12px 15px', textAlign: 'left', borderBottom: '1px solid var(--border-color-light)', width: '50%' }}>Advogado</th>
+                                    <th style={{ padding: '12px 15px', textAlign: 'center', borderBottom: '1px solid var(--border-color-light)', width: '30%' }}>Classificação</th>
+                                    <th style={{ padding: '12px 15px', textAlign: 'right', borderBottom: '1px solid var(--border-color-light)', width: '20%' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {lawyers.map(lawyer => (
                                     <tr key={lawyer.id} style={{ 
-                                        borderBottom: '1px solid #2d3748', 
-                                        backgroundColor: lawyer.is_abusive ? 'rgba(229, 62, 62, 0.08)' : 'transparent',
+                                        borderBottom: '1px solid var(--border-color-light)', 
+                                        backgroundColor: lawyer.is_abusive ? 'var(--danger-soft)' : 'transparent',
                                         transition: 'background-color 0.2s'
                                     }}>
                                         <td style={{ padding: '12px 15px' }}>
                                             <div style={{ fontWeight: '600', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 {lawyer.name}
-                                                {lawyer.is_abusive && <FaExclamationTriangle color="#e53e3e" title="Litigante Abusivo" size={14} />}
+                                                {lawyer.is_abusive && <FaExclamationTriangle color="var(--danger-primary)" title="Litigante Abusivo" size={14} />}
                                             </div>
-                                            <div style={{ fontSize: '0.8rem', color: '#a0aec0', marginTop: '4px' }}>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                                                 {lawyer.oab ? `OAB: ${lawyer.oab}` : 'S/ OAB'} • {lawyer.cpf ? `CPF: ${lawyer.cpf}` : 'S/ CPF'}
                                             </div>
                                         </td>
@@ -136,7 +136,7 @@ const OpposingLawyerListModal = ({ onClose, onSelect }) => {
                             </tbody>
                         </table>
                     ) : (
-                        <div style={{ padding: '3rem', textAlign: 'center', color: '#718096' }}>
+                        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                             <p style={{ marginBottom: '10px', fontSize: '1.1rem' }}>Nenhum advogado encontrado.</p>
                             <p style={{ fontSize: '0.9rem' }}>Tente outro termo ou cadastre um novo.</p>
                         </div>

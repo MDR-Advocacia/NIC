@@ -54,8 +54,8 @@
 }
 
 .closeButton:hover {
-    background: rgba(239, 68, 68, 0.08);
-    color: #dc2626;
+    background: var(--danger-soft);
+    color: var(--danger-primary);
 }
 
 .form {
@@ -125,13 +125,13 @@
 }
 
 .cancelButton {
-    background: #ffffff;
+    background: var(--surface-card-elevated);
     color: var(--text-secondary);
     border: 1px solid var(--border-color-light);
 }
 
 .cancelButton:hover {
-    background: #f8fafc;
+    background: var(--surface-card-muted);
     border-color: var(--border-color-dark);
     color: var(--text-primary);
 }
@@ -152,13 +152,13 @@
 }
 
 .errorBanner {
-    background-color: rgba(239, 68, 68, 0.08);
-    color: #b91c1c;
+    background-color: var(--danger-soft);
+    color: var(--danger-text);
     padding: 0.85rem 0.95rem;
     border-radius: 14px;
     margin-bottom: 1rem;
     font-size: 0.9rem;
-    border: 1px solid rgba(239, 68, 68, 0.16);
+    border: 1px solid var(--danger-soft-strong);
 }
 
 .switch {
@@ -200,7 +200,7 @@
 }
 
 .switch input:checked + .slider {
-  background-color: #dc2626; 
+  background-color: var(--danger-primary);
 }
 
 .switch input:checked + .slider:before {
@@ -214,7 +214,7 @@
 }
 
 .switchLabel.active {
-    color: #dc2626;
+    color: var(--danger-primary);
 }
 
 @media (max-width: 768px) {

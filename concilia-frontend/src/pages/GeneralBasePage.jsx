@@ -147,10 +147,10 @@ const GeneralBasePage = () => {
 
     const getSortIcon = (columnKey) => {
         if (sortConfig.key !== columnKey)
-            return <FaSort style={{ marginLeft: '5px', color: '#A0AEC0', fontSize: '0.8rem' }} />;
+            return <FaSort className={styles.sortIconMuted} />;
         return sortConfig.direction === 'asc'
-            ? <FaSortUp style={{ marginLeft: '5px', color: '#4a5568', fontSize: '0.8rem' }} />
-            : <FaSortDown style={{ marginLeft: '5px', color: '#4a5568', fontSize: '0.8rem' }} />;
+            ? <FaSortUp className={styles.sortIconActive} />
+            : <FaSortDown className={styles.sortIconActive} />;
     };
 
     const handleFilterChange = (e) => {
@@ -422,14 +422,14 @@ const GeneralBasePage = () => {
                 {loading ? (
                     <p>Carregando...</p>
                 ) : error ? (
-                    <p style={{ color: 'red' }}>{error}</p>
+                    <p className={styles.errorText}>{error}</p>
                 ) : (
                     <>
                         <div className={styles.paginationTopBar}>
                             <div className={styles.paginationInfoText}>
                                 Exibindo {paginationData.from || 0}–{paginationData.to || 0} de {paginationData.total || 0} resultados
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div className={styles.inlineControls}>
                                 <span className={styles.paginationInfoText}>Exibir:</span>
                                 <select
                                     value={perPage}
@@ -510,9 +510,9 @@ const GeneralBasePage = () => {
                                             </div>
                                         </td>
                                         <td><StatusTag status={legalCase.status} /></td>
-                                        <td>{legalCase.lawyer?.name || <span style={{ color: '#E53E3E' }}>Sem advogado</span>}</td>
+                                        <td>{legalCase.lawyer?.name || <span className={styles.emptyLawyer}>Sem advogado</span>}</td>
                                         <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div className={styles.tableActions}>
                                                 <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon} title="Visualizar caso">
                                                     <FaEye />
                                                 </Link>
@@ -529,10 +529,9 @@ const GeneralBasePage = () => {
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            className={styles.actionIcon}
+                                                            className={styles.deleteActionButton}
                                                             title="Excluir caso"
                                                             onClick={() => handleDeleteCase(legalCase)}
-                                                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#dc2626' }}
                                                         >
                                                             <FaTrash />
                                                         </button>

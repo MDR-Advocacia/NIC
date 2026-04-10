@@ -157,17 +157,7 @@ const CaseCardBody = ({
                   onIndicate(legalCase);
                 }
               }}
-              style={{
-                marginTop: '14px',
-                width: '100%',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '10px 12px',
-                background: '#1d4ed8',
-                color: '#fff',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
+              className={styles.indicateButton}
             >
               Indicar Caso para acordo
             </button>

@@ -5,7 +5,7 @@
   padding: 1rem;
   border-radius: 18px;
   border: 1px solid var(--border-color-light);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(247, 250, 252, 0.92) 100%);
+  background: var(--surface-panel-muted);
 }
 
 .compact {
@@ -47,13 +47,13 @@
   border-radius: 999px;
   border: 1px solid var(--tag-color-border);
   background: var(--tag-color-soft);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--card-shadow);
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .tagCard:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+  box-shadow: var(--card-shadow-strong);
 }
 
 .tagCardActive {
@@ -75,7 +75,7 @@
 }
 
 .tagCardActive .tagButton {
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .tagIcon {
@@ -85,7 +85,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--surface-card-glass);
   color: var(--tag-color);
   font-size: 0.68rem;
   flex-shrink: 0;
@@ -93,7 +93,7 @@
 
 .tagCardActive .tagIcon {
   background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .tagText {
@@ -106,8 +106,8 @@
   margin-right: 0.28rem;
   border: none;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  color: #b91c1c;
+  background: var(--surface-card-glass);
+  color: var(--danger-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -117,12 +117,12 @@
 
 .deleteButton:hover {
   transform: scale(1.05);
-  background: #fee2e2;
+  background: var(--danger-soft);
 }
 
 .tagCardActive .deleteButton {
   background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .tagCardActive .deleteButton:hover {
