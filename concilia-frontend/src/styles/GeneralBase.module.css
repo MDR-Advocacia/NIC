@@ -40,18 +40,18 @@
     padding: 0 1rem;
     border-radius: 14px;
     border: none;
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
-    color: #fff;
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
     text-decoration: none;
     font-weight: 700;
-    box-shadow: 0 16px 30px rgba(37, 99, 235, 0.2);
+    box-shadow: var(--accent-shadow);
     transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
 }
 
 .newCaseButton:hover {
     transform: translateY(-1px);
     filter: brightness(1.02);
-    box-shadow: 0 20px 34px rgba(37, 99, 235, 0.24);
+    box-shadow: var(--accent-shadow-hover);
 }
 
 .infoBanner {
@@ -60,12 +60,10 @@
     gap: 0.9rem;
     padding: 1.05rem 1.2rem;
     border-radius: 18px;
-    border: 1px solid #bfdbfe;
-    background:
-        radial-gradient(circle at top right, rgba(37, 99, 235, 0.16), transparent 34%),
-        linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%);
-    box-shadow: 0 16px 34px rgba(37, 99, 235, 0.1);
-    color: #1e3a8a;
+    border: 1px solid var(--accent-border-soft);
+    background: var(--surface-panel-accent);
+    box-shadow: var(--card-shadow);
+    color: var(--accent-pill-text);
     line-height: 1.55;
 }
 
@@ -87,9 +85,7 @@
     padding: 1.5rem;
     border-radius: 22px;
     border: 1px solid var(--border-color-light);
-    background:
-        radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 34%),
-        linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    background: var(--surface-panel-accent);
     box-shadow: var(--card-shadow);
     display: flex;
     flex-direction: column;
@@ -117,22 +113,22 @@
     border-radius: 15px;
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
-    color: #ffffff;
-    box-shadow: 0 16px 30px rgba(37, 99, 235, 0.22);
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+    box-shadow: var(--accent-shadow);
     flex-shrink: 0;
 }
 
 .filtersHeading h3 {
     margin: 0;
-    color: #0f172a;
+    color: var(--text-primary);
     font-size: 1.12rem;
     font-weight: 700;
 }
 
 .filtersHeading p {
     margin: 0.3rem 0 0;
-    color: #475569;
+    color: var(--text-secondary);
     font-size: 0.94rem;
     line-height: 1.55;
     max-width: 56rem;
@@ -144,9 +140,9 @@
     justify-content: center;
     padding: 0.52rem 0.92rem;
     border-radius: 999px;
-    border: 1px solid #bfdbfe;
-    background: #eff6ff;
-    color: #1d4ed8;
+    border: 1px solid var(--accent-border-soft);
+    background: var(--accent-pill-bg);
+    color: var(--accent-pill-text);
     font-size: 0.83rem;
     font-weight: 800;
     white-space: nowrap;
@@ -173,13 +169,13 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    color: #334155;
+    color: var(--text-primary);
     font-size: 0.86rem;
     font-weight: 700;
 }
 
 .filterHelp {
-    color: #64748b;
+    color: var(--text-secondary);
     font-size: 0.8rem;
     line-height: 1.45;
 }
@@ -189,15 +185,15 @@
     min-height: 50px;
     padding: 0.9rem 1rem;
     border-radius: 14px;
-    border: 1px solid #cbd5e1;
-    background: rgba(255, 255, 255, 0.96);
-    color: #0f172a;
+    border: 1px solid var(--border-color-dark);
+    background: var(--surface-card-elevated);
+    color: var(--text-primary);
     font-size: 0.95rem;
     transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .filterControl::placeholder {
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 .filterControl:focus {
@@ -229,15 +225,15 @@
     align-items: center;
     padding: 0.48rem 0.82rem;
     border-radius: 999px;
-    background: #e0f2fe;
-    border: 1px solid #bae6fd;
-    color: #075985;
+    background: var(--accent-surface);
+    border: 1px solid var(--accent-border-soft);
+    color: var(--accent-pill-text);
     font-size: 0.82rem;
     font-weight: 700;
 }
 
 .filtersHint {
-    color: #64748b;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     line-height: 1.5;
 }
@@ -249,10 +245,10 @@
     gap: 0.55rem;
     min-height: 46px;
     padding: 0 1.05rem;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-color-dark);
     border-radius: 14px;
-    background: #ffffff;
-    color: #334155;
+    background: var(--surface-card-elevated);
+    color: var(--text-secondary);
     font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
@@ -260,9 +256,9 @@
 }
 
 .clearFiltersButton:hover:not(:disabled) {
-    background: #f8fafc;
-    border-color: #94a3b8;
-    color: #0f172a;
+    background: var(--surface-card-muted);
+    border-color: var(--border-color-dark);
+    color: var(--text-primary);
     transform: translateY(-1px);
 }
 
@@ -293,7 +289,7 @@
     color: var(--text-secondary);
     border-bottom: 1px solid var(--border-color-light);
     white-space: nowrap;
-    background: rgba(248, 250, 252, 0.88);
+    background: var(--surface-card-muted);
     text-transform: uppercase;
     letter-spacing: 0.03em;
     font-size: 0.76rem;
@@ -405,7 +401,47 @@
     gap: 1rem;
     padding: 1rem 1.1rem;
     border-bottom: 1px solid var(--border-color-light);
-    background: rgba(248, 250, 252, 0.68);
+    background: var(--surface-card-muted);
+}
+
+.errorText {
+    color: var(--danger-primary);
+}
+
+.sortIconMuted {
+    margin-left: 5px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.sortIconActive {
+    margin-left: 5px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.inlineControls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tableActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.emptyLawyer {
+    color: var(--danger-primary);
+}
+
+.deleteActionButton {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--danger-primary);
 }
 
 .paginationInfoText {

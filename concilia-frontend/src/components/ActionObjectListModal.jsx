@@ -78,7 +78,7 @@ const ActionObjectListModal = ({ onClose, onSelect }) => {
                 position: 'absolute',
                 left: '12px',
                 top: '13px',
-                color: '#718096',
+                color: 'var(--text-muted)',
                 fontSize: '1.1rem',
               }}
             />
@@ -88,38 +88,38 @@ const ActionObjectListModal = ({ onClose, onSelect }) => {
             style={{
               maxHeight: '430px',
               overflowY: 'auto',
-              border: '1px solid #4a5568',
-              borderRadius: '6px',
-              backgroundColor: '#1a202c',
+              border: '1px solid var(--border-color-light)',
+              borderRadius: '16px',
+              background: 'var(--surface-card-sunken)',
             }}
           >
             {loading ? (
-              <p style={{ padding: '2rem', textAlign: 'center', color: '#a0aec0' }}>
+              <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                 Carregando lista...
               </p>
             ) : actionObjects.length > 0 ? (
-              <table style={{ width: '100%', borderCollapse: 'collapse', color: '#f7fafc' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--text-primary)' }}>
                 <thead
                   style={{
-                    background: '#2d3748',
+                    background: 'var(--surface-card-muted)',
                     position: 'sticky',
                     top: 0,
                     zIndex: 10,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    boxShadow: 'var(--card-shadow)',
                   }}
                 >
                   <tr>
-                    <th style={{ padding: '12px 15px', textAlign: 'left', borderBottom: '1px solid #4a5568' }}>
+                    <th style={{ padding: '12px 15px', textAlign: 'left', borderBottom: '1px solid var(--border-color-light)' }}>
                       Nome
                     </th>
-                    <th style={{ padding: '12px 15px', textAlign: 'right', borderBottom: '1px solid #4a5568' }}>
+                    <th style={{ padding: '12px 15px', textAlign: 'right', borderBottom: '1px solid var(--border-color-light)' }}>
                       Ações
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {actionObjects.map((actionObject) => (
-                    <tr key={actionObject.id} style={{ borderBottom: '1px solid #2d3748' }}>
+                    <tr key={actionObject.id} style={{ borderBottom: '1px solid var(--border-color-light)' }}>
                       <td style={{ padding: '12px 15px', fontWeight: 600 }}>{actionObject.name}</td>
                       <td style={{ padding: '12px 15px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '8px' }}>
@@ -149,7 +149,7 @@ const ActionObjectListModal = ({ onClose, onSelect }) => {
                 </tbody>
               </table>
             ) : (
-              <div style={{ padding: '3rem', textAlign: 'center', color: '#718096' }}>
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                 <p style={{ marginBottom: '10px', fontSize: '1.1rem' }}>Nenhuma causa de pedir encontrada.</p>
                 <p style={{ fontSize: '0.9rem' }}>Tente outro termo ou cadastre um novo.</p>
               </div>

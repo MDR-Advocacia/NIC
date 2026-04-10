@@ -15,7 +15,7 @@
 }
 
 .newCaseButton {
-    background-color: var(--accent-primary);
+    background: var(--accent-gradient);
     color: var(--text-on-accent);
     padding: 0.75rem 1.5rem;
     border: none;
@@ -26,7 +26,7 @@
 }
 
 .newCaseButton:hover {
-    background-color: var(--accent-primary-hover);
+    box-shadow: var(--accent-shadow-hover);
     transform: translateY(-2px);
 }
 
@@ -160,20 +160,20 @@
 }
 
 .saveButton {
-    background-color: #38a169; /* Cor semântica (Mantida) */
-    color: white;
+    background-color: var(--success-primary);
+    color: var(--text-on-accent);
 }
 .saveButton:hover {
     transform: translateY(-2px);
 }
 
 .error {
-    color: #e53e3e;
+    color: var(--danger-text);
     text-align: center;
     margin-top: 1rem;
     padding: 0.5rem;
-    background-color: rgba(229, 62, 62, 0.1);
-    border: 1px solid #e53e3e;
+    background-color: var(--danger-soft);
+    border: 1px solid var(--danger-soft-strong);
     border-radius: 5px;
 }
 
@@ -194,15 +194,15 @@
     font-weight: bold;
     transition: all 0.2s;
 }
-.priorityButton.alta { border-color: #e53e3e; }
-.priorityButton.media { border-color: #dd6b20; }
-.priorityButton.baixa { border-color: #38a169; }
+.priorityButton.alta { border-color: var(--danger-primary); }
+.priorityButton.media { border-color: var(--warning-primary); }
+.priorityButton.baixa { border-color: var(--success-primary); }
 .priorityButton.selected {
     color: white;
 }
-.priorityButton.alta.selected { background-color: #e53e3e; }
-.priorityButton.media.selected { background-color: #dd6b20; }
-.priorityButton.baixa.selected { background-color: #38a169; }
+.priorityButton.alta.selected { background-color: var(--danger-primary); }
+.priorityButton.media.selected { background-color: var(--warning-primary); }
+.priorityButton.baixa.selected { background-color: var(--success-primary); }
 
 
 .tagCreator {
@@ -406,7 +406,7 @@
 }
 
 .historyChanges strong {
-    color: #90cdf4; /* (Cor semântica mantida) */
+    color: var(--accent-pill-text);
 }
 
 .historyChanges em {
@@ -423,9 +423,7 @@
   padding: 1.4rem;
   border-radius: 24px;
   border: 1px solid var(--border-color-light);
-  background:
-    radial-gradient(circle at top right, rgba(99, 179, 237, 0.16), transparent 30%),
-    var(--bg-card);
+  background: var(--surface-panel-accent);
   box-shadow: var(--card-shadow);
   margin-bottom: 1rem;
 }
@@ -454,8 +452,8 @@
   place-items: center;
   flex-shrink: 0;
   color: var(--text-on-accent);
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
-  box-shadow: 0 14px 28px rgba(49, 130, 206, 0.22);
+  background: var(--accent-gradient);
+  box-shadow: var(--accent-shadow);
 }
 
 .filterPanelTitle {
@@ -573,7 +571,7 @@
 .filterInput:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 4px rgba(49, 130, 206, 0.12);
+  box-shadow: var(--focus-ring);
   transform: translateY(-1px);
 }
 
@@ -606,17 +604,17 @@
   align-items: center;
   padding: 0.55rem 0.85rem;
   border-radius: 999px;
-  background: rgba(99, 179, 237, 0.1);
-  border: 1px solid rgba(99, 179, 237, 0.18);
-  color: var(--accent-primary);
+  background: var(--accent-surface);
+  border: 1px solid var(--accent-border-soft);
+  color: var(--accent-pill-text);
   font-size: 0.84rem;
   font-weight: 600;
 }
 
 .filterChipAlert {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: rgba(239, 68, 68, 0.2);
-  color: #dc2626;
+  background: var(--danger-soft);
+  border-color: var(--danger-soft-strong);
+  color: var(--danger-text);
 }
 
 .filterHint {
@@ -639,8 +637,8 @@
 
 .aggressorButton {
     background-color: transparent;
-    color: #ef4444; 
-    border: 1px solid #ef4444;
+    color: var(--danger-primary);
+    border: 1px solid var(--danger-primary);
     padding: 0.75rem 1.5rem;
     border-radius: 5px;
     cursor: pointer;
@@ -648,7 +646,7 @@
     transition: all 0.2s;
 }
 .aggressorButton:hover {
-    background-color: rgba(239, 68, 68, 0.1);
+    background-color: var(--danger-soft);
 }
 
 /* --- BOTÃO DE FILTRO DE ATRASO --- */
@@ -659,27 +657,39 @@
     min-height: 46px;
     padding: 0 1rem;
     border-radius: 14px;
-    border: 1px solid rgba(239, 68, 68, 0.28);
-    background-color: rgba(239, 68, 68, 0.08);
-    color: #dc2626;
+    border: 1px solid var(--danger-soft-strong);
+    background-color: var(--danger-soft);
+    color: var(--danger-text);
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease-out;
 }
 
 .delayedFilterButton.active {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
+    background: linear-gradient(135deg, var(--danger-primary), var(--danger-primary-hover));
     border-color: transparent;
-    color: white;
-    box-shadow: 0 16px 28px rgba(239, 68, 68, 0.22);
+    color: var(--danger-contrast);
+    box-shadow: 0 16px 28px var(--danger-soft-strong);
 }
 
 .delayedFilterButton:hover {
     transform: translateY(-1px);
-    background-color: rgba(239, 68, 68, 0.14);
+    background-color: var(--danger-soft);
 }
 .delayedFilterButton.active:hover {
-    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    background: linear-gradient(135deg, var(--danger-primary), var(--danger-primary-hover));
+}
+
+.indicatorInfoBanner {
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--accent-border-soft);
+  background: var(--surface-panel-accent);
+  color: var(--accent-pill-text);
+  font-weight: 600;
+  line-height: 1.55;
+  box-shadow: var(--card-shadow);
 }
 
 .clearFilterButton {

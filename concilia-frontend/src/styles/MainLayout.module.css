@@ -13,13 +13,12 @@
     width: 292px;
     min-height: 100vh;
     padding: 1.5rem 1.2rem;
-    border-right: 1px solid rgba(255, 255, 255, 0.18);
-    background:
-        radial-gradient(circle at top, rgba(37, 99, 235, 0.14), transparent 38%),
-        linear-gradient(180deg, rgba(15, 23, 42, 0.97) 0%, rgba(15, 23, 42, 0.92) 100%);
-    box-shadow: 24px 0 50px rgba(15, 23, 42, 0.16);
+    border-right: 1px solid var(--sidebar-border);
+    background: var(--sidebar-bg);
+    box-shadow: var(--sidebar-shadow);
     flex-shrink: 0;
     z-index: 5;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .brandWrapper {
@@ -29,19 +28,19 @@
     padding: 1rem 1rem 1.15rem;
     margin-bottom: 1.5rem;
     border-radius: 24px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--sidebar-card-bg);
+    border: 1px solid var(--sidebar-card-border);
     backdrop-filter: blur(14px);
 }
 
 .mainIcon {
     font-size: 3.5rem;
-    color: #ffffff;
+    color: var(--sidebar-text-primary);
     margin-bottom: 10px;
     filter:
-        drop-shadow(0 0 2px #ffffff)
-        drop-shadow(0 0 8px #ffffff)
-        drop-shadow(0 0 20px #3b82f6);
+        drop-shadow(0 0 2px rgba(255, 255, 255, 0.35))
+        drop-shadow(0 0 8px rgba(255, 255, 255, 0.2))
+        drop-shadow(0 0 20px var(--accent-primary));
     animation: ledPulse 3s ease-in-out infinite alternate;
 }
 
@@ -49,7 +48,7 @@
     font-family: "Georgia", "Times New Roman", serif;
     font-size: 2.55rem;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--sidebar-text-primary);
     line-height: 1;
     margin: 0;
     letter-spacing: 1.4px;
@@ -66,14 +65,14 @@
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
-    border-left: 1px solid rgba(148, 163, 184, 0.44);
+    border-left: 1px solid var(--sidebar-brand-divider);
     padding-left: 0.75rem;
 }
 
 .meaningBox span {
     font-size: 0.57rem;
     font-weight: 700;
-    color: #d6e1f0;
+    color: var(--sidebar-text-secondary);
     line-height: 1.25;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -81,29 +80,29 @@
 
 @keyframes ledPulse {
     0% {
-        filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 20px #3b82f6);
+        filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.35)) drop-shadow(0 0 8px rgba(255, 255, 255, 0.2)) drop-shadow(0 0 20px var(--accent-primary));
     }
     100% {
-        filter: drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 14px #ffffff) drop-shadow(0 0 30px #3b82f6);
+        filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4)) drop-shadow(0 0 14px rgba(255, 255, 255, 0.24)) drop-shadow(0 0 30px var(--accent-primary));
     }
 }
 
 .brandLight .mainIcon {
-    color: #0f172a;
+    color: var(--sidebar-text-primary);
     filter: none;
     animation: none;
 }
 
 .brandLight .nicTitle {
-    color: #0f172a;
+    color: var(--sidebar-text-primary);
 }
 
 .brandLight .meaningBox {
-    border-left-color: rgba(71, 85, 105, 0.28);
+    border-left-color: var(--sidebar-brand-divider);
 }
 
 .brandLight .meaningBox span {
-    color: #475569;
+    color: var(--sidebar-text-secondary);
 }
 
 .navList {
@@ -135,7 +134,7 @@
     padding: 0.95rem 1rem;
     border-radius: 16px;
     border: 1px solid transparent;
-    color: rgba(226, 232, 240, 0.88);
+    color: var(--sidebar-link-text);
     text-decoration: none;
     background: transparent;
     transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
@@ -145,9 +144,9 @@
 }
 
 .navLink:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(191, 219, 254, 0.2);
-    color: #ffffff;
+    background: var(--sidebar-link-hover-bg);
+    border-color: var(--sidebar-link-hover-border);
+    color: var(--sidebar-link-hover-text);
     transform: translateX(4px);
 }
 
@@ -166,7 +165,7 @@
 .submenuChevron {
     margin-right: 0 !important;
     font-size: 0.9rem !important;
-    color: rgba(226, 232, 240, 0.7);
+    color: var(--sidebar-text-secondary);
     transition: transform 0.2s ease;
 }
 
@@ -181,7 +180,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-    border-left: 1px solid rgba(148, 163, 184, 0.2);
+    border-left: 1px solid var(--sidebar-submenu-border);
 }
 
 .submenuListItem {
@@ -195,10 +194,10 @@
 }
 
 .navLinkActive {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-    border-color: rgba(191, 219, 254, 0.22);
-    color: #ffffff !important;
-    box-shadow: 0 18px 30px rgba(37, 99, 235, 0.24);
+    background: var(--accent-gradient);
+    border-color: var(--accent-border-soft);
+    color: var(--text-on-accent) !important;
+    box-shadow: var(--accent-shadow);
 }
 
 .navLink svg {
@@ -222,22 +221,22 @@
     gap: 0.25rem 0.8rem;
     padding: 1rem;
     border-radius: 18px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--sidebar-card-border);
+    background: var(--sidebar-card-bg);
 }
 
 .userInfo p {
     margin: 0;
     font-size: 0.92rem;
     font-weight: 700;
-    color: #f8fbff;
+    color: var(--sidebar-text-primary);
 }
 
 .userRole {
     grid-column: 1 / 2;
     font-size: 0.68rem !important;
     letter-spacing: 0.08em;
-    color: #9fb0c9 !important;
+    color: var(--sidebar-text-secondary) !important;
 }
 
 .themeToggleButton {
@@ -246,17 +245,17 @@
     width: 42px;
     height: 42px;
     border-radius: 14px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    background: rgba(255, 255, 255, 0.08);
-    color: #dce7f5;
+    border: 1px solid var(--sidebar-card-border);
+    background: var(--sidebar-toggle-bg);
+    color: var(--sidebar-text-primary);
     cursor: pointer;
     font-size: 1rem;
     transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .themeToggleButton:hover {
-    background: rgba(255, 255, 255, 0.14);
-    color: #ffffff;
+    background: var(--sidebar-toggle-hover-bg);
+    color: var(--sidebar-link-hover-text);
     transform: translateY(-1px);
 }
 
@@ -264,9 +263,9 @@
     width: 100%;
     min-height: 48px;
     padding: 0.85rem 1rem;
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(248, 113, 113, 0.18);
-    color: #fecaca;
+    background: var(--sidebar-danger-bg);
+    border: 1px solid var(--sidebar-danger-border);
+    color: var(--sidebar-danger-text);
     border-radius: 16px;
     cursor: pointer;
     display: inline-flex;
@@ -278,8 +277,8 @@
 }
 
 .logoutButton:hover {
-    background: rgba(239, 68, 68, 0.14);
-    border-color: rgba(248, 113, 113, 0.28);
+    background: var(--danger-soft);
+    border-color: var(--danger-soft-strong);
     transform: translateY(-1px);
 }
 
@@ -298,9 +297,7 @@
     right: 0;
     height: 220px;
     pointer-events: none;
-    background:
-        radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 32%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+    background: var(--content-top-glow);
     z-index: 0;
 }
 
