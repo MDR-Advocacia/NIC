@@ -487,6 +487,128 @@ class DashboardMetricsTest extends TestCase
             ]);
     }
 
+    public function test_dashboard_returns_day_week_and_month_metrics_for_general_responsible_and_indicator_views(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-04-15 10:00:00'));
+
+        try {
+            $manager = User::factory()->create([
+                'role' => 'administrador',
+                'status' => 'ativo',
+            ]);
+
+            $firstOperator = User::factory()->create([
+                'name' => 'Responsavel Um',
+                'role' => 'operador',
+                'status' => 'ativo',
+            ]);
+
+            $secondOperator = User::factory()->create([
+                'name' => 'Responsavel Dois',
+                'role' => 'operador',
+                'status' => 'ativo',
+            ]);
+
+            $firstIndicator = User::factory()->create([
+                'name' => 'Indicador Um',
+                'role' => 'indicador',
+                'status' => 'ativo',
+            ]);
+
+            $secondIndicator = User::factory()->create([
+                'name' => 'Indicador Dois',
+                'role' => 'indicador',
+                'status' => 'ativo',
+            ]);
+
+            Sanctum::actingAs($manager);
+
+            $this->createLegalCase($firstOperator, LegalCase::STATUS_CLOSED_DEAL, 'VIEW-DAY', [
+                'original_value' => 2000,
+                'agreement_value' => 1200,
+                'agreement_closed_at' => '2026-04-15',
+                'indicator_user_id' => $firstIndicator->id,
+                'agreement_checklist_data' => [
+                    'indication_checklist' => [
+                        'completed_at' => '2026-04-10T09:00:00-03:00',
+                    ],
+                ],
+            ]);
+
+            $this->createLegalCase($firstOperator, LegalCase::STATUS_CLOSED_DEAL, 'VIEW-WEEK', [
+                'original_value' => 1600,
+                'agreement_value' => 900,
+                'agreement_closed_at' => '2026-04-14',
+            ]);
+
+            $this->createLegalCase($secondOperator, LegalCase::STATUS_CLOSED_DEAL, 'VIEW-MONTH', [
+                'original_value' => 2600,
+                'agreement_value' => 1500,
+                'agreement_closed_at' => '2026-04-05',
+                'indicator_user_id' => $secondIndicator->id,
+                'agreement_checklist_data' => [
+                    'indication_checklist' => [
+                        'completed_at' => '2026-04-04T15:30:00-03:00',
+                    ],
+                ],
+            ]);
+
+            $this->createLegalCase($secondOperator, LegalCase::STATUS_CLOSED_DEAL, 'VIEW-OUTSIDE', [
+                'agreement_value' => 800,
+                'agreement_closed_at' => '2026-03-28',
+                'indicator_user_id' => $firstIndicator->id,
+                'agreement_checklist_data' => [
+                    'indication_checklist' => [
+                        'completed_at' => '2026-03-20T11:30:00-03:00',
+                    ],
+                ],
+            ]);
+
+            $response = $this->getJson('/api/dashboard');
+
+            $response
+                ->assertOk()
+                ->assertJsonPath('view_metrics.general.day.period.start_date', '2026-04-15')
+                ->assertJsonPath('view_metrics.general.day.summary.agreements_count', 1)
+                ->assertJsonPath('view_metrics.general.day.summary.total_agreement_value', 1200.0)
+                ->assertJsonPath('view_metrics.general.day.summary.average_ticket', 1200.0)
+                ->assertJsonPath('view_metrics.general.day.summary.total_economy', 800.0)
+                ->assertJsonPath('view_metrics.general.day.summary.converted_indications_count', 1)
+                ->assertJsonPath('view_metrics.general.week.period.start_date', '2026-04-13')
+                ->assertJsonPath('view_metrics.general.week.summary.agreements_count', 2)
+                ->assertJsonPath('view_metrics.general.week.summary.total_agreement_value', 2100.0)
+                ->assertJsonPath('view_metrics.general.week.summary.average_ticket', 1050.0)
+                ->assertJsonPath('view_metrics.general.week.summary.total_economy', 1500.0)
+                ->assertJsonPath('view_metrics.general.week.summary.converted_indications_count', 1)
+                ->assertJsonPath('view_metrics.general.month.period.start_date', '2026-04-01')
+                ->assertJsonPath('view_metrics.general.month.summary.agreements_count', 3)
+                ->assertJsonPath('view_metrics.general.month.summary.total_agreement_value', 3600.0)
+                ->assertJsonPath('view_metrics.general.month.summary.average_ticket', 1200.0)
+                ->assertJsonPath('view_metrics.general.month.summary.total_economy', 2600.0)
+                ->assertJsonPath('view_metrics.general.month.summary.converted_indications_count', 2)
+                ->assertJsonPath('view_metrics.by_responsible.month.summary.participants_count', 2)
+                ->assertJsonPath('view_metrics.by_responsible.month.items.0.name', 'Responsavel Um')
+                ->assertJsonPath('view_metrics.by_responsible.month.items.0.agreements_count', 2)
+                ->assertJsonPath('view_metrics.by_responsible.month.items.0.converted_indications_count', 1)
+                ->assertJsonPath('view_metrics.by_responsible.month.items.1.name', 'Responsavel Dois')
+                ->assertJsonPath('view_metrics.by_responsible.month.items.1.agreements_count', 1)
+                ->assertJsonPath('view_metrics.by_responsible.month.items.1.converted_indications_count', 1)
+                ->assertJsonPath('view_metrics.by_indicator.month.summary.participants_count', 2)
+                ->assertJsonFragment([
+                    'name' => 'Indicador Um',
+                    'agreements_count' => 1,
+                    'converted_indications_count' => 1,
+                ])
+                ->assertJsonFragment([
+                    'name' => 'Indicador Dois',
+                    'agreements_count' => 1,
+                    'converted_indications_count' => 1,
+                ]);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     private function createLegalCase(User $operator, string $status, string $caseNumber, array $overrides = []): LegalCase
     {
         $client = Client::firstOrCreate([
