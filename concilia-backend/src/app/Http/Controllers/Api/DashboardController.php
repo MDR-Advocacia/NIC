@@ -16,6 +16,11 @@ use Illuminate\Support\Facades\DB;
 class DashboardController extends Controller
 {
     private const TEAM_ROLES = ['operador', 'administrador', 'supervisor'];
+    private const METRIC_PERIOD_LABELS = [
+        'day' => 'Dia',
+        'week' => 'Semana',
+        'month' => 'Mes',
+    ];
     private const BRAZIL_STATES = [
         'AC' => 'Acre',
         'AL' => 'Alagoas',
@@ -137,6 +142,7 @@ class DashboardController extends Controller
             : 0;
         $indicatorLeaderboard = $this->buildIndicatorLeaderboard($request, $user, $portfolioDateRange);
         $recentCases = $this->buildRecentCases($request, $user, $portfolioDateRange);
+        $viewMetrics = $this->buildViewMetrics($request, $user, $closingDateRange);
 
         return response()->json([
             'kpis' => [
@@ -171,8 +177,130 @@ class DashboardController extends Controller
             'agreement_macro_distribution' => $this->buildAgreementMacroDistribution($request, $user, $closingDateRange),
             'indicator_leaderboard' => $indicatorLeaderboard,
             'team_performance' => $this->buildTeamPerformance($request, $user, $portfolioDateRange),
+            'view_metrics' => $viewMetrics,
             'recent_cases' => $recentCases,
         ]);
+    }
+
+    private function buildViewMetrics(Request $request, User $user, array $closingDateRange): array
+    {
+        $views = [
+            'general' => [],
+            'by_responsible' => [],
+            'by_indicator' => [],
+        ];
+
+        foreach (array_keys(self::METRIC_PERIOD_LABELS) as $periodKey) {
+            $periodRange = $this->mergeDateRanges(
+                $closingDateRange,
+                $this->resolveMetricPeriodRange($periodKey)
+            );
+            $periodPayload = $this->buildMetricPeriodPayload($periodKey, $periodRange);
+            $responsibleItems = $this->buildResponsibleMetricItems($request, $user, $periodRange);
+            $indicatorItems = $this->buildIndicatorMetricItems($request, $user, $periodRange);
+
+            $views['general'][$periodKey] = [
+                'period' => $periodPayload,
+                'summary' => $this->buildGeneralMetricSummary($request, $user, $periodRange),
+            ];
+            $views['by_responsible'][$periodKey] = [
+                'period' => $periodPayload,
+                'summary' => $this->buildGroupedMetricSummary($responsibleItems),
+                'items' => $responsibleItems,
+            ];
+            $views['by_indicator'][$periodKey] = [
+                'period' => $periodPayload,
+                'summary' => $this->buildGroupedMetricSummary($indicatorItems),
+                'items' => $indicatorItems,
+            ];
+        }
+
+        return $views;
+    }
+
+    private function buildGeneralMetricSummary(Request $request, User $user, array $dateRange): array
+    {
+        $summary = $this->newClosedDealsQuery($request, $user, $dateRange, 'agreement_closed_at')
+            ->selectRaw('COUNT(*) as agreements_count')
+            ->selectRaw('COALESCE(SUM(COALESCE(agreement_value, 0)), 0) as total_agreement_value')
+            ->selectRaw(
+                'COALESCE(AVG(CASE WHEN COALESCE(agreement_value, 0) > 0 THEN agreement_value END), 0) as average_ticket'
+            )
+            ->selectRaw(
+                'COALESCE(SUM(COALESCE(original_value, 0) - COALESCE(agreement_value, 0)), 0) as total_economy'
+            )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN JSON_EXTRACT(agreement_checklist_data, '$.indication_checklist') IS NOT NULL THEN 1 ELSE 0 END), 0) as converted_indications_count"
+            )
+            ->first();
+
+        return [
+            'agreements_count' => (int) ($summary->agreements_count ?? 0),
+            'total_agreement_value' => (float) ($summary->total_agreement_value ?? 0),
+            'average_ticket' => (float) ($summary->average_ticket ?? 0),
+            'total_economy' => (float) ($summary->total_economy ?? 0),
+            'converted_indications_count' => (int) ($summary->converted_indications_count ?? 0),
+        ];
+    }
+
+    private function buildResponsibleMetricItems(Request $request, User $user, array $dateRange): array
+    {
+        return $this->newClosedDealsQuery($request, $user, $dateRange, 'agreement_closed_at')
+            ->leftJoin('users', 'users.id', '=', 'legal_cases.user_id')
+            ->selectRaw('legal_cases.user_id as entity_id')
+            ->selectRaw("COALESCE(users.name, 'Responsavel indisponivel') as entity_name")
+            ->selectRaw('COUNT(*) as agreements_count')
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN JSON_EXTRACT(legal_cases.agreement_checklist_data, '$.indication_checklist') IS NOT NULL THEN 1 ELSE 0 END), 0) as converted_indications_count"
+            )
+            ->groupBy('legal_cases.user_id', 'users.name')
+            ->orderByDesc('agreements_count')
+            ->orderByDesc('converted_indications_count')
+            ->orderBy('entity_name')
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) ($row->entity_id ?? 0),
+                'name' => $row->entity_name,
+                'agreements_count' => (int) ($row->agreements_count ?? 0),
+                'converted_indications_count' => (int) ($row->converted_indications_count ?? 0),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function buildIndicatorMetricItems(Request $request, User $user, array $dateRange): array
+    {
+        return $this->newClosedDealsQuery($request, $user, $dateRange, 'agreement_closed_at')
+            ->leftJoin('users as indicators', 'indicators.id', '=', 'legal_cases.indicator_user_id')
+            ->whereNotNull('legal_cases.indicator_user_id')
+            ->selectRaw('legal_cases.indicator_user_id as entity_id')
+            ->selectRaw("COALESCE(indicators.name, 'Indicador indisponivel') as entity_name")
+            ->selectRaw('COUNT(*) as agreements_count')
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN JSON_EXTRACT(legal_cases.agreement_checklist_data, '$.indication_checklist') IS NOT NULL THEN 1 ELSE 0 END), 0) as converted_indications_count"
+            )
+            ->groupBy('legal_cases.indicator_user_id', 'indicators.name')
+            ->orderByDesc('agreements_count')
+            ->orderByDesc('converted_indications_count')
+            ->orderBy('entity_name')
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) ($row->entity_id ?? 0),
+                'name' => $row->entity_name,
+                'agreements_count' => (int) ($row->agreements_count ?? 0),
+                'converted_indications_count' => (int) ($row->converted_indications_count ?? 0),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function buildGroupedMetricSummary(array $items): array
+    {
+        return [
+            'participants_count' => count($items),
+            'agreements_count' => array_sum(array_map(fn (array $item) => (int) ($item['agreements_count'] ?? 0), $items)),
+            'converted_indications_count' => array_sum(array_map(fn (array $item) => (int) ($item['converted_indications_count'] ?? 0), $items)),
+        ];
     }
 
     private function buildTeamPerformance(Request $request, User $user, array $dateRange): array
@@ -644,6 +772,71 @@ class DashboardController extends Controller
         return [
             'start' => $today->copy()->startOfDay(),
             'end' => $today->copy()->endOfDay(),
+        ];
+    }
+
+    private function resolveMetricPeriodRange(string $periodKey): array
+    {
+        $reference = now();
+
+        return match ($periodKey) {
+            'week' => [
+                'start' => $reference->copy()->startOfWeek(Carbon::MONDAY)->startOfDay(),
+                'end' => $reference->copy()->endOfWeek(Carbon::SUNDAY)->endOfDay(),
+            ],
+            'month' => [
+                'start' => $reference->copy()->startOfMonth()->startOfDay(),
+                'end' => $reference->copy()->endOfMonth()->endOfDay(),
+            ],
+            default => [
+                'start' => $reference->copy()->startOfDay(),
+                'end' => $reference->copy()->endOfDay(),
+            ],
+        };
+    }
+
+    private function mergeDateRanges(array $primaryRange, array $secondaryRange): array
+    {
+        $primaryStart = ($primaryRange['start'] ?? null) instanceof Carbon
+            ? $primaryRange['start']->copy()
+            : null;
+        $primaryEnd = ($primaryRange['end'] ?? null) instanceof Carbon
+            ? $primaryRange['end']->copy()
+            : null;
+        $secondaryStart = ($secondaryRange['start'] ?? null) instanceof Carbon
+            ? $secondaryRange['start']->copy()
+            : null;
+        $secondaryEnd = ($secondaryRange['end'] ?? null) instanceof Carbon
+            ? $secondaryRange['end']->copy()
+            : null;
+
+        $start = $primaryStart;
+        if ($secondaryStart instanceof Carbon && (!($start instanceof Carbon) || $secondaryStart->gt($start))) {
+            $start = $secondaryStart;
+        }
+
+        $end = $primaryEnd;
+        if ($secondaryEnd instanceof Carbon && (!($end instanceof Carbon) || $secondaryEnd->lt($end))) {
+            $end = $secondaryEnd;
+        }
+
+        return [
+            'start' => $start,
+            'end' => $end,
+        ];
+    }
+
+    private function buildMetricPeriodPayload(string $periodKey, array $dateRange): array
+    {
+        return [
+            'key' => $periodKey,
+            'label' => self::METRIC_PERIOD_LABELS[$periodKey] ?? ucfirst($periodKey),
+            'start_date' => ($dateRange['start'] ?? null) instanceof Carbon
+                ? $dateRange['start']->toDateString()
+                : null,
+            'end_date' => ($dateRange['end'] ?? null) instanceof Carbon
+                ? $dateRange['end']->toDateString()
+                : null,
         ];
     }
 
