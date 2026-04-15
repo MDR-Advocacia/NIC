@@ -145,9 +145,10 @@ function App() {
           path="inbox/:conversationId"
           element={
             <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR]}>
-              <ConversationDetailPage />
+              <InboxPage />
             </ProtectedRoute>
           }
+        />
         />
         <Route
           path="base-geral"
