@@ -81,14 +81,7 @@ class LegalCaseController extends Controller
         }
 
         // --- LÓGICA DE PERMISSÃO (RBAC) ---
-        if ($user->role === 'operador') {
-            $query->where('user_id', $user->id);
-        } 
-        else {
-            if ($request->has('lawyer_id') && $request->input('lawyer_id') != '') {
-                $query->where('user_id', $request->input('lawyer_id'));
-            }
-        }
+        $this->applyResponsibleFilter($query, $request, $user);
 
         // Filtro de busca por termo
         if ($request->filled('search')) {
@@ -660,12 +653,7 @@ class LegalCaseController extends Controller
         }
 
         // --- LÓGICA DE PERMISSÃO (Mantida) ---
-        if ($user->role === 'operador') {
-            $query->where('user_id', $user->id); 
-        } 
-        elseif ($request->has('lawyer_id') && $request->input('lawyer_id') != '') {
-            $query->where('user_id', $request->input('lawyer_id')); 
-        }
+        $this->applyResponsibleFilter($query, $request, $user);
 
         if ($request->filled('search')) {
             $this->applySearchFilter($query, (string) $request->input('search'));
@@ -2201,6 +2189,31 @@ class LegalCaseController extends Controller
         }
 
         return Carbon::parse($normalizedValue)->toDateString();
+    }
+
+    private function applyResponsibleFilter($query, Request $request, User $user): void
+    {
+        if ($user->role === 'operador') {
+            $query->where('user_id', $user->id);
+            return;
+        }
+
+        if (! $request->filled('lawyer_id')) {
+            return;
+        }
+
+        if ($this->requestTargetsUnassignedResponsible($request)) {
+            $query->whereNull('user_id');
+            return;
+        }
+
+        $query->where('user_id', $request->input('lawyer_id'));
+    }
+
+    private function requestTargetsUnassignedResponsible(Request $request): bool
+    {
+        return $request->filled('lawyer_id')
+            && (string) $request->input('lawyer_id') === self::UNASSIGNED_RESPONSIBLE_VALUE;
     }
 
     private function legalCasesTableHasIndicatorUserId(): bool

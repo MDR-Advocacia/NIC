@@ -29,7 +29,7 @@ import {
 } from 'react-icons/fa';
 import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
-import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
+import { LEGAL_CASE_STATUS_OPTIONS, UNASSIGNED_RESPONSIBLE_VALUE } from '../constants/legalCaseStatus';
 
 const GENERAL_KPI_ORDER = [
     'total_cases',
@@ -177,7 +177,9 @@ const DashboardPage = () => {
     };
 
     const selectedClientName = clients.find((client) => String(client.id) === String(selectedClient))?.name;
-    const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(selectedLawyer))?.name;
+    const selectedLawyerName = selectedLawyer === UNASSIGNED_RESPONSIBLE_VALUE
+        ? 'Sem responsável'
+        : lawyers.find((lawyer) => String(lawyer.id) === String(selectedLawyer))?.name;
     const selectedStatusName = LEGAL_CASE_STATUS_OPTIONS.find((statusOption) => statusOption.value === selectedStatus)?.name;
     const hasClosingDateFilter = Boolean(closingStartDate || closingEndDate);
     const metricsViewTitles = {
@@ -769,6 +771,7 @@ const DashboardPage = () => {
                                     onChange={(e) => setSelectedLawyer(e.target.value)}
                                 >
                                     <option value="">Todos</option>
+                                    <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
                                     {lawyers.map((lawyer) => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
                                 </select>
                             </div>

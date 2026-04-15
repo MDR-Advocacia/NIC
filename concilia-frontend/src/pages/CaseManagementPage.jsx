@@ -19,6 +19,7 @@ import IndicationChecklistModal from '../components/IndicationChecklistModal';
 import {
     LEGAL_CASE_STATUS_OPTIONS,
     getLegalCaseStatusDetails,
+    UNASSIGNED_RESPONSIBLE_VALUE,
 } from '../constants/legalCaseStatus';
 import { canAccessCaseCreation, isIndicatorRole, normalizeUserRole } from '../constants/access';
 import { formatLiveloPoints } from '../constants/settlementBenefit';
@@ -38,8 +39,6 @@ const PRIORITY_OPTIONS = Object.entries(PRIORITY_DETAILS).map(([value, details])
 
 const MULTI_CASE_NUMBER_MIN_DIGITS = 15;
 const CASE_NUMBER_TOKEN_PATTERN = /^[0-9./-]+$/;
-const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
-
 const INITIAL_FILTERS = {
     search: '',
     action_object: '',
@@ -445,6 +444,9 @@ const CaseManagementPage = () => {
     const isAllSelected =
         visibleCaseIds.length > 0 && selectedVisibleCaseIds.length === visibleCaseIds.length;
     const selectedLawyer = lawyers.find(lawyer => String(lawyer.id) === String(filters.lawyer_id));
+    const selectedLawyerName = filters.lawyer_id === UNASSIGNED_RESPONSIBLE_VALUE
+        ? 'Sem responsável'
+        : selectedLawyer?.name;
     const selectedIndicator = indicators.find(indicator => String(indicator.id) === String(filters.indicator_user_id));
     const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
         || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
@@ -492,7 +494,7 @@ const CaseManagementPage = () => {
     if (!isIndicator && filters.lawyer_id) {
         activeFilterChips.push({
             key: 'lawyer_id',
-            label: `Responsável: ${selectedLawyer?.name || 'Selecionado'}`,
+            label: `Responsável: ${selectedLawyerName || 'Selecionado'}`,
         });
     }
 
@@ -728,6 +730,7 @@ const CaseManagementPage = () => {
                                 </span>
                                 <select className={styles.filterControl} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
                                     <option value="">Todos os responsáveis</option>
+                                    <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
                                     {lawyers.map((lawyer) => (
                                         <option key={lawyer.id} value={lawyer.id}>
                                             {lawyer.name}
