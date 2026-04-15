@@ -14,6 +14,7 @@ import apiClient from '../api';
 import {
     LEGAL_CASE_STATUS_OPTIONS,
     getLegalCaseStatusDetails,
+    UNASSIGNED_RESPONSIBLE_VALUE,
 } from '../constants/legalCaseStatus';
 
 const StatusTag = ({ status }) => {
@@ -251,7 +252,9 @@ const GeneralBasePage = () => {
     };
 
     const currentScopeContent = scopeContent[filters.scope] || scopeContent.general_base;
-    const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const selectedLawyerName = filters.lawyer_id === UNASSIGNED_RESPONSIBLE_VALUE
+        ? 'Sem responsável'
+        : lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
     const activeFilterChips = [];
 
     if (filters.search.trim()) {
@@ -384,6 +387,7 @@ const GeneralBasePage = () => {
                             onChange={handleFilterChange}
                         >
                             <option value="">Todos os responsáveis</option>
+                            <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
                             {lawyers.map(l => (
                                 <option key={l.id} value={l.id}>{l.name}</option>
                             ))}

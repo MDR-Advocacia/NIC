@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
 import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
 import { normalizeCaseTags } from '../constants/caseTags';
+import { isTerminalLegalCaseStatus } from '../constants/legalCaseStatus';
 
 const getBadgeInitials = (value, maxLetters = 3) =>
   String(value ?? '')
@@ -69,7 +70,7 @@ const CaseCardBody = ({
   const today = new Date();
   const diffTime = Math.abs(today - lastUpdate);
   const daysSinceUpdate = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const isDelayed = daysSinceUpdate > 5;
+  const isDelayed = !isTerminalLegalCaseStatus(legalCase?.status) && daysSinceUpdate > 5;
 
   const alcadaValue = parseFloat(legalCase.original_value);
   const indicatorName = getIndicatorName(legalCase);
@@ -89,16 +90,16 @@ const CaseCardBody = ({
         className={`${styles.card} ${isDelayed ? styles.cardDelayed : ''}`}
         onClick={onClick}
       >
-        <div className={styles.header} {...listeners}>
-          <span className={styles.caseNumber}>{legalCase.case_number}</span>
-
-          <div className={styles.headerMeta}>
-            {isDelayed && (
+        <div className={`${styles.header} ${isDelayed ? styles.headerDelayed : ''}`} {...listeners}>
+          {isDelayed && (
+            <div className={styles.headerTop}>
               <span className={styles.delayedTag} title={`Este caso nao e atualizado ha ${daysSinceUpdate} dias`}>
                 <FaExclamationTriangle /> {daysSinceUpdate}d parado
               </span>
-            )}
-          </div>
+            </div>
+          )}
+
+          <span className={styles.caseNumber}>{legalCase.case_number}</span>
         </div>
 
         {caseTags.length > 0 && (

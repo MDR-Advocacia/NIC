@@ -225,6 +225,35 @@ class DashboardMetricsTest extends TestCase
             ]);
     }
 
+    public function test_dashboard_can_filter_cases_without_responsible(): void
+    {
+        $manager = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $operator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_INITIAL_ANALYSIS, 'ASSIGNED-CASE');
+        $unassignedCase = $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, 'UNASSIGNED-CASE', [
+            'user_id' => null,
+            'agreement_value' => 650,
+        ]);
+
+        $response = $this->getJson('/api/dashboard?lawyer_id=__unassigned__');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('kpis.total_cases', 1)
+            ->assertJsonPath('recent_cases.total', 1)
+            ->assertJsonPath('recent_cases.data.0.case_number', $unassignedCase->case_number);
+    }
+
     public function test_dashboard_recent_cases_follow_recent_alcada_events_with_pagination(): void
     {
         $manager = User::factory()->create([

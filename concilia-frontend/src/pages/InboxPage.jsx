@@ -553,6 +553,80 @@ const InboxPage = () => {
     return mapa[status] || 'Enviado';
   };
 
+  const extrairTextoErro = (valor) => {
+    if (!valor) return '';
+    if (typeof valor === 'string') return valor.trim();
+    if (Array.isArray(valor)) {
+      for (const item of valor) {
+        const texto = extrairTextoErro(item);
+        if (texto) return texto;
+      }
+      return '';
+    }
+
+    if (typeof valor === 'object') {
+      const chavesPrioritarias = ['message', 'error', 'error_message', 'error_user_msg', 'title', 'description', 'details'];
+
+      for (const chave of chavesPrioritarias) {
+        const texto = extrairTextoErro(valor[chave]);
+        if (texto) return texto;
+      }
+
+      for (const item of Object.values(valor)) {
+        const texto = extrairTextoErro(item);
+        if (texto) return texto;
+      }
+    }
+
+    return '';
+  };
+
+  const getMotivoFalhaMensagem = (mensagem) => {
+    const atributos = mensagem?.content_attributes || {};
+    const adicionais = mensagem?.additional_attributes || {};
+
+    const candidatos = [
+      mensagem?.failure_reason,
+      mensagem?.failed_reason,
+      mensagem?.error_message,
+      mensagem?.meta_error,
+      atributos.failure_reason,
+      atributos.failed_reason,
+      atributos.error_message,
+      atributos.error,
+      atributos.external_error,
+      atributos.meta_error,
+      adicionais.failure_reason,
+      adicionais.failed_reason,
+      adicionais.error_message,
+      adicionais.error,
+      adicionais.external_error,
+      mensagem?.errors,
+    ];
+
+    for (const candidato of candidatos) {
+      const texto = extrairTextoErro(candidato);
+      if (texto) return texto;
+    }
+
+    return '';
+  };
+
+  const getMensagemErroResposta = (data, fallback) => getMotivoFalhaMensagem(data) || extrairTextoErro(data) || fallback;
+
+  const criarMensagemFalhaLocal = ({ content = '', attachments = [], contentType = null, contentAttributes = {}, templateParams = null, reason = '' }) => ({
+    id: `failed-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    content,
+    message_type: 'outgoing',
+    created_at: Math.floor(Date.now() / 1000),
+    status: 'failed',
+    attachments,
+    content_type: contentType || undefined,
+    content_attributes: reason ? { ...contentAttributes, failure_reason: reason } : contentAttributes,
+    template_params: templateParams || undefined,
+    local_failed: true,
+  });
+
   const getConteudoVisivelMensagem = (mensagem) => {
     if (mensagem?.content && mensagem.content.trim()) {
       return mensagem.content.trim();
@@ -593,6 +667,10 @@ const InboxPage = () => {
     mensagem?.content_attributes?.template_name || mensagem?.template_params?.name || mensagem?.content_attributes?.name || '';
 
   const mensagensSaoEquivalentes = (left, right) => {
+    if (left?.local_failed || right?.local_failed || left?.status === 'failed' || right?.status === 'failed') {
+      return false;
+    }
+
     if (getTipoNormalizadoMensagem(left) !== getTipoNormalizadoMensagem(right)) {
       return false;
     }
@@ -616,7 +694,7 @@ const InboxPage = () => {
   };
 
   const registrarFallbackLocal = (conversationId, mensagem) => {
-    if (!conversationId || !mensagem?.meta_fallback) return;
+    if (!conversationId || (!mensagem?.meta_fallback && !mensagem?.local_failed)) return;
 
     const chave = String(conversationId);
     const anteriores = getFallbacksLocaisConversa(conversationId);
@@ -1406,6 +1484,10 @@ const InboxPage = () => {
       });
 
       const data = await response.json().catch(() => ({}));
+      const anexosLocais = arquivos.map((arquivo) => ({
+        file_type: detectarTipoArquivo(arquivo),
+        data_url: URL.createObjectURL(arquivo),
+      }));
 
       if (response.ok) {
         shouldStickToBottomRef.current = true;
@@ -1413,21 +1495,43 @@ const InboxPage = () => {
           ...anterior,
           normalizarMensagemRetorno(data, {
             content: novaMensagem.trim(),
-            attachments: arquivos.map((arquivo) => ({
-              file_type: detectarTipoArquivo(arquivo),
-              data_url: URL.createObjectURL(arquivo),
-            })),
+            attachments: anexosLocais,
           }),
         ]);
         setNovaMensagem('');
         definirFeedback('Arquivo enviado com sucesso.');
       } else {
         console.error('Erro ao enviar arquivo:', data);
-        definirFeedback(data?.message || 'Nao foi possivel enviar o arquivo.', 'error');
+        const motivoFalha = getMensagemErroResposta(data, 'Nao foi possivel enviar o arquivo.');
+        const mensagemFalha = criarMensagemFalhaLocal({
+          content: novaMensagem.trim(),
+          attachments: anexosLocais,
+          reason: motivoFalha,
+        });
+
+        shouldStickToBottomRef.current = true;
+        registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+        setMensagens((anterior) => [...anterior, mensagemFalha]);
+        setNovaMensagem('');
+        definirFeedback(motivoFalha, 'error');
       }
     } catch (error) {
       console.error(error);
-      definirFeedback('Falha de comunicacao ao enviar o arquivo.', 'error');
+      const motivoFalha = 'Falha de comunicacao ao enviar o arquivo.';
+      const mensagemFalha = criarMensagemFalhaLocal({
+        content: novaMensagem.trim(),
+        attachments: arquivos.map((arquivo) => ({
+          file_type: detectarTipoArquivo(arquivo),
+          data_url: URL.createObjectURL(arquivo),
+        })),
+        reason: motivoFalha,
+      });
+
+      shouldStickToBottomRef.current = true;
+      registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+      setMensagens((anterior) => [...anterior, mensagemFalha]);
+      setNovaMensagem('');
+      definirFeedback(motivoFalha, 'error');
     } finally {
       setEnviandoArquivo(false);
     }
@@ -1467,11 +1571,31 @@ const InboxPage = () => {
         setNovaMensagem('');
         setFeedbackEnvio('');
       } else {
-        definirFeedback(data?.message || 'Nao foi possivel enviar a mensagem.', 'error');
+        const motivoFalha = getMensagemErroResposta(data, 'Nao foi possivel enviar a mensagem.');
+        const mensagemFalha = criarMensagemFalhaLocal({
+          content: novaMensagem.trim(),
+          reason: motivoFalha,
+        });
+
+        shouldStickToBottomRef.current = true;
+        registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+        setMensagens((anterior) => [...anterior, mensagemFalha]);
+        setNovaMensagem('');
+        definirFeedback(motivoFalha, 'error');
       }
     } catch (error) {
       console.error(error);
-      definirFeedback('Falha de comunicacao ao enviar a mensagem.', 'error');
+      const motivoFalha = 'Falha de comunicacao ao enviar a mensagem.';
+      const mensagemFalha = criarMensagemFalhaLocal({
+        content: novaMensagem.trim(),
+        reason: motivoFalha,
+      });
+
+      shouldStickToBottomRef.current = true;
+      registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+      setMensagens((anterior) => [...anterior, mensagemFalha]);
+      setNovaMensagem('');
+      definirFeedback(motivoFalha, 'error');
     }
   };
 
@@ -1541,11 +1665,35 @@ const InboxPage = () => {
         definirFeedback(`Template "${templateSelecionado.name}" enviado com sucesso.`);
       } else {
         console.error('Erro ao enviar template:', data);
-        definirFeedback(data?.message || data?.meta_error?.error?.message || 'Nao foi possivel enviar o template.', 'error');
+        const motivoFalha = getMensagemErroResposta(data, 'Nao foi possivel enviar o template.');
+        const mensagemFalha = criarMensagemFalhaLocal({
+          content: payload.content,
+          contentType: 'template',
+          contentAttributes: payload.content_attributes,
+          templateParams: payload.template_params,
+          reason: motivoFalha,
+        });
+
+        shouldStickToBottomRef.current = true;
+        registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+        setMensagens((anterior) => [...anterior, mensagemFalha]);
+        definirFeedback(motivoFalha, 'error');
       }
     } catch (error) {
       console.error(error);
-      definirFeedback('Falha de comunicacao ao enviar o template.', 'error');
+      const motivoFalha = 'Falha de comunicacao ao enviar o template.';
+      const mensagemFalha = criarMensagemFalhaLocal({
+        content: payload.content,
+        contentType: 'template',
+        contentAttributes: payload.content_attributes,
+        templateParams: payload.template_params,
+        reason: motivoFalha,
+      });
+
+      shouldStickToBottomRef.current = true;
+      registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+      setMensagens((anterior) => [...anterior, mensagemFalha]);
+      definirFeedback(motivoFalha, 'error');
     } finally {
       setEnviandoTemplate(false);
     }
@@ -2075,6 +2223,7 @@ const InboxPage = () => {
                   const minha = mensagem.message_type === 'outgoing' || mensagem.message_type === 1;
                   const iniciais = mensagem.sender?.name?.charAt(0).toUpperCase() || 'C';
                   const templateMensagem = mensagem.content_type === 'template';
+                  const motivoFalhaMensagem = mensagem.status === 'failed' ? getMotivoFalhaMensagem(mensagem) : '';
 
                   return (
                     <div key={mensagem.id || index} style={styles.messageRow(minha)}>
@@ -2113,6 +2262,22 @@ const InboxPage = () => {
                         {getConteudoVisivelMensagem(mensagem) ? (
                           <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.75, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                             {getConteudoVisivelMensagem(mensagem)}
+                          </div>
+                        ) : null}
+                        {motivoFalhaMensagem ? (
+                          <div
+                            style={{
+                              marginTop: '10px',
+                              padding: '9px 11px',
+                              borderRadius: '12px',
+                              backgroundColor: '#fff1f2',
+                              border: '1px solid #fecdd3',
+                              color: '#9f1239',
+                              fontSize: '12px',
+                              lineHeight: 1.55,
+                            }}
+                          >
+                            <strong>Motivo da falha:</strong> {motivoFalhaMensagem}
                           </div>
                         ) : null}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', flexWrap: 'wrap', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
