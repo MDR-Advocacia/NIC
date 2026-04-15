@@ -68,9 +68,7 @@
 
 .header {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.75rem;
+    align-items: center;
     min-width: 0;
     margin-bottom: 1rem;
     cursor: grab;
@@ -83,18 +81,21 @@
     border-bottom: 1px solid var(--border-color-light);
 }
 
+.headerDelayed {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+}
+
 .header:active {
     cursor: grabbing;
     background-color: var(--bg-page); 
 }
 
-.headerMeta {
+.headerTop {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.35rem;
-    flex: 0 0 auto;
-    min-width: fit-content;
+    justify-content: flex-end;
+    width: 100%;
 }
 
 .caseNumber { 
@@ -102,7 +103,7 @@
     font-size: 1.1rem; 
     display: flex;
     align-items: center;
-    flex: 1 1 auto;
+    width: 100%;
     min-width: 0;
     overflow-wrap: anywhere;
     color: var(--text-primary);
