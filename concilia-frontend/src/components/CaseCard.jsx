@@ -90,16 +90,16 @@ const CaseCardBody = ({
         className={`${styles.card} ${isDelayed ? styles.cardDelayed : ''}`}
         onClick={onClick}
       >
-        <div className={styles.header} {...listeners}>
-          <span className={styles.caseNumber}>{legalCase.case_number}</span>
-
-          <div className={styles.headerMeta}>
-            {isDelayed && (
+        <div className={`${styles.header} ${isDelayed ? styles.headerDelayed : ''}`} {...listeners}>
+          {isDelayed && (
+            <div className={styles.headerTop}>
               <span className={styles.delayedTag} title={`Este caso nao e atualizado ha ${daysSinceUpdate} dias`}>
                 <FaExclamationTriangle /> {daysSinceUpdate}d parado
               </span>
-            )}
-          </div>
+            </div>
+          )}
+
+          <span className={styles.caseNumber}>{legalCase.case_number}</span>
         </div>
 
         {caseTags.length > 0 && (
