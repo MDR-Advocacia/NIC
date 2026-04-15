@@ -5,7 +5,8 @@
     background: var(--surface-card-elevated);
     padding: 1rem;
     border-radius: 8px;
-    margin-bottom: 1rem;
+    width: 100%;
+    box-sizing: border-box;
     color: var(--text-primary);
     cursor: pointer; 
     border-left: 5px solid var(--text-secondary); 
@@ -41,7 +42,14 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    flex-shrink: 0;
+    white-space: nowrap;
+    line-height: 1;
     animation: pulse 2s infinite; /* Animação suave para chamar atenção */
+}
+
+.delayedTag svg {
+    flex-shrink: 0;
 }
 
 /* Texto de data em vermelho se atrasado */
@@ -60,8 +68,8 @@
 
 .header {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
+    min-width: 0;
     margin-bottom: 1rem;
     cursor: grab;
     background-color: var(--border-color-dark); 
@@ -73,16 +81,21 @@
     border-bottom: 1px solid var(--border-color-light);
 }
 
+.headerDelayed {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+}
+
 .header:active {
     cursor: grabbing;
     background-color: var(--bg-page); 
 }
 
-.headerMeta {
+.headerTop {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.35rem;
+    justify-content: flex-end;
+    width: 100%;
 }
 
 .caseNumber { 
@@ -90,6 +103,9 @@
     font-size: 1.1rem; 
     display: flex;
     align-items: center;
+    width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
     color: var(--text-primary);
 }
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import LinkCaseModal from '../components/LinkCaseModal';
 
 const TEMPLATE_FALLBACK_STORAGE_KEY = 'nic_template_fallback_messages_v1';
@@ -400,6 +401,8 @@ const styles = {
 };
 
 const InboxPage = () => {
+  const { conversationId: urlConversationId } = useParams();
+  const navigate = useNavigate();
   const [conversas, setConversas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState('me');
@@ -1705,6 +1708,18 @@ const InboxPage = () => {
     carregarDadosIniciais();
   }, []);
 
+  // Sincronizar conversa selecionada com a URL
+  useEffect(() => {
+    if (urlConversationId && urlConversationId !== conversaSelecionada) {
+      setConversaSelecionada(urlConversationId);
+      carregarMensagensConversa(urlConversationId);
+    } else if (!urlConversationId && conversaSelecionada) {
+      // Se não há conversationId na URL mas há uma conversa selecionada, limpar seleção
+      setConversaSelecionada(null);
+      setMensagens([]);
+    }
+  }, [urlConversationId]);
+
   useEffect(() => {
     setFormContato({
       id: contatoAtual?.id || '',
@@ -1873,6 +1888,7 @@ const InboxPage = () => {
   const abrirConversa = (chatId) => {
     shouldStickToBottomRef.current = true;
     setConversaSelecionada(chatId);
+    navigate(`/inbox/${chatId}`, { replace: false });
     setFeedbackEnvio('');
     carregarMensagensConversa(chatId);
   };
@@ -2785,6 +2801,17 @@ const InboxPage = () => {
                   Vincular processo
                 </button>
                 <div style={styles.badge}>WhatsApp</div>
+                <button 
+                  type="button" 
+                  style={{ ...styles.secondaryButton, width: '36px', padding: 0 }}
+                  onClick={() => {
+                    setConversaSelecionada(null);
+                    navigate('/inbox');
+                  }}
+                  title="Fechar conversa"
+                >
+                  ✕
+                </button>
               </div>
             </div>
 

@@ -60,7 +60,34 @@ class CaseSearchTest extends TestCase
             ->assertJsonPath('search_feedback.total_terms', 2);
     }
 
-    private function createLegalCase(string $caseNumber): LegalCase
+    public function test_cases_filter_can_return_unassigned_responsible_cases(): void
+    {
+        $viewer = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($viewer);
+
+        $assignedCase = $this->createLegalCase('08011957020268205004');
+        $unassignedCase = $this->createLegalCase('06014605620248045300', [
+            'user_id' => null,
+        ]);
+
+        $response = $this->getJson('/api/cases?lawyer_id=__unassigned__');
+
+        $response->assertOk()
+            ->assertJsonPath('total', 1);
+
+        $this->assertSame(
+            [$unassignedCase->case_number],
+            array_column($response->json('data') ?? [], 'case_number')
+        );
+
+        $this->assertNotSame($assignedCase->case_number, $unassignedCase->case_number);
+    }
+
+    private function createLegalCase(string $caseNumber, array $overrides = []): LegalCase
     {
         $client = Client::firstOrCreate([
             'name' => 'Cliente de Teste',
@@ -71,7 +98,7 @@ class CaseSearchTest extends TestCase
             'status' => 'ativo',
         ]);
 
-        return LegalCase::create([
+        return LegalCase::create(array_merge([
             'client_id' => $client->id,
             'user_id' => $responsibleUser->id,
             'case_number' => $caseNumber,
@@ -82,6 +109,6 @@ class CaseSearchTest extends TestCase
             'priority' => 'media',
             'original_value' => 1000,
             'cause_value' => 1000,
-        ]);
+        ], $overrides));
     }
 }

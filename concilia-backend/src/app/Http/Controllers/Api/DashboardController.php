@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    private const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
     private const TEAM_ROLES = ['operador', 'administrador', 'supervisor'];
     private const METRIC_PERIOD_LABELS = [
         'day' => 'Dia',
@@ -305,6 +306,10 @@ class DashboardController extends Controller
 
     private function buildTeamPerformance(Request $request, User $user, array $dateRange): array
     {
+        if ($this->requestTargetsUnassignedResponsible($request)) {
+            return [];
+        }
+
         $lawyersQuery = User::query()
             ->select('users.id', 'users.name')
             ->selectRaw('COUNT(legal_cases.id) as total_cases')
@@ -637,6 +642,8 @@ class DashboardController extends Controller
     ): void {
         if ($user->role === 'operador') {
             $query->where($this->qualifyLegalCaseColumn('user_id'), $user->id);
+        } elseif ($this->requestTargetsUnassignedResponsible($request)) {
+            $query->whereNull($this->qualifyLegalCaseColumn('user_id'));
         } elseif ($request->filled('lawyer_id')) {
             $query->where($this->qualifyLegalCaseColumn('user_id'), (int) $request->input('lawyer_id'));
         }
@@ -879,5 +886,11 @@ class DashboardController extends Controller
     private function qualifyLegalCaseColumn(string $column): string
     {
         return (new LegalCase())->qualifyColumn($column);
+    }
+
+    private function requestTargetsUnassignedResponsible(Request $request): bool
+    {
+        return $request->filled('lawyer_id')
+            && (string) $request->input('lawyer_id') === self::UNASSIGNED_RESPONSIBLE_VALUE;
     }
 }
