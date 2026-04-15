@@ -30,7 +30,12 @@ import {
     FaBolt,
     FaTag,
 } from 'react-icons/fa';
-import { LEGAL_CASE_STATUS_DETAILS, LEGAL_CASE_STATUS_ORDER } from '../constants/legalCaseStatus';
+import {
+    LEGAL_CASE_STATUS_DETAILS,
+    LEGAL_CASE_STATUS_ORDER,
+    UNASSIGNED_RESPONSIBLE_VALUE,
+    isTerminalLegalCaseStatus,
+} from '../constants/legalCaseStatus';
 import { 
     canAccessCaseCreation,
     isIndicatorRole,
@@ -112,7 +117,9 @@ const PipelinePage = () => {
     const priorityFilter = filters.priority || '';
     const tagFilter = filters.tag || '';
     const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
-    const selectedLawyerName = lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const selectedLawyerName = filters.lawyer_id === UNASSIGNED_RESPONSIBLE_VALUE
+        ? 'Sem responsável'
+        : lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
     const selectedIndicatorName = indicators.find((indicator) => String(indicator.id) === String(filters.indicator_user_id))?.name;
     const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
         || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
@@ -219,9 +226,8 @@ const PipelinePage = () => {
             };
             const requiresResponsibleFilter = canChooseResponsible;
 
-            const hasValidResponsibleSelected = fetchedLawyers.some(
-                (lawyer) => String(lawyer.id) === String(lawyerFilter)
-            );
+            const hasValidResponsibleSelected = lawyerFilter === UNASSIGNED_RESPONSIBLE_VALUE
+                || fetchedLawyers.some((lawyer) => String(lawyer.id) === String(lawyerFilter));
 
             if (lawyerFilter && !hasValidResponsibleSelected) {
                 delete effectiveFilters.lawyer_id;
@@ -302,6 +308,10 @@ const PipelinePage = () => {
             if (showDelayedOnly) {
                 const today = new Date();
                 fetchedCases = fetchedCases.filter(c => {
+                    if (isTerminalLegalCaseStatus(c.status)) {
+                        return false;
+                    }
+
                     const lastUpdate = new Date(c.updated_at);
                     const diffTime = Math.abs(today - lastUpdate);
                     const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
@@ -438,7 +448,7 @@ const PipelinePage = () => {
         if (isStatusChange) {
             // Confirmação ao mover para Contra Indicado
             if (overContainer === 'contra_indicated') {
-                if (!window.confirm('Tem certeza que deseja marcar este caso como Contra Indicado?')) {
+                if (!window.confirm('Tem certeza que deseja marcar este caso como Contraindicado?')) {
                     setActiveId(null);
                     fetchAllData(); // Reverte animação visual
                     return;
@@ -678,6 +688,7 @@ const PipelinePage = () => {
                                 onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}
                             >
                                 <option value="" disabled>Selecione um responsável</option>
+                                <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
                                 {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
                             </select>
                         </div>

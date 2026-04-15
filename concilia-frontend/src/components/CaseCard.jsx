@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
 import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
 import { normalizeCaseTags } from '../constants/caseTags';
+import { isTerminalLegalCaseStatus } from '../constants/legalCaseStatus';
 
 const getBadgeInitials = (value, maxLetters = 3) =>
   String(value ?? '')
@@ -69,7 +70,7 @@ const CaseCardBody = ({
   const today = new Date();
   const diffTime = Math.abs(today - lastUpdate);
   const daysSinceUpdate = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const isDelayed = daysSinceUpdate > 5;
+  const isDelayed = !isTerminalLegalCaseStatus(legalCase?.status) && daysSinceUpdate > 5;
 
   const alcadaValue = parseFloat(legalCase.original_value);
   const indicatorName = getIndicatorName(legalCase);
