@@ -70,7 +70,15 @@ class ChatController extends Controller
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", $validated);
 
-        return response()->json($response->json());
+        if ($response->successful()) {
+            return response()->json($response->json());
+        }
+
+        return response()->json([
+            'message' => 'Nao foi possivel criar o contato.',
+            'details' => $response->json() ?? ['body' => $response->body()],
+            'conflict_candidates' => $this->findPotentialExistingContacts($validated),
+        ], $response->status());
     }
 
     public function updateContact(Request $request, $contactId)
@@ -79,11 +87,12 @@ class ChatController extends Controller
             'name' => 'sometimes|required|string',
             'email' => 'nullable|email',
             'phone_number' => 'nullable|string',
+            'blocked' => 'sometimes|boolean',
         ]);
 
         $payload = [];
 
-        foreach (['name', 'email', 'phone_number'] as $field) {
+        foreach (['name', 'email', 'phone_number', 'blocked'] as $field) {
             if ($request->exists($field)) {
                 $payload[$field] = $validated[$field] ?? null;
             }
@@ -91,6 +100,14 @@ class ChatController extends Controller
 
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->put("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}", $payload);
+
+        return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
+    }
+
+    public function destroyContact($contactId)
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->delete("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}");
 
         return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
     }
@@ -103,23 +120,29 @@ class ChatController extends Controller
 
         $inboxId = (int) $validated['inbox_id'];
 
-        $contactResponse = Http::withHeaders(['api_access_token' => $this->apiToken])
-            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}");
+        $contactResponse = $this->fetchChatwootContact($contactId);
 
-        if ($contactResponse->failed()) {
+        if (($contactResponse['response'] ?? null)?->failed()) {
             return response()->json([
                 'message' => 'Nao foi possivel carregar o contato para iniciar a conversa.',
-                'details' => $contactResponse->json() ?? ['body' => $contactResponse->body()],
-            ], $contactResponse->status());
+                'details' => $contactResponse['details'] ?? null,
+            ], $contactResponse['status'] ?? 500);
         }
 
-        $contact = $this->extractChatwootContact($contactResponse->json());
+        $contact = $contactResponse['contact'] ?? [];
         $sourceId = $this->resolveContactInboxSourceId($contact, $inboxId);
+        $contactableInboxes = [];
+
+        if (blank($sourceId)) {
+            $contactableInboxes = $this->fetchContactableInboxes($contactId);
+            $sourceId = $this->resolveContactableInboxSourceId($contactableInboxes, $inboxId);
+        }
 
         if (blank($sourceId)) {
             return response()->json([
                 'message' => 'O contato foi criado, mas nao foi possivel localizar o source_id da inbox para abrir a conversa.',
                 'contact' => $contact,
+                'contactable_inboxes' => $contactableInboxes,
             ], 422);
         }
 
@@ -606,6 +629,23 @@ class ChatController extends Controller
         return $data;
     }
 
+    private function extractChatwootContactsList(array $data): array
+    {
+        if (is_array($data['payload'] ?? null)) {
+            return $data['payload'];
+        }
+
+        if (is_array($data['data']['payload'] ?? null)) {
+            return $data['data']['payload'];
+        }
+
+        if (is_array($data['data'] ?? null)) {
+            return $data['data'];
+        }
+
+        return is_array($data) ? $data : [];
+    }
+
     private function resolveContactInboxSourceId(array $contact, int $inboxId): ?string
     {
         $contactInboxes = collect($contact['contact_inboxes'] ?? []);
@@ -623,6 +663,106 @@ class ChatController extends Controller
             ?? data_get($match, 'identifier');
 
         return filled($sourceId) ? (string) $sourceId : null;
+    }
+
+    private function resolveContactableInboxSourceId(array $contactableInboxes, int $inboxId): ?string
+    {
+        $match = collect($contactableInboxes)->first(function ($contactInbox) use ($inboxId) {
+            $currentInboxId = data_get($contactInbox, 'inbox.id')
+                ?? data_get($contactInbox, 'inbox_id')
+                ?? data_get($contactInbox, 'source.inbox_id');
+
+            return (int) $currentInboxId === (int) $inboxId;
+        });
+
+        $sourceId = data_get($match, 'source_id')
+            ?? data_get($match, 'source.id')
+            ?? data_get($match, 'identifier');
+
+        return filled($sourceId) ? (string) $sourceId : null;
+    }
+
+    private function fetchChatwootContact($contactId): array
+    {
+        $contactResponse = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}");
+
+        return [
+            'response' => $contactResponse,
+            'status' => $contactResponse->status(),
+            'details' => $contactResponse->json() ?? ['body' => $contactResponse->body()],
+            'contact' => $contactResponse->successful() ? $this->extractChatwootContact($contactResponse->json()) : [],
+        ];
+    }
+
+    private function fetchContactableInboxes($contactId): array
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}/contactable_inboxes");
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        return $this->extractChatwootContactsList($response->json());
+    }
+
+    private function findPotentialExistingContacts(array $validated): array
+    {
+        $terms = collect([
+            $validated['phone_number'] ?? null,
+            preg_replace('/\D+/', '', (string) ($validated['phone_number'] ?? '')),
+            $validated['email'] ?? null,
+            $validated['name'] ?? null,
+        ])
+            ->filter(fn ($term) => filled($term))
+            ->unique()
+            ->values();
+
+        if ($terms->isEmpty()) {
+            return [];
+        }
+
+        $matches = collect();
+
+        foreach ($terms as $term) {
+            $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", [
+                    'search' => $term,
+                ]);
+
+            if ($response->failed()) {
+                continue;
+            }
+
+            $matches = $matches->merge($this->extractChatwootContactsList($response->json()));
+        }
+
+        return $matches
+            ->filter(fn ($contact) => $this->contactLooksEquivalent($contact, $validated))
+            ->unique('id')
+            ->values()
+            ->all();
+    }
+
+    private function contactLooksEquivalent(array $contact, array $validated): bool
+    {
+        $requestedPhone = preg_replace('/\D+/', '', (string) ($validated['phone_number'] ?? ''));
+        $contactPhone = preg_replace('/\D+/', '', (string) ($contact['phone_number'] ?? $contact['identifier'] ?? ''));
+
+        $matchesPhone = $requestedPhone !== ''
+            && $contactPhone !== ''
+            && (Str::contains($contactPhone, $requestedPhone) || Str::contains($requestedPhone, $contactPhone));
+
+        $requestedEmail = Str::lower(trim((string) ($validated['email'] ?? '')));
+        $contactEmail = Str::lower(trim((string) ($contact['email'] ?? '')));
+        $matchesEmail = $requestedEmail !== '' && $contactEmail !== '' && $requestedEmail === $contactEmail;
+
+        $requestedName = Str::lower(trim((string) ($validated['name'] ?? '')));
+        $contactName = Str::lower(trim((string) ($contact['name'] ?? '')));
+        $matchesName = $requestedName !== '' && $contactName !== '' && $requestedName === $contactName;
+
+        return $matchesPhone || $matchesEmail || $matchesName;
     }
 
     private function fetchMetaTemplates(?int $inboxId): array

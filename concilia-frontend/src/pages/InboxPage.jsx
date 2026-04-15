@@ -408,12 +408,18 @@ const InboxPage = () => {
   const [carregandoChat, setCarregandoChat] = useState(false);
   const [novaMensagem, setNovaMensagem] = useState('');
   const [modalAberto, setModalAberto] = useState(false);
+  const [criandoContato, setCriandoContato] = useState(false);
   const [novoContato, setNovoContato] = useState({ name: '', email: '', phone_number: '', inbox_id: '' });
   const [inboxes, setInboxes] = useState([]);
   const [inboxSelecionada, setInboxSelecionada] = useState('all');
   const [visaoAtiva, setVisaoAtiva] = useState('conversas');
   const [contatos, setContatos] = useState([]);
   const [buscaContato, setBuscaContato] = useState('');
+  const [buscaContatoExistente, setBuscaContatoExistente] = useState('');
+  const [resultadosContatoExistente, setResultadosContatoExistente] = useState([]);
+  const [carregandoBuscaContatoExistente, setCarregandoBuscaContatoExistente] = useState(false);
+  const [feedbackBuscaContatoExistente, setFeedbackBuscaContatoExistente] = useState('');
+  const [abrindoContatoExistenteId, setAbrindoContatoExistenteId] = useState('');
   const [contatoParaDetalhar, setContatoParaDetalhar] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [erroTemplates, setErroTemplates] = useState('');
@@ -433,6 +439,9 @@ const InboxPage = () => {
   const [processoVinculado, setProcessoVinculado] = useState(null);
   const [formContato, setFormContato] = useState({ id: '', name: '', email: '', phone_number: '' });
   const [salvandoContato, setSalvandoContato] = useState(false);
+  const [atualizandoBloqueioContato, setAtualizandoBloqueioContato] = useState(false);
+  const [excluindoContato, setExcluindoContato] = useState(false);
+  const [inboxContatoSelecionado, setInboxContatoSelecionado] = useState('');
   const [agentesInbox, setAgentesInbox] = useState([]);
   const [carregandoAgentes, setCarregandoAgentes] = useState(false);
   const [agentesConta, setAgentesConta] = useState([]);
@@ -454,7 +463,7 @@ const InboxPage = () => {
       const rawValue = window.sessionStorage.getItem(TEMPLATE_FALLBACK_STORAGE_KEY);
       const parsedValue = rawValue ? JSON.parse(rawValue) : {};
       return parsedValue && typeof parsedValue === 'object' ? parsedValue : {};
-    } catch (error) {
+    } catch {
       return {};
     }
   })());
@@ -842,20 +851,136 @@ const InboxPage = () => {
     return data;
   };
 
+  const getInboxIdDaConversa = (conversa) =>
+    conversa?.inbox_id || conversa?.meta?.inbox?.id || conversa?.inbox?.id || null;
+
+  const getInboxNomePorId = (inboxId) => {
+    if (!inboxId) return '';
+    return inboxes.find((inbox) => String(inbox.id) === String(inboxId))?.name || '';
+  };
+
+  const getCanalConversa = (conversa) =>
+    conversa?.meta?.inbox?.name || conversa?.inbox?.name || getInboxNomePorId(getInboxIdDaConversa(conversa));
+
+  const getCanaisContato = (contato) => {
+    if (!contato) return [];
+
+    const contactInboxes = Array.isArray(contato.contact_inboxes)
+      ? contato.contact_inboxes
+      : Array.isArray(contato.contactable_inboxes)
+        ? contato.contactable_inboxes
+        : [];
+
+    const canais = contactInboxes
+      .map((contactInbox) => {
+        const inboxId =
+          contactInbox?.inbox?.id ||
+          contactInbox?.inbox_id ||
+          contactInbox?.source?.inbox_id ||
+          null;
+
+        const inboxName =
+          contactInbox?.inbox?.name ||
+          contactInbox?.name ||
+          getInboxNomePorId(inboxId);
+
+        if (!inboxId && !inboxName) {
+          return null;
+        }
+
+        return {
+          id: inboxId ? String(inboxId) : '',
+          name: inboxName || 'Canal nao identificado',
+          sourceId: contactInbox?.source_id || contactInbox?.source?.id || '',
+        };
+      })
+      .filter(Boolean);
+
+    if (canais.length > 0) {
+      return canais.filter(
+        (canal, index, lista) =>
+          lista.findIndex((item) => `${item.id}-${item.name}` === `${canal.id}-${canal.name}`) === index
+      );
+    }
+
+    const inboxId = contato?.inbox_id || contato?.meta?.inbox?.id || null;
+    const inboxName = contato?.inbox?.name || contato?.inbox_name || getInboxNomePorId(inboxId);
+
+    if (!inboxId && !inboxName) {
+      return [];
+    }
+
+    return [
+      {
+        id: inboxId ? String(inboxId) : '',
+        name: inboxName || 'Canal nao identificado',
+        sourceId: '',
+      },
+    ];
+  };
+
+  const getCanaisContatoTexto = (contato) => getCanaisContato(contato).map((canal) => canal.name).filter(Boolean).join(' / ');
+
+  const isContatoBloqueado = (contato) =>
+    Boolean(contato?.blocked || contato?.is_blocked || contato?.blocked_at || contato?.availability_status === 'blocked');
+
+  const contatoCorrespondeBusca = (contato, termo) => {
+    const termoNormalizado = (termo || '').trim().toLowerCase();
+    if (!termoNormalizado) return true;
+
+    const telefoneBusca = termoNormalizado.replace(/\D+/g, '');
+    const telefoneContato = `${contato?.phone_number || ''} ${contato?.identifier || ''}`.replace(/\D+/g, '');
+    const textoContato = `${contato?.name || ''} ${contato?.email || ''} ${contato?.phone_number || ''} ${contato?.identifier || ''}`.toLowerCase();
+
+    if (telefoneBusca && telefoneContato) {
+      return telefoneContato.includes(telefoneBusca) || telefoneBusca.includes(telefoneContato);
+    }
+
+    return textoContato.includes(termoNormalizado);
+  };
+
+  const fecharModalNovoContato = () => {
+    setModalAberto(false);
+    setCriandoContato(false);
+    setNovoContato({ name: '', email: '', phone_number: '', inbox_id: '' });
+    setBuscaContatoExistente('');
+    setResultadosContatoExistente([]);
+    setFeedbackBuscaContatoExistente('');
+    setAbrindoContatoExistenteId('');
+  };
+
   const conversaAtual = useMemo(
     () => conversas.find((conversa) => conversa.id === conversaSelecionada) || null,
     [conversas, conversaSelecionada]
   );
 
-  const contatoAtual = useMemo(
-    () => contatoParaDetalhar || conversaAtual?.meta?.sender || null,
-    [contatoParaDetalhar, conversaAtual]
-  );
+  const contatoAtual = useMemo(() => {
+    const contatoBase = contatoParaDetalhar || conversaAtual?.meta?.sender || null;
+
+    if (!contatoBase?.id) {
+      return contatoBase;
+    }
+
+    const contatoCompleto = contatos.find((contato) => String(contato.id) === String(contatoBase.id));
+    return contatoCompleto ? { ...contatoBase, ...contatoCompleto } : contatoBase;
+  }, [contatoParaDetalhar, conversaAtual, contatos]);
 
   const agenteAtual = useMemo(
     () => normalizarAgente(conversaAtual?.meta?.assignee) || null,
     [conversaAtual]
   );
+
+  const contatoAtualBloqueado = isContatoBloqueado(contatoAtual);
+  const canaisContatoAtual = getCanaisContato(contatoAtual);
+  const canalAtual = visaoAtiva === 'conversas' ? getCanalConversa(conversaAtual) : getCanaisContatoTexto(contatoAtual);
+  const opcoesInboxContatoAtual =
+    canaisContatoAtual.length > 0
+      ? canaisContatoAtual
+      : inboxes.map((inbox) => ({
+          id: String(inbox.id),
+          name: inbox.name,
+          sourceId: '',
+        }));
 
   const agentesInboxFiltrados = useMemo(() => {
     const termo = buscaAgente.trim().toLowerCase();
@@ -998,6 +1123,219 @@ const InboxPage = () => {
     );
   };
 
+  const removerContatoLocal = (contactId) => {
+    if (!contactId) return;
+
+    setContatos((anterior) => anterior.filter((contato) => String(contato.id) !== String(contactId)));
+    setContatoParaDetalhar((anterior) => (String(anterior?.id) === String(contactId) ? null : anterior));
+
+    setConversas((anterior) =>
+      anterior.map((conversa) => {
+        const senderId = conversa?.meta?.sender?.id;
+
+        if (String(senderId) !== String(contactId)) {
+          return conversa;
+        }
+
+        return {
+          ...conversa,
+          meta: {
+            ...(conversa.meta || {}),
+            sender: {
+              ...(conversa.meta?.sender || {}),
+              blocked: false,
+              deleted: true,
+            },
+          },
+        };
+      })
+    );
+  };
+
+  const buscarContatosExistentes = async (termoInicial = '') => {
+    const token = getCleanToken();
+    const termo = (termoInicial || buscaContatoExistente || novoContato.phone_number || novoContato.name).trim();
+
+    if (!termo) {
+      setResultadosContatoExistente([]);
+      setFeedbackBuscaContatoExistente('Informe um nome ou telefone para pesquisar um contato existente.');
+      return [];
+    }
+
+    try {
+      setCarregandoBuscaContatoExistente(true);
+      setFeedbackBuscaContatoExistente('');
+
+      const response = await fetch(`${API_BASE}/chat/contacts?search=${encodeURIComponent(termo)}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setResultadosContatoExistente([]);
+        setFeedbackBuscaContatoExistente(data?.message || 'Nao foi possivel pesquisar os contatos agora.');
+        return [];
+      }
+
+      const resultados = extrairLista(data).filter((contato) => contatoCorrespondeBusca(contato, termo));
+      setResultadosContatoExistente(resultados);
+      setFeedbackBuscaContatoExistente(resultados.length === 0 ? 'Nenhum contato encontrado com esse filtro.' : '');
+      return resultados;
+    } catch (error) {
+      console.error('Erro ao pesquisar contatos existentes:', error);
+      setResultadosContatoExistente([]);
+      setFeedbackBuscaContatoExistente('Falha de comunicacao ao pesquisar contatos.');
+      return [];
+    } finally {
+      setCarregandoBuscaContatoExistente(false);
+    }
+  };
+
+  const encontrarConversaPorContatoEInbox = (contactId, inboxId, lista = conversas) =>
+    (lista || []).find((conversa) => {
+      const senderId = conversa?.meta?.sender?.id;
+      const inboxConversaId = getInboxIdDaConversa(conversa);
+
+      return String(senderId) === String(contactId) && String(inboxConversaId || '') === String(inboxId || '');
+    }) || null;
+
+  const garantirConversaNaLista = (conversa, contato, inboxId) => {
+    if (!conversa?.id) return;
+
+    setConversas((anterior) => {
+      if (anterior.some((item) => String(item.id) === String(conversa.id))) {
+        return anterior.map((item) =>
+          String(item.id) === String(conversa.id)
+            ? {
+                ...item,
+                ...conversa,
+                inbox_id: conversa?.inbox_id || item?.inbox_id || inboxId || null,
+                meta: {
+                  ...(item.meta || {}),
+                  ...(conversa.meta || {}),
+                  sender: {
+                    ...(item.meta?.sender || {}),
+                    ...(conversa.meta?.sender || {}),
+                    ...(contato || {}),
+                  },
+                },
+              }
+            : item
+        );
+      }
+
+      return [
+        {
+          ...conversa,
+          inbox_id: conversa?.inbox_id || inboxId || null,
+          meta: {
+            ...(conversa.meta || {}),
+            sender: {
+              ...(conversa.meta?.sender || {}),
+              ...(contato || {}),
+            },
+          },
+        },
+        ...anterior,
+      ];
+    });
+  };
+
+  const abrirOuCriarConversaContato = async (contato, inboxId, options = {}) => {
+    const token = getCleanToken();
+    const targetInboxId = Number(inboxId || 0);
+
+    if (!contato?.id) {
+      definirFeedback('Selecione um contato valido para abrir a conversa.', 'error');
+      return false;
+    }
+
+    if (!targetInboxId) {
+      definirFeedback('Selecione um canal antes de iniciar o atendimento.', 'error');
+      return false;
+    }
+
+    const conversaExistenteLocal = encontrarConversaPorContatoEInbox(contato.id, targetInboxId);
+
+    if (conversaExistenteLocal) {
+      setVisaoAtiva('conversas');
+      setAbaAtiva('all');
+      setInboxSelecionada(String(targetInboxId));
+      setContatoParaDetalhar(contato);
+      setPainelContatoAberto(false);
+      abrirConversa(conversaExistenteLocal.id);
+
+      if (options.successMessage) {
+        definirFeedback(options.successMessage);
+      }
+
+      return true;
+    }
+
+    try {
+      setAbrindoContatoExistenteId(String(contato.id));
+
+      const response = await fetch(`${API_BASE}/chat/contacts/${contato.id}/conversation`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ inbox_id: targetInboxId }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      const conversaCriada = extrairConversaResposta(data);
+
+      const listaAtualizada = await buscarConversas('all', { silent: true });
+      const conversaExistenteAtualizada =
+        (conversaCriada?.id ? listaAtualizada.find((item) => String(item.id) === String(conversaCriada.id)) : null) ||
+        encontrarConversaPorContatoEInbox(contato.id, targetInboxId, listaAtualizada);
+
+      if (conversaExistenteAtualizada?.id) {
+        setVisaoAtiva('conversas');
+        setAbaAtiva('all');
+        setInboxSelecionada(String(targetInboxId));
+        setContatoParaDetalhar(contato);
+        setPainelContatoAberto(false);
+        abrirConversa(conversaExistenteAtualizada.id);
+
+        if (options.successMessage) {
+          definirFeedback(options.successMessage);
+        }
+
+        return true;
+      }
+
+      if (response.ok && conversaCriada?.id) {
+        garantirConversaNaLista(conversaCriada, contato, targetInboxId);
+        setVisaoAtiva('conversas');
+        setAbaAtiva('all');
+        setInboxSelecionada(String(targetInboxId));
+        setContatoParaDetalhar(contato);
+        setPainelContatoAberto(false);
+        abrirConversa(conversaCriada.id);
+
+        if (options.successMessage) {
+          definirFeedback(options.successMessage);
+        }
+
+        return true;
+      }
+
+      definirFeedback(data?.message || 'Nao foi possivel abrir a conversa para este contato.', 'error');
+      return false;
+    } catch (error) {
+      console.error('Erro ao abrir conversa para contato existente:', error);
+      definirFeedback('Falha de comunicacao ao iniciar o atendimento.', 'error');
+      return false;
+    } finally {
+      setAbrindoContatoExistenteId('');
+    }
+  };
+
   const carregarAgentesInbox = async (inboxId) => {
     if (!inboxId) {
       setAgentesInbox([]);
@@ -1100,7 +1438,14 @@ const InboxPage = () => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
-        aplicarContatoAtualizado(extrairContatoResposta(data));
+        aplicarContatoAtualizado({
+          id: formContato.id,
+          name: formContato.name,
+          email: formContato.email || null,
+          phone_number: formContato.phone_number || null,
+          blocked: contatoAtualBloqueado,
+          ...extrairContatoResposta(data),
+        });
         definirFeedback('Contato atualizado com sucesso.');
       } else {
         definirFeedback(data?.message || 'Nao foi possivel atualizar o contato.', 'error');
@@ -1110,6 +1455,103 @@ const InboxPage = () => {
       definirFeedback('Falha de comunicacao ao atualizar o contato.', 'error');
     } finally {
       setSalvandoContato(false);
+    }
+  };
+
+  const alternarBloqueioContatoAtual = async () => {
+    if (!formContato.id || atualizandoBloqueioContato) {
+      return;
+    }
+
+    const proximoEstado = !contatoAtualBloqueado;
+    const confirmar = window.confirm(
+      proximoEstado
+        ? 'Deseja bloquear este contato? O envio de novas mensagens ficara desabilitado ate o desbloqueio.'
+        : 'Deseja desbloquear este contato para voltar a enviar mensagens?'
+    );
+
+    if (!confirmar) {
+      return;
+    }
+
+    const token = getCleanToken();
+
+    try {
+      setAtualizandoBloqueioContato(true);
+      const response = await fetch(`${API_BASE}/chat/contacts/${formContato.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          blocked: proximoEstado,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        aplicarContatoAtualizado({
+          id: formContato.id,
+          name: formContato.name,
+          email: formContato.email || null,
+          phone_number: formContato.phone_number || null,
+          blocked: proximoEstado,
+          ...extrairContatoResposta(data),
+        });
+        definirFeedback(proximoEstado ? 'Contato bloqueado com sucesso.' : 'Contato desbloqueado com sucesso.');
+      } else {
+        definirFeedback(data?.message || 'Nao foi possivel atualizar o bloqueio do contato.', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar bloqueio do contato:', error);
+      definirFeedback('Falha de comunicacao ao atualizar o bloqueio do contato.', 'error');
+    } finally {
+      setAtualizandoBloqueioContato(false);
+    }
+  };
+
+  const excluirContatoAtual = async () => {
+    if (!formContato.id || excluindoContato) {
+      return;
+    }
+
+    const confirmar = window.confirm(
+      'Deseja excluir este contato? Essa acao remove o cadastro no Chatwoot e nao pode ser desfeita.'
+    );
+
+    if (!confirmar) {
+      return;
+    }
+
+    const token = getCleanToken();
+
+    try {
+      setExcluindoContato(true);
+      const response = await fetch(`${API_BASE}/chat/contacts/${formContato.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        removerContatoLocal(formContato.id);
+        setPainelContatoAberto(false);
+        await carregarDadosIniciais();
+        await buscarConversas('all', { silent: true });
+        definirFeedback('Contato excluido com sucesso.');
+      } else {
+        definirFeedback(data?.message || 'Nao foi possivel excluir o contato.', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao excluir contato:', error);
+      definirFeedback('Falha de comunicacao ao excluir o contato.', 'error');
+    } finally {
+      setExcluindoContato(false);
     }
   };
 
@@ -1271,6 +1713,15 @@ const InboxPage = () => {
       phone_number: contatoAtual?.phone_number || contatoAtual?.phoneNumber || '',
     });
   }, [contatoAtual?.id, contatoAtual?.name, contatoAtual?.email, contatoAtual?.phone_number, contatoAtual?.phoneNumber]);
+
+  useEffect(() => {
+    const inboxPadraoContato =
+      (inboxSelecionada !== 'all' ? String(inboxSelecionada) : '') ||
+      opcoesInboxContatoAtual[0]?.id ||
+      '';
+
+    setInboxContatoSelecionado(inboxPadraoContato);
+  }, [contatoAtual?.id, inboxSelecionada, opcoesInboxContatoAtual]);
 
   useEffect(() => {
     setAssigneeSelecionado(agenteAtual?.id ? String(agenteAtual.id) : '');
@@ -1446,6 +1897,11 @@ const InboxPage = () => {
 
   const abrirModalTemplates = async () => {
     if (!conversaSelecionada) return;
+    if (contatoAtualBloqueado) {
+      definirFeedback('Este contato esta bloqueado. Desbloqueie o cadastro para enviar novas mensagens.', 'error');
+      return;
+    }
+
     setModalTemplatesAberto(true);
     setBuscaTemplate('');
     await carregarTemplates();
@@ -1462,6 +1918,10 @@ const InboxPage = () => {
 
   const enviarArquivos = async (arquivos, tipoForcado = null) => {
     if (!conversaSelecionada || !arquivos?.length || enviandoArquivo) return;
+    if (contatoAtualBloqueado) {
+      definirFeedback('Este contato esta bloqueado. Desbloqueie o cadastro para enviar novas mensagens.', 'error');
+      return;
+    }
 
     const token = getCleanToken();
     const formData = new FormData();
@@ -1550,6 +2010,11 @@ const InboxPage = () => {
 
   const enviarMensagem = async () => {
     if (!novaMensagem.trim() || !conversaSelecionada) return;
+    if (contatoAtualBloqueado) {
+      definirFeedback('Este contato esta bloqueado. Desbloqueie o cadastro para enviar novas mensagens.', 'error');
+      return;
+    }
+
     const token = getCleanToken();
 
     try {
@@ -1601,6 +2066,10 @@ const InboxPage = () => {
 
   const enviarTemplateSelecionado = async () => {
     if (!conversaSelecionada || !templateSelecionado || enviandoTemplate) return;
+    if (contatoAtualBloqueado) {
+      definirFeedback('Este contato esta bloqueado. Desbloqueie o cadastro para enviar novas mensagens.', 'error');
+      return;
+    }
 
     if (variaveisPendentes.length > 0) {
       definirFeedback('Preencha todas as variaveis do template antes de enviar.', 'error');
@@ -1702,8 +2171,12 @@ const InboxPage = () => {
   const handleSubmitNovoContato = async (event) => {
     event.preventDefault();
     const token = getCleanToken();
+    const inboxId = Number(novoContato.inbox_id);
 
     try {
+      setCriandoContato(true);
+      setFeedbackBuscaContatoExistente('');
+
       const response = await fetch(`${API_BASE}/chat/contacts`, {
         method: 'POST',
         headers: {
@@ -1717,57 +2190,52 @@ const InboxPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        const inboxId = Number(novoContato.inbox_id);
         const contatoCriado = extrairContatoResposta(data);
 
-        setModalAberto(false);
-        setNovoContato({ name: '', email: '', phone_number: '', inbox_id: '' });
         await carregarDadosIniciais();
 
         if (contatoCriado?.id && inboxId) {
-          const conversaResponse = await fetch(`${API_BASE}/chat/contacts/${contatoCriado.id}/conversation`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
-            },
-            body: JSON.stringify({ inbox_id: inboxId }),
+          const conversaAberta = await abrirOuCriarConversaContato(contatoCriado, inboxId, {
+            successMessage: 'Contato criado e conversa iniciada com sucesso.',
           });
 
-          const conversaData = await conversaResponse.json();
+          fecharModalNovoContato();
 
-          if (conversaResponse.ok) {
-            const conversaCriada = extrairConversaResposta(conversaData);
-
-            setVisaoAtiva('conversas');
-            setInboxSelecionada(String(inboxId));
-            setContatoParaDetalhar(contatoCriado);
-            setPainelContatoAberto(false);
-            buscarConversas(abaAtiva);
-
-            if (conversaCriada?.id) {
-              abrirConversa(conversaCriada.id);
-              definirFeedback('Contato criado e conversa iniciada com sucesso.');
-              return;
-            }
+          if (conversaAberta) {
+            return;
           }
-
-          setVisaoAtiva('contatos');
-          setContatoParaDetalhar(contatoCriado);
-          setPainelContatoAberto(true);
-          window.alert(conversaData?.message || 'Contato criado, mas nao foi possivel abrir a conversa automaticamente.');
-          return;
         }
 
+        fecharModalNovoContato();
         setVisaoAtiva('contatos');
+        setContatoParaDetalhar(contatoCriado);
+        setPainelContatoAberto(true);
+        definirFeedback('Contato criado com sucesso. Abra a conversa pelo canal desejado.');
         return;
       }
 
-      window.alert(data?.message || 'Nao foi possivel criar o contato.');
+      const candidatos = Array.isArray(data?.conflict_candidates) ? data.conflict_candidates.filter(Boolean) : [];
+
+      if (candidatos.length > 0) {
+        setResultadosContatoExistente(candidatos);
+        setFeedbackBuscaContatoExistente(
+          data?.message || 'Ja existe um contato parecido. Use um dos resultados abaixo para abrir a conversa sem criar duplicidade.'
+        );
+        return;
+      }
+
+      const resultadosPesquisa = await buscarContatosExistentes(novoContato.phone_number || novoContato.name);
+      if (resultadosPesquisa.length > 0) {
+        setFeedbackBuscaContatoExistente(data?.message || 'Encontramos contatos parecidos para voce reutilizar.');
+        return;
+      }
+
+      setFeedbackBuscaContatoExistente(data?.message || 'Nao foi possivel criar o contato.');
     } catch (error) {
       console.error(error);
-      window.alert('Falha ao criar o contato.');
+      setFeedbackBuscaContatoExistente('Falha ao criar o contato.');
+    } finally {
+      setCriandoContato(false);
     }
   };
 
@@ -1834,7 +2302,7 @@ const InboxPage = () => {
 
       {modalAberto ? (
         <div style={styles.modalOverlay}>
-          <div style={{ width: '420px', borderRadius: '24px', backgroundColor: '#ffffff', padding: '28px', boxShadow: '0 28px 80px rgba(6, 17, 34, 0.22)' }}>
+          <div style={{ width: '480px', maxWidth: '100%', borderRadius: '24px', backgroundColor: '#ffffff', padding: '28px', boxShadow: '0 28px 80px rgba(6, 17, 34, 0.22)' }}>
             <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#10233f' }}>Novo Contato</h3>
             <form onSubmit={handleSubmitNovoContato}>
               <div style={{ marginBottom: '16px' }}>
@@ -1859,12 +2327,91 @@ const InboxPage = () => {
                   Depois do cadastro, o NIC tenta abrir a conversa automaticamente para voce iniciar o atendimento.
                 </div>
               </div>
+              <div style={{ ...styles.fieldCard, marginBottom: '22px', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#10233f' }}>Contato ja existente?</div>
+                  <div style={{ marginTop: '4px', fontSize: '12px', lineHeight: 1.5, color: '#6b7d96' }}>
+                    Pesquise por nome ou telefone para abrir a conversa sem criar cadastro duplicado.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input
+                    type="text"
+                    style={styles.input}
+                    placeholder="Buscar contato existente"
+                    value={buscaContatoExistente}
+                    onChange={(event) => setBuscaContatoExistente(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    style={{ ...styles.secondaryButton, flexShrink: 0 }}
+                    onClick={() => buscarContatosExistentes()}
+                    disabled={carregandoBuscaContatoExistente}
+                  >
+                    {carregandoBuscaContatoExistente ? 'Buscando...' : 'Buscar'}
+                  </button>
+                </div>
+
+                {feedbackBuscaContatoExistente ? <div style={styles.helperText}>{feedbackBuscaContatoExistente}</div> : null}
+
+                {resultadosContatoExistente.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto' }}>
+                    {resultadosContatoExistente.map((contato) => {
+                      const canaisContato = getCanaisContatoTexto(contato);
+                      const bloqueado = isContatoBloqueado(contato);
+                      const abrindoEsteContato = String(abrindoContatoExistenteId) === String(contato.id);
+
+                      return (
+                        <div key={contato.id} style={styles.agentOption(false)}>
+                          <div style={{ minWidth: 0 }}>
+                            {canaisContato ? (
+                              <div style={{ marginBottom: '4px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>
+                                {canaisContato}
+                              </div>
+                            ) : null}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ fontWeight: 700, color: '#10233f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {contato.name || 'Contato sem nome'}
+                              </div>
+                              {bloqueado ? (
+                                <span style={{ padding: '4px 8px', borderRadius: '999px', backgroundColor: '#fee2e2', color: '#b42318', fontSize: '10px', fontWeight: 800 }}>
+                                  Bloqueado
+                                </span>
+                              ) : null}
+                            </div>
+                            <div style={{ marginTop: '2px', fontSize: '12px', color: '#6b7d96' }}>
+                              {contato.phone_number || contato.identifier || 'Telefone nao informado'}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            style={styles.tinyButton('primary')}
+                            disabled={!novoContato.inbox_id || abrindoEsteContato || bloqueado}
+                            onClick={() =>
+                              abrirOuCriarConversaContato(contato, Number(novoContato.inbox_id), {
+                                successMessage: 'Conversa aberta com o contato existente.',
+                              }).then((abriu) => {
+                                if (abriu) {
+                                  fecharModalNovoContato();
+                                }
+                              })
+                            }
+                          >
+                            {abrindoEsteContato ? '...' : 'Abrir'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="button" onClick={() => setModalAberto(false)} style={{ ...styles.secondaryButton, flex: 1 }}>
+                <button type="button" onClick={fecharModalNovoContato} style={{ ...styles.secondaryButton, flex: 1 }} disabled={criandoContato}>
                   Cancelar
                 </button>
-                <button type="submit" style={{ ...styles.primaryButton, flex: 1 }}>
-                  Criar e abrir conversa
+                <button type="submit" style={{ ...styles.primaryButton, flex: 1 }} disabled={criandoContato}>
+                  {criandoContato ? 'Criando...' : 'Criar e abrir conversa'}
                 </button>
               </div>
             </form>
@@ -2158,6 +2705,8 @@ const InboxPage = () => {
               const horario = visaoAtiva === 'conversas' ? formatarHorarioConversa(item.last_non_activity_message?.created_at || item.timestamp || item.updated_at) : '';
               const naoLidas = Number(item.unread_count || 0);
               const ativo = conversaSelecionada === item.id;
+              const canal = visaoAtiva === 'conversas' ? getCanalConversa(item) : getCanaisContatoTexto(item);
+              const bloqueado = isContatoBloqueado(visaoAtiva === 'conversas' ? item?.meta?.sender : item);
 
               return (
                 <div
@@ -2175,8 +2724,20 @@ const InboxPage = () => {
                 >
                   <div style={styles.avatar(ativo)}>{nome.charAt(0).toUpperCase()}</div>
                   <div style={{ minWidth: 0, flex: 1 }}>
+                    {canal ? (
+                      <div style={{ marginBottom: '4px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {canal}
+                      </div>
+                    ) : null}
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
-                      <div style={{ fontWeight: 700, fontSize: '15px', color: '#10233f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '15px', color: '#10233f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome}</div>
+                        {bloqueado ? (
+                          <span style={{ padding: '4px 8px', borderRadius: '999px', backgroundColor: '#fee2e2', color: '#b42318', fontSize: '10px', fontWeight: 800, flexShrink: 0 }}>
+                            Bloqueado
+                          </span>
+                        ) : null}
+                      </div>
                       {horario ? <div style={{ fontSize: '11px', color: '#6b7d96', flexShrink: 0 }}>{horario}</div> : null}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
@@ -2201,7 +2762,19 @@ const InboxPage = () => {
           <>
             <div style={styles.chatHeader}>
               <div style={styles.headerInfo} onClick={() => setPainelContatoAberto(true)}>
-                <div style={{ fontSize: '30px', fontWeight: 800, lineHeight: 1.1 }}>{contatoParaDetalhar?.name || 'Atendimento'}</div>
+                {canalAtual ? (
+                  <div style={{ marginBottom: '6px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>
+                    {canalAtual}
+                  </div>
+                ) : null}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '30px', fontWeight: 800, lineHeight: 1.1 }}>{contatoAtual?.name || 'Atendimento'}</div>
+                  {contatoAtualBloqueado ? (
+                    <span style={{ padding: '6px 10px', borderRadius: '999px', backgroundColor: '#fee2e2', color: '#b42318', fontSize: '11px', fontWeight: 800 }}>
+                      Contato bloqueado
+                    </span>
+                  ) : null}
+                </div>
                 <div style={{ marginTop: '6px', color: '#6b7d96' }}>{telefoneDestino || 'Sem telefone identificado'}</div>
               </div>
               <div style={styles.headerActions}>
@@ -2295,15 +2868,20 @@ const InboxPage = () => {
 
             <div style={styles.composer}>
               {feedbackEnvio ? <div style={styles.feedback(tipoFeedback)}>{feedbackEnvio}</div> : null}
+              {contatoAtualBloqueado ? (
+                <div style={styles.feedback('error')}>
+                  Este contato esta bloqueado. Desbloqueie o cadastro no painel lateral para voltar a enviar mensagens.
+                </div>
+              ) : null}
 
               <div style={styles.composerRow}>
-                <button type="button" style={styles.secondaryButton} onClick={abrirModalTemplates}>
+                <button type="button" style={styles.secondaryButton} onClick={abrirModalTemplates} disabled={contatoAtualBloqueado}>
                   Templates
                 </button>
-                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('arquivo')} disabled={enviandoArquivo}>
+                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('arquivo')} disabled={enviandoArquivo || contatoAtualBloqueado}>
                   Arquivo
                 </button>
-                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('audio')} disabled={enviandoArquivo}>
+                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('audio')} disabled={enviandoArquivo || contatoAtualBloqueado}>
                   Audio
                 </button>
                 <input
@@ -2313,8 +2891,9 @@ const InboxPage = () => {
                   onKeyDown={(event) => (event.key === 'Enter' ? enviarMensagem() : null)}
                   placeholder="Digite uma mensagem..."
                   style={styles.composerInput}
+                  disabled={contatoAtualBloqueado}
                 />
-                <button type="button" style={styles.primaryButton} onClick={enviarMensagem} disabled={enviandoArquivo || enviandoTemplate}>
+                <button type="button" style={styles.primaryButton} onClick={enviarMensagem} disabled={enviandoArquivo || enviandoTemplate || contatoAtualBloqueado}>
                   {enviandoArquivo ? 'Enviando arquivo...' : 'Enviar'}
                 </button>
               </div>
@@ -2353,8 +2932,20 @@ const InboxPage = () => {
                   {(formContato.name || contatoAtual?.name || 'C').charAt(0).toUpperCase()}
                 </div>
                 <div>
+                  {canalAtual ? (
+                    <div style={{ marginBottom: '4px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>
+                      {canalAtual}
+                    </div>
+                  ) : null}
                   <div style={{ fontSize: '22px', fontWeight: 800, color: '#10233f' }}>{formContato.name || 'Contato sem nome'}</div>
                   <div style={{ marginTop: '4px', color: '#6b7d96', fontSize: '13px' }}>{formContato.phone_number || 'Telefone indisponivel'}</div>
+                  {contatoAtualBloqueado ? (
+                    <div style={{ marginTop: '8px' }}>
+                      <span style={{ padding: '5px 10px', borderRadius: '999px', backgroundColor: '#fee2e2', color: '#b42318', fontSize: '11px', fontWeight: 800 }}>
+                        Contato bloqueado
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -2377,10 +2968,87 @@ const InboxPage = () => {
                 {formContato.id ? `ID do contato no Chatwoot: ${formContato.id}` : 'Este registro ainda nao expoe o ID do contato para edicao direta.'}
               </div>
 
-              <button type="button" style={styles.primaryButton} onClick={salvarContatoAtual} disabled={salvandoContato}>
+              <button type="button" style={styles.primaryButton} onClick={salvarContatoAtual} disabled={salvandoContato || atualizandoBloqueioContato || excluindoContato}>
                 {salvandoContato ? 'Salvando...' : 'Salvar contato'}
               </button>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.secondaryButton,
+                    flex: 1,
+                    borderColor: contatoAtualBloqueado ? '#fecaca' : '#dbe3ee',
+                    backgroundColor: contatoAtualBloqueado ? '#fff1f2' : '#f8fbff',
+                    color: contatoAtualBloqueado ? '#b42318' : '#213656',
+                  }}
+                  onClick={alternarBloqueioContatoAtual}
+                  disabled={!formContato.id || salvandoContato || atualizandoBloqueioContato || excluindoContato}
+                >
+                  {atualizandoBloqueioContato ? 'Atualizando...' : contatoAtualBloqueado ? 'Desbloquear contato' : 'Bloquear contato'}
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.secondaryButton,
+                    flex: 1,
+                    borderColor: '#fecaca',
+                    backgroundColor: '#fff1f2',
+                    color: '#b42318',
+                  }}
+                  onClick={excluirContatoAtual}
+                  disabled={!formContato.id || salvandoContato || atualizandoBloqueioContato || excluindoContato}
+                >
+                  {excluindoContato ? 'Excluindo...' : 'Excluir contato'}
+                </button>
+              </div>
             </div>
+
+            {contatoAtual?.id ? (
+              <div style={styles.fieldCard}>
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#10233f' }}>Iniciar atendimento</div>
+                  <div style={{ marginTop: '6px', color: '#6b7d96', fontSize: '13px' }}>
+                    Escolha um canal e abra a conversa para enviar mensagens a este contato.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={styles.fieldLabel}>Canal para envio</label>
+                  <select
+                    style={styles.select}
+                    value={inboxContatoSelecionado}
+                    onChange={(event) => setInboxContatoSelecionado(event.target.value)}
+                  >
+                    <option value="">Selecione o canal...</option>
+                    {opcoesInboxContatoAtual.map((canal) => (
+                      <option key={`${canal.id || canal.name}`} value={canal.id}>
+                        {canal.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={styles.helperText}>
+                  {getCanaisContato(contatoAtual).length > 0
+                    ? 'Canais conhecidos para este contato carregados do Chatwoot.'
+                    : 'Se o contato ainda nao estiver associado a um canal, selecione um da lista para tentar abrir a conversa.'}
+                </div>
+
+                <button
+                  type="button"
+                  style={styles.primaryButton}
+                  disabled={!inboxContatoSelecionado || abrindoContatoExistenteId === String(contatoAtual.id) || contatoAtualBloqueado}
+                  onClick={() =>
+                    abrirOuCriarConversaContato(contatoAtual, Number(inboxContatoSelecionado), {
+                      successMessage: 'Conversa aberta com sucesso.',
+                    })
+                  }
+                >
+                  {abrindoContatoExistenteId === String(contatoAtual.id) ? 'Abrindo...' : 'Abrir conversa'}
+                </button>
+              </div>
+            ) : null}
 
             {visaoAtiva === 'conversas' && conversaSelecionada ? (
               <div style={styles.fieldCard}>
