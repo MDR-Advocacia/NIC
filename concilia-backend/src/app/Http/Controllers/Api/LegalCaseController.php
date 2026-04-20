@@ -565,7 +565,7 @@ class LegalCaseController extends Controller
         ];
 
         $caseUpdatePayload = [
-            'status' => LegalCase::STATUS_IN_NEGOTIATION,
+            'status' => LegalCase::STATUS_INDICATIONS,
             'user_id' => $responsibleOperator->id,
             'agreement_checklist_data' => $existingChecklistData,
         ];
@@ -586,7 +586,7 @@ class LegalCaseController extends Controller
                 'indicator_user_id' => $previousIndicatorUserId,
             ],
             'new_values' => [
-                'status' => LegalCase::STATUS_IN_NEGOTIATION,
+                'status' => LegalCase::STATUS_INDICATIONS,
                 'user_id' => $responsibleOperator->id,
                 'indicator_user_id' => $user->id,
             ],

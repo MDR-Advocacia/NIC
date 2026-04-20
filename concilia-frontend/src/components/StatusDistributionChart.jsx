@@ -12,17 +12,18 @@ const StatusDistributionChartJS = ({ data, onStageClick }) => {
     }, [data]);
 
     const labels = [
-        'Análise Inicial', 'Proposta Enviada', 'Em Negociação', 
+        'Análise Inicial', 'Indicações', 'Proposta Enviada', 'Em Negociação',
         'Aguardando Minuta', 'Acordo Fechado', 'Acordo Frustrado'
     ];
     
     const colors = [
-        '#64748b', '#3b82f6', '#eab308', 
+        '#64748b', '#805AD5', '#3b82f6', '#eab308',
         '#f97316', '#22c55e', '#ef4444'
     ];
 
     const dataValues = [
         data?.initial_analysis || 0,
+        data?.indications || 0,
         data?.proposal_sent || 0,
         data?.in_negotiation || 0,
         data?.awaiting_draft || 0,
@@ -51,7 +52,7 @@ const StatusDistributionChartJS = ({ data, onStageClick }) => {
         onClick: (event, elements) => {
             if (!elements.length) return;
             const index = elements[0].index;
-            const keys = ['initial_analysis', 'proposal_sent', 'in_negotiation', 'awaiting_draft', 'closed_deal', 'failed_deal'];
+            const keys = ['initial_analysis', 'indications', 'proposal_sent', 'in_negotiation', 'awaiting_draft', 'closed_deal', 'failed_deal'];
             if (onStageClick) onStageClick(keys[index], labels[index]);
         },
     };
