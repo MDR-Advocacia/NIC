@@ -149,7 +149,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-        />
         <Route
           path="base-geral"
           element={
