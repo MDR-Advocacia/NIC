@@ -42,8 +42,8 @@ const AddEditActionObjectModal = ({
       onSuccess(response.data);
       onClose();
     } catch (err) {
-      console.error('Erro ao salvar objeto da ação:', err);
-      setError('Não foi possível salvar esse objeto da ação. Verifique se ele já não existe.');
+      console.error('Erro ao salvar causa de pedir:', err);
+      setError('Não foi possível salvar essa causa de pedir. Verifique se ela já não existe.');
     } finally {
       setLoading(false);
     }
@@ -53,7 +53,7 @@ const AddEditActionObjectModal = ({
     <div className={styles.overlay}>
       <div className={styles.modal}>
         <div className={styles.header}>
-          <h2>{actionObject ? 'Editar Objeto da Ação' : 'Cadastrar Objeto da Ação'}</h2>
+          <h2>{actionObject ? 'Editar Causa de Pedir' : 'Cadastrar Causa de Pedir'}</h2>
           <button type="button" onClick={onClose} className={styles.closeButton}>
             &times;
           </button>

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditLitigantModal from './AddEditLitigantModal'; // Importando para criar rápido
+import SavedCaseTagsPanel from './SavedCaseTagsPanel';
 import {
   LIVELO_MIN_POINTS,
   normalizeSettlementBenefitPayload,
@@ -13,13 +14,15 @@ import {
   SETTLEMENT_BENEFIT_TYPES,
   validateSettlementBenefit
 } from '../constants/settlementBenefit';
-import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
+import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
+import { normalizeUserRole } from '../constants/access';
 
 const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const availableColors = ['#EF4444', '#F97316', '#FBBF24', ' #84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
 
 const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const canManageSavedTags = ['administrador', 'admin'].includes(normalizeUserRole(user?.role));
   
   // Lista de Litigantes (Autores e Réus) carregados do banco
   const [litigants, setLitigants] = useState([]);
@@ -65,7 +68,6 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
   const [newTagText, setNewTagText] = useState('');
   const [newTagColor, setNewTagColor] = useState(availableColors[0]);
   const [savedTags, setSavedTags] = useState([]);
-  const [selectedSavedTagText, setSelectedSavedTagText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -156,17 +158,12 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
     setNewTagColor(availableColors[0]);
   };
 
-  const handleAddSavedTag = () => {
-    if (!selectedSavedTagText) return;
-
-    const selectedTag = savedTags.find(tag => (tag.text || tag.name) === selectedSavedTagText);
+  const handleAddSavedTag = (selectedTag) => {
     if (!selectedTag) return;
-
     setFormData(prevState => ({
       ...prevState,
       tags: appendCaseTag(prevState.tags, selectedTag)
     }));
-    setSelectedSavedTagText('');
   };
 
   const handleRemoveTag = (indexToRemove) => {
@@ -174,6 +171,37 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
       ...prevState,
       tags: prevState.tags.filter((_, index) => index !== indexToRemove)
     }));
+  };
+
+  const handleDeleteSavedTag = async (tagToDelete) => {
+    if (!tagToDelete?.id) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir a etiqueta "${tagToDelete.text || tagToDelete.name}"?\n\nEssa ação removerá a etiqueta do catálogo e de todos os casos que a utilizam.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await apiClient.delete(`/case-tags/${tagToDelete.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+      setFormData((prevState) => ({
+        ...prevState,
+        tags: removeCaseTag(prevState.tags, tagToDelete),
+      }));
+
+      window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+    } catch (err) {
+      console.error("Erro ao excluir etiqueta salva:", err);
+      window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -238,8 +266,8 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
                 <input className={styles.input} type="text" id="case_number" name="case_number" value={formData.case_number} onChange={handleChange} required placeholder="Digite o número" />
               </div>
               <div className={styles.formGroup}>
-                <label className={styles.label} htmlFor="action_object">Objeto da Ação</label>
-                <input className={styles.input} type="text" id="action_object" name="action_object" value={formData.action_object} onChange={handleChange} required placeholder="Digite o objeto da ação" />
+                <label className={styles.label} htmlFor="action_object">Causa de Pedir</label>
+                <input className={styles.input} type="text" id="action_object" name="action_object" value={formData.action_object} onChange={handleChange} required placeholder="Digite a causa de pedir" />
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.label} htmlFor="start_date">Data de Distribuição</label>
@@ -403,25 +431,16 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
                <button type="button" className={`${styles.priorityButton} ${styles.baixa} ${formData.priority === 'baixa' ? styles.selected : ''}`} onClick={() => handlePriorityChange('baixa')}>Baixa</button>
              </div>
 
-             {savedTags.length > 0 && (
-               <div className={styles.tagCreator} style={{ marginTop: '1rem' }}>
-                 <select
-                   className={styles.tagInput}
-                   value={selectedSavedTagText}
-                   onChange={(e) => setSelectedSavedTagText(e.target.value)}
-                 >
-                   <option value="">Replicar etiqueta salva...</option>
-                   {savedTags.map((tag) => (
-                     <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
-                       {tag.text || tag.name}
-                     </option>
-                   ))}
-                 </select>
-                 <button type="button" className={styles.addButton} onClick={handleAddSavedTag} disabled={!selectedSavedTagText}>
-                   Replicar
-                 </button>
-               </div>
-             )}
+             <SavedCaseTagsPanel
+               tags={savedTags}
+               title="Etiquetas salvas"
+               subtitle="Clique em uma etiqueta para adicioná-la ao caso. A exclusão do catálogo fica restrita ao administrador."
+               onSelectTag={handleAddSavedTag}
+               onDeleteTag={handleDeleteSavedTag}
+               canDelete={canManageSavedTags}
+               selectedValues={formData.tags}
+               emptyMessage="Nenhuma etiqueta salva foi cadastrada ainda."
+             />
 
              <div className={styles.tagCreator} style={{ marginTop: '1rem' }}>
                <input className={styles.tagInput} type="text" value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nova etiqueta..." />

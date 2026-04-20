@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\LegalCase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ChatController extends Controller
@@ -69,7 +70,15 @@ class ChatController extends Controller
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", $validated);
 
-        return response()->json($response->json());
+        if ($response->successful()) {
+            return response()->json($response->json());
+        }
+
+        return response()->json([
+            'message' => 'Nao foi possivel criar o contato.',
+            'details' => $response->json() ?? ['body' => $response->body()],
+            'conflict_candidates' => $this->findPotentialExistingContacts($validated),
+        ], $response->status());
     }
 
     public function updateContact(Request $request, $contactId)
@@ -78,11 +87,12 @@ class ChatController extends Controller
             'name' => 'sometimes|required|string',
             'email' => 'nullable|email',
             'phone_number' => 'nullable|string',
+            'blocked' => 'sometimes|boolean',
         ]);
 
         $payload = [];
 
-        foreach (['name', 'email', 'phone_number'] as $field) {
+        foreach (['name', 'email', 'phone_number', 'blocked'] as $field) {
             if ($request->exists($field)) {
                 $payload[$field] = $validated[$field] ?? null;
             }
@@ -90,6 +100,59 @@ class ChatController extends Controller
 
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->put("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}", $payload);
+
+        return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
+    }
+
+    public function destroyContact($contactId)
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->delete("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}");
+
+        return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
+    }
+
+    public function createConversationForContact(Request $request, $contactId)
+    {
+        $validated = $request->validate([
+            'inbox_id' => 'required|integer',
+        ]);
+
+        $inboxId = (int) $validated['inbox_id'];
+
+        $contactResponse = $this->fetchChatwootContact($contactId);
+
+        if (($contactResponse['response'] ?? null)?->failed()) {
+            return response()->json([
+                'message' => 'Nao foi possivel carregar o contato para iniciar a conversa.',
+                'details' => $contactResponse['details'] ?? null,
+            ], $contactResponse['status'] ?? 500);
+        }
+
+        $contact = $contactResponse['contact'] ?? [];
+        $sourceId = $this->resolveContactInboxSourceId($contact, $inboxId);
+        $contactableInboxes = [];
+
+        if (blank($sourceId)) {
+            $contactableInboxes = $this->fetchContactableInboxes($contactId);
+            $sourceId = $this->resolveContactableInboxSourceId($contactableInboxes, $inboxId);
+        }
+
+        if (blank($sourceId)) {
+            return response()->json([
+                'message' => 'O contato foi criado, mas nao foi possivel localizar o source_id da inbox para abrir a conversa.',
+                'contact' => $contact,
+                'contactable_inboxes' => $contactableInboxes,
+            ], 422);
+        }
+
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", [
+                'source_id' => (string) $sourceId,
+                'inbox_id' => $inboxId,
+                'contact_id' => (int) $contactId,
+                'status' => 'open',
+            ]);
 
         return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
     }
@@ -201,16 +264,54 @@ class ChatController extends Controller
     {
         $validated = $request->validate([
             'legal_case_id' => 'required|integer|exists:legal_cases,id',
+            'contact_name' => 'nullable|string|max:255',
+            'contact_phone' => 'nullable|string|max:255',
         ]);
 
-        $conversation = Conversation::find($conversationId);
+        $legalCase = LegalCase::findOrFail($validated['legal_case_id']);
+        $conversation = $this->resolveConversationRecord($conversationId);
+        $previousCaseId = $conversation?->legal_case_id ? (int) $conversation->legal_case_id : null;
 
-        if ($conversation) {
-            $conversation->legal_case_id = $validated['legal_case_id'];
-            $conversation->save();
+        if (! $conversation) {
+            $conversation = new Conversation();
+
+            if ($this->conversationHasChatwootIdColumn()) {
+                $conversation->chatwoot_id = (string) $conversationId;
+            } else {
+                $conversation->id = (int) $conversationId;
+            }
         }
 
-        return response()->json(['message' => 'Vinculacao processada com sucesso.']);
+        if (blank($conversation->contact_name) && filled($validated['contact_name'] ?? null)) {
+            $conversation->contact_name = $validated['contact_name'];
+        }
+
+        if (blank($conversation->contact_phone) && filled($validated['contact_phone'] ?? null)) {
+            $conversation->contact_phone = $validated['contact_phone'];
+        }
+
+        if ($previousCaseId === (int) $legalCase->id) {
+            return response()->json([
+                'message' => 'Esta conversa ja estava vinculada a este processo.',
+                'legal_case' => [
+                    'id' => $legalCase->id,
+                    'case_number' => $legalCase->case_number,
+                ],
+            ]);
+        }
+
+        $conversation->legal_case_id = $legalCase->id;
+        $conversation->save();
+
+        $this->registrarHistoricoDeVinculo($request, $legalCase, $conversation, $conversationId, $previousCaseId);
+
+        return response()->json([
+            'message' => 'Conversa vinculada ao processo com sucesso.',
+            'legal_case' => [
+                'id' => $legalCase->id,
+                'case_number' => $legalCase->case_number,
+            ],
+        ]);
     }
 
     public function getConversationMessages($conversationId)
@@ -356,6 +457,76 @@ class ChatController extends Controller
         ]);
     }
 
+    private function resolveConversationRecord($conversationId): ?Conversation
+    {
+        if ($this->conversationHasChatwootIdColumn()) {
+            $conversation = Conversation::where('chatwoot_id', (string) $conversationId)->first();
+
+            if ($conversation) {
+                return $conversation;
+            }
+        }
+
+        return Conversation::find($conversationId);
+    }
+
+    private function conversationHasChatwootIdColumn(): bool
+    {
+        static $hasChatwootIdColumn = null;
+
+        if ($hasChatwootIdColumn === null) {
+            $hasChatwootIdColumn = Schema::hasColumn('conversations', 'chatwoot_id');
+        }
+
+        return $hasChatwootIdColumn;
+    }
+
+    private function registrarHistoricoDeVinculo(
+        Request $request,
+        LegalCase $legalCase,
+        Conversation $conversation,
+        $conversationId,
+        ?int $previousCaseId
+    ): void {
+        $descricaoContato = $conversation->contact_name
+            ? " do atendimento com {$conversation->contact_name}"
+            : '';
+
+        $legalCase->histories()->create([
+            'user_id' => $request->user()?->id,
+            'event_type' => 'conversation_linked',
+            'description' => "Conversa{$descricaoContato} (Chatwoot #{$conversationId}) vinculada a este processo.",
+            'old_values' => $previousCaseId ? ['legal_case_id' => $previousCaseId] : null,
+            'new_values' => [
+                'legal_case_id' => $legalCase->id,
+                'case_number' => $legalCase->case_number,
+                'chatwoot_conversation_id' => (string) $conversationId,
+                'contact_name' => $conversation->contact_name,
+                'contact_phone' => $conversation->contact_phone,
+            ],
+        ]);
+
+        if ($previousCaseId && $previousCaseId !== (int) $legalCase->id) {
+            $oldCase = LegalCase::find($previousCaseId);
+
+            if ($oldCase) {
+                $oldCase->histories()->create([
+                    'user_id' => $request->user()?->id,
+                    'event_type' => 'conversation_unlinked',
+                    'description' => "Conversa{$descricaoContato} (Chatwoot #{$conversationId}) desvinculada deste processo e movida para o processo {$legalCase->case_number}.",
+                    'old_values' => [
+                        'legal_case_id' => $oldCase->id,
+                        'case_number' => $oldCase->case_number,
+                    ],
+                    'new_values' => [
+                        'legal_case_id' => $legalCase->id,
+                        'case_number' => $legalCase->case_number,
+                    ],
+                ]);
+            }
+        }
+    }
+
     public function getTemplates(Request $request)
     {
         $validated = $request->validate([
@@ -439,6 +610,159 @@ class ChatController extends Controller
             ->filter(fn ($template) => filled($template['name']))
             ->values()
             ->all();
+    }
+
+    private function extractChatwootContact(array $data): array
+    {
+        if (is_array($data['payload']['contact'] ?? null)) {
+            return $data['payload']['contact'];
+        }
+
+        if (is_array($data['payload'] ?? null)) {
+            return $data['payload'];
+        }
+
+        if (is_array($data['contact'] ?? null)) {
+            return $data['contact'];
+        }
+
+        return $data;
+    }
+
+    private function extractChatwootContactsList(array $data): array
+    {
+        if (is_array($data['payload'] ?? null)) {
+            return $data['payload'];
+        }
+
+        if (is_array($data['data']['payload'] ?? null)) {
+            return $data['data']['payload'];
+        }
+
+        if (is_array($data['data'] ?? null)) {
+            return $data['data'];
+        }
+
+        return is_array($data) ? $data : [];
+    }
+
+    private function resolveContactInboxSourceId(array $contact, int $inboxId): ?string
+    {
+        $contactInboxes = collect($contact['contact_inboxes'] ?? []);
+
+        $match = $contactInboxes->first(function ($contactInbox) use ($inboxId) {
+            $currentInboxId = data_get($contactInbox, 'inbox.id')
+                ?? data_get($contactInbox, 'inbox_id')
+                ?? data_get($contactInbox, 'source.inbox_id');
+
+            return (int) $currentInboxId === (int) $inboxId;
+        });
+
+        $sourceId = data_get($match, 'source_id')
+            ?? data_get($match, 'source.id')
+            ?? data_get($match, 'identifier');
+
+        return filled($sourceId) ? (string) $sourceId : null;
+    }
+
+    private function resolveContactableInboxSourceId(array $contactableInboxes, int $inboxId): ?string
+    {
+        $match = collect($contactableInboxes)->first(function ($contactInbox) use ($inboxId) {
+            $currentInboxId = data_get($contactInbox, 'inbox.id')
+                ?? data_get($contactInbox, 'inbox_id')
+                ?? data_get($contactInbox, 'source.inbox_id');
+
+            return (int) $currentInboxId === (int) $inboxId;
+        });
+
+        $sourceId = data_get($match, 'source_id')
+            ?? data_get($match, 'source.id')
+            ?? data_get($match, 'identifier');
+
+        return filled($sourceId) ? (string) $sourceId : null;
+    }
+
+    private function fetchChatwootContact($contactId): array
+    {
+        $contactResponse = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}");
+
+        return [
+            'response' => $contactResponse,
+            'status' => $contactResponse->status(),
+            'details' => $contactResponse->json() ?? ['body' => $contactResponse->body()],
+            'contact' => $contactResponse->successful() ? $this->extractChatwootContact($contactResponse->json()) : [],
+        ];
+    }
+
+    private function fetchContactableInboxes($contactId): array
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}/contactable_inboxes");
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        return $this->extractChatwootContactsList($response->json());
+    }
+
+    private function findPotentialExistingContacts(array $validated): array
+    {
+        $terms = collect([
+            $validated['phone_number'] ?? null,
+            preg_replace('/\D+/', '', (string) ($validated['phone_number'] ?? '')),
+            $validated['email'] ?? null,
+            $validated['name'] ?? null,
+        ])
+            ->filter(fn ($term) => filled($term))
+            ->unique()
+            ->values();
+
+        if ($terms->isEmpty()) {
+            return [];
+        }
+
+        $matches = collect();
+
+        foreach ($terms as $term) {
+            $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", [
+                    'search' => $term,
+                ]);
+
+            if ($response->failed()) {
+                continue;
+            }
+
+            $matches = $matches->merge($this->extractChatwootContactsList($response->json()));
+        }
+
+        return $matches
+            ->filter(fn ($contact) => $this->contactLooksEquivalent($contact, $validated))
+            ->unique('id')
+            ->values()
+            ->all();
+    }
+
+    private function contactLooksEquivalent(array $contact, array $validated): bool
+    {
+        $requestedPhone = preg_replace('/\D+/', '', (string) ($validated['phone_number'] ?? ''));
+        $contactPhone = preg_replace('/\D+/', '', (string) ($contact['phone_number'] ?? $contact['identifier'] ?? ''));
+
+        $matchesPhone = $requestedPhone !== ''
+            && $contactPhone !== ''
+            && (Str::contains($contactPhone, $requestedPhone) || Str::contains($requestedPhone, $contactPhone));
+
+        $requestedEmail = Str::lower(trim((string) ($validated['email'] ?? '')));
+        $contactEmail = Str::lower(trim((string) ($contact['email'] ?? '')));
+        $matchesEmail = $requestedEmail !== '' && $contactEmail !== '' && $requestedEmail === $contactEmail;
+
+        $requestedName = Str::lower(trim((string) ($validated['name'] ?? '')));
+        $contactName = Str::lower(trim((string) ($contact['name'] ?? '')));
+        $matchesName = $requestedName !== '' && $contactName !== '' && $requestedName === $contactName;
+
+        return $matchesPhone || $matchesEmail || $matchesName;
     }
 
     private function fetchMetaTemplates(?int $inboxId): array

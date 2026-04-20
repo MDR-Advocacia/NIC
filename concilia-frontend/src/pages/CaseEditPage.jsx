@@ -18,19 +18,103 @@ import {
 
 // --- ESTILOS INLINE (Para garantir visual sem depender de CSS externo) ---
 const cardStyle = {
-    padding: '20px', 
-    backgroundColor: '#fff', 
-    borderRadius: '8px', 
-    border: '1px solid #e0e0e0',
+    padding: '24px',
+    backgroundColor: 'var(--bg-card)',
+    borderRadius: '24px',
+    border: '1px solid var(--border-color-light)',
+    boxShadow: 'var(--card-shadow)',
     marginBottom: '20px'
 };
 
 const inputStyle = {
-    padding: '10px', 
-    borderRadius: '4px', 
-    border: '1px solid #ccc', 
+    minHeight: '48px',
+    padding: '14px 16px',
+    borderRadius: '14px',
+    border: '1px solid var(--border-color-dark)',
+    backgroundColor: 'var(--bg-input)',
+    color: 'var(--text-primary)',
     width: '100%',
-    marginTop: '5px'
+    marginTop: '8px',
+    boxSizing: 'border-box'
+};
+
+const pageShellStyle = {
+    maxWidth: '920px',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
+    color: 'var(--text-primary)'
+};
+
+const backLinkStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    color: 'var(--accent-primary)',
+    textDecoration: 'none',
+    fontWeight: 700
+};
+
+const pageTitleStyle = {
+    marginTop: 0,
+    marginBottom: '4px',
+    color: 'var(--text-primary)',
+    fontSize: '2rem',
+    lineHeight: 1.1
+};
+
+const sectionTitleStyle = {
+    marginTop: 0,
+    marginBottom: '16px',
+    color: 'var(--text-primary)',
+    fontSize: '1.1rem'
+};
+
+const fieldLabelStyle = {
+    display: 'block',
+    fontWeight: 700,
+    fontSize: '0.88rem',
+    color: 'var(--text-secondary)'
+};
+
+const sectionDividerStyle = {
+    display: 'block',
+    marginBottom: '10px',
+    paddingBottom: '10px',
+    borderBottom: '1px solid var(--border-color-light)',
+    color: 'var(--text-primary)'
+};
+
+const buttonRowStyle = {
+    display: 'flex',
+    gap: '12px',
+    flexWrap: 'wrap'
+};
+
+const primaryButtonStyle = {
+    minHeight: '48px',
+    padding: '0 24px',
+    background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover))',
+    color: 'white',
+    border: 'none',
+    borderRadius: '14px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: 700,
+    flex: 1,
+    boxShadow: '0 16px 30px rgba(37, 99, 235, 0.22)'
+};
+
+const secondaryButtonStyle = {
+    minHeight: '48px',
+    padding: '0 24px',
+    backgroundColor: '#ffffff',
+    color: 'var(--text-secondary)',
+    border: '1px solid var(--border-color-light)',
+    borderRadius: '14px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: 700
 };
 
 // --- COMPONENTE CHECKLIST EMBUTIDO (SEGURANÇA MÁXIMA) ---
@@ -69,16 +153,16 @@ const SafeChecklist = ({ data = {}, onChange }) => {
 
     return (
         <div style={{...cardStyle, borderLeft: `5px solid ${color}`}}>
-            <h3 style={{marginTop: 0, display: 'flex', justifyContent: 'space-between'}}>
+            <h3 style={{...sectionTitleStyle, display: 'flex', justifyContent: 'space-between'}}>
                 Análise de Risco
                 <span style={{color: color}}>{probability}%</span>
             </h3>
             
             <div style={{marginBottom: '15px'}}>
-                <strong style={{display:'block', marginBottom:'10px', borderBottom:'1px solid #eee'}}>Critérios Objetivos</strong>
+                <strong style={sectionDividerStyle}>Critérios Objetivos</strong>
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px'}}>
                     {Object.keys(safeData.objective).map(key => (
-                        <label key={key} style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem'}}>
+                        <label key={key} style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-primary)'}}>
                             <input 
                                 type="checkbox" 
                                 checked={!!safeData.objective[key]} 
@@ -91,10 +175,10 @@ const SafeChecklist = ({ data = {}, onChange }) => {
             </div>
 
             <div>
-                <strong style={{display:'block', marginBottom:'10px', borderBottom:'1px solid #eee'}}>Critérios Subjetivos</strong>
+                <strong style={sectionDividerStyle}>Critérios Subjetivos</strong>
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px'}}>
                     {Object.keys(safeData.subjective).map(key => (
-                        <label key={key} style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem'}}>
+                        <label key={key} style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-primary)'}}>
                             <input 
                                 type="checkbox" 
                                 checked={!!safeData.subjective[key]} 
@@ -121,6 +205,7 @@ const CaseEditPage = () => {
       opposing_party: '',
       description: '',
       cause_value: '',
+      agreement_closed_at: '',
       ourocap_value: '',
       livelo_points: '',
       status: 'initial_analysis',
@@ -151,6 +236,7 @@ const CaseEditPage = () => {
             opposing_party: (typeof data.opposing_party === 'object') 
                 ? (data.opposing_party.name || data.opposing_party.nome || '') 
                 : (data.opposing_party || ''),
+            agreement_closed_at: data.agreement_closed_at ? String(data.agreement_closed_at).slice(0, 10) : '',
             ourocap_value: data.ourocap_value || '',
             livelo_points: data.livelo_points || '',
             // Garante objeto para checklist
@@ -212,6 +298,7 @@ const CaseEditPage = () => {
       const dataToSubmit = { 
         ...formData, 
         client_id: formData.client?.id || formData.client_id,
+        agreement_closed_at: formData.agreement_closed_at || null,
         ...normalizeSettlementBenefitPayload({
             settlementBenefitType,
             ourocap_value: formData.ourocap_value,
@@ -232,26 +319,26 @@ const CaseEditPage = () => {
     }
   };
 
-  if (loading) return <div style={{ padding: '20px' }}>Carregando dados...</div>;
-  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+  if (loading) return <div style={{ padding: '20px', color: 'var(--text-primary)' }}>Carregando dados...</div>;
+  if (error) return <div style={{ padding: '20px', color: '#dc2626' }}>{error}</div>;
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <Link to={`/cases/${caseId}`} style={{ textDecoration: 'none', color: '#666', marginBottom: '1rem', display: 'inline-block' }}>
+    <div style={pageShellStyle}>
+      <Link to={`/cases/${caseId}`} style={backLinkStyle}>
         {"< Voltar para Detalhes"}
       </Link>
       
-      <h1 style={{ marginTop: '0', marginBottom: '20px', color: '#333' }}>
+      <h1 style={pageTitleStyle}>
         Editar Caso #{formData.case_number}
       </h1>
       
       <form onSubmit={handleSubmit}>
         {/* DADOS GERAIS */}
         <div style={cardStyle}>
-            <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#555' }}>Dados Gerais</h3>
+            <h3 style={sectionTitleStyle}>Dados Gerais</h3>
             
             <div style={{ marginBottom: '15px' }}>
-                <label style={{ fontWeight: 'bold' }}>Autor (Parte Contrária):</label>
+                <label style={fieldLabelStyle}>Autor (Parte Contrária):</label>
                 <input
                     type="text"
                     name="opposing_party"
@@ -263,7 +350,7 @@ const CaseEditPage = () => {
             </div>
 
             <div style={{ marginBottom: '15px' }}>
-                <label style={{ fontWeight: 'bold' }}>Descrição:</label>
+                <label style={fieldLabelStyle}>Descrição:</label>
                 <textarea
                     name="description"
                     value={formData.description || ''}
@@ -275,7 +362,7 @@ const CaseEditPage = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div>
-                    <label style={{ fontWeight: 'bold' }}>Valor da Causa (R$):</label>
+                    <label style={fieldLabelStyle}>Valor da Causa (R$):</label>
                     <input
                         type="number"
                         name="cause_value"
@@ -287,12 +374,12 @@ const CaseEditPage = () => {
                 </div>
                 
                 <div>
-                    <label style={{ fontWeight: 'bold' }}>Status:</label>
+                    <label style={fieldLabelStyle}>Status:</label>
                     <select 
                         name="status" 
                         value={formData.status || ''} 
                         onChange={handleChange}
-                        style={{...inputStyle, backgroundColor: '#fff'}}
+                        style={inputStyle}
                     >
                         {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
                             <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
@@ -300,11 +387,21 @@ const CaseEditPage = () => {
                     </select>
                 </div>
                 <div>
-                    <label style={{ fontWeight: 'bold' }}>Benefício Complementar:</label>
+                    <label style={fieldLabelStyle}>Data do Fechamento do Acordo:</label>
+                    <input
+                        type="date"
+                        name="agreement_closed_at"
+                        value={formData.agreement_closed_at || ''}
+                        onChange={handleChange}
+                        style={inputStyle}
+                    />
+                </div>
+                <div>
+                    <label style={fieldLabelStyle}>Benefício Complementar:</label>
                     <select
                         value={settlementBenefitType}
                         onChange={handleSettlementBenefitTypeChange}
-                        style={{...inputStyle, backgroundColor: '#fff'}}
+                        style={inputStyle}
                     >
                         {SETTLEMENT_BENEFIT_OPTIONS.map((option) => (
                             <option key={option.value || 'none'} value={option.value}>{option.label}</option>
@@ -313,7 +410,7 @@ const CaseEditPage = () => {
                 </div>
                 {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
                     <div>
-                        <label style={{ fontWeight: 'bold' }}>Valor Ourocap (mínimo R$ 500,00):</label>
+                        <label style={fieldLabelStyle}>Valor Ourocap (mínimo R$ 500,00):</label>
                         <input
                             type="number"
                             name="ourocap_value"
@@ -327,7 +424,7 @@ const CaseEditPage = () => {
                 )}
                 {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
                     <div>
-                        <label style={{ fontWeight: 'bold' }}>Pontos Livelo (mínimo 5.000):</label>
+                        <label style={fieldLabelStyle}>Pontos Livelo (mínimo 5.000):</label>
                         <input
                             type="number"
                             name="livelo_points"
@@ -349,15 +446,11 @@ const CaseEditPage = () => {
         />
 
         {/* BOTÕES */}
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div style={buttonRowStyle}>
           <button 
             type="submit" 
             disabled={loading}
-            style={{
-                backgroundColor: '#2563eb', color: 'white', padding: '12px 24px', 
-                border: 'none', borderRadius: '6px', cursor: 'pointer', 
-                fontSize: '16px', fontWeight: 'bold', flex: 1
-            }}
+            style={primaryButtonStyle}
           >
             {loading ? 'Salvando...' : 'Salvar Alterações'}
           </button>
@@ -365,11 +458,7 @@ const CaseEditPage = () => {
           <button 
             type="button"
             onClick={() => navigate(`/cases/${caseId}`)}
-            style={{
-                backgroundColor: '#ef4444', color: 'white', padding: '12px 24px', 
-                border: 'none', borderRadius: '6px', cursor: 'pointer', 
-                fontSize: '16px', fontWeight: 'bold'
-            }}
+            style={secondaryButtonStyle}
           >
             Cancelar
           </button>

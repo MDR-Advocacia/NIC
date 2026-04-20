@@ -17,6 +17,8 @@ class UserController extends Controller
 {
     use AuthorizesRequests;
 
+    private const DEFAULT_RESET_PASSWORD = 'Mudar.123@';
+
     public function index(Request $request)
     {
         // 1. Policy permite a entrada (agora inclui operador)
@@ -61,18 +63,47 @@ class UserController extends Controller
     public function operators(Request $request): JsonResponse
     {
         $currentUser = auth()->user();
+        $currentRole = strtolower(trim((string) $currentUser?->role));
 
-        if (!$currentUser || !in_array($currentUser->role, ['administrador', 'supervisor', 'indicador'], true)) {
+        if (!$currentUser || !in_array($currentRole, ['administrador', 'admin', 'supervisor', 'indicador', 'operador'], true)) {
             return response()->json(['message' => 'Acesso negado.'], 403);
         }
 
-        $operators = User::query()
+        $operatorsQuery = User::query()
             ->where('role', 'operador')
             ->where('status', 'ativo')
-            ->orderBy('name')
-            ->get(['id', 'name', 'email', 'role', 'status']);
+            ->orderBy('name');
+
+        if ($currentRole === 'operador') {
+            $operatorsQuery->where('id', $currentUser->id);
+        }
+
+        $operators = $operatorsQuery->get(['id', 'name', 'email', 'role', 'status']);
 
         return response()->json($operators);
+    }
+
+    public function indicators(Request $request): JsonResponse
+    {
+        $currentUser = auth()->user();
+        $currentRole = strtolower(trim((string) $currentUser?->role));
+
+        if (!$currentUser || !in_array($currentRole, ['administrador', 'admin', 'supervisor', 'indicador', 'operador'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $indicatorsQuery = User::query()
+            ->where('role', 'indicador')
+            ->where('status', 'ativo')
+            ->orderBy('name');
+
+        if ($currentRole === 'indicador') {
+            $indicatorsQuery->where('id', $currentUser->id);
+        }
+
+        $indicators = $indicatorsQuery->get(['id', 'name', 'email', 'role', 'status']);
+
+        return response()->json($indicators);
     }
 
     public function store(Request $request)
@@ -150,6 +181,35 @@ class UserController extends Controller
         }
 
         return response()->json($user);
+    }
+
+    public function resetPassword(Request $request, User $user): JsonResponse
+    {
+        $this->authorize('resetPassword', $user);
+
+        $user->forceFill([
+            'password' => Hash::make(self::DEFAULT_RESET_PASSWORD),
+            'must_change_password' => true,
+            'remember_token' => null,
+        ])->save();
+
+        $user->tokens()->delete();
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Reset de Senha de Usuário',
+                'details' => "Resetou a senha do usuário: {$user->name} ({$user->email})",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("ERRO AO SALVAR LOG (Reset de Senha): " . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => 'Senha resetada com sucesso. O usuário precisará alterar a senha no próximo login.',
+        ]);
     }
 
     public function destroy(User $user)

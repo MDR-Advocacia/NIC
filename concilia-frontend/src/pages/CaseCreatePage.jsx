@@ -10,6 +10,7 @@ import AddEditActionObjectModal from '../components/AddEditActionObjectModal';
 import ActionObjectListModal from '../components/ActionObjectListModal';
 import AddEditPlaintiffModal from '../components/AddEditPlaintiffModal';
 import AddEditDefendantModal from '../components/AddEditDefendantModal';
+import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
 import { FaExclamationTriangle } from 'react-icons/fa';
 import {
     LIVELO_MIN_POINTS,
@@ -19,7 +20,8 @@ import {
     SETTLEMENT_BENEFIT_TYPES,
     validateSettlementBenefit
 } from '../constants/settlementBenefit';
-import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
+import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
+import { normalizeUserRole } from '../constants/access';
 
 // --- Ícones SVG Inline ---
 const IconArrowLeft = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
@@ -38,8 +40,9 @@ const BRAZILIAN_STATES = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 
 const availableColors = ['#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
 
 const CaseCreatePage = () => {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const navigate = useNavigate();
+    const canManageSavedTags = ['administrador', 'admin'].includes(normalizeUserRole(user?.role));
 
     // Listas de Dados
     const [clients, setClients] = useState([]);
@@ -79,7 +82,6 @@ const CaseCreatePage = () => {
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState(availableColors[0]);
     const [savedTags, setSavedTags] = useState([]);
-    const [selectedSavedTagText, setSelectedSavedTagText] = useState('');
     const [settlementBenefitType, setSettlementBenefitType] = useState(SETTLEMENT_BENEFIT_TYPES.NONE);
 
     // Estado do Formulário
@@ -124,9 +126,9 @@ const CaseCreatePage = () => {
         const fetchDependencies = async () => {
             if (!token) return;
             try {
-                const [clientsRes, usersRes, lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes, caseTagsRes] = await Promise.all([
+                const [clientsRes, operatorsRes, lawyersRes, actionObjectsRes, plaintiffsRes, defendantsRes, caseTagsRes] = await Promise.all([
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
-                    apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/opposing-lawyers', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/action-objects', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/plaintiffs', { headers: { Authorization: `Bearer ${token}` } }), // Fetch Autores
@@ -134,7 +136,7 @@ const CaseCreatePage = () => {
                     apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
                 ]);
                 setClients(Array.isArray(clientsRes.data) ? clientsRes.data : []);
-                setLawyers(Array.isArray(usersRes.data?.data) ? usersRes.data.data : []);
+                setLawyers(Array.isArray(operatorsRes.data) ? operatorsRes.data : []);
                 setOpposingLawyersList(Array.isArray(lawyersRes.data) ? lawyersRes.data : []);
                 setActionObjectsList(Array.isArray(actionObjectsRes.data) ? actionObjectsRes.data : []);
                 setPlaintiffsList(Array.isArray(plaintiffsRes.data) ? plaintiffsRes.data : []);
@@ -348,24 +350,50 @@ const CaseCreatePage = () => {
         setNewTagText('');
     };
 
-    const handleAddSavedTag = () => {
-        if (!selectedSavedTagText) return;
-
-        const selectedTag = savedTags.find(tag => (tag.text || tag.name) === selectedSavedTagText);
+    const handleAddSavedTag = (selectedTag) => {
         if (!selectedTag) return;
-
         setFormData(prevState => ({
             ...prevState,
             tags: appendCaseTag(prevState.tags, selectedTag)
         }));
-        setSelectedSavedTagText('');
     };
 
     const handleRemoveTag = (indexToRemove) => {
         setFormData(prevState => ({
-          ...prevState,
-          tags: prevState.tags.filter((_, index) => index !== indexToRemove)
+            ...prevState,
+            tags: prevState.tags.filter((_, index) => index !== indexToRemove)
         }));
+    };
+
+    const handleDeleteSavedTag = async (tagToDelete) => {
+        if (!tagToDelete?.id) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Tem certeza que deseja excluir a etiqueta "${tagToDelete.text || tagToDelete.name}"?\n\nEssa ação removerá a etiqueta do catálogo e de todos os casos que a utilizam.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await apiClient.delete(`/case-tags/${tagToDelete.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+            setFormData((prevState) => ({
+                ...prevState,
+                tags: removeCaseTag(prevState.tags, tagToDelete),
+            }));
+
+            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+        } catch (err) {
+            console.error('Erro ao excluir etiqueta salva:', err);
+            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+        }
     };
 
     const validateForm = () => {
@@ -506,7 +534,7 @@ const CaseCreatePage = () => {
                             {errors.case_number && <span className={styles.errorMessage}>{errors.case_number}</span>}
                         </div>
                         <div className={styles.formGroup}>
-                            <label className={styles.label}>Objeto da Ação <span className={styles.required}>*</span></label>
+                            <label className={styles.label}>Causa de Pedir <span className={styles.required}>*</span></label>
                             <div className={styles.inputGroupWithButtons}>
                                 <div className={styles.inputWrapper}>
                                     <input
@@ -516,7 +544,7 @@ const CaseCreatePage = () => {
                                         value={formData.action_object}
                                         onChange={handleChange}
                                         onFocus={() => setShowActionObjectDropdown(true)}
-                                        placeholder="Pesquisar objeto da ação..."
+                                        placeholder="Pesquisar causa de pedir..."
                                         autoComplete="off"
                                     />
                                     {showActionObjectDropdown && actionObjectSearchTerm && (
@@ -533,8 +561,8 @@ const CaseCreatePage = () => {
                                     )}
                                     {showActionObjectDropdown && <div style={{position: 'fixed', inset:0, zIndex: 90}} onClick={() => setShowActionObjectDropdown(false)} />}
                                 </div>
-                                <button type="button" onClick={handleOpenActionObjectListModal} className={`${styles.iconButton} ${styles.searchButton}`} title="Buscar e gerenciar objetos da ação"><IconSearch /></button>
-                                <button type="button" onClick={handleCreateActionObject} className={`${styles.iconButton} ${styles.addButtonIcon}`} title="Cadastrar novo objeto da ação"><IconPlus /></button>
+                                <button type="button" onClick={handleOpenActionObjectListModal} className={`${styles.iconButton} ${styles.searchButton}`} title="Buscar e gerenciar causas de pedir"><IconSearch /></button>
+                                <button type="button" onClick={handleCreateActionObject} className={`${styles.iconButton} ${styles.addButtonIcon}`} title="Cadastrar nova causa de pedir"><IconPlus /></button>
                             </div>
                             {(errors.action_object || errors.action_object_id) && <span className={styles.errorMessage}>{errors.action_object || errors.action_object_id}</span>}
                         </div>
@@ -838,30 +866,16 @@ const CaseCreatePage = () => {
                         <h2>Etiquetas</h2>
                     </div>
 
-                    {savedTags.length > 0 && (
-                        <div className={styles.tagCreator}>
-                            <select
-                                className={styles.tagInput}
-                                value={selectedSavedTagText}
-                                onChange={(e) => setSelectedSavedTagText(e.target.value)}
-                            >
-                                <option value="">Replicar etiqueta salva...</option>
-                                {savedTags.map((tag) => (
-                                    <option key={`${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
-                                        {tag.text || tag.name}
-                                    </option>
-                                ))}
-                            </select>
-                            <button
-                                type="button"
-                                className={styles.addButton}
-                                onClick={handleAddSavedTag}
-                                disabled={!selectedSavedTagText}
-                            >
-                                Replicar
-                            </button>
-                        </div>
-                    )}
+                    <SavedCaseTagsPanel
+                        tags={savedTags}
+                        title="Etiquetas salvas"
+                        subtitle="Clique em uma etiqueta para adicioná-la rapidamente ao caso. Administradores também podem removê-la do catálogo."
+                        onSelectTag={handleAddSavedTag}
+                        onDeleteTag={handleDeleteSavedTag}
+                        canDelete={canManageSavedTags}
+                        selectedValues={formData.tags}
+                        emptyMessage="Nenhuma etiqueta salva foi cadastrada ainda."
+                    />
                     
                     <div className={styles.tagCreator}>
                        <input type="text" className={styles.tagInput} value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nova etiqueta..." />

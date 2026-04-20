@@ -56,15 +56,15 @@ const SummaryItem = ({ label, meta, value }) => (
     style={{
       padding: '14px 16px',
       borderRadius: '14px',
-      background: '#f8fafc',
-      border: '1px solid #e2e8f0',
+      background: 'var(--surface-card-muted)',
+      border: '1px solid var(--border-color-light)',
     }}
   >
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'baseline' }}>
-      <strong style={{ color: '#0f172a' }}>{label}</strong>
-      {meta && <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>{meta}</span>}
+      <strong style={{ color: 'var(--text-primary)' }}>{label}</strong>
+      {meta && <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700 }}>{meta}</span>}
     </div>
-    <div style={{ marginTop: '8px', color: '#334155', whiteSpace: 'pre-wrap' }}>
+    <div style={{ marginTop: '8px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
       {value || '-'}
     </div>
   </div>

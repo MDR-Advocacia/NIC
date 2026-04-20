@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import apiClient from '../api';
 
 export default function ResetPassword() {
     const [searchParams] = useSearchParams();
+    const { token: tokenFromPath } = useParams();
     const navigate = useNavigate();
-    
-    // Pega o token e o email da URL que o Laravel enviou
-    const token = searchParams.get('token');
+
+    const token = tokenFromPath || searchParams.get('token');
     const emailParam = searchParams.get('email');
 
     const [email, setEmail] = useState(emailParam || '');
@@ -16,27 +16,33 @@ export default function ResetPassword() {
     const [status, setStatus] = useState('');
     const [error, setError] = useState('');
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async (event) => {
+        event.preventDefault();
         setStatus('');
         setError('');
 
+        if (!token) {
+            setError('Token de redefinicao invalido ou ausente.');
+            return;
+        }
+
         if (password !== passwordConfirmation) {
-            setError('As senhas não conferem.');
+            setError('As senhas nao conferem.');
             return;
         }
 
         try {
-            await axios.post('http://localhost:8000/api/reset-password', {
+            await apiClient.post('/reset-password', {
                 token,
-                email,
+                email: email.trim(),
                 password,
                 password_confirmation: passwordConfirmation,
             });
+
             setStatus('Senha alterada com sucesso! Redirecionando...');
             setTimeout(() => navigate('/login'), 3000);
         } catch (err) {
-            setError(err.response?.data?.message || 'Erro ao resetar senha. O link pode ter expirado.');
+            setError(err.response?.data?.message || err.response?.data?.email || 'Erro ao resetar senha. O link pode ter expirado.');
         }
     };
 
@@ -44,16 +50,16 @@ export default function ResetPassword() {
         <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
             <div className="bg-white p-8 rounded shadow-md w-96">
                 <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Nova Senha</h2>
-                
+
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    <input type="hidden" value={token} />
-                    
+                    <input type="hidden" value={token || ''} />
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Confirmar E-mail</label>
-                        <input 
-                            type="email" 
-                            value={email} 
-                            onChange={(e) => setEmail(e.target.value)}
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
                             className="mt-1 p-2 w-full border rounded bg-gray-50"
                             required
                         />
@@ -61,10 +67,10 @@ export default function ResetPassword() {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Nova Senha</label>
-                        <input 
-                            type="password" 
+                        <input
+                            type="password"
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(event) => setPassword(event.target.value)}
                             className="mt-1 p-2 w-full border rounded"
                             required
                         />
@@ -72,10 +78,10 @@ export default function ResetPassword() {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Confirmar Nova Senha</label>
-                         <input 
-                            type="password" 
+                        <input
+                            type="password"
                             value={passwordConfirmation}
-                            onChange={(e) => setPasswordConfirmation(e.target.value)}
+                            onChange={(event) => setPasswordConfirmation(event.target.value)}
                             className="mt-1 p-2 w-full border rounded"
                             required
                         />

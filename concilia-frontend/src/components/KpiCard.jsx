@@ -26,8 +26,13 @@ const parseValue = (valueString) => {
         cleanValue = cleanValue.replace('%', '');
     }
 
-    // Converte o formato "1.000,00" para "1000.00" (formato que o JS entende)
-    cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+    // Suporta tanto "1.000,00" quanto "20.5" sem inflar valores percentuais.
+    cleanValue = cleanValue.replace(/\s/g, '');
+    if (cleanValue.includes(',')) {
+        cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+    } else {
+        cleanValue = cleanValue.replace(/[^\d.-]/g, '');
+    }
 
     const endValue = parseFloat(cleanValue);
     

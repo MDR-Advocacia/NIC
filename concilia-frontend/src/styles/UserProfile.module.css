@@ -1,115 +1,147 @@
-/* Variáveis de Cores (Ajuste conforme seu tema) */
-.containerLight {
-    --bg-page: #f3f4f6;
-    --bg-card: #ffffff;
-    --text-primary: #111827;
-    --text-sec: #6b7280;
-    --border: #e5e7eb;
-}
+.containerLight {}
 
-.containerDark {
-    --bg-page: #111827;
-    --bg-card: #1f2937;
-    --text-primary: #f9fafb;
-    --text-sec: #9ca3af;
-    --border: #374151;
-}
+.containerDark {}
 
 .pageContainer {
-    padding: 2rem;
-    max-width: 900px;
+    max-width: 920px;
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
     color: var(--text-primary);
 }
 
 .title {
-    font-size: 1.8rem;
-    font-weight: 700;
-    margin-bottom: 2rem;
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text-primary);
 }
 
 .card {
     background: var(--bg-card);
-    border-radius: 8px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-    border: 1px solid var(--border);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border-radius: 24px;
+    padding: 1.75rem;
+    border: 1px solid var(--border-color-light);
+    box-shadow: var(--card-shadow);
 }
 
 .header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 1.2rem;
-    font-weight: 600;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--border);
+    gap: 0.75rem;
+    font-size: 1.12rem;
+    font-weight: 700;
+    margin-bottom: 1.4rem;
+    padding-bottom: 0.9rem;
+    border-bottom: 1px solid var(--border-color-light);
+    color: var(--text-primary);
 }
 
 .grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
 }
 
 .group {
-    margin-bottom: 1.2rem;
+    margin-bottom: 1rem;
 }
 
 .label {
     display: block;
-    font-size: 0.9rem;
-    color: var(--text-sec);
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-secondary);
     margin-bottom: 0.5rem;
 }
 
 .input {
     width: 100%;
-    padding: 0.8rem;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
+    min-height: 50px;
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--border-color-dark);
+    background: var(--bg-input);
     color: var(--text-primary);
     outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .input:focus {
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
+    transform: translateY(-1px);
 }
 
 .readOnly {
-    background: rgba(0,0,0,0.05);
+    background: var(--neutral-soft);
+    color: var(--text-secondary);
     cursor: not-allowed;
 }
 
 .btn {
-    background: #4f46e5;
-    color: white;
-    padding: 0.8rem 1.5rem;
+    min-height: 46px;
+    padding: 0 1.25rem;
     border: none;
-    border-radius: 6px;
-    font-weight: 600;
+    border-radius: 14px;
+    font-weight: 700;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    gap: 0.55rem;
     margin-left: auto;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
+    color: white;
+    box-shadow: var(--accent-shadow);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--accent-shadow-hover);
 }
 
 .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 .message {
-    padding: 1rem;
-    border-radius: 6px;
+    padding: 0.95rem 1rem;
+    border-radius: 16px;
     margin-bottom: 1rem;
-    font-weight: 500;
+    font-weight: 600;
+    border: 1px solid transparent;
 }
 
-.success { background: #dcfce7; color: #166534; }
-.error { background: #fee2e2; color: #991b1b; }
+.success {
+    background: var(--success-soft);
+    color: var(--success-text);
+    border-color: var(--success-soft-strong);
+}
+
+.error {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    border-color: var(--danger-soft-strong);
+}
+
+@media (max-width: 768px) {
+    .card {
+        padding: 1.2rem;
+        border-radius: 20px;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
+    .btn {
+        width: 100%;
+        margin-left: 0;
+    }
+}

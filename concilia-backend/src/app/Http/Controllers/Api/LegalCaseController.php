@@ -8,6 +8,7 @@ use App\Models\CaseTag;
 use App\Models\LegalCase;
 use App\Models\User;
 use App\Models\AuditLog;
+use App\Models\Client;
 use App\Models\Plaintiff;       
 use App\Models\Defendant;       
 use App\Models\OpposingLawyer;  
@@ -23,21 +24,32 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 
 class LegalCaseController extends Controller
 {
     use AuthorizesRequests;
+
+    private const MULTI_CASE_NUMBER_MIN_DIGITS = 15;
+    private const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
 
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', LegalCase::class);
+
         try {
             AuditService::log('view_pipeline', 'O usuário acessou o pipeline de acordos.');
         } catch (\Exception $e) {}
         
         $user = Auth::user();
+        $indicatorFilterRequested = $request->filled('indicator_user_id');
+
+        if ($indicatorFilterRequested && !$this->legalCasesTableHasIndicatorUserId()) {
+            return response()->json(['message' => 'Filtro por indicador indisponível.'], 422);
+        }
         
         // Começa a query base, carregando todos os relacionamentos importantes
         $query = LegalCase::with($this->caseRelationshipLoads());
@@ -55,32 +67,25 @@ class LegalCaseController extends Controller
         // scope=all → sem filtro de alçada
 
         if ($user->role === 'indicador') {
-            $query->where('status', LegalCase::STATUS_INITIAL_ANALYSIS);
+            if ($indicatorFilterRequested) {
+                if ((string) $request->input('indicator_user_id') !== (string) $user->id) {
+                    return response()->json(['message' => 'Acesso negado.'], 403);
+                }
+
+                $query->where('indicator_user_id', $user->id);
+            } else {
+                $query->where('status', LegalCase::STATUS_INITIAL_ANALYSIS);
+            }
+        } elseif ($indicatorFilterRequested) {
+            $query->where('indicator_user_id', $request->input('indicator_user_id'));
         }
 
         // --- LÓGICA DE PERMISSÃO (RBAC) ---
-        if ($user->role === 'operador') {
-            $query->where('user_id', $user->id);
-        } 
-        else {
-            if ($request->has('lawyer_id') && $request->input('lawyer_id') != '') {
-                $query->where('user_id', $request->input('lawyer_id'));
-            }
-        }
+        $this->applyResponsibleFilter($query, $request, $user);
 
         // Filtro de busca por termo
-        if ($request->has('search') && $request->input('search') != '') {
-            $searchTerm = $request->input('search');
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('case_number', 'like', "%{$searchTerm}%")
-                    ->orWhere('opposing_party', 'like', "%{$searchTerm}%") // Busca legado (texto)
-                    ->orWhereHas('plaintiff', function($q2) use ($searchTerm) { // Busca na tabela de Autores
-                        $q2->where('name', 'like', "%{$searchTerm}%");
-                    })
-                    ->orWhereHas('defendantRel', function($q3) use ($searchTerm) { // Busca na tabela de Réus
-                        $q3->where('name', 'like', "%{$searchTerm}%");
-                    });
-            });
+        if ($request->filled('search')) {
+            $this->applySearchFilter($query, (string) $request->input('search'));
         }
 
         // Filtro por Status
@@ -91,6 +96,20 @@ class LegalCaseController extends Controller
         // Filtro por Prioridade
         if ($request->has('priority') && $request->input('priority') != '') {
             $query->where('priority', $request->input('priority'));
+        }
+
+        if ($request->filled('action_object')) {
+            $actionObjectSearch = trim((string) $request->input('action_object'));
+
+            if ($actionObjectSearch !== '') {
+                $query->where(function ($actionObjectQuery) use ($actionObjectSearch) {
+                    $actionObjectQuery
+                        ->where('action_object', 'like', "%{$actionObjectSearch}%")
+                        ->orWhereHas('actionObject', function ($relatedActionObjectQuery) use ($actionObjectSearch) {
+                            $relatedActionObjectQuery->where('name', 'like', "%{$actionObjectSearch}%");
+                        });
+                });
+            }
         }
 
         if ($request->filled('tag')) {
@@ -128,8 +147,11 @@ class LegalCaseController extends Controller
         if ($perPage > 200) $perPage = 200;
         if ($perPage < 1) $perPage = 50;
 
-        // Retorna os resultados paginados
-        return response()->json($query->paginate($perPage));
+        $paginatedCases = $query->paginate($perPage);
+        $response = $paginatedCases->toArray();
+        $response['search_feedback'] = $this->buildSearchFeedback($request, $user, (int) ($response['total'] ?? 0));
+
+        return response()->json($response);
     }
 
     /**
@@ -190,13 +212,14 @@ class LegalCaseController extends Controller
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
         $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
+        $request->merge($this->resolveAgreementClosedAtPayload($request->all()));
         $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
 
         $validatedData = $request->validate([
             'case_number' => 'required|string|max:255',
             'start_date' => 'nullable|date',
             'client_id' => 'required|exists:clients,id',
-            'user_id' => 'required|exists:users,id',
+            'user_id' => ['required', 'integer', $this->activeOperatorUserExistsRule()],
             
             // Dados legados (Texto)
             'opposing_party' => 'required|string|max:255',
@@ -214,6 +237,7 @@ class LegalCaseController extends Controller
             'priority' => 'required|string',
             'original_value' => 'required|numeric',
             'agreement_value' => 'nullable|numeric',
+            'agreement_closed_at' => 'nullable|date',
             'ourocap_value' => $this->ourocapValidationRules($request),
             'livelo_points' => $this->liveloPointsValidationRules($request),
             'cause_value' => 'nullable|numeric',
@@ -262,10 +286,6 @@ class LegalCaseController extends Controller
     {
         $this->authorize('view', $case);
 
-        if (Auth::user()?->role === 'indicador' && $case->status !== LegalCase::STATUS_INITIAL_ANALYSIS) {
-            return response()->json(['message' => 'Acesso negado.'], 403);
-        }
-
         // Carrega todos os relacionamentos para exibição completa
         return response()->json($case->load($this->caseRelationshipLoads([
             'histories',
@@ -291,6 +311,7 @@ class LegalCaseController extends Controller
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
         $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
+        $request->merge($this->resolveAgreementClosedAtPayload($request->all(), $case));
 
         if (array_key_exists('tags', $request->all())) {
             $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
@@ -303,7 +324,7 @@ class LegalCaseController extends Controller
             'case_number' => 'sometimes|required|string|max:255',
             'start_date' => 'nullable|date',
             'client_id' => 'sometimes|required|exists:clients,id',
-            'user_id' => 'sometimes|required|exists:users,id',
+            'user_id' => ['sometimes', 'nullable', 'integer', $this->activeOperatorUserExistsRule()],
             
             'opposing_party' => 'sometimes|required|string|max:255',
             'defendant' => 'sometimes|required|string|max:255',
@@ -320,6 +341,7 @@ class LegalCaseController extends Controller
             'priority' => 'sometimes|required|string',
             'original_value' => 'sometimes|required|numeric',
             'agreement_value' => 'nullable|numeric',
+            'agreement_closed_at' => 'nullable|date',
             'ourocap_value' => $this->ourocapValidationRules($request, $case),
             'livelo_points' => $this->liveloPointsValidationRules($request, $case),
             'cause_value' => 'nullable|numeric',
@@ -631,19 +653,10 @@ class LegalCaseController extends Controller
         }
 
         // --- LÓGICA DE PERMISSÃO (Mantida) ---
-        if ($user->role === 'operador') {
-            $query->where('user_id', $user->id); 
-        } 
-        elseif ($request->has('lawyer_id') && $request->input('lawyer_id') != '') {
-            $query->where('user_id', $request->input('lawyer_id')); 
-        }
+        $this->applyResponsibleFilter($query, $request, $user);
 
-        if ($request->has('search') && $request->input('search') != '') {
-            $searchTerm = $request->input('search');
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('case_number', 'like', "%{$searchTerm}%")
-                    ->orWhere('opposing_party', 'like', "%{$searchTerm}%");
-            });
+        if ($request->filled('search')) {
+            $this->applySearchFilter($query, (string) $request->input('search'));
         }
         if ($request->has('status') && $request->input('status') != '') {
             $query->where('status', $request->input('status'));
@@ -696,6 +709,7 @@ class LegalCaseController extends Controller
 
         $casesToImport = $validatedData['cases'];
         $clientId = $validatedData['client_id'];
+        $clientName = $this->getImportClientName($clientId);
         $successCount = 0;
         $createdCount = 0;
         $updatedCount = 0;
@@ -716,7 +730,7 @@ class LegalCaseController extends Controller
         $customAttributes = [
             'case_number' => 'Número do Processo',
             'internal_number' => 'Número Interno',
-            'action_object' => 'Objeto da Ação',
+            'action_object' => 'Causa de Pedir',
             'start_date' => 'Data de Distribuição',
             'opposing_party' => 'Autor',
             'defendant' => 'Réu',
@@ -748,6 +762,7 @@ class LegalCaseController extends Controller
                 }
 
                 $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
+                $caseData = $this->applyImportPartyFallbacks($caseData, $clientName, $existingCase);
 
                 if (empty($caseData['original_value'])) {
                     $caseData['original_value'] = $existingCase?->original_value ?? 0;
@@ -791,27 +806,7 @@ class LegalCaseController extends Controller
                 }
 
                 $caseData['start_date'] = $this->normalizeImportDate($caseData['start_date'] ?? null);
-
-                if (!empty($caseData['opposing_party'])) {
-                    $plaintiff = Plaintiff::firstOrCreate(['name' => trim($caseData['opposing_party'])]);
-                    $caseData['plaintiff_id'] = $plaintiff->id;
-                } elseif ($existingCase?->plaintiff_id) {
-                    $caseData['plaintiff_id'] = $existingCase->plaintiff_id;
-                }
-
-                if (!empty($caseData['defendant'])) {
-                    $defendant = Defendant::firstOrCreate(['name' => trim($caseData['defendant'])]);
-                    $caseData['defendant_id'] = $defendant->id;
-                } elseif ($existingCase?->defendant_id) {
-                    $caseData['defendant_id'] = $existingCase->defendant_id;
-                }
-
-                if (!empty($caseData['opposing_lawyer'])) {
-                    $opLawyer = OpposingLawyer::firstOrCreate(['name' => trim($caseData['opposing_lawyer'])]);
-                    $caseData['opposing_lawyer_id'] = $opLawyer->id;
-                } elseif ($existingCase?->opposing_lawyer_id) {
-                    $caseData['opposing_lawyer_id'] = $existingCase->opposing_lawyer_id;
-                }
+                $caseData = $this->syncImportParticipantReferences($caseData, $existingCase);
 
                 $caseData = $this->resolveActionObjectPayload($caseData);
 
@@ -921,6 +916,7 @@ class LegalCaseController extends Controller
 
         $casesToImport = $validatedData['cases'];
         $clientId = $validatedData['client_id'];
+        $clientName = $this->getImportClientName($clientId);
         $successCount = 0;
         $createdCount = 0;
         $updatedCount = 0;
@@ -955,6 +951,7 @@ class LegalCaseController extends Controller
                 }
 
                 $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
+                $caseData = $this->applyImportPartyFallbacks($caseData, $clientName, $existingCase);
 
                 // Para sync de alçada, SEMPRE recalcular original_value do portal_agreement_offers
                 if (!empty($caseData['portal_agreement_offers'])) {
@@ -1006,27 +1003,7 @@ class LegalCaseController extends Controller
                 }
 
                 $caseData['start_date'] = $this->normalizeImportDate($caseData['start_date'] ?? null);
-
-                if (!empty($caseData['opposing_party'])) {
-                    $plaintiff = Plaintiff::firstOrCreate(['name' => trim($caseData['opposing_party'])]);
-                    $caseData['plaintiff_id'] = $plaintiff->id;
-                } elseif ($existingCase?->plaintiff_id) {
-                    $caseData['plaintiff_id'] = $existingCase->plaintiff_id;
-                }
-
-                if (!empty($caseData['defendant'])) {
-                    $defendant = Defendant::firstOrCreate(['name' => trim($caseData['defendant'])]);
-                    $caseData['defendant_id'] = $defendant->id;
-                } elseif ($existingCase?->defendant_id) {
-                    $caseData['defendant_id'] = $existingCase->defendant_id;
-                }
-
-                if (!empty($caseData['opposing_lawyer'])) {
-                    $opLawyer = OpposingLawyer::firstOrCreate(['name' => trim($caseData['opposing_lawyer'])]);
-                    $caseData['opposing_lawyer_id'] = $opLawyer->id;
-                } elseif ($existingCase?->opposing_lawyer_id) {
-                    $caseData['opposing_lawyer_id'] = $existingCase->opposing_lawyer_id;
-                }
+                $caseData = $this->syncImportParticipantReferences($caseData, $existingCase);
 
                 $caseData = $this->resolveActionObjectPayload($caseData);
                 $payload = $this->mergeImportPayloadWithExistingCase($caseData, $existingCase);
@@ -1141,7 +1118,24 @@ class LegalCaseController extends Controller
 
         $caseIds = $validated['case_ids'];
         $action = $validated['action'];
-        $value = $validated['value'];
+        $value = $validated['value'] ?? null;
+        $currentUser = Auth::user();
+
+        if ($action === 'delete' && !in_array($currentUser?->role, ['administrador', 'admin'], true)) {
+            return response()->json(['message' => 'Apenas administradores podem excluir processos em lote.'], 403);
+        }
+
+        if (
+            $action === 'transfer_user'
+            && !in_array($value, [null, '', self::UNASSIGNED_RESPONSIBLE_VALUE], true)
+        ) {
+            Validator::make(
+                ['value' => $value],
+                ['value' => ['required', 'integer', $this->activeOperatorUserExistsRule()]],
+                [],
+                ['value' => 'responsável do caso']
+            )->validate();
+        }
 
         DB::beginTransaction();
         try {
@@ -1162,10 +1156,19 @@ class LegalCaseController extends Controller
                     break;
 
                 case 'transfer_user':
-                    // $value é o user_id do novo responsável
-                    $query->update(['user_id' => $value]);
-                    $newOwner = User::find($value);
-                    $ownerName = $newOwner ? $newOwner->name : 'ID ' . $value;
+                    $responsibleUserId = in_array($value, [null, '', self::UNASSIGNED_RESPONSIBLE_VALUE], true)
+                        ? null
+                        : (int) $value;
+
+                    $query->update(['user_id' => $responsibleUserId]);
+
+                    if ($responsibleUserId === null) {
+                        $logDetails = "Removeu o responsável de {$count} processos";
+                        break;
+                    }
+
+                    $newOwner = User::find($responsibleUserId);
+                    $ownerName = $newOwner ? $newOwner->name : 'ID ' . $responsibleUserId;
                     $logDetails = "Transferiu {$count} processos para {$ownerName}";
                     break;
                 
@@ -1280,11 +1283,14 @@ class LegalCaseController extends Controller
             'opposing_party' => 255,
             'defendant' => 255,
             'action_object' => 255,
+            'lawyer_name' => 255,
             'comarca' => 255,
             'city' => 255,
             'state' => 2,
+            'special_court' => 255,
             'opposing_lawyer' => 255,
             'internal_number' => 255,
+            'polo' => 50,
             'portal_agreement_offers' => 65535,
             'campaign_observations' => 65535,
             'description' => 65535,
@@ -1298,6 +1304,81 @@ class LegalCaseController extends Controller
             if ($value === '' || $value === null) {
                 $caseData[$key] = null;
             }
+        }
+
+        return $caseData;
+    }
+
+    private function activeOperatorUserExistsRule()
+    {
+        return Rule::exists('users', 'id')->where(function ($query) {
+            $query
+                ->where('role', 'operador')
+                ->where('status', 'ativo');
+        });
+    }
+
+    private function getImportClientName(int|string|null $clientId): ?string
+    {
+        if (empty($clientId)) {
+            return null;
+        }
+
+        return Client::query()->whereKey($clientId)->value('name');
+    }
+
+    private function applyImportPartyFallbacks(array $caseData, ?string $clientName, ?LegalCase $existingCase): array
+    {
+        $normalizedPolo = $this->normalizeImportComparableText((string) ($caseData['polo'] ?? ''));
+        $existingOpposingParty = trim((string) ($existingCase?->opposing_party ?? ''));
+        $existingDefendant = trim((string) ($existingCase?->defendant ?? ''));
+        $defaultPlaintiff = 'Parte autora não informada na planilha do banco';
+        $defaultDefendant = $clientName ?: 'Parte passiva não informada na planilha do banco';
+
+        if (empty($caseData['opposing_party'])) {
+            if ($existingOpposingParty !== '') {
+                $caseData['opposing_party'] = $existingOpposingParty;
+            } elseif (str_contains($normalizedPolo, 'ativo') && $clientName) {
+                $caseData['opposing_party'] = $clientName;
+            } else {
+                $caseData['opposing_party'] = $defaultPlaintiff;
+            }
+        }
+
+        if (empty($caseData['defendant'])) {
+            if ($existingDefendant !== '') {
+                $caseData['defendant'] = $existingDefendant;
+            } elseif (str_contains($normalizedPolo, 'ativo')) {
+                $caseData['defendant'] = 'Parte passiva não informada na planilha do banco';
+            } else {
+                $caseData['defendant'] = $defaultDefendant;
+            }
+        }
+
+        return $caseData;
+    }
+
+    private function syncImportParticipantReferences(array $caseData, ?LegalCase $existingCase): array
+    {
+        if (!empty($caseData['opposing_party'])) {
+            $plaintiff = Plaintiff::firstOrCreate(['name' => trim($caseData['opposing_party'])]);
+            $caseData['plaintiff_id'] = $plaintiff->id;
+        } elseif ($existingCase?->plaintiff_id) {
+            $caseData['plaintiff_id'] = $existingCase->plaintiff_id;
+        }
+
+        if (!empty($caseData['defendant'])) {
+            $defendant = Defendant::firstOrCreate(['name' => trim($caseData['defendant'])]);
+            $caseData['defendant_id'] = $defendant->id;
+        } elseif ($existingCase?->defendant_id) {
+            $caseData['defendant_id'] = $existingCase->defendant_id;
+        }
+
+        if (!empty($caseData['opposing_lawyer'])) {
+            $opLawyer = OpposingLawyer::firstOrCreate(['name' => trim($caseData['opposing_lawyer'])]);
+            $caseData['opposing_lawyer_id'] = $opLawyer->id;
+        } elseif ($existingCase?->opposing_lawyer_id) {
+            $caseData['opposing_lawyer_id'] = $existingCase->opposing_lawyer_id;
         }
 
         return $caseData;
@@ -1834,6 +1915,196 @@ class LegalCaseController extends Controller
         return true;
     }
 
+    private function buildSearchFeedback(Request $request, ?User $user, int $visibleTotal): ?array
+    {
+        $searchTerm = trim((string) $request->input('search', ''));
+
+        if ($searchTerm === '' || $visibleTotal > 0) {
+            return null;
+        }
+
+        $multipleCaseNumberTerms = $this->extractMultipleCaseNumberTerms($searchTerm);
+        if ($multipleCaseNumberTerms !== []) {
+            $totalTerms = count($multipleCaseNumberTerms);
+            $matchedCount = min($this->countExistingCaseNumberMatches($multipleCaseNumberTerms), $totalTerms);
+            $missingCount = max($totalTerms - $matchedCount, 0);
+
+            if ($matchedCount === 0) {
+                return [
+                    'type' => 'case_number_list_not_found',
+                    'total_terms' => $totalTerms,
+                ];
+            }
+
+            if ($user?->role === 'indicador') {
+                return [
+                    'type' => 'case_number_list_unavailable_for_indicator',
+                    'total_terms' => $totalTerms,
+                    'matched_count' => $matchedCount,
+                    'missing_count' => $missingCount,
+                ];
+            }
+
+            return [
+                'type' => 'case_number_list_filtered_out',
+                'total_terms' => $totalTerms,
+                'matched_count' => $matchedCount,
+                'missing_count' => $missingCount,
+            ];
+        }
+
+        if (!$this->isCaseNumberSearch($searchTerm)) {
+            return [
+                'type' => 'no_results',
+                'search' => $searchTerm,
+            ];
+        }
+
+        $normalizedSearchTerm = preg_replace('/\D/', '', $searchTerm);
+        $caseExistsInBase = LegalCase::query()
+            ->where('case_number', 'like', '%' . $searchTerm . '%')
+            ->when($normalizedSearchTerm !== '', function ($query) use ($normalizedSearchTerm) {
+                $query->orWhereRaw(
+                    $this->normalizedCaseNumberSql() . ' like ?',
+                    ['%' . $normalizedSearchTerm . '%']
+                );
+            })
+            ->exists();
+
+        if (!$caseExistsInBase) {
+            return [
+                'type' => 'case_number_not_found',
+                'search' => $searchTerm,
+            ];
+        }
+
+        if ($user?->role === 'indicador') {
+            return [
+                'type' => 'case_number_unavailable_for_indicator',
+                'search' => $searchTerm,
+            ];
+        }
+
+        return [
+            'type' => 'case_number_filtered_out',
+            'search' => $searchTerm,
+        ];
+    }
+
+    private function applySearchFilter($query, string $searchTerm): void
+    {
+        $trimmedSearchTerm = trim($searchTerm);
+
+        if ($trimmedSearchTerm === '') {
+            return;
+        }
+
+        $multipleCaseNumberTerms = $this->extractMultipleCaseNumberTerms($trimmedSearchTerm);
+
+        if ($multipleCaseNumberTerms !== []) {
+            $query->whereIn(DB::raw($this->normalizedCaseNumberSql()), $multipleCaseNumberTerms);
+
+            return;
+        }
+
+        $isCaseNumberSearch = $this->isCaseNumberSearch($trimmedSearchTerm);
+        $normalizedCaseNumberSearch = preg_replace('/\D/', '', $trimmedSearchTerm);
+
+        $query->where(function ($q) use ($trimmedSearchTerm, $isCaseNumberSearch, $normalizedCaseNumberSearch) {
+            $q->where('case_number', 'like', "%{$trimmedSearchTerm}%")
+                ->when($isCaseNumberSearch && $normalizedCaseNumberSearch !== '', function ($caseNumberQuery) use ($normalizedCaseNumberSearch) {
+                    $caseNumberQuery->orWhereRaw(
+                        $this->normalizedCaseNumberSql() . ' like ?',
+                        ['%' . $normalizedCaseNumberSearch . '%']
+                    );
+                })
+                ->orWhere('opposing_party', 'like', "%{$trimmedSearchTerm}%")
+                ->orWhereHas('plaintiff', function ($q2) use ($trimmedSearchTerm) {
+                    $q2->where('name', 'like', "%{$trimmedSearchTerm}%");
+                })
+                ->orWhereHas('defendantRel', function ($q3) use ($trimmedSearchTerm) {
+                    $q3->where('name', 'like', "%{$trimmedSearchTerm}%");
+                });
+        });
+    }
+
+    private function extractMultipleCaseNumberTerms(string $searchTerm): array
+    {
+        $terms = $this->extractCaseNumberSearchTerms($searchTerm, self::MULTI_CASE_NUMBER_MIN_DIGITS);
+
+        return count($terms) > 1 ? $terms : [];
+    }
+
+    private function extractCaseNumberSearchTerms(string $searchTerm, int $minimumDigits = 7): array
+    {
+        $trimmedSearch = trim($searchTerm);
+
+        if ($trimmedSearch === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\s,;]+/u', $trimmedSearch) ?: [];
+        $normalizedTerms = [];
+
+        foreach ($parts as $part) {
+            $candidate = trim((string) $part);
+            $candidate = trim($candidate, "\"'");
+
+            if ($candidate === '') {
+                continue;
+            }
+
+            if (!preg_match('/^[0-9.\-\/]+$/', $candidate)) {
+                return [];
+            }
+
+            $normalizedCaseNumber = preg_replace('/\D/', '', $candidate);
+
+            if ($normalizedCaseNumber === '' || strlen($normalizedCaseNumber) < $minimumDigits) {
+                return [];
+            }
+
+            $normalizedTerms[$normalizedCaseNumber] = $normalizedCaseNumber;
+        }
+
+        return array_values($normalizedTerms);
+    }
+
+    private function countExistingCaseNumberMatches(array $normalizedCaseNumbers): int
+    {
+        if ($normalizedCaseNumbers === []) {
+            return 0;
+        }
+
+        return (int) LegalCase::query()
+            ->whereIn(DB::raw($this->normalizedCaseNumberSql()), $normalizedCaseNumbers)
+            ->count();
+    }
+
+    private function isCaseNumberSearch(string $searchTerm): bool
+    {
+        $trimmedSearch = trim($searchTerm);
+
+        if ($trimmedSearch === '') {
+            return false;
+        }
+
+        if ($this->extractMultipleCaseNumberTerms($trimmedSearch) !== []) {
+            return true;
+        }
+
+        if (!preg_match('/^[0-9.\-\/\s]+$/', $trimmedSearch)) {
+            return false;
+        }
+
+        return strlen(preg_replace('/\D/', '', $trimmedSearch)) >= 7;
+    }
+
+    private function normalizedCaseNumberSql(string $column = 'case_number'): string
+    {
+        return "REPLACE(REPLACE(REPLACE(REPLACE({$column}, '.', ''), '-', ''), '/', ''), ' ', '')";
+    }
+
     private function normalizeImportedCaseNumber(string $caseNumber): string
     {
         $cleanNumber = preg_replace('/\D/', '', $caseNumber);
@@ -1878,6 +2149,71 @@ class LegalCaseController extends Controller
     private function syncCaseTagCatalog(mixed $tags): void
     {
         CaseTag::upsertFromCaseTags($tags);
+    }
+
+    private function resolveAgreementClosedAtPayload(array $payload, ?LegalCase $existingCase = null): array
+    {
+        if (array_key_exists('agreement_closed_at', $payload)) {
+            return [
+                'agreement_closed_at' => $this->normalizeAgreementClosedAtValue($payload['agreement_closed_at']),
+            ];
+        }
+
+        $resolvedStatus = $payload['status'] ?? $existingCase?->status;
+        if ($resolvedStatus !== LegalCase::STATUS_CLOSED_DEAL) {
+            return [];
+        }
+
+        if ($existingCase?->agreement_closed_at) {
+            return [
+                'agreement_closed_at' => $existingCase->agreement_closed_at instanceof Carbon
+                    ? $existingCase->agreement_closed_at->toDateString()
+                    : (string) $existingCase->agreement_closed_at,
+            ];
+        }
+
+        return [
+            'agreement_closed_at' => now()->toDateString(),
+        ];
+    }
+
+    private function normalizeAgreementClosedAtValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalizedValue = trim((string) $value);
+        if ($normalizedValue === '') {
+            return null;
+        }
+
+        return Carbon::parse($normalizedValue)->toDateString();
+    }
+
+    private function applyResponsibleFilter($query, Request $request, User $user): void
+    {
+        if ($user->role === 'operador') {
+            $query->where('user_id', $user->id);
+            return;
+        }
+
+        if (! $request->filled('lawyer_id')) {
+            return;
+        }
+
+        if ($this->requestTargetsUnassignedResponsible($request)) {
+            $query->whereNull('user_id');
+            return;
+        }
+
+        $query->where('user_id', $request->input('lawyer_id'));
+    }
+
+    private function requestTargetsUnassignedResponsible(Request $request): bool
+    {
+        return $request->filled('lawyer_id')
+            && (string) $request->input('lawyer_id') === self::UNASSIGNED_RESPONSIBLE_VALUE;
     }
 
     private function legalCasesTableHasIndicatorUserId(): bool

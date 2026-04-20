@@ -38,15 +38,15 @@ const createDefaultFormData = () => ({
 });
 
 const FIELD_DESCRIPTORS = {
-  materia: ['Objetivo', 'Portal BB', 'A materia nao pode estar entre as contraindicadas'],
-  obrigacao: ['Objetivo', 'Portal BB', 'Selecione o tipo aplicavel'],
-  subsidio: ['Objetivo', 'Portal BB', 'Informe se ha subsidio disponibilizado'],
-  analise_subsidio: ['Subjetivo', 'Portal BB', 'Descreva a analise feita'],
+  materia: ['Objetivo', 'Portal BB', 'A matéria não pode estar entre as contraindicadas'],
+  obrigacao: ['Objetivo', 'Portal BB', 'Selecione o tipo aplicável'],
+  subsidio: ['Objetivo', 'Portal BB', 'Informe se há subsídio disponibilizado'],
+  analise_subsidio: ['Subjetivo', 'Portal BB', 'Descreva a análise feita'],
   litigante_habitual: ['Objetivo', 'Portal BB ou L1', 'Baseado no advogado adverso'],
-  analise_risco: ['Objetivo', 'Portal BB', 'Informe a data da ultima analise de risco'],
+  analise_risco: ['Objetivo', 'Portal BB', 'Informe a data da última análise de risco'],
   pcond_portal: ['Objetivo', 'Portal BB', 'PCOND registrado no portal'],
   pcond_processual: ['Subjetivo', 'Processo', 'PCOND real e compatibilidade processual'],
-  alcada: ['Objetivo', 'Portal BB', 'Valor ja existente no caso'],
+  alcada: ['Objetivo', 'Portal BB', 'Valor já existente no caso'],
 };
 
 const getChecklistData = (legalCase) => legalCase?.agreement_checklist_data?.indication_checklist || null;
@@ -82,15 +82,15 @@ const getActionObjectName = (legalCase) => {
   const actionObjectValue = legalCase?.actionObject || legalCase?.action_object;
 
   if (!actionObjectValue) {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   if (typeof actionObjectValue === 'string' || typeof actionObjectValue === 'number') {
     const normalizedValue = String(actionObjectValue).trim();
-    return normalizedValue || 'Nao informado';
+    return normalizedValue || 'Não informado';
   }
 
-  return actionObjectValue.name || actionObjectValue.nome || 'Nao informado';
+  return actionObjectValue.name || actionObjectValue.nome || 'Não informado';
 };
 
 const normalizeCasePayload = (payload) => {
@@ -209,7 +209,7 @@ const getRequestErrorMessage = (requestError) => {
     }
   }
 
-  return requestError.response?.data?.message || 'Nao foi possivel indicar o caso para acordo.';
+  return requestError.response?.data?.message || 'Não foi possível indicar o caso para acordo.';
 };
 
 const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => {
@@ -272,7 +272,7 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
 
         setOperators([]);
         setDetailedCase(legalCase);
-        setError('Nao foi possivel carregar todos os dados atualizados do caso para indicacao.');
+        setError('Não foi possível carregar todos os dados atualizados do caso para indicação.');
       })
       .finally(() => {
         if (active) {
@@ -294,7 +294,7 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
   );
 
   const opposingLawyerName = useMemo(
-    () => getDisplayName(getOpposingLawyerRecord(caseReference), 'advogado adverso nao informado'),
+    () => getDisplayName(getOpposingLawyerRecord(caseReference), 'advogado adverso não informado'),
     [caseReference]
   );
 
@@ -306,24 +306,46 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
   const litiganteStatusText = useMemo(
     () =>
       formData.litigante_habitual.has_restriction === 'sim'
-        ? 'Com restricao de negociacao'
-        : 'Sem restricao de negociacao',
+        ? 'Com restrição de negociação'
+        : 'Sem restrição de negociação',
     [formData.litigante_habitual.has_restriction]
+  );
+
+  const headerHighlights = useMemo(
+    () => [
+      {
+        label: 'Matéria',
+        value: matterName,
+      },
+      {
+        label: 'Alçada',
+        value: formData.alcada.value || 'Não informada',
+      },
+      {
+        label: 'Litigante habitual',
+        value: litiganteStatusText,
+      },
+      {
+        label: 'Advogado adverso',
+        value: opposingLawyerName,
+      },
+    ],
+    [formData.alcada.value, litiganteStatusText, matterName, opposingLawyerName]
   );
 
   const blockingReasons = useMemo(() => {
     const reasons = [];
 
     if (formData.materia.is_valid_for_agreement === 'nao') {
-      reasons.push('A materia esta entre as contraindicadas.');
+      reasons.push('A matéria está entre as contraindicadas.');
     }
 
     if (formData.subsidio.available === 'nao') {
-      reasons.push('Nao ha subsidio disponibilizado para o caso.');
+      reasons.push('Não há subsídio disponibilizado para o caso.');
     }
 
     if (formData.litigante_habitual.has_restriction === 'sim') {
-      reasons.push('O advogado adverso esta marcado como litigante abusivo e bloqueia a indicacao.');
+      reasons.push('O advogado adverso está marcado como litigante abusivo e bloqueia a indicação.');
     }
 
     return reasons;
@@ -358,12 +380,12 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
     event.preventDefault();
 
     if (blockingReasons.length > 0) {
-      setError('O caso possui restricoes impeditivas e nao pode ser indicado para acordo.');
+      setError('O caso possui restrições impeditivas e não pode ser indicado para acordo.');
       return;
     }
 
     if (!formData.responsible_user_id) {
-      setError('Selecione o operador que ficara responsavel pelo caso.');
+      setError('Selecione o operador que ficará responsável pelo caso.');
       return;
     }
 
@@ -433,11 +455,20 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.header}>
           <div className={styles.headerContent}>
-            <p className={styles.eyebrow}>INDICACAO DE CASO</p>
+            <p className={styles.eyebrow}>INDICAÇÃO DE CASO</p>
             <h2 className={styles.title}>Indicar caso para acordo</h2>
             <p className={styles.subtitle}>
-              Processo {caseTitle}. O checklist abaixo e obrigatorio para concluir a analise.
+              Processo {caseTitle}. O checklist abaixo é obrigatório para concluir a análise.
             </p>
+
+            <div className={styles.headerHighlights}>
+              {headerHighlights.map((item) => (
+                <div key={item.label} className={styles.headerHighlightCard}>
+                  <span className={styles.headerHighlightLabel}>{item.label}</span>
+                  <strong className={styles.headerHighlightValue}>{item.value}</strong>
+                </div>
+              ))}
+            </div>
           </div>
 
           <button
@@ -455,16 +486,17 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
             <section className={`${styles.section} ${styles.fullWidth}`}>
               <div className={styles.sectionHeader}>
                 <div>
+                  <span className={styles.sectionBadge}>Etapa 1</span>
                   <h3 className={styles.sectionTitle}>Encaminhamento</h3>
                   <p className={styles.sectionText}>
-                    Defina o operador responsavel e confira os dados objetivos que ja vem do caso.
+                    Defina o operador responsável e confira os dados objetivos que já vêm do caso.
                   </p>
                 </div>
               </div>
 
               <div className={styles.autoGrid}>
                 <div className={styles.field}>
-                  <label className={styles.label}>Responsavel pelo caso (operador)</label>
+                  <label className={styles.label}>Responsável pelo caso (operador)</label>
                   <select
                     value={formData.responsible_user_id}
                     onChange={(event) => handleTopLevelChange('responsible_user_id', event.target.value)}
@@ -482,15 +514,15 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                   <p className={styles.helperText}>
                     {isLoadingOperators
                       ? 'Carregando operadores ativos...'
-                      : 'O operador escolhido passara a ser o responsavel do caso.'}
+                      : 'O operador escolhido passará a ser o responsável do caso.'}
                   </p>
                 </div>
 
                 <div className={styles.field}>
-                  <label className={styles.label}>Materia do processo</label>
+                  <label className={styles.label}>Matéria do processo</label>
                   <div className={styles.readOnlyField}>{matterName}</div>
                   <p className={styles.helperText}>
-                    Dado atual do caso usado como referencia para a analise.
+                    Dado atual do caso usado como referência para a análise.
                   </p>
                 </div>
 
@@ -504,20 +536,20 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                 </div>
 
                 <div className={styles.field}>
-                  <label className={styles.label}>Alcada</label>
+                  <label className={styles.label}>Alçada</label>
                   {renderDescriptors('alcada')}
                   <div className={styles.readOnlyField}>
-                    {formData.alcada.value || 'Nao informada'}
+                    {formData.alcada.value || 'Não informada'}
                   </div>
-                  <p className={styles.helperText}>Valor ja existente no caso.</p>
+                  <p className={styles.helperText}>Valor já existente no caso.</p>
                 </div>
 
                 <div className={`${styles.field} ${styles.fullSpan}`}>
-                  <label className={styles.label}>Observacoes sobre litigante habitual</label>
+                  <label className={styles.label}>Observações sobre litigante habitual</label>
                   <textarea
                     value={formData.litigante_habitual.notes}
                     onChange={(event) => handleChange('litigante_habitual', 'notes', event.target.value)}
-                    placeholder="Inclua observacoes adicionais, se necessario"
+                    placeholder="Inclua observações adicionais, se necessário"
                     rows="3"
                     className={styles.textarea}
                   />
@@ -528,6 +560,7 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
             <section className={`${styles.section} ${styles.fullWidth}`}>
               <div className={styles.sectionHeader}>
                 <div>
+                  <span className={styles.sectionBadge}>Etapa 2</span>
                   <h3 className={styles.sectionTitle}>Checklist Objetivo</h3>
                   <p className={styles.sectionText}>
                     Campos objetivos para validar se o caso pode seguir para acordo.
@@ -537,7 +570,7 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
 
               <div className={styles.innerGrid}>
                 <div className={styles.fieldCard}>
-                  <label className={styles.label}>Materia</label>
+                  <label className={styles.label}>Matéria</label>
                   {renderDescriptors('materia')}
                   <select
                     value={formData.materia.is_valid_for_agreement}
@@ -545,20 +578,20 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                     className={styles.input}
                     required
                   >
-                    <option value="sim">Nao esta entre as materias contraindicadas</option>
-                    <option value="nao">Esta entre as materias contraindicadas</option>
+                    <option value="sim">Não está entre as matérias contraindicadas</option>
+                    <option value="nao">Está entre as matérias contraindicadas</option>
                   </select>
                   <textarea
                     value={formData.materia.notes}
                     onChange={(event) => handleChange('materia', 'notes', event.target.value)}
-                    placeholder="Observacoes complementares da materia"
+                    placeholder="Observações complementares da matéria"
                     rows="4"
                     className={styles.textarea}
                   />
                 </div>
 
                 <div className={styles.fieldCard}>
-                  <label className={styles.label}>Obrigacao</label>
+                  <label className={styles.label}>Obrigação</label>
                   {renderDescriptors('obrigacao')}
                   <select
                     value={formData.obrigacao.type}
@@ -568,12 +601,12 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                   >
                     <option value="simples">Simples</option>
                     <option value="complexa">Complexa</option>
-                    <option value="apenas_pecuniaria">Apenas Pecuniaria</option>
+                    <option value="apenas_pecuniaria">Apenas pecuniária</option>
                   </select>
                 </div>
 
                 <div className={styles.fieldCard}>
-                  <label className={styles.label}>Subsidio</label>
+                  <label className={styles.label}>Subsídio</label>
                   {renderDescriptors('subsidio')}
                   <select
                     value={formData.subsidio.available}
@@ -581,16 +614,16 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                     className={styles.input}
                     required
                   >
-                    <option value="sim">Ha subsidio disponibilizado</option>
-                    <option value="nao">Nao ha subsidio disponibilizado</option>
+                    <option value="sim">Há subsídio disponibilizado</option>
+                    <option value="nao">Não há subsídio disponibilizado</option>
                   </select>
                   <p className={styles.helperText}>
-                    Preenchimento manual: a base atual nao traz esse dado automaticamente.
+                    Preenchimento manual: a base atual não traz esse dado automaticamente.
                   </p>
                 </div>
 
                 <div className={styles.fieldCard}>
-                  <label className={styles.label}>Analise de Risco</label>
+                  <label className={styles.label}>Análise de Risco</label>
                   {renderDescriptors('analise_risco')}
                   <input
                     type="date"
@@ -619,21 +652,22 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
             <section className={`${styles.section} ${styles.fullWidth}`}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <h3 className={styles.sectionTitle}>Analises Complementares</h3>
+                  <span className={styles.sectionBadge}>Etapa 3</span>
+                  <h3 className={styles.sectionTitle}>Análises Complementares</h3>
                   <p className={styles.sectionText}>
-                    Campos subjetivos e processuais para registrar o racional da indicacao.
+                    Campos subjetivos e processuais para registrar o racional da indicação.
                   </p>
                 </div>
               </div>
 
               <div className={styles.innerGrid}>
                 <div className={`${styles.fieldCard} ${styles.fullSpan}`}>
-                  <label className={styles.label}>Analise do Subsidio</label>
+                  <label className={styles.label}>Análise do Subsídio</label>
                   {renderDescriptors('analise_subsidio')}
                   <textarea
                     value={formData.analise_subsidio.notes}
                     onChange={(event) => handleChange('analise_subsidio', 'notes', event.target.value)}
-                    placeholder="Descreva a analise subjetiva do subsidio"
+                    placeholder="Descreva a análise subjetiva do subsídio"
                     rows="5"
                     className={styles.textarea}
                     required
@@ -658,7 +692,7 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
 
           {blockingReasons.length > 0 && (
             <div className={styles.blockingBanner}>
-              <strong>Indicacao bloqueada para este caso</strong>
+              <strong>Indicação bloqueada para este caso</strong>
               <ul className={styles.blockingList}>
                 {blockingReasons.map((reason) => (
                   <li key={reason}>{reason}</li>
@@ -691,7 +725,7 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
               className={styles.primaryButton}
             >
               <FaCheckCircle />
-              {isSubmitting ? 'Indicando...' : 'Indicar Caso para acordo'}
+              {isSubmitting ? 'Indicando...' : 'Indicar caso para acordo'}
             </button>
           </div>
         </form>

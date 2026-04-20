@@ -3,13 +3,8 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
 import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
-import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
-
-const priorities = {
-  alta: { text: 'Alta', class: styles.priorityAlta, tagClass: styles.priorityTagAlta },
-  media: { text: 'Media', class: styles.priorityMedia, tagClass: styles.priorityTagMedia },
-  baixa: { text: 'Baixa', class: styles.priorityBaixa, tagClass: styles.priorityTagBaixa },
-};
+import { normalizeCaseTags } from '../constants/caseTags';
+import { isTerminalLegalCaseStatus } from '../constants/legalCaseStatus';
 
 const getBadgeInitials = (value, maxLetters = 3) =>
   String(value ?? '')
@@ -46,6 +41,21 @@ const getIndicatorName = (legalCase) => {
   return getDisplayValue(indicator, '');
 };
 
+const getTagTextColor = (backgroundColor) => {
+  const hexColor = String(backgroundColor || '').replace('#', '').trim();
+
+  if (!/^[0-9a-fA-F]{6}$/.test(hexColor)) {
+    return '#ffffff';
+  }
+
+  const red = parseInt(hexColor.slice(0, 2), 16);
+  const green = parseInt(hexColor.slice(2, 4), 16);
+  const blue = parseInt(hexColor.slice(4, 6), 16);
+  const brightness = ((red * 299) + (green * 587) + (blue * 114)) / 1000;
+
+  return brightness > 150 ? '#111827' : '#ffffff';
+};
+
 const CaseCardBody = ({
   legalCase,
   onClick,
@@ -60,12 +70,11 @@ const CaseCardBody = ({
   const today = new Date();
   const diffTime = Math.abs(today - lastUpdate);
   const daysSinceUpdate = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const isDelayed = daysSinceUpdate > 5;
+  const isDelayed = !isTerminalLegalCaseStatus(legalCase?.status) && daysSinceUpdate > 5;
 
-  const priorityInfo = priorities[legalCase.priority] || {};
-  const statusInfo = getLegalCaseStatusDetails(legalCase.status);
   const alcadaValue = parseFloat(legalCase.original_value);
   const indicatorName = getIndicatorName(legalCase);
+  const caseTags = normalizeCaseTags(legalCase.tags);
 
   let economyPercentage = null;
   const originalValue = parseFloat(legalCase.original_value);
@@ -78,37 +87,38 @@ const CaseCardBody = ({
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <div
-        className={`${styles.card} ${priorityInfo.class || ''} ${isDelayed ? styles.cardDelayed : ''}`}
+        className={`${styles.card} ${isDelayed ? styles.cardDelayed : ''}`}
         onClick={onClick}
       >
-        <div className={styles.header} {...listeners}>
-          <span className={styles.caseNumber}>{legalCase.case_number}</span>
-
-          <div className={styles.headerMeta}>
-            {isDelayed ? (
+        <div className={`${styles.header} ${isDelayed ? styles.headerDelayed : ''}`} {...listeners}>
+          {isDelayed && (
+            <div className={styles.headerTop}>
               <span className={styles.delayedTag} title={`Este caso nao e atualizado ha ${daysSinceUpdate} dias`}>
                 <FaExclamationTriangle /> {daysSinceUpdate}d parado
               </span>
-            ) : (
-              priorityInfo.text && (
-                <span
-                  className={`${styles.priorityTag} ${priorityInfo.tagClass || ''}`}
-                  title={`Prioridade: ${priorityInfo.text}`}
-                >
-                  {getBadgeInitials(priorityInfo.text, 1)}
-                </span>
-              )
-            )}
+            </div>
+          )}
 
-            <span
-              className={styles.statusTag}
-              style={{ backgroundColor: statusInfo.color, color: statusInfo.textColor }}
-              title={`Etapa atual: ${statusInfo.name}`}
-            >
-              {getBadgeInitials(statusInfo.name)}
-            </span>
-          </div>
+          <span className={styles.caseNumber}>{legalCase.case_number}</span>
         </div>
+
+        {caseTags.length > 0 && (
+          <div className={styles.tagsStrip}>
+            {caseTags.map((tag) => (
+              <span
+                key={`${tag.text}-${tag.color}`}
+                className={styles.tagChip}
+                style={{
+                  backgroundColor: tag.color,
+                  color: getTagTextColor(tag.color),
+                }}
+                title={tag.text}
+              >
+                {tag.text}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className={styles.body}>
           <div className={styles.infoRow}><FaUser /><span>{getDisplayValue(legalCase.opposing_party)}</span></div>
@@ -148,17 +158,7 @@ const CaseCardBody = ({
                   onIndicate(legalCase);
                 }
               }}
-              style={{
-                marginTop: '14px',
-                width: '100%',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '10px 12px',
-                background: '#1d4ed8',
-                color: '#fff',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
+              className={styles.indicateButton}
             >
               Indicar Caso para acordo
             </button>

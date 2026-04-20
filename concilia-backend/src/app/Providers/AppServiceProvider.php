@@ -2,11 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\LegalCase;
+use App\Models\User;
+use App\Policies\LegalCasePolicy;
+use App\Policies\UserPolicy;
+use App\Support\FrontendUrlResolver;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Gate; // <--- Importante: Para registrar permissões
-use App\Models\User;           // <--- Importante: O Modelo
-use App\Policies\UserPolicy;   // <--- Importante: As Regras
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,13 +26,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // --- REGISTRO DA SEGURANÇA (ACL) ---
-        // Ensina o Laravel que para mexer em 'User', deve obedecer 'UserPolicy'
         Gate::policy(User::class, UserPolicy::class);
-        // -----------------------------------
+        Gate::policy(LegalCase::class, LegalCasePolicy::class);
 
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
-            return config('app.frontend_url')."/password-reset/$token?email={$notifiable->getEmailForPasswordReset()}";
+            $frontendUrl = FrontendUrlResolver::resolve(
+                config('app.frontend_url'),
+                config('app.url'),
+                request()?->getSchemeAndHttpHost()
+            );
+
+            $email = rawurlencode($notifiable->getEmailForPasswordReset());
+
+            return "{$frontendUrl}/password-reset/{$token}?email={$email}";
         });
     }
 }

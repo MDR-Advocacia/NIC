@@ -4,16 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\LegalCase;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class CaseHistoryController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(LegalCase $case)
     {
+        $this->authorize('view', $case);
+
         // Acessa o histórico usando a relação que você criou ('histories')
         $history = $case->histories()->with('user:id,name')->get();
 
@@ -25,6 +30,8 @@ class CaseHistoryController extends Controller
      */
     public function store(Request $request, LegalCase $case)
     {
+        $this->authorize('update', $case);
+
         $validated = $request->validate([
             'description' => 'required|string|max:2000',
            

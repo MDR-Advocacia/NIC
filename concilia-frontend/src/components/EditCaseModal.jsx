@@ -14,6 +14,7 @@ import AddEditActionObjectModal from './AddEditActionObjectModal';
 import ActionObjectListModal from './ActionObjectListModal';
 import AddEditPlaintiffModal from './AddEditPlaintiffModal'; 
 import AddEditDefendantModal from './AddEditDefendantModal'; 
+import SavedCaseTagsPanel from './SavedCaseTagsPanel';
 import {
     LIVELO_MIN_POINTS,
     getSettlementBenefitType,
@@ -23,7 +24,9 @@ import {
     SETTLEMENT_BENEFIT_TYPES,
     validateSettlementBenefit
 } from '../constants/settlementBenefit';
-import { appendCaseTag, normalizeCaseTags } from '../constants/caseTags';
+import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
+import { getLegalCaseStatusDetails, LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
+import { normalizeUserRole } from '../constants/access';
 
 // --- Ícones SVG Inline ---
 const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#4299e1'}}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
@@ -42,9 +45,50 @@ const HistoryItem = ({ entry }) => {
         case_number: 'Nº do Processo', status: 'Status', priority: 'Prioridade',
         description: 'Descrição', opposing_party: 'Autor', defendant: 'Réu',
         original_value: 'Valor de Alçada', agreement_value: 'Valor do Acordo', cause_value: 'Valor da Causa',
+        agreement_closed_at: 'Data do Fechamento do Acordo',
         ourocap_value: 'Valor Ourocap', livelo_points: 'Pontos Livelo',
-        internal_number: 'Nº Interno', city: 'Cidade', action_object: 'Objeto da Ação',
-        pcond_probability: 'Valor da PCOND', updated_condemnation_value: 'Condenação Atualizada'
+        internal_number: 'Nº Interno', city: 'Cidade', action_object: 'Causa de Pedir',
+        pcond_probability: 'Valor da PCOND', updated_condemnation_value: 'Condenação Atualizada',
+        user_id: 'Responsável do caso',
+        indicator_user_id: 'Indicador',
+        lawyer_id: 'Responsável do caso',
+    };
+
+    const priorityTranslations = {
+        alta: 'Alta',
+        media: 'Média',
+        baixa: 'Baixa',
+    };
+
+    const formatHistoryValue = (key, value) => {
+        if (value === null || value === undefined || value === '') {
+            return 'vazio';
+        }
+
+        if (key === 'status') {
+            return getLegalCaseStatusDetails(value).name;
+        }
+
+        if (key === 'priority') {
+            return priorityTranslations[value] || String(value);
+        }
+
+        if (key === 'user_id' || key === 'indicator_user_id' || key === 'lawyer_id') {
+            return `ID ${value}`;
+        }
+
+        if (key === 'agreement_closed_at') {
+            const parsedDate = new Date(value);
+            return Number.isNaN(parsedDate.getTime())
+                ? String(value)
+                : parsedDate.toLocaleDateString('pt-BR');
+        }
+
+        if (typeof value === 'boolean') {
+            return value ? 'Sim' : 'Não';
+        }
+
+        return String(value);
     };
 
     const renderChanges = () => {
@@ -56,7 +100,7 @@ const HistoryItem = ({ entry }) => {
                     const fieldName = fieldTranslations[key] || key;
                     return (
                         <li key={key}>
-                            <strong>{fieldName}:</strong> de <em>"{oldValue || 'vazio'}"</em> para <em>"{newValue || 'vazio'}"</em>
+                            <strong>{fieldName}:</strong> de <em>"{formatHistoryValue(key, oldValue)}"</em> para <em>"{formatHistoryValue(key, newValue)}"</em>
                         </li>
                     );
                 })}
@@ -184,7 +228,7 @@ const DetailsTab = ({
     handleCreateLawyer,
     handleOpenListModal,
 
-    // Props Objeto da Ação
+    // Props Causa de Pedir
     actionObjectsList,
     actionObjectSearchTerm,
     setActionObjectSearchTerm,
@@ -212,9 +256,9 @@ const DetailsTab = ({
     handleSelectDefendant,
     handleCreateDefendant,
     savedTags,
-    selectedSavedTagText,
-    setSelectedSavedTagText,
     handleAddSavedTag,
+    handleDeleteSavedTag,
+    canManageSavedTags,
     settlementBenefitType,
     handleSettlementBenefitTypeChange
 }) => {
@@ -273,7 +317,17 @@ const DetailsTab = ({
                         <input className={styles.input} type="text" name="internal_number" value={formData.internal_number || ''} onChange={handleChange} />
                     </div>
                     <div className={styles.formGroup}>
-                        <label className={styles.label}>Objeto da Ação</label>
+                        <label className={styles.label}>Status</label>
+                        <select className={styles.select} name="status" value={formData.status || ''} onChange={handleChange} required>
+                            {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
+                                <option key={statusOption.value} value={statusOption.value}>
+                                    {statusOption.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Causa de Pedir</label>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                             <div style={{ position: 'relative', flex: 1 }}>
                                 <input
@@ -288,7 +342,7 @@ const DetailsTab = ({
                                         handleChange(e);
                                     }}
                                     onFocus={() => setShowActionObjectDropdown(true)}
-                                    placeholder="Pesquisar objeto da ação..."
+                                    placeholder="Pesquisar causa de pedir..."
                                     autoComplete="off"
                                 />
                                 {showActionObjectDropdown && actionObjectSearchTerm && (
@@ -308,7 +362,7 @@ const DetailsTab = ({
                                 )}
                                 {showActionObjectDropdown && <div style={{position: 'fixed', inset:0, zIndex: 40}} onClick={() => setShowActionObjectDropdown(false)} />}
                             </div>
-                            <button type="button" onClick={handleOpenActionObjectListModal} title="Buscar e gerenciar objetos da ação"
+                            <button type="button" onClick={handleOpenActionObjectListModal} title="Buscar e gerenciar causas de pedir"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: '#4a5568', color: 'white', border: 'none',
@@ -316,7 +370,7 @@ const DetailsTab = ({
                                 }}>
                                 <IconSearch />
                             </button>
-                            <button type="button" onClick={handleCreateActionObject} title="Cadastrar novo objeto da ação"
+                            <button type="button" onClick={handleCreateActionObject} title="Cadastrar nova causa de pedir"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: '#3182ce', color: 'white', border: 'none',
@@ -446,8 +500,8 @@ const DetailsTab = ({
                     </div>
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Colaborador</label>
-                        <select className={styles.select} name="lawyer_id" value={formData.lawyer_id || ''} onChange={handleChange} required>
-                            <option value="">Selecione...</option>
+                        <select className={styles.select} name="lawyer_id" value={formData.lawyer_id || ''} onChange={handleChange}>
+                            <option value="">Sem responsável</option>
                             {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
                         </select>
                     </div>
@@ -575,6 +629,10 @@ const DetailsTab = ({
                         <input className={styles.input} type="number" step="0.01" name="agreement_value" value={formData.agreement_value || ''} onChange={handleChange} />
                     </div>
                     <div className={styles.formGroup}>
+                        <label className={styles.label}>Data do Fechamento do Acordo</label>
+                        <input className={styles.input} type="date" name="agreement_closed_at" value={formData.agreement_closed_at || ''} onChange={handleChange} />
+                    </div>
+                    <div className={styles.formGroup}>
                         <label className={styles.label}>Benefício Complementar</label>
                         <select className={styles.select} value={settlementBenefitType} onChange={handleSettlementBenefitTypeChange}>
                             {SETTLEMENT_BENEFIT_OPTIONS.map(option => (
@@ -616,25 +674,16 @@ const DetailsTab = ({
                     <button type="button" className={`${styles.priorityButton} ${styles.baixa} ${formData.priority === 'baixa' ? styles.selected : ''}`} onClick={() => handlePriorityChange('baixa')}>Baixa</button>
                 </div>
                 
-                {savedTags.length > 0 && (
-                    <div className={styles.tagCreator} style={{marginTop: '1rem'}}>
-                        <select
-                            className={styles.tagInput}
-                            value={selectedSavedTagText}
-                            onChange={(e) => setSelectedSavedTagText(e.target.value)}
-                        >
-                            <option value="">Replicar etiqueta salva...</option>
-                            {savedTags.map((tag) => (
-                                <option key={`${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
-                                    {tag.text || tag.name}
-                                </option>
-                            ))}
-                        </select>
-                        <button type="button" className={styles.addButton} onClick={handleAddSavedTag} disabled={!selectedSavedTagText}>
-                            Replicar
-                        </button>
-                    </div>
-                )}
+                <SavedCaseTagsPanel
+                    tags={savedTags}
+                    title="Etiquetas salvas"
+                    subtitle="Clique para adicionar uma etiqueta pronta ao caso. A exclusão do catálogo fica disponível apenas para administradores."
+                    onSelectTag={handleAddSavedTag}
+                    onDeleteTag={handleDeleteSavedTag}
+                    canDelete={canManageSavedTags}
+                    selectedValues={formData.tags}
+                    emptyMessage="Nenhuma etiqueta salva foi cadastrada ainda."
+                />
 
                 <div className={styles.tagCreator} style={{marginTop: '1rem'}}>
                     <input type="text" className={styles.tagInput} value={newTagText} onChange={(e) => setNewTagText(e.target.value)} placeholder="Nova etiqueta..." />
@@ -681,7 +730,8 @@ const DetailsTab = ({
 
 // --- COMPONENTE PRINCIPAL ---
 const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) => {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
+    const canManageSavedTags = ['administrador', 'admin'].includes(normalizeUserRole(user?.role));
     const [formData, setFormData] = useState({});
     const [settlementBenefitType, setSettlementBenefitType] = useState(SETTLEMENT_BENEFIT_TYPES.NONE);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -690,7 +740,6 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState('#EF4444');
     const [savedTags, setSavedTags] = useState([]);
-    const [selectedSavedTagText, setSelectedSavedTagText] = useState('');
     
     // Listas de Dados
     const [opposingLawyersList, setOpposingLawyersList] = useState([]);
@@ -771,6 +820,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 livelo_points: legalCase.livelo_points || '',
                 updated_condemnation_value: legalCase.updated_condemnation_value || '',
                 pcond_probability: legalCase.pcond_probability || '',
+                agreement_closed_at: legalCase.agreement_closed_at ? String(legalCase.agreement_closed_at).slice(0, 10) : '',
                 
                 // Mapeamento IDs
                 action_object_id: legalCase.action_object_id || legalCase.actionObject?.id || '',
@@ -793,7 +843,6 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
             setPlaintiffSearchTerm(getStringValue(legalCase.opposing_party || legalCase.plaintiff));
             setDefendantSearchTerm(getStringValue(legalCase.defendant || legalCase.defendantRel));
             setSettlementBenefitType(getSettlementBenefitType(legalCase));
-            setSelectedSavedTagText('');
             
             setConversation(null);
             setMessages([]);
@@ -801,7 +850,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         }
     }, [legalCase]);
 
-    // --- HANDLERS OBJETO DA AÇÃO ---
+    // --- HANDLERS CAUSA DE PEDIR ---
     const handleSelectActionObject = (actionObject) => {
         setFormData(prev => ({
             ...prev,
@@ -932,17 +981,42 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         setNewTagText('');
     };
     const handleRemoveTag = (indexToRemove) => { setFormData(prevState => ({ ...prevState, tags: prevState.tags.filter((_, index) => index !== indexToRemove) })); };
-    const handleAddSavedTag = () => {
-        if (!selectedSavedTagText) return;
-
-        const selectedTag = savedTags.find(tag => (tag.text || tag.name) === selectedSavedTagText);
+    const handleAddSavedTag = (selectedTag) => {
         if (!selectedTag) return;
-
         setFormData(prevState => ({
             ...prevState,
             tags: appendCaseTag(prevState.tags, selectedTag),
         }));
-        setSelectedSavedTagText('');
+    };
+    const handleDeleteSavedTag = async (tagToDelete) => {
+        if (!tagToDelete?.id) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Tem certeza que deseja excluir a etiqueta "${tagToDelete.text || tagToDelete.name}"?\n\nEssa ação removerá a etiqueta do catálogo e de todos os casos que a utilizam.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await apiClient.delete(`/case-tags/${tagToDelete.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+            setFormData((prevState) => ({
+                ...prevState,
+                tags: removeCaseTag(prevState.tags, tagToDelete),
+            }));
+
+            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+        } catch (err) {
+            console.error('Erro ao excluir etiqueta salva:', err);
+            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+        }
     };
     const handleSettlementBenefitTypeChange = (e) => {
         const value = e.target.value;
@@ -978,6 +1052,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,
                 cause_value: formData.cause_value ? parseFloat(formData.cause_value) : null,
                 agreement_value: formData.agreement_value ? parseFloat(formData.agreement_value) : null,
+                agreement_closed_at: formData.agreement_closed_at || null,
                 ...normalizeSettlementBenefitPayload({
                     settlementBenefitType,
                     ourocap_value: formData.ourocap_value,
@@ -1044,7 +1119,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     handleCreateLawyer={handleCreateLawyer}
                                     handleOpenListModal={handleOpenListModal}
 
-                                    // Props Objeto da Ação
+                                    // Props Causa de Pedir
                                     actionObjectsList={actionObjectsList}
                                     actionObjectSearchTerm={actionObjectSearchTerm}
                                     setActionObjectSearchTerm={setActionObjectSearchTerm}
@@ -1072,9 +1147,9 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     handleSelectDefendant={handleSelectDefendant}
                                     handleCreateDefendant={handleCreateDefendant}
                                     savedTags={savedTags}
-                                    selectedSavedTagText={selectedSavedTagText}
-                                    setSelectedSavedTagText={setSelectedSavedTagText}
                                     handleAddSavedTag={handleAddSavedTag}
+                                    handleDeleteSavedTag={handleDeleteSavedTag}
+                                    canManageSavedTags={canManageSavedTags}
                                     settlementBenefitType={settlementBenefitType}
                                     handleSettlementBenefitTypeChange={handleSettlementBenefitTypeChange}
                                 />

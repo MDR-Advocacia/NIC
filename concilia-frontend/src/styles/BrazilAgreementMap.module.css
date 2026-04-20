@@ -1,0 +1,129 @@
+.mapLayout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+}
+
+.mapSummary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--border-color-light);
+  background: linear-gradient(180deg, rgba(240, 253, 244, 0.82), rgba(248, 250, 252, 0.92));
+}
+
+.summaryCard span {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.summaryCard strong {
+  color: var(--text-primary);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.summaryCard small {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.mapFrame {
+  position: relative;
+  flex: 1;
+  min-height: 360px;
+  padding: 1rem;
+  border-radius: 20px;
+  border: 1px solid var(--border-color-light);
+  background:
+    radial-gradient(circle at top, rgba(187, 247, 208, 0.3), transparent 55%),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.94));
+}
+
+.mapSvgWrapper {
+  width: 100%;
+  height: 100%;
+}
+
+.mapSvgWrapper :global(svg.dashboardBrazilMapSvg .state) {
+  stroke: #cbd5e1;
+  stroke-width: 1.15;
+  transition: fill 0.18s ease, filter 0.18s ease;
+}
+
+.mapSvgWrapper :global(svg.dashboardBrazilMapSvg .state:not([id])) {
+  fill: #ffffff;
+}
+
+.mapSvgWrapper :global(svg.dashboardBrazilMapSvg) {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.mapSvgWrapper :global(svg.dashboardBrazilMapSvg .state[id]:hover) {
+  filter: brightness(0.96);
+}
+
+.mapTooltip {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 120px;
+  padding: 0.65rem 0.8rem;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.22);
+  transform: translate3d(0, 0, 0);
+}
+
+.mapTooltip strong {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.mapTooltip span {
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.mapLegend {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.legendTrack {
+  flex: 1;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: linear-gradient(90deg, #ffffff 0%, #dcfce7 18%, #86efac 50%, #22c55e 72%, #166534 100%);
+}
+
+@media (max-width: 768px) {
+  .mapSummary {
+    grid-template-columns: 1fr;
+  }
+
+  .mapFrame {
+    min-height: 300px;
+  }
+}

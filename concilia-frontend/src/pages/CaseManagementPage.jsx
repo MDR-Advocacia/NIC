@@ -4,13 +4,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { 
     FaPlus, FaSearch, FaEye, FaEdit, FaTrash, 
-    FaCheckSquare, FaExchangeAlt, FaTrashAlt, FaTimes, 
+    FaCheckSquare, FaTrashAlt, FaTimes, 
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
-    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser
+    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
+import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -18,8 +19,9 @@ import IndicationChecklistModal from '../components/IndicationChecklistModal';
 import {
     LEGAL_CASE_STATUS_OPTIONS,
     getLegalCaseStatusDetails,
+    UNASSIGNED_RESPONSIBLE_VALUE,
 } from '../constants/legalCaseStatus';
-import { canAccessCaseCreation, isIndicatorRole } from '../constants/access';
+import { canAccessCaseCreation, isIndicatorRole, normalizeUserRole } from '../constants/access';
 import { formatLiveloPoints } from '../constants/settlementBenefit';
 
 // --- COMPONENTES AUXILIARES ---
@@ -35,12 +37,60 @@ const PRIORITY_OPTIONS = Object.entries(PRIORITY_DETAILS).map(([value, details])
     name: details.name,
 }));
 
+const MULTI_CASE_NUMBER_MIN_DIGITS = 15;
+const CASE_NUMBER_TOKEN_PATTERN = /^[0-9./-]+$/;
 const INITIAL_FILTERS = {
     search: '',
+    action_object: '',
     status: '',
     priority: '',
+    tag: '',
     lawyer_id: '',
+    indicator_user_id: '',
 };
+
+const extractMultipleCaseNumberTerms = (value) => {
+    const trimmedValue = String(value || '').trim();
+
+    if (!trimmedValue) {
+        return [];
+    }
+
+    const rawParts = trimmedValue
+        .split(/[\s,;]+/)
+        .map((part) => part.trim().replace(/^["']+|["']+$/g, ''))
+        .filter(Boolean);
+
+    if (rawParts.length < 2) {
+        return [];
+    }
+
+    const normalizedTerms = [];
+    const seenTerms = new Set();
+
+    for (const part of rawParts) {
+        if (!CASE_NUMBER_TOKEN_PATTERN.test(part)) {
+            return [];
+        }
+
+        const normalizedDigits = part.replace(/\D/g, '');
+
+        if (normalizedDigits.length < MULTI_CASE_NUMBER_MIN_DIGITS) {
+            return [];
+        }
+
+        if (seenTerms.has(normalizedDigits)) {
+            continue;
+        }
+
+        seenTerms.add(normalizedDigits);
+        normalizedTerms.push(normalizedDigits);
+    }
+
+    return normalizedTerms;
+};
+
+const formatProcessCount = (count) => `${count} ${count === 1 ? 'processo' : 'processos'}`;
 
 const StatusTag = ({ status }) => {
     const currentStatus = getLegalCaseStatusDetails(status);
@@ -106,14 +156,20 @@ const renderSettlementTerms = (legalCase, formatCurrency) => {
 const CaseManagementPage = () => {
     // Adicionado 'user' para verificar a role
     const { token, user } = useAuth();
+    const normalizedUserRole = normalizeUserRole(user?.role);
     const isIndicator = isIndicatorRole(user?.role);
     const canUseBatchActions = !isIndicator;
+    const canDeleteCases = ['administrador', 'admin'].includes(normalizedUserRole);
+    const canManageSavedTags = ['administrador', 'admin'].includes(normalizedUserRole);
     
     const [cases, setCases] = useState([]);
     const [lawyers, setLawyers] = useState([]);
+    const [indicators, setIndicators] = useState([]);
     const [clients, setClients] = useState([]); 
+    const [savedTags, setSavedTags] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [searchFeedback, setSearchFeedback] = useState(null);
     const [editingCase, setEditingCase] = useState(null);
     const [indicationCase, setIndicationCase] = useState(null);
 
@@ -144,18 +200,26 @@ const CaseManagementPage = () => {
             try {
                 const requests = [
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
                 ];
 
                 if (!isIndicator) {
-                    requests.unshift(apiClient.get('/users', { headers: { Authorization: `Bearer ${token}` } }));
+                    requests.unshift(
+                        apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
+                        apiClient.get('/users/indicators', { headers: { Authorization: `Bearer ${token}` } })
+                    );
                 }
 
                 const responses = await Promise.all(requests);
                 const usersResponse = isIndicator ? null : responses[0];
-                const clientsResponse = isIndicator ? responses[0] : responses[1];
+                const indicatorsResponse = isIndicator ? null : responses[1];
+                const clientsResponse = isIndicator ? responses[0] : responses[2];
+                const caseTagsResponse = isIndicator ? responses[1] : responses[3];
 
-                setLawyers(usersResponse?.data?.data || []);
+                setLawyers(Array.isArray(usersResponse?.data) ? usersResponse.data : []);
+                setIndicators(Array.isArray(indicatorsResponse?.data) ? indicatorsResponse.data : []);
                 setClients(clientsResponse.data || []);
+                setSavedTags(Array.isArray(caseTagsResponse?.data) ? caseTagsResponse.data : []);
             } catch (err) { 
                 console.error("Erro ao buscar dados de apoio", err); 
             }
@@ -167,8 +231,8 @@ const CaseManagementPage = () => {
     const fetchCases = useCallback(async () => {
         if (!token) return;
         setLoading(true);
-        setSelectedCaseIds([]); 
-        setBatchActionType(null);
+        setError('');
+        setSearchFeedback(null);
         
         try {
             const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
@@ -185,6 +249,7 @@ const CaseManagementPage = () => {
             
             if (response.data && response.data.data) {
                 setCases(response.data.data);
+                setSearchFeedback(response.data.search_feedback || null);
                 setPaginationData({
                     last_page: response.data.last_page,
                     total: response.data.total,
@@ -193,10 +258,12 @@ const CaseManagementPage = () => {
                 });
             } else {
                 setCases(response.data);
+                setSearchFeedback(null);
             }
 
         } catch (err) {
             setError('Não foi possível carregar os casos.');
+            setSearchFeedback(null);
             console.error(err);
         } finally {
             setLoading(false);
@@ -212,6 +279,12 @@ const CaseManagementPage = () => {
         const timer = setTimeout(() => { fetchCases(); }, 500);
         return () => clearTimeout(timer);
     }, [fetchCases]);
+
+    useEffect(() => {
+        if (!Array.isArray(selectedCaseIds) || selectedCaseIds.length === 0) {
+            setBatchActionType(null);
+        }
+    }, [selectedCaseIds]);
 
     // --- MANIPULADORES DE ORDENAÇÃO ---
     const handleSort = (key) => {
@@ -240,11 +313,52 @@ const CaseManagementPage = () => {
         setFilters({ ...INITIAL_FILTERS });
     };
 
+    const handleSelectSavedTagFilter = (tag) => {
+        const tagText = tag?.text || tag?.name || '';
+        setFilters((prev) => ({
+            ...prev,
+            tag: prev.tag === tagText ? '' : tagText,
+        }));
+    };
+
+    const handleDeleteSavedTag = async (tagToDelete) => {
+        if (!tagToDelete?.id) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Tem certeza que deseja excluir a etiqueta "${tagToDelete.text || tagToDelete.name}"?\n\nEssa ação removerá a etiqueta do catálogo e de todos os casos que a utilizam.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await apiClient.delete(`/case-tags/${tagToDelete.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+            setFilters((prev) => ({
+                ...prev,
+                tag: prev.tag === (tagToDelete.text || tagToDelete.name) ? '' : prev.tag,
+            }));
+            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+            fetchCases();
+        } catch (err) {
+            console.error('Erro ao excluir etiqueta salva:', err);
+            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+        }
+    };
+
     const handleSelectAll = (e) => {
+        const visibleIds = cases.map((legalCase) => legalCase.id).filter(Boolean);
+
         if (e.target.checked) {
-            setSelectedCaseIds(cases.map(c => c.id));
+            setSelectedCaseIds(prev => Array.from(new Set([...(Array.isArray(prev) ? prev : []), ...visibleIds])));
         } else {
-            setSelectedCaseIds([]);
+            setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => !visibleIds.includes(id)));
         }
     };
 
@@ -260,8 +374,14 @@ const CaseManagementPage = () => {
     };
 
     const executeBatchUpdate = async (action, value) => {
-        if (!value && action !== 'delete') return; 
-        if (!window.confirm(`Aplicar alteração em ${selectedCaseIds.length} processos?`)) return;
+        const isUnassignTransfer = action === 'transfer_user' && value === UNASSIGNED_RESPONSIBLE_VALUE;
+        if ((!value || value === '') && action !== 'delete' && !isUnassignTransfer) return;
+
+        const confirmMessage = action === 'delete'
+            ? `Tem certeza que deseja excluir ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?\n\nEssa ação não pode ser desfeita e removerá os casos definitivamente.`
+            : `Aplicar alteração em ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?`;
+
+        if (!window.confirm(confirmMessage)) return;
 
         setIsBatchProcessing(true);
         try {
@@ -272,21 +392,29 @@ const CaseManagementPage = () => {
             }, { headers: { Authorization: `Bearer ${token}` } });
 
             alert('Ação em lote concluída!');
+            setSelectedCaseIds([]);
+            setBatchActionType(null);
             fetchCases(); 
         } catch (err) {
             console.error(err);
-            alert('Erro ao processar lote.');
+            alert(err?.response?.data?.message || 'Erro ao processar lote.');
         } finally {
             setIsBatchProcessing(false);
         }
     };
 
-    const handleDeleteCase = async (caseId) => {
-        if (window.confirm('Tem certeza que deseja excluir?')) {
+    const handleDeleteCase = async (legalCase) => {
+        const caseLabel = legalCase?.case_number || `#${legalCase?.id}`;
+        const confirmMessage = `Tem certeza que deseja excluir o processo ${caseLabel}?\n\nEssa ação não pode ser desfeita.`;
+
+        if (window.confirm(confirmMessage)) {
             try {
-                await apiClient.delete(`/cases/${caseId}`, { headers: { Authorization: `Bearer ${token}` } });
-                setCases(prev => prev.filter(c => c.id !== caseId));
-            } catch (err) { alert('Erro ao excluir.'); }
+                await apiClient.delete(`/cases/${legalCase.id}`, { headers: { Authorization: `Bearer ${token}` } });
+                setCases(prev => prev.filter(c => c.id !== legalCase.id));
+                setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => id !== legalCase.id));
+            } catch (err) {
+                alert(err?.response?.data?.message || 'Erro ao excluir.');
+            }
         }
     };
 
@@ -308,12 +436,38 @@ const CaseManagementPage = () => {
         }, 0)
     };
 
-    const isAllSelected = cases.length > 0 && Array.isArray(selectedCaseIds) && selectedCaseIds.length === cases.length;
+    const visibleCaseIds = cases.map((legalCase) => legalCase.id).filter(Boolean);
+    const selectedVisibleCaseIds = (Array.isArray(selectedCaseIds) ? selectedCaseIds : []).filter((id) =>
+        visibleCaseIds.includes(id)
+    );
+    const selectedHiddenCount = Math.max((selectedCaseIds?.length || 0) - selectedVisibleCaseIds.length, 0);
+    const isAllSelected =
+        visibleCaseIds.length > 0 && selectedVisibleCaseIds.length === visibleCaseIds.length;
     const selectedLawyer = lawyers.find(lawyer => String(lawyer.id) === String(filters.lawyer_id));
+    const selectedLawyerName = filters.lawyer_id === UNASSIGNED_RESPONSIBLE_VALUE
+        ? 'Sem responsável'
+        : selectedLawyer?.name;
+    const selectedIndicator = indicators.find(indicator => String(indicator.id) === String(filters.indicator_user_id));
+    const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
+        || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
     const activeFilterChips = [];
+    const pastedCaseNumberTerms = extractMultipleCaseNumberTerms(filters.search);
+    const trimmedActionObject = filters.action_object.trim();
 
     if (filters.search.trim()) {
-        activeFilterChips.push({ key: 'search', label: `Busca: ${filters.search.trim()}` });
+        activeFilterChips.push({
+            key: 'search',
+            label: pastedCaseNumberTerms.length > 1
+                ? `Busca: ${formatProcessCount(pastedCaseNumberTerms.length)}`
+                : `Busca: ${filters.search.trim()}`,
+        });
+    }
+
+    if (trimmedActionObject) {
+        activeFilterChips.push({
+            key: 'action_object',
+            label: `Causa de pedir: ${trimmedActionObject}`,
+        });
     }
 
     if (filters.status) {
@@ -330,14 +484,118 @@ const CaseManagementPage = () => {
         });
     }
 
+    if (filters.tag) {
+        activeFilterChips.push({
+            key: 'tag',
+            label: `Etiqueta: ${selectedTagName || filters.tag}`,
+        });
+    }
+
     if (!isIndicator && filters.lawyer_id) {
         activeFilterChips.push({
             key: 'lawyer_id',
-            label: `Responsável: ${selectedLawyer?.name || 'Selecionado'}`,
+            label: `Responsável: ${selectedLawyerName || 'Selecionado'}`,
+        });
+    }
+
+    if (!isIndicator && filters.indicator_user_id) {
+        activeFilterChips.push({
+            key: 'indicator_user_id',
+            label: `Indicador: ${selectedIndicator?.name || 'Selecionado'}`,
         });
     }
 
     const activeFilterCount = activeFilterChips.length;
+    const trimmedSearch = filters.search.trim();
+    const emptyStateContent = (() => {
+        if (cases.length > 0) {
+            return null;
+        }
+
+        if (searchFeedback?.type === 'case_number_not_found') {
+            return {
+                title: `O processo ${searchFeedback.search} não consta na base de dados.`,
+                description: 'Confira o número informado e, se necessário, solicite o cadastro do processo antes de tentar a indicação.',
+            };
+        }
+
+        if (searchFeedback?.type === 'case_number_list_not_found') {
+            const totalTerms = Number(searchFeedback.total_terms || pastedCaseNumberTerms.length || 0);
+
+            return {
+                title: `Nenhum dos ${formatProcessCount(totalTerms)} informados consta na base de dados.`,
+                description: 'Cole a lista novamente, revise os números e, se necessário, solicite o cadastro dos processos antes de tentar a transferência.',
+            };
+        }
+
+        if (searchFeedback?.type === 'case_number_unavailable_for_indicator') {
+            return {
+                title: `O processo ${searchFeedback.search} foi localizado, mas não está disponível para indicação.`,
+                description: 'O perfil Indicador visualiza apenas casos da fila de Análise Inicial que atendem aos filtros atuais.',
+            };
+        }
+
+        if (searchFeedback?.type === 'case_number_list_unavailable_for_indicator') {
+            const totalTerms = Number(searchFeedback.total_terms || pastedCaseNumberTerms.length || 0);
+            const matchedCount = Number(searchFeedback.matched_count || 0);
+            const missingCount = Number(searchFeedback.missing_count || Math.max(totalTerms - matchedCount, 0));
+
+            return {
+                title: `Encontramos ${formatProcessCount(matchedCount)} da lista, mas nenhum está disponível para indicação.`,
+                description: missingCount > 0
+                    ? `${formatProcessCount(missingCount)} não foram localizados e os demais não entram na fila atual de Análise Inicial.`
+                    : 'Os processos encontrados não entram na fila atual de Análise Inicial.',
+            };
+        }
+
+        if (searchFeedback?.type === 'case_number_filtered_out') {
+            return {
+                title: `O processo ${searchFeedback.search} foi localizado, mas não aparece na lista atual.`,
+                description: 'Revise os filtros aplicados para verificar se eles estão restringindo a visualização do processo.',
+            };
+        }
+
+        if (searchFeedback?.type === 'case_number_list_filtered_out') {
+            const totalTerms = Number(searchFeedback.total_terms || pastedCaseNumberTerms.length || 0);
+            const matchedCount = Number(searchFeedback.matched_count || 0);
+            const missingCount = Number(searchFeedback.missing_count || Math.max(totalTerms - matchedCount, 0));
+
+            return {
+                title: `Encontramos ${formatProcessCount(matchedCount)} da lista, mas eles não aparecem com os filtros atuais.`,
+                description: missingCount > 0
+                    ? `${formatProcessCount(missingCount)} não foram localizados na base. Revise os filtros para exibir os processos encontrados.`
+                    : 'Revise os filtros aplicados para exibir os processos encontrados.',
+            };
+        }
+
+        if (trimmedSearch) {
+            return {
+                title: 'Nenhum caso encontrado para a busca informada.',
+                description: isIndicator
+                    ? 'Tente outro número de processo ou limpe os filtros para voltar a visualizar os casos disponíveis para indicação.'
+                    : 'Ajuste a busca ou limpe os filtros para carregar novamente a carteira.',
+            };
+        }
+
+        if (activeFilterCount > 0) {
+            return {
+                title: 'Nenhum caso corresponde aos filtros atuais.',
+                description: 'Remova alguns filtros para ampliar a lista de resultados.',
+            };
+        }
+
+        if (isIndicator) {
+            return {
+                title: 'Nenhum caso disponível para indicação no momento.',
+                description: 'Quando houver processos em Análise Inicial aptos para a sua fila, eles aparecerão aqui.',
+            };
+        }
+
+        return {
+            title: 'Nenhum caso encontrado.',
+            description: 'Ajuste os filtros ou tente novamente em alguns instantes.',
+        };
+    })();
 
     return (
         <div className={styles.pageContainer}>
@@ -351,17 +609,13 @@ const CaseManagementPage = () => {
             </header>
 
             {isIndicator && (
-                <div style={{
-                    marginBottom: '18px',
-                    padding: '14px 18px',
-                    borderRadius: '12px',
-                    border: '1px solid #bfdbfe',
-                    background: '#eff6ff',
-                    color: '#1e3a8a',
-                    fontWeight: 600,
-                }}>
-                    Esta fila mostra os casos em Analise Inicial disponiveis para indicacao de acordo.
-                </div>
+                <section className={styles.indicatorNotice}>
+                    <div className={styles.indicatorNoticeLabel}>Fluxo de indicação</div>
+                    <div className={styles.indicatorNoticeTitle}>Fila pronta para triagem inicial</div>
+                    <p className={styles.indicatorNoticeText}>
+                        Esta fila mostra os casos em Análise Inicial disponíveis para indicação de acordo.
+                    </p>
+                </section>
             )}
             
             <section className={styles.kpiGrid}>
@@ -379,7 +633,7 @@ const CaseManagementPage = () => {
                         </div>
                         <div className={styles.filtersHeading}>
                             <h3>Filtros da Gestão</h3>
-                            <p>Refine a carteira e a tabela atualiza automaticamente enquanto você trabalha.</p>
+                            <p>Refine a carteira por causa de pedir, status, prioridade, etiqueta, responsável e indicador enquanto a tabela atualiza automaticamente.</p>
                         </div>
                     </div>
                     <span className={styles.filterCount}>
@@ -395,10 +649,29 @@ const CaseManagementPage = () => {
                         </span>
                         <input
                             type="text"
-                            placeholder="Processo, cliente ou palavra-chave"
+                            placeholder="Cole um ou vários processos, cliente ou palavra-chave"
                             className={styles.filterControl}
                             name="search"
                             value={filters.search}
+                            onChange={handleFilterChange}
+                            title="Voce pode colar varios numeros de processo separados por espaco ou quebra de linha."
+                        />
+                        <small className={styles.filterHelp}>
+                            Cole varios numeros de processo separados por espaco ou quebra de linha.
+                        </small>
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaGavel />
+                            Causa de Pedir
+                        </span>
+                        <input
+                            type="text"
+                            placeholder="Digite a causa de pedir"
+                            className={styles.filterControl}
+                            name="action_object"
+                            value={filters.action_object}
                             onChange={handleFilterChange}
                         />
                     </label>
@@ -433,23 +706,69 @@ const CaseManagementPage = () => {
                         </select>
                     </label>
 
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaTag />
+                            Etiqueta
+                        </span>
+                        <select className={styles.filterControl} name="tag" value={filters.tag} onChange={handleFilterChange}>
+                            <option value="">Todas as etiquetas</option>
+                            {savedTags.map((tag) => (
+                                <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
+                                    {tag.text || tag.name}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+
                     {!isIndicator && (
-                        <label className={styles.filterField}>
-                            <span className={styles.filterLabel}>
-                                <FaUserTag />
-                                Responsável do caso
-                            </span>
-                            <select className={styles.filterControl} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
-                                <option value="">Todos os responsáveis</option>
-                                {lawyers.map((lawyer) => (
-                                    <option key={lawyer.id} value={lawyer.id}>
-                                        {lawyer.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                        <>
+                            <label className={styles.filterField}>
+                                <span className={styles.filterLabel}>
+                                    <FaUserTag />
+                                    Responsável do caso
+                                </span>
+                                <select className={styles.filterControl} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
+                                    <option value="">Todos os responsáveis</option>
+                                    <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
+                                    {lawyers.map((lawyer) => (
+                                        <option key={lawyer.id} value={lawyer.id}>
+                                            {lawyer.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label className={styles.filterField}>
+                                <span className={styles.filterLabel}>
+                                    <FaUserTag />
+                                    Indicador
+                                </span>
+                                <select className={styles.filterControl} name="indicator_user_id" value={filters.indicator_user_id} onChange={handleFilterChange}>
+                                    <option value="">Todos os indicadores</option>
+                                    {indicators.map((indicator) => (
+                                        <option key={indicator.id} value={indicator.id}>
+                                            {indicator.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        </>
                     )}
                 </div>
+
+                <SavedCaseTagsPanel
+                    tags={savedTags}
+                    title="Etiquetas salvas"
+                    subtitle="Clique para aplicar rapidamente no filtro. Administradores podem excluir etiquetas do catálogo por aqui."
+                    onSelectTag={handleSelectSavedTagFilter}
+                    onDeleteTag={handleDeleteSavedTag}
+                    canDelete={canManageSavedTags}
+                    selectedValue={filters.tag}
+                    selectionMode="filter"
+                    compact
+                    emptyMessage="Nenhuma etiqueta salva cadastrada até o momento."
+                />
 
                 <div className={styles.filtersFooter}>
                     <div className={styles.filtersSummary}>
@@ -504,130 +823,146 @@ const CaseManagementPage = () => {
                             </div>
                         </div>
 
-                        <table className={styles.table}>
-                            <thead>
-                                <tr>
-                                    {canUseBatchActions && (
-                                        <th style={{width: '40px', textAlign: 'center'}}>
-                                            <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className={styles.checkboxInput} />
-                                        </th>
-                                    )}
-                                    
-                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('id')}>
-                                        ID/Processo {getSortIcon('id')}
-                                    </th>
-                                    <th>Cliente/Local</th>
-                                    <th>Partes</th>
-                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('cause_value')}>
-                                        Valores {getSortIcon('cause_value')}
-                                    </th>
-                                    <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('priority')}>
-                                        Status/Prioridade {getSortIcon('priority')}
-                                    </th>
-                                    
-                                    <th>Responsavel / Indicador</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {cases.map(legalCase => (
-                                    <tr key={legalCase.id} className={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id) ? styles.rowSelected : ''}>
-                                        {canUseBatchActions && (
-                                            <td style={{textAlign: 'center'}}>
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id)} 
-                                                    onChange={() => handleSelectCase(legalCase.id)}
-                                                    className={styles.checkboxInput}
-                                                />
-                                            </td>
-                                        )}
-                                        <td>
-                                            <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>{legalCase.id}</Link>
-                                            <div className={styles.subText}>{legalCase.case_number}</div>
-                                        </td>
-                                        <td>
-                                            <div>{legalCase.client?.name || '-'}</div>
-                                            <div className={styles.subText}>{legalCase.comarca}</div>
-                                        </td>
-                                        <td>
-                                            <div><small>A:</small> {legalCase.opposing_party}</div>
-                                            <div className={styles.subText}><small>R:</small> {legalCase.defendant}</div>
-                                        </td>
-                                        <td>
-                                            <div>{formatValue(legalCase.cause_value)}</div>
-                                            {renderSettlementTerms(legalCase, formatValue)}
-                                        </td>
-                                        <td>
-                                            <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
-                                            <PriorityTag priority={legalCase.priority} />
-                                        </td>
-                                        <td>
-                                            <div>{getResponsibleName(legalCase)}</div>
-                                            <div className={styles.subText}>
-                                                {getIndicatorName(legalCase) ? `Indicador: ${getIndicatorName(legalCase)}` : 'Sem indicador'}
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
-                                                {!isIndicator && (
-                                                    <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
+                        {cases.length > 0 ? (
+                            <>
+                                <table className={styles.table}>
+                                    <thead>
+                                        <tr>
+                                            {canUseBatchActions && (
+                                                <th style={{width: '40px', textAlign: 'center'}}>
+                                                    <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className={styles.checkboxInput} />
+                                                </th>
+                                            )}
+                                            
+                                            <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('id')}>
+                                                ID/Processo {getSortIcon('id')}
+                                            </th>
+                                            <th>Cliente/Local</th>
+                                            <th>Partes</th>
+                                            <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('cause_value')}>
+                                                Valores {getSortIcon('cause_value')}
+                                            </th>
+                                            <th style={{cursor:'pointer', userSelect:'none'}} onClick={() => handleSort('priority')}>
+                                                Status/Prioridade {getSortIcon('priority')}
+                                            </th>
+                                            
+                                            <th>Responsável / Indicador</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {cases.map(legalCase => (
+                                            <tr key={legalCase.id} className={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id) ? styles.rowSelected : ''}>
+                                                {canUseBatchActions && (
+                                                    <td style={{textAlign: 'center'}}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={Array.isArray(selectedCaseIds) && selectedCaseIds.includes(legalCase.id)} 
+                                                            onChange={() => handleSelectCase(legalCase.id)}
+                                                            className={styles.checkboxInput}
+                                                        />
+                                                    </td>
                                                 )}
-                                                {isIndicator && legalCase.status === 'initial_analysis' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setIndicationCase(legalCase)}
-                                                        style={{
-                                                            border: 'none',
-                                                            borderRadius: '8px',
-                                                            background: '#1d4ed8',
-                                                            color: '#fff',
-                                                            padding: '8px 12px',
-                                                            fontWeight: 700,
-                                                            cursor: 'pointer',
-                                                        }}
-                                                    >
-                                                        Indicar Caso para acordo
-                                                    </button>
-                                                )}
-                                                
-                                                {/* SÓ MOSTRA SE FOR ADMIN */}
-                                                {user?.role === 'admin' && !isIndicator && (
-                                                    <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase.id)}>
-                                                        <FaTrash />
-                                                    </span>
-                                                )}
+                                                <td>
+                                                    <Link to={`/cases/${legalCase.id}`} className={styles.caseLink}>{legalCase.id}</Link>
+                                                    <div className={styles.subText}>{legalCase.case_number}</div>
+                                                </td>
+                                                <td>
+                                                    <div>{legalCase.client?.name || '-'}</div>
+                                                    <div className={styles.subText}>{legalCase.comarca}</div>
+                                                </td>
+                                                <td>
+                                                    <div><small>A:</small> {legalCase.opposing_party}</div>
+                                                    <div className={styles.subText}><small>R:</small> {legalCase.defendant}</div>
+                                                </td>
+                                                <td>
+                                                    <div>{formatValue(legalCase.cause_value)}</div>
+                                                    {renderSettlementTerms(legalCase, formatValue)}
+                                                </td>
+                                                <td>
+                                                    <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
+                                                    <PriorityTag priority={legalCase.priority} />
+                                                </td>
+                                                <td>
+                                                    <div>{getResponsibleName(legalCase)}</div>
+                                                    <div className={styles.subText}>
+                                                        {getIndicatorName(legalCase) ? `Indicador: ${getIndicatorName(legalCase)}` : 'Sem indicador'}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                                        <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
+                                                        {!isIndicator && (
+                                                            <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
+                                                        )}
+                                                        {isIndicator && legalCase.status === 'initial_analysis' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIndicationCase(legalCase)}
+                                                                className={styles.indicateButton}
+                                                            >
+                                                                Indicar caso para acordo
+                                                            </button>
+                                                        )}
+                                                        
+                                                        {/* SÓ MOSTRA SE FOR ADMIN */}
+                                                        {canDeleteCases && !isIndicator && (
+                                                            <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase)}>
+                                                                <FaTrash />
+                                                            </span>
+                                                        )}
 
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
 
-                        {/* --- CONTROLES DE PAGINAÇÃO (RODAPÉ) --- */}
-                        <div className={styles.paginationFooter}>
-                            <button 
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}
-                                className={styles.paginationBtn}
-                            >
-                                <FaChevronLeft /> Anterior
-                            </button>
+                                {/* --- CONTROLES DE PAGINAÇÃO (RODAPÉ) --- */}
+                                <div className={styles.paginationFooter}>
+                                    <button 
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className={styles.paginationBtn}
+                                    >
+                                        <FaChevronLeft /> Anterior
+                                    </button>
 
-                            <span className={styles.paginationPageInfo}>
-                                Página {currentPage} de {paginationData.last_page || 1}
-                            </span>
+                                    <span className={styles.paginationPageInfo}>
+                                        Página {currentPage} de {paginationData.last_page || 1}
+                                    </span>
 
-                            <button 
-                                onClick={() => setCurrentPage(p => Math.min(paginationData.last_page, p + 1))}
-                                disabled={currentPage >= paginationData.last_page}
-                                className={styles.paginationBtn}
-                            >
-                                Próxima <FaChevronRight />
-                            </button>
-                        </div>
+                                    <button 
+                                        onClick={() => setCurrentPage(p => Math.min(paginationData.last_page, p + 1))}
+                                        disabled={currentPage >= paginationData.last_page}
+                                        className={styles.paginationBtn}
+                                    >
+                                        Próxima <FaChevronRight />
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <div className={styles.emptyState}>
+                                <div className={styles.emptyStateIcon}>
+                                    <FaGavel />
+                                </div>
+                                <div className={styles.emptyStateContent}>
+                                    <h3>{emptyStateContent?.title}</h3>
+                                    <p>{emptyStateContent?.description}</p>
+                                </div>
+                                {activeFilterCount > 0 && (
+                                    <button
+                                        type="button"
+                                        className={styles.emptyStateAction}
+                                        onClick={handleClearFilters}
+                                    >
+                                        <FaEraser />
+                                        Limpar filtros
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </>
                 )}
             </section>
@@ -637,6 +972,10 @@ const CaseManagementPage = () => {
                 <div className={styles.batchActionBar}>
                     <div className={styles.batchInfo}>
                         <strong>{selectedCaseIds.length}</strong> selecionados
+                        <span className={styles.batchSubInfo}>
+                            {selectedVisibleCaseIds.length} na lista atual
+                            {selectedHiddenCount > 0 ? ` • ${selectedHiddenCount} fora do filtro` : ''}
+                        </span>
                     </div>
                     <div className={styles.batchActions}>
                         
@@ -653,8 +992,12 @@ const CaseManagementPage = () => {
                                 </button>
                                 
                                 {/* SÓ MOSTRA SE FOR ADMIN */}
-                                {user?.role === 'admin' && (
-                                    <button className={`${styles.batchBtn} ${styles.btnDanger}`} onClick={() => executeBatchUpdate('delete')}>
+                                {canDeleteCases && (
+                                    <button
+                                        className={`${styles.batchBtn} ${styles.btnDanger}`}
+                                        onClick={() => executeBatchUpdate('delete')}
+                                        disabled={isBatchProcessing}
+                                    >
                                         <FaTrashAlt /> Excluir
                                     </button>
                                 )}
@@ -682,6 +1025,7 @@ const CaseManagementPage = () => {
                                 {batchActionType === 'lawyer' && (
                                     <select className={styles.batchSelect} onChange={(e) => executeBatchUpdate('transfer_user', e.target.value)} defaultValue="">
                                         <option value="" disabled>Novo Responsável...</option>
+                                        <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
                                         {lawyers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                                     </select>
                                 )}
@@ -690,7 +1034,15 @@ const CaseManagementPage = () => {
                             </div>
                         )}
 
-                        <button className={styles.batchClose} onClick={() => setSelectedCaseIds([])}><FaTimes /></button>
+                        <button
+                            className={styles.batchClose}
+                            onClick={() => {
+                                setSelectedCaseIds([]);
+                                setBatchActionType(null);
+                            }}
+                        >
+                            <FaTimes />
+                        </button>
                     </div>
                 </div>
             )}

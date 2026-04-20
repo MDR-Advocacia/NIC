@@ -1,28 +1,56 @@
-// src/components/LinkCaseModal.jsx
-import React, { useState } from 'react';
-import apiClient from '../api';
-import styles from '../styles/LinkCaseModal.module.css'; // ALTERADO: Usaremos um novo arquivo de estilo
+import React, { useMemo, useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
+import apiClient from '../api';
+import styles from '../styles/LinkCaseModal.module.css';
 
-const LinkCaseModal = ({ conversationId, onClose, onLinkSuccess }) => {
+const extrairListaProcessos = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.payload)) return data.payload;
+  return [];
+};
+
+const formatarPartes = (processo) => {
+  const partes = [
+    processo?.plaintiff?.name,
+    processo?.defendantRel?.name,
+    processo?.opposing_party,
+  ].filter(Boolean);
+
+  return partes.join(' • ') || 'Partes nao informadas';
+};
+
+const LinkCaseModal = ({ conversationId, contactName, contactPhone, onClose, onLinkSuccess }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false); // NOVO: Estado para saber se uma busca já foi feita
+  const [searched, setSearched] = useState(false);
   const [selectedCase, setSelectedCase] = useState(null);
+  const [feedback, setFeedback] = useState('');
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
+  const resultados = useMemo(() => cases.filter(Boolean), [cases]);
+
+  const handleSearch = async (event) => {
+    event.preventDefault();
     setLoading(true);
-    setSearched(true); // Marca que a busca foi realizada
-    setCases([]); // Limpa resultados anteriores
+    setSearched(true);
+    setFeedback('');
+    setCases([]);
+
     try {
-      // A API de busca de processos
-      const response = await apiClient.get(`/cases?search=${searchTerm}`);
-      // CORREÇÃO: A API retorna um array diretamente em response.data
-      setCases(response.data);
+      const response = await apiClient.get('/cases', {
+        params: {
+          search: searchTerm.trim(),
+          per_page: 20,
+          sort_by: 'updated_at',
+          sort_order: 'desc',
+        },
+      });
+
+      setCases(extrairListaProcessos(response.data));
     } catch (error) {
-      console.error("Erro ao buscar processos:", error);
+      console.error('Erro ao buscar processos:', error);
+      setFeedback('Nao foi possivel buscar os processos agora.');
     } finally {
       setLoading(false);
     }
@@ -30,43 +58,45 @@ const LinkCaseModal = ({ conversationId, onClose, onLinkSuccess }) => {
 
   const handleLink = async () => {
     if (!selectedCase) {
-      alert('Por favor, selecione um processo para vincular.');
+      setFeedback('Selecione um processo para continuar.');
       return;
     }
-    try {
-      await apiClient.post(`/chat/conversations/${conversationId}/link`, {
-        legal_case_id: selectedCase.id,
-      });
-      alert('Conversa vinculada com sucesso!');
-      onLinkSuccess();
-    } catch (error) {
-      // --- ALTERAÇÃO IMPORTANTE AQUI ---
-      console.error("Erro detalhado ao vincular processo:", error.response);
-      
-      let errorMessage = 'Falha ao vincular o processo.';
 
-      // Se o backend enviou uma resposta com detalhes do erro, vamos exibi-la.
-      if (error.response && error.response.data && error.response.data.message) {
-        errorMessage += `\n\nMotivo: ${error.response.data.message}`;
-      } else if (error.response) {
-        errorMessage += `\n\nCódigo do Erro: ${error.response.status}`;
-      }
-      
-      alert(errorMessage);
+    try {
+      const response = await apiClient.post(`/chat/conversations/${conversationId}/link`, {
+        legal_case_id: selectedCase.id,
+        contact_name: contactName || '',
+        contact_phone: contactPhone || '',
+      });
+
+      onLinkSuccess?.({
+        id: selectedCase.id,
+        case_number: selectedCase.case_number,
+        backend_message: response?.data?.message || '',
+      });
+    } catch (error) {
+      console.error('Erro detalhado ao vincular processo:', error.response || error);
+
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        'Falha ao vincular o processo.';
+
+      setFeedback(Array.isArray(errorMessage) ? errorMessage[0] : errorMessage);
     }
   };
 
   return (
     <div className={styles.modalOverlay}>
       <div className={styles.modalContent}>
-        <h2>Vincular Conversa ao Processo</h2>
-        <p>Busque pelo número do processo, autor ou réu.</p>
-        
+        <h2>Vincular conversa ao processo</h2>
+        <p>Busque pelo numero do processo, autor, reu ou parte adversa.</p>
+
         <form onSubmit={handleSearch} className={styles.searchForm}>
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="Digite para buscar..."
             className={styles.searchInput}
           />
@@ -76,30 +106,34 @@ const LinkCaseModal = ({ conversationId, onClose, onLinkSuccess }) => {
         </form>
 
         <div className={styles.resultsContainer}>
-          {loading ? (
-            <div className={styles.feedbackText}>Buscando...</div>
-          ) : cases.length > 0 ? (
+          {loading ? <div className={styles.feedbackText}>Buscando...</div> : null}
+
+          {!loading && resultados.length > 0 ? (
             <ul className={styles.resultsList}>
-              {cases.map((c) => (
+              {resultados.map((processo) => (
                 <li
-                  key={c.id}
-                  className={`${styles.resultItem} ${selectedCase?.id === c.id ? styles.selected : ''}`}
-                  onClick={() => setSelectedCase(c)}
+                  key={processo.id}
+                  className={`${styles.resultItem} ${selectedCase?.id === processo.id ? styles.selected : ''}`}
+                  onClick={() => setSelectedCase(processo)}
                 >
-                  <strong className={styles.caseNumber}>{c.case_number}</strong>
-                  <span className={styles.caseParty}>{c.opposing_party}</span>
-                  <small className={styles.caseClient}>{c.client?.name}</small>
+                  <strong className={styles.caseNumber}>{processo.case_number}</strong>
+                  <span className={styles.caseParty}>{formatarPartes(processo)}</span>
+                  <small className={styles.caseClient}>{processo.client?.name || 'Cliente nao informado'}</small>
                 </li>
               ))}
             </ul>
-          ) : searched && (
+          ) : null}
+
+          {!loading && searched && resultados.length === 0 ? (
             <div className={styles.feedbackText}>Nenhum processo encontrado.</div>
-          )}
+          ) : null}
         </div>
 
+        {feedback ? <div className={styles.feedbackText} style={{ height: 'auto', justifyContent: 'flex-start', marginTop: '12px' }}>{feedback}</div> : null}
+
         <div className={styles.modalActions}>
-          <button onClick={onClose} className={styles.cancelButton}>Cancelar</button>
-          <button onClick={handleLink} className={styles.linkButton} disabled={!selectedCase || loading}>
+          <button type="button" onClick={onClose} className={styles.cancelButton}>Cancelar</button>
+          <button type="button" onClick={handleLink} className={styles.linkButton} disabled={!selectedCase || loading}>
             Vincular
           </button>
         </div>

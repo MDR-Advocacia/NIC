@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import LinkCaseModal from '../components/LinkCaseModal';
 
 const TEMPLATE_FALLBACK_STORAGE_KEY = 'nic_template_fallback_messages_v1';
 
@@ -172,13 +174,14 @@ const styles = {
     alignItems: 'flex-end',
     gap: '10px',
   }),
-  bubble: (mine) => ({
-    maxWidth: '72%',
+  bubble: (mine, isTemplate = false) => ({
+    maxWidth: isTemplate ? '88%' : '72%',
+    width: isTemplate ? 'min(88%, 760px)' : 'auto',
     padding: '14px 16px',
     borderRadius: mine ? '18px 18px 6px 18px' : '18px 18px 18px 6px',
-    backgroundColor: mine ? '#dbeafe' : '#ffffff',
-    border: '1px solid #dbe3ee',
-    boxShadow: '0 8px 18px rgba(16, 35, 63, 0.05)',
+    backgroundColor: isTemplate ? '#fff6df' : mine ? '#dbeafe' : '#ffffff',
+    border: isTemplate ? '1px solid #f9c86b' : '1px solid #dbe3ee',
+    boxShadow: isTemplate ? '0 10px 22px rgba(249, 200, 107, 0.16)' : '0 8px 18px rgba(16, 35, 63, 0.05)',
   }),
   attachmentCard: {
     marginBottom: '10px',
@@ -398,6 +401,8 @@ const styles = {
 };
 
 const InboxPage = () => {
+  const { conversationId: urlConversationId } = useParams();
+  const navigate = useNavigate();
   const [conversas, setConversas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState('me');
@@ -406,12 +411,18 @@ const InboxPage = () => {
   const [carregandoChat, setCarregandoChat] = useState(false);
   const [novaMensagem, setNovaMensagem] = useState('');
   const [modalAberto, setModalAberto] = useState(false);
+  const [criandoContato, setCriandoContato] = useState(false);
   const [novoContato, setNovoContato] = useState({ name: '', email: '', phone_number: '', inbox_id: '' });
   const [inboxes, setInboxes] = useState([]);
   const [inboxSelecionada, setInboxSelecionada] = useState('all');
   const [visaoAtiva, setVisaoAtiva] = useState('conversas');
   const [contatos, setContatos] = useState([]);
   const [buscaContato, setBuscaContato] = useState('');
+  const [buscaContatoExistente, setBuscaContatoExistente] = useState('');
+  const [resultadosContatoExistente, setResultadosContatoExistente] = useState([]);
+  const [carregandoBuscaContatoExistente, setCarregandoBuscaContatoExistente] = useState(false);
+  const [feedbackBuscaContatoExistente, setFeedbackBuscaContatoExistente] = useState('');
+  const [abrindoContatoExistenteId, setAbrindoContatoExistenteId] = useState('');
   const [contatoParaDetalhar, setContatoParaDetalhar] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [erroTemplates, setErroTemplates] = useState('');
@@ -426,8 +437,14 @@ const InboxPage = () => {
   const [tipoFeedback, setTipoFeedback] = useState('success');
   const [imagemAberta, setImagemAberta] = useState(null);
   const [painelContatoAberto, setPainelContatoAberto] = useState(false);
+  const [modalVinculoAberto, setModalVinculoAberto] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
+  const [processoVinculado, setProcessoVinculado] = useState(null);
   const [formContato, setFormContato] = useState({ id: '', name: '', email: '', phone_number: '' });
   const [salvandoContato, setSalvandoContato] = useState(false);
+  const [atualizandoBloqueioContato, setAtualizandoBloqueioContato] = useState(false);
+  const [excluindoContato, setExcluindoContato] = useState(false);
+  const [inboxContatoSelecionado, setInboxContatoSelecionado] = useState('');
   const [agentesInbox, setAgentesInbox] = useState([]);
   const [carregandoAgentes, setCarregandoAgentes] = useState(false);
   const [agentesConta, setAgentesConta] = useState([]);
@@ -449,7 +466,7 @@ const InboxPage = () => {
       const rawValue = window.sessionStorage.getItem(TEMPLATE_FALLBACK_STORAGE_KEY);
       const parsedValue = rawValue ? JSON.parse(rawValue) : {};
       return parsedValue && typeof parsedValue === 'object' ? parsedValue : {};
-    } catch (error) {
+    } catch {
       return {};
     }
   })());
@@ -548,6 +565,80 @@ const InboxPage = () => {
     return mapa[status] || 'Enviado';
   };
 
+  const extrairTextoErro = (valor) => {
+    if (!valor) return '';
+    if (typeof valor === 'string') return valor.trim();
+    if (Array.isArray(valor)) {
+      for (const item of valor) {
+        const texto = extrairTextoErro(item);
+        if (texto) return texto;
+      }
+      return '';
+    }
+
+    if (typeof valor === 'object') {
+      const chavesPrioritarias = ['message', 'error', 'error_message', 'error_user_msg', 'title', 'description', 'details'];
+
+      for (const chave of chavesPrioritarias) {
+        const texto = extrairTextoErro(valor[chave]);
+        if (texto) return texto;
+      }
+
+      for (const item of Object.values(valor)) {
+        const texto = extrairTextoErro(item);
+        if (texto) return texto;
+      }
+    }
+
+    return '';
+  };
+
+  const getMotivoFalhaMensagem = (mensagem) => {
+    const atributos = mensagem?.content_attributes || {};
+    const adicionais = mensagem?.additional_attributes || {};
+
+    const candidatos = [
+      mensagem?.failure_reason,
+      mensagem?.failed_reason,
+      mensagem?.error_message,
+      mensagem?.meta_error,
+      atributos.failure_reason,
+      atributos.failed_reason,
+      atributos.error_message,
+      atributos.error,
+      atributos.external_error,
+      atributos.meta_error,
+      adicionais.failure_reason,
+      adicionais.failed_reason,
+      adicionais.error_message,
+      adicionais.error,
+      adicionais.external_error,
+      mensagem?.errors,
+    ];
+
+    for (const candidato of candidatos) {
+      const texto = extrairTextoErro(candidato);
+      if (texto) return texto;
+    }
+
+    return '';
+  };
+
+  const getMensagemErroResposta = (data, fallback) => getMotivoFalhaMensagem(data) || extrairTextoErro(data) || fallback;
+
+  const criarMensagemFalhaLocal = ({ content = '', attachments = [], contentType = null, contentAttributes = {}, templateParams = null, reason = '' }) => ({
+    id: `failed-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    content,
+    message_type: 'outgoing',
+    created_at: Math.floor(Date.now() / 1000),
+    status: 'failed',
+    attachments,
+    content_type: contentType || undefined,
+    content_attributes: reason ? { ...contentAttributes, failure_reason: reason } : contentAttributes,
+    template_params: templateParams || undefined,
+    local_failed: true,
+  });
+
   const getConteudoVisivelMensagem = (mensagem) => {
     if (mensagem?.content && mensagem.content.trim()) {
       return mensagem.content.trim();
@@ -588,6 +679,10 @@ const InboxPage = () => {
     mensagem?.content_attributes?.template_name || mensagem?.template_params?.name || mensagem?.content_attributes?.name || '';
 
   const mensagensSaoEquivalentes = (left, right) => {
+    if (left?.local_failed || right?.local_failed || left?.status === 'failed' || right?.status === 'failed') {
+      return false;
+    }
+
     if (getTipoNormalizadoMensagem(left) !== getTipoNormalizadoMensagem(right)) {
       return false;
     }
@@ -611,7 +706,7 @@ const InboxPage = () => {
   };
 
   const registrarFallbackLocal = (conversationId, mensagem) => {
-    if (!conversationId || !mensagem?.meta_fallback) return;
+    if (!conversationId || (!mensagem?.meta_fallback && !mensagem?.local_failed)) return;
 
     const chave = String(conversationId);
     const anteriores = getFallbacksLocaisConversa(conversationId);
@@ -752,20 +847,143 @@ const InboxPage = () => {
     return data;
   };
 
+  const extrairConversaResposta = (data) => {
+    if (data?.payload?.id) return data.payload;
+    if (data?.data?.payload?.id) return data.data.payload;
+    if (data?.data?.id) return data.data;
+    return data;
+  };
+
+  const getInboxIdDaConversa = (conversa) =>
+    conversa?.inbox_id || conversa?.meta?.inbox?.id || conversa?.inbox?.id || null;
+
+  const getInboxNomePorId = (inboxId) => {
+    if (!inboxId) return '';
+    return inboxes.find((inbox) => String(inbox.id) === String(inboxId))?.name || '';
+  };
+
+  const getCanalConversa = (conversa) =>
+    conversa?.meta?.inbox?.name || conversa?.inbox?.name || getInboxNomePorId(getInboxIdDaConversa(conversa));
+
+  const getCanaisContato = (contato) => {
+    if (!contato) return [];
+
+    const contactInboxes = Array.isArray(contato.contact_inboxes)
+      ? contato.contact_inboxes
+      : Array.isArray(contato.contactable_inboxes)
+        ? contato.contactable_inboxes
+        : [];
+
+    const canais = contactInboxes
+      .map((contactInbox) => {
+        const inboxId =
+          contactInbox?.inbox?.id ||
+          contactInbox?.inbox_id ||
+          contactInbox?.source?.inbox_id ||
+          null;
+
+        const inboxName =
+          contactInbox?.inbox?.name ||
+          contactInbox?.name ||
+          getInboxNomePorId(inboxId);
+
+        if (!inboxId && !inboxName) {
+          return null;
+        }
+
+        return {
+          id: inboxId ? String(inboxId) : '',
+          name: inboxName || 'Canal nao identificado',
+          sourceId: contactInbox?.source_id || contactInbox?.source?.id || '',
+        };
+      })
+      .filter(Boolean);
+
+    if (canais.length > 0) {
+      return canais.filter(
+        (canal, index, lista) =>
+          lista.findIndex((item) => `${item.id}-${item.name}` === `${canal.id}-${canal.name}`) === index
+      );
+    }
+
+    const inboxId = contato?.inbox_id || contato?.meta?.inbox?.id || null;
+    const inboxName = contato?.inbox?.name || contato?.inbox_name || getInboxNomePorId(inboxId);
+
+    if (!inboxId && !inboxName) {
+      return [];
+    }
+
+    return [
+      {
+        id: inboxId ? String(inboxId) : '',
+        name: inboxName || 'Canal nao identificado',
+        sourceId: '',
+      },
+    ];
+  };
+
+  const getCanaisContatoTexto = (contato) => getCanaisContato(contato).map((canal) => canal.name).filter(Boolean).join(' / ');
+
+  const isContatoBloqueado = (contato) =>
+    Boolean(contato?.blocked || contato?.is_blocked || contato?.blocked_at || contato?.availability_status === 'blocked');
+
+  const contatoCorrespondeBusca = (contato, termo) => {
+    const termoNormalizado = (termo || '').trim().toLowerCase();
+    if (!termoNormalizado) return true;
+
+    const telefoneBusca = termoNormalizado.replace(/\D+/g, '');
+    const telefoneContato = `${contato?.phone_number || ''} ${contato?.identifier || ''}`.replace(/\D+/g, '');
+    const textoContato = `${contato?.name || ''} ${contato?.email || ''} ${contato?.phone_number || ''} ${contato?.identifier || ''}`.toLowerCase();
+
+    if (telefoneBusca && telefoneContato) {
+      return telefoneContato.includes(telefoneBusca) || telefoneBusca.includes(telefoneContato);
+    }
+
+    return textoContato.includes(termoNormalizado);
+  };
+
+  const fecharModalNovoContato = () => {
+    setModalAberto(false);
+    setCriandoContato(false);
+    setNovoContato({ name: '', email: '', phone_number: '', inbox_id: '' });
+    setBuscaContatoExistente('');
+    setResultadosContatoExistente([]);
+    setFeedbackBuscaContatoExistente('');
+    setAbrindoContatoExistenteId('');
+  };
+
   const conversaAtual = useMemo(
     () => conversas.find((conversa) => conversa.id === conversaSelecionada) || null,
     [conversas, conversaSelecionada]
   );
 
-  const contatoAtual = useMemo(
-    () => contatoParaDetalhar || conversaAtual?.meta?.sender || null,
-    [contatoParaDetalhar, conversaAtual]
-  );
+  const contatoAtual = useMemo(() => {
+    const contatoBase = contatoParaDetalhar || conversaAtual?.meta?.sender || null;
+
+    if (!contatoBase?.id) {
+      return contatoBase;
+    }
+
+    const contatoCompleto = contatos.find((contato) => String(contato.id) === String(contatoBase.id));
+    return contatoCompleto ? { ...contatoBase, ...contatoCompleto } : contatoBase;
+  }, [contatoParaDetalhar, conversaAtual, contatos]);
 
   const agenteAtual = useMemo(
     () => normalizarAgente(conversaAtual?.meta?.assignee) || null,
     [conversaAtual]
   );
+
+  const contatoAtualBloqueado = isContatoBloqueado(contatoAtual);
+  const canaisContatoAtual = getCanaisContato(contatoAtual);
+  const canalAtual = visaoAtiva === 'conversas' ? getCanalConversa(conversaAtual) : getCanaisContatoTexto(contatoAtual);
+  const opcoesInboxContatoAtual =
+    canaisContatoAtual.length > 0
+      ? canaisContatoAtual
+      : inboxes.map((inbox) => ({
+          id: String(inbox.id),
+          name: inbox.name,
+          sourceId: '',
+        }));
 
   const agentesInboxFiltrados = useMemo(() => {
     const termo = buscaAgente.trim().toLowerCase();
@@ -837,9 +1055,27 @@ const InboxPage = () => {
     [variaveisDetectadas, variaveisTemplate]
   );
 
+  const larguraSidebarLayout = viewportWidth > 1080 ? 292 : 0;
+  const larguraUtilModalTemplates = Math.max(viewportWidth - larguraSidebarLayout, 320);
+  const modalTemplatesEmpilhado = larguraUtilModalTemplates <= 1040;
+  const modalTemplatesUltraCompacto = larguraUtilModalTemplates <= 760;
+  const modalTemplatesVariaveisEmColuna = larguraUtilModalTemplates <= 1180;
+
   const definirFeedback = (mensagem, tipo = 'success') => {
     setFeedbackEnvio(mensagem);
     setTipoFeedback(tipo);
+  };
+
+  const handleVinculoProcessoConcluido = (processo) => {
+    setProcessoVinculado(processo || null);
+    setModalVinculoAberto(false);
+
+    if (processo?.case_number) {
+      definirFeedback(`Conversa vinculada ao processo ${processo.case_number} e registrada no historico.`);
+      return;
+    }
+
+    definirFeedback('Conversa vinculada ao processo com sucesso.');
   };
 
   const aplicarContatoAtualizado = (contatoAtualizado) => {
@@ -888,6 +1124,219 @@ const InboxPage = () => {
         };
       })
     );
+  };
+
+  const removerContatoLocal = (contactId) => {
+    if (!contactId) return;
+
+    setContatos((anterior) => anterior.filter((contato) => String(contato.id) !== String(contactId)));
+    setContatoParaDetalhar((anterior) => (String(anterior?.id) === String(contactId) ? null : anterior));
+
+    setConversas((anterior) =>
+      anterior.map((conversa) => {
+        const senderId = conversa?.meta?.sender?.id;
+
+        if (String(senderId) !== String(contactId)) {
+          return conversa;
+        }
+
+        return {
+          ...conversa,
+          meta: {
+            ...(conversa.meta || {}),
+            sender: {
+              ...(conversa.meta?.sender || {}),
+              blocked: false,
+              deleted: true,
+            },
+          },
+        };
+      })
+    );
+  };
+
+  const buscarContatosExistentes = async (termoInicial = '') => {
+    const token = getCleanToken();
+    const termo = (termoInicial || buscaContatoExistente || novoContato.phone_number || novoContato.name).trim();
+
+    if (!termo) {
+      setResultadosContatoExistente([]);
+      setFeedbackBuscaContatoExistente('Informe um nome ou telefone para pesquisar um contato existente.');
+      return [];
+    }
+
+    try {
+      setCarregandoBuscaContatoExistente(true);
+      setFeedbackBuscaContatoExistente('');
+
+      const response = await fetch(`${API_BASE}/chat/contacts?search=${encodeURIComponent(termo)}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setResultadosContatoExistente([]);
+        setFeedbackBuscaContatoExistente(data?.message || 'Nao foi possivel pesquisar os contatos agora.');
+        return [];
+      }
+
+      const resultados = extrairLista(data).filter((contato) => contatoCorrespondeBusca(contato, termo));
+      setResultadosContatoExistente(resultados);
+      setFeedbackBuscaContatoExistente(resultados.length === 0 ? 'Nenhum contato encontrado com esse filtro.' : '');
+      return resultados;
+    } catch (error) {
+      console.error('Erro ao pesquisar contatos existentes:', error);
+      setResultadosContatoExistente([]);
+      setFeedbackBuscaContatoExistente('Falha de comunicacao ao pesquisar contatos.');
+      return [];
+    } finally {
+      setCarregandoBuscaContatoExistente(false);
+    }
+  };
+
+  const encontrarConversaPorContatoEInbox = (contactId, inboxId, lista = conversas) =>
+    (lista || []).find((conversa) => {
+      const senderId = conversa?.meta?.sender?.id;
+      const inboxConversaId = getInboxIdDaConversa(conversa);
+
+      return String(senderId) === String(contactId) && String(inboxConversaId || '') === String(inboxId || '');
+    }) || null;
+
+  const garantirConversaNaLista = (conversa, contato, inboxId) => {
+    if (!conversa?.id) return;
+
+    setConversas((anterior) => {
+      if (anterior.some((item) => String(item.id) === String(conversa.id))) {
+        return anterior.map((item) =>
+          String(item.id) === String(conversa.id)
+            ? {
+                ...item,
+                ...conversa,
+                inbox_id: conversa?.inbox_id || item?.inbox_id || inboxId || null,
+                meta: {
+                  ...(item.meta || {}),
+                  ...(conversa.meta || {}),
+                  sender: {
+                    ...(item.meta?.sender || {}),
+                    ...(conversa.meta?.sender || {}),
+                    ...(contato || {}),
+                  },
+                },
+              }
+            : item
+        );
+      }
+
+      return [
+        {
+          ...conversa,
+          inbox_id: conversa?.inbox_id || inboxId || null,
+          meta: {
+            ...(conversa.meta || {}),
+            sender: {
+              ...(conversa.meta?.sender || {}),
+              ...(contato || {}),
+            },
+          },
+        },
+        ...anterior,
+      ];
+    });
+  };
+
+  const abrirOuCriarConversaContato = async (contato, inboxId, options = {}) => {
+    const token = getCleanToken();
+    const targetInboxId = Number(inboxId || 0);
+
+    if (!contato?.id) {
+      definirFeedback('Selecione um contato valido para abrir a conversa.', 'error');
+      return false;
+    }
+
+    if (!targetInboxId) {
+      definirFeedback('Selecione um canal antes de iniciar o atendimento.', 'error');
+      return false;
+    }
+
+    const conversaExistenteLocal = encontrarConversaPorContatoEInbox(contato.id, targetInboxId);
+
+    if (conversaExistenteLocal) {
+      setVisaoAtiva('conversas');
+      setAbaAtiva('all');
+      setInboxSelecionada(String(targetInboxId));
+      setContatoParaDetalhar(contato);
+      setPainelContatoAberto(false);
+      abrirConversa(conversaExistenteLocal.id);
+
+      if (options.successMessage) {
+        definirFeedback(options.successMessage);
+      }
+
+      return true;
+    }
+
+    try {
+      setAbrindoContatoExistenteId(String(contato.id));
+
+      const response = await fetch(`${API_BASE}/chat/contacts/${contato.id}/conversation`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ inbox_id: targetInboxId }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      const conversaCriada = extrairConversaResposta(data);
+
+      const listaAtualizada = await buscarConversas('all', { silent: true });
+      const conversaExistenteAtualizada =
+        (conversaCriada?.id ? listaAtualizada.find((item) => String(item.id) === String(conversaCriada.id)) : null) ||
+        encontrarConversaPorContatoEInbox(contato.id, targetInboxId, listaAtualizada);
+
+      if (conversaExistenteAtualizada?.id) {
+        setVisaoAtiva('conversas');
+        setAbaAtiva('all');
+        setInboxSelecionada(String(targetInboxId));
+        setContatoParaDetalhar(contato);
+        setPainelContatoAberto(false);
+        abrirConversa(conversaExistenteAtualizada.id);
+
+        if (options.successMessage) {
+          definirFeedback(options.successMessage);
+        }
+
+        return true;
+      }
+
+      if (response.ok && conversaCriada?.id) {
+        garantirConversaNaLista(conversaCriada, contato, targetInboxId);
+        setVisaoAtiva('conversas');
+        setAbaAtiva('all');
+        setInboxSelecionada(String(targetInboxId));
+        setContatoParaDetalhar(contato);
+        setPainelContatoAberto(false);
+        abrirConversa(conversaCriada.id);
+
+        if (options.successMessage) {
+          definirFeedback(options.successMessage);
+        }
+
+        return true;
+      }
+
+      definirFeedback(data?.message || 'Nao foi possivel abrir a conversa para este contato.', 'error');
+      return false;
+    } catch (error) {
+      console.error('Erro ao abrir conversa para contato existente:', error);
+      definirFeedback('Falha de comunicacao ao iniciar o atendimento.', 'error');
+      return false;
+    } finally {
+      setAbrindoContatoExistenteId('');
+    }
   };
 
   const carregarAgentesInbox = async (inboxId) => {
@@ -992,7 +1441,14 @@ const InboxPage = () => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
-        aplicarContatoAtualizado(extrairContatoResposta(data));
+        aplicarContatoAtualizado({
+          id: formContato.id,
+          name: formContato.name,
+          email: formContato.email || null,
+          phone_number: formContato.phone_number || null,
+          blocked: contatoAtualBloqueado,
+          ...extrairContatoResposta(data),
+        });
         definirFeedback('Contato atualizado com sucesso.');
       } else {
         definirFeedback(data?.message || 'Nao foi possivel atualizar o contato.', 'error');
@@ -1002,6 +1458,103 @@ const InboxPage = () => {
       definirFeedback('Falha de comunicacao ao atualizar o contato.', 'error');
     } finally {
       setSalvandoContato(false);
+    }
+  };
+
+  const alternarBloqueioContatoAtual = async () => {
+    if (!formContato.id || atualizandoBloqueioContato) {
+      return;
+    }
+
+    const proximoEstado = !contatoAtualBloqueado;
+    const confirmar = window.confirm(
+      proximoEstado
+        ? 'Deseja bloquear este contato? O envio de novas mensagens ficara desabilitado ate o desbloqueio.'
+        : 'Deseja desbloquear este contato para voltar a enviar mensagens?'
+    );
+
+    if (!confirmar) {
+      return;
+    }
+
+    const token = getCleanToken();
+
+    try {
+      setAtualizandoBloqueioContato(true);
+      const response = await fetch(`${API_BASE}/chat/contacts/${formContato.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          blocked: proximoEstado,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        aplicarContatoAtualizado({
+          id: formContato.id,
+          name: formContato.name,
+          email: formContato.email || null,
+          phone_number: formContato.phone_number || null,
+          blocked: proximoEstado,
+          ...extrairContatoResposta(data),
+        });
+        definirFeedback(proximoEstado ? 'Contato bloqueado com sucesso.' : 'Contato desbloqueado com sucesso.');
+      } else {
+        definirFeedback(data?.message || 'Nao foi possivel atualizar o bloqueio do contato.', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar bloqueio do contato:', error);
+      definirFeedback('Falha de comunicacao ao atualizar o bloqueio do contato.', 'error');
+    } finally {
+      setAtualizandoBloqueioContato(false);
+    }
+  };
+
+  const excluirContatoAtual = async () => {
+    if (!formContato.id || excluindoContato) {
+      return;
+    }
+
+    const confirmar = window.confirm(
+      'Deseja excluir este contato? Essa acao remove o cadastro no Chatwoot e nao pode ser desfeita.'
+    );
+
+    if (!confirmar) {
+      return;
+    }
+
+    const token = getCleanToken();
+
+    try {
+      setExcluindoContato(true);
+      const response = await fetch(`${API_BASE}/chat/contacts/${formContato.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        removerContatoLocal(formContato.id);
+        setPainelContatoAberto(false);
+        await carregarDadosIniciais();
+        await buscarConversas('all', { silent: true });
+        definirFeedback('Contato excluido com sucesso.');
+      } else {
+        definirFeedback(data?.message || 'Nao foi possivel excluir o contato.', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao excluir contato:', error);
+      definirFeedback('Falha de comunicacao ao excluir o contato.', 'error');
+    } finally {
+      setExcluindoContato(false);
     }
   };
 
@@ -1155,6 +1708,18 @@ const InboxPage = () => {
     carregarDadosIniciais();
   }, []);
 
+  // Sincronizar conversa selecionada com a URL
+  useEffect(() => {
+    if (urlConversationId && urlConversationId !== conversaSelecionada) {
+      setConversaSelecionada(urlConversationId);
+      carregarMensagensConversa(urlConversationId);
+    } else if (!urlConversationId && conversaSelecionada) {
+      // Se não há conversationId na URL mas há uma conversa selecionada, limpar seleção
+      setConversaSelecionada(null);
+      setMensagens([]);
+    }
+  }, [urlConversationId]);
+
   useEffect(() => {
     setFormContato({
       id: contatoAtual?.id || '',
@@ -1163,6 +1728,15 @@ const InboxPage = () => {
       phone_number: contatoAtual?.phone_number || contatoAtual?.phoneNumber || '',
     });
   }, [contatoAtual?.id, contatoAtual?.name, contatoAtual?.email, contatoAtual?.phone_number, contatoAtual?.phoneNumber]);
+
+  useEffect(() => {
+    const inboxPadraoContato =
+      (inboxSelecionada !== 'all' ? String(inboxSelecionada) : '') ||
+      opcoesInboxContatoAtual[0]?.id ||
+      '';
+
+    setInboxContatoSelecionado(inboxPadraoContato);
+  }, [contatoAtual?.id, inboxSelecionada, opcoesInboxContatoAtual]);
 
   useEffect(() => {
     setAssigneeSelecionado(agenteAtual?.id ? String(agenteAtual.id) : '');
@@ -1267,11 +1841,23 @@ const InboxPage = () => {
 
   useEffect(() => {
     setModalTemplatesAberto(false);
+    setModalVinculoAberto(false);
+    setProcessoVinculado(null);
     setTemplateSelecionado(null);
     setVariaveisTemplate({});
     setBuscaTemplate('');
     setErroTemplates('');
   }, [conversaSelecionada]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleResize = () => setViewportWidth(window.innerWidth);
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const carregarMensagensConversa = async (chatId, options = {}) => {
     const silent = options.silent === true;
@@ -1302,6 +1888,7 @@ const InboxPage = () => {
   const abrirConversa = (chatId) => {
     shouldStickToBottomRef.current = true;
     setConversaSelecionada(chatId);
+    navigate(`/inbox/${chatId}`, { replace: false });
     setFeedbackEnvio('');
     carregarMensagensConversa(chatId);
   };
@@ -1326,6 +1913,11 @@ const InboxPage = () => {
 
   const abrirModalTemplates = async () => {
     if (!conversaSelecionada) return;
+    if (contatoAtualBloqueado) {
+      definirFeedback('Este contato esta bloqueado. Desbloqueie o cadastro para enviar novas mensagens.', 'error');
+      return;
+    }
+
     setModalTemplatesAberto(true);
     setBuscaTemplate('');
     await carregarTemplates();
@@ -1342,6 +1934,10 @@ const InboxPage = () => {
 
   const enviarArquivos = async (arquivos, tipoForcado = null) => {
     if (!conversaSelecionada || !arquivos?.length || enviandoArquivo) return;
+    if (contatoAtualBloqueado) {
+      definirFeedback('Este contato esta bloqueado. Desbloqueie o cadastro para enviar novas mensagens.', 'error');
+      return;
+    }
 
     const token = getCleanToken();
     const formData = new FormData();
@@ -1364,6 +1960,10 @@ const InboxPage = () => {
       });
 
       const data = await response.json().catch(() => ({}));
+      const anexosLocais = arquivos.map((arquivo) => ({
+        file_type: detectarTipoArquivo(arquivo),
+        data_url: URL.createObjectURL(arquivo),
+      }));
 
       if (response.ok) {
         shouldStickToBottomRef.current = true;
@@ -1371,21 +1971,43 @@ const InboxPage = () => {
           ...anterior,
           normalizarMensagemRetorno(data, {
             content: novaMensagem.trim(),
-            attachments: arquivos.map((arquivo) => ({
-              file_type: detectarTipoArquivo(arquivo),
-              data_url: URL.createObjectURL(arquivo),
-            })),
+            attachments: anexosLocais,
           }),
         ]);
         setNovaMensagem('');
         definirFeedback('Arquivo enviado com sucesso.');
       } else {
         console.error('Erro ao enviar arquivo:', data);
-        definirFeedback(data?.message || 'Nao foi possivel enviar o arquivo.', 'error');
+        const motivoFalha = getMensagemErroResposta(data, 'Nao foi possivel enviar o arquivo.');
+        const mensagemFalha = criarMensagemFalhaLocal({
+          content: novaMensagem.trim(),
+          attachments: anexosLocais,
+          reason: motivoFalha,
+        });
+
+        shouldStickToBottomRef.current = true;
+        registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+        setMensagens((anterior) => [...anterior, mensagemFalha]);
+        setNovaMensagem('');
+        definirFeedback(motivoFalha, 'error');
       }
     } catch (error) {
       console.error(error);
-      definirFeedback('Falha de comunicacao ao enviar o arquivo.', 'error');
+      const motivoFalha = 'Falha de comunicacao ao enviar o arquivo.';
+      const mensagemFalha = criarMensagemFalhaLocal({
+        content: novaMensagem.trim(),
+        attachments: arquivos.map((arquivo) => ({
+          file_type: detectarTipoArquivo(arquivo),
+          data_url: URL.createObjectURL(arquivo),
+        })),
+        reason: motivoFalha,
+      });
+
+      shouldStickToBottomRef.current = true;
+      registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+      setMensagens((anterior) => [...anterior, mensagemFalha]);
+      setNovaMensagem('');
+      definirFeedback(motivoFalha, 'error');
     } finally {
       setEnviandoArquivo(false);
     }
@@ -1404,6 +2026,11 @@ const InboxPage = () => {
 
   const enviarMensagem = async () => {
     if (!novaMensagem.trim() || !conversaSelecionada) return;
+    if (contatoAtualBloqueado) {
+      definirFeedback('Este contato esta bloqueado. Desbloqueie o cadastro para enviar novas mensagens.', 'error');
+      return;
+    }
+
     const token = getCleanToken();
 
     try {
@@ -1425,16 +2052,40 @@ const InboxPage = () => {
         setNovaMensagem('');
         setFeedbackEnvio('');
       } else {
-        definirFeedback(data?.message || 'Nao foi possivel enviar a mensagem.', 'error');
+        const motivoFalha = getMensagemErroResposta(data, 'Nao foi possivel enviar a mensagem.');
+        const mensagemFalha = criarMensagemFalhaLocal({
+          content: novaMensagem.trim(),
+          reason: motivoFalha,
+        });
+
+        shouldStickToBottomRef.current = true;
+        registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+        setMensagens((anterior) => [...anterior, mensagemFalha]);
+        setNovaMensagem('');
+        definirFeedback(motivoFalha, 'error');
       }
     } catch (error) {
       console.error(error);
-      definirFeedback('Falha de comunicacao ao enviar a mensagem.', 'error');
+      const motivoFalha = 'Falha de comunicacao ao enviar a mensagem.';
+      const mensagemFalha = criarMensagemFalhaLocal({
+        content: novaMensagem.trim(),
+        reason: motivoFalha,
+      });
+
+      shouldStickToBottomRef.current = true;
+      registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+      setMensagens((anterior) => [...anterior, mensagemFalha]);
+      setNovaMensagem('');
+      definirFeedback(motivoFalha, 'error');
     }
   };
 
   const enviarTemplateSelecionado = async () => {
     if (!conversaSelecionada || !templateSelecionado || enviandoTemplate) return;
+    if (contatoAtualBloqueado) {
+      definirFeedback('Este contato esta bloqueado. Desbloqueie o cadastro para enviar novas mensagens.', 'error');
+      return;
+    }
 
     if (variaveisPendentes.length > 0) {
       definirFeedback('Preencha todas as variaveis do template antes de enviar.', 'error');
@@ -1499,11 +2150,35 @@ const InboxPage = () => {
         definirFeedback(`Template "${templateSelecionado.name}" enviado com sucesso.`);
       } else {
         console.error('Erro ao enviar template:', data);
-        definirFeedback(data?.message || data?.meta_error?.error?.message || 'Nao foi possivel enviar o template.', 'error');
+        const motivoFalha = getMensagemErroResposta(data, 'Nao foi possivel enviar o template.');
+        const mensagemFalha = criarMensagemFalhaLocal({
+          content: payload.content,
+          contentType: 'template',
+          contentAttributes: payload.content_attributes,
+          templateParams: payload.template_params,
+          reason: motivoFalha,
+        });
+
+        shouldStickToBottomRef.current = true;
+        registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+        setMensagens((anterior) => [...anterior, mensagemFalha]);
+        definirFeedback(motivoFalha, 'error');
       }
     } catch (error) {
       console.error(error);
-      definirFeedback('Falha de comunicacao ao enviar o template.', 'error');
+      const motivoFalha = 'Falha de comunicacao ao enviar o template.';
+      const mensagemFalha = criarMensagemFalhaLocal({
+        content: payload.content,
+        contentType: 'template',
+        contentAttributes: payload.content_attributes,
+        templateParams: payload.template_params,
+        reason: motivoFalha,
+      });
+
+      shouldStickToBottomRef.current = true;
+      registrarFallbackLocal(conversaSelecionada, mensagemFalha);
+      setMensagens((anterior) => [...anterior, mensagemFalha]);
+      definirFeedback(motivoFalha, 'error');
     } finally {
       setEnviandoTemplate(false);
     }
@@ -1512,8 +2187,12 @@ const InboxPage = () => {
   const handleSubmitNovoContato = async (event) => {
     event.preventDefault();
     const token = getCleanToken();
+    const inboxId = Number(novoContato.inbox_id);
 
     try {
+      setCriandoContato(true);
+      setFeedbackBuscaContatoExistente('');
+
       const response = await fetch(`${API_BASE}/chat/contacts`, {
         method: 'POST',
         headers: {
@@ -1524,13 +2203,55 @@ const InboxPage = () => {
         body: JSON.stringify(novoContato),
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        setModalAberto(false);
-        setNovoContato({ name: '', email: '', phone_number: '', inbox_id: '' });
-        carregarDadosIniciais();
+        const contatoCriado = extrairContatoResposta(data);
+
+        await carregarDadosIniciais();
+
+        if (contatoCriado?.id && inboxId) {
+          const conversaAberta = await abrirOuCriarConversaContato(contatoCriado, inboxId, {
+            successMessage: 'Contato criado e conversa iniciada com sucesso.',
+          });
+
+          fecharModalNovoContato();
+
+          if (conversaAberta) {
+            return;
+          }
+        }
+
+        fecharModalNovoContato();
+        setVisaoAtiva('contatos');
+        setContatoParaDetalhar(contatoCriado);
+        setPainelContatoAberto(true);
+        definirFeedback('Contato criado com sucesso. Abra a conversa pelo canal desejado.');
+        return;
       }
+
+      const candidatos = Array.isArray(data?.conflict_candidates) ? data.conflict_candidates.filter(Boolean) : [];
+
+      if (candidatos.length > 0) {
+        setResultadosContatoExistente(candidatos);
+        setFeedbackBuscaContatoExistente(
+          data?.message || 'Ja existe um contato parecido. Use um dos resultados abaixo para abrir a conversa sem criar duplicidade.'
+        );
+        return;
+      }
+
+      const resultadosPesquisa = await buscarContatosExistentes(novoContato.phone_number || novoContato.name);
+      if (resultadosPesquisa.length > 0) {
+        setFeedbackBuscaContatoExistente(data?.message || 'Encontramos contatos parecidos para voce reutilizar.');
+        return;
+      }
+
+      setFeedbackBuscaContatoExistente(data?.message || 'Nao foi possivel criar o contato.');
     } catch (error) {
       console.error(error);
+      setFeedbackBuscaContatoExistente('Falha ao criar o contato.');
+    } finally {
+      setCriandoContato(false);
     }
   };
 
@@ -1597,7 +2318,7 @@ const InboxPage = () => {
 
       {modalAberto ? (
         <div style={styles.modalOverlay}>
-          <div style={{ width: '420px', borderRadius: '24px', backgroundColor: '#ffffff', padding: '28px', boxShadow: '0 28px 80px rgba(6, 17, 34, 0.22)' }}>
+          <div style={{ width: '480px', maxWidth: '100%', borderRadius: '24px', backgroundColor: '#ffffff', padding: '28px', boxShadow: '0 28px 80px rgba(6, 17, 34, 0.22)' }}>
             <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#10233f' }}>Novo Contato</h3>
             <form onSubmit={handleSubmitNovoContato}>
               <div style={{ marginBottom: '16px' }}>
@@ -1618,13 +2339,95 @@ const InboxPage = () => {
                     </option>
                   ))}
                 </select>
+                <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.5, color: '#6b7d96' }}>
+                  Depois do cadastro, o NIC tenta abrir a conversa automaticamente para voce iniciar o atendimento.
+                </div>
+              </div>
+              <div style={{ ...styles.fieldCard, marginBottom: '22px', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#10233f' }}>Contato ja existente?</div>
+                  <div style={{ marginTop: '4px', fontSize: '12px', lineHeight: 1.5, color: '#6b7d96' }}>
+                    Pesquise por nome ou telefone para abrir a conversa sem criar cadastro duplicado.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input
+                    type="text"
+                    style={styles.input}
+                    placeholder="Buscar contato existente"
+                    value={buscaContatoExistente}
+                    onChange={(event) => setBuscaContatoExistente(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    style={{ ...styles.secondaryButton, flexShrink: 0 }}
+                    onClick={() => buscarContatosExistentes()}
+                    disabled={carregandoBuscaContatoExistente}
+                  >
+                    {carregandoBuscaContatoExistente ? 'Buscando...' : 'Buscar'}
+                  </button>
+                </div>
+
+                {feedbackBuscaContatoExistente ? <div style={styles.helperText}>{feedbackBuscaContatoExistente}</div> : null}
+
+                {resultadosContatoExistente.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto' }}>
+                    {resultadosContatoExistente.map((contato) => {
+                      const canaisContato = getCanaisContatoTexto(contato);
+                      const bloqueado = isContatoBloqueado(contato);
+                      const abrindoEsteContato = String(abrindoContatoExistenteId) === String(contato.id);
+
+                      return (
+                        <div key={contato.id} style={styles.agentOption(false)}>
+                          <div style={{ minWidth: 0 }}>
+                            {canaisContato ? (
+                              <div style={{ marginBottom: '4px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>
+                                {canaisContato}
+                              </div>
+                            ) : null}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ fontWeight: 700, color: '#10233f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {contato.name || 'Contato sem nome'}
+                              </div>
+                              {bloqueado ? (
+                                <span style={{ padding: '4px 8px', borderRadius: '999px', backgroundColor: '#fee2e2', color: '#b42318', fontSize: '10px', fontWeight: 800 }}>
+                                  Bloqueado
+                                </span>
+                              ) : null}
+                            </div>
+                            <div style={{ marginTop: '2px', fontSize: '12px', color: '#6b7d96' }}>
+                              {contato.phone_number || contato.identifier || 'Telefone nao informado'}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            style={styles.tinyButton('primary')}
+                            disabled={!novoContato.inbox_id || abrindoEsteContato || bloqueado}
+                            onClick={() =>
+                              abrirOuCriarConversaContato(contato, Number(novoContato.inbox_id), {
+                                successMessage: 'Conversa aberta com o contato existente.',
+                              }).then((abriu) => {
+                                if (abriu) {
+                                  fecharModalNovoContato();
+                                }
+                              })
+                            }
+                          >
+                            {abrindoEsteContato ? '...' : 'Abrir'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="button" onClick={() => setModalAberto(false)} style={{ ...styles.secondaryButton, flex: 1 }}>
+                <button type="button" onClick={fecharModalNovoContato} style={{ ...styles.secondaryButton, flex: 1 }} disabled={criandoContato}>
                   Cancelar
                 </button>
-                <button type="submit" style={{ ...styles.primaryButton, flex: 1 }}>
-                  Criar Contato
+                <button type="submit" style={{ ...styles.primaryButton, flex: 1 }} disabled={criandoContato}>
+                  {criandoContato ? 'Criando...' : 'Criar e abrir conversa'}
                 </button>
               </div>
             </form>
@@ -1633,11 +2436,21 @@ const InboxPage = () => {
       ) : null}
 
       {modalTemplatesAberto ? (
-        <div style={styles.modalOverlay}>
+        <div
+          style={{
+            ...styles.modalOverlay,
+            paddingTop: modalTemplatesUltraCompacto ? '12px' : '24px',
+            paddingRight: modalTemplatesUltraCompacto ? '12px' : '24px',
+            paddingBottom: modalTemplatesUltraCompacto ? '12px' : '24px',
+            paddingLeft: larguraSidebarLayout > 0 ? `${larguraSidebarLayout + 24}px` : modalTemplatesUltraCompacto ? '12px' : '24px',
+            boxSizing: 'border-box',
+          }}
+        >
           <div
             style={{
-              width: 'min(1020px, calc(100vw - 48px))',
-              maxHeight: '86vh',
+              width: '100%',
+              maxWidth: modalTemplatesUltraCompacto ? '100%' : modalTemplatesEmpilhado ? '840px' : '940px',
+              maxHeight: 'min(88vh, 860px)',
               borderRadius: '24px',
               backgroundColor: '#101820',
               color: '#f8fafc',
@@ -1649,7 +2462,7 @@ const InboxPage = () => {
           >
             <div
               style={{
-                padding: '22px 24px',
+                padding: modalTemplatesUltraCompacto ? '18px 16px' : '22px 24px',
                 borderBottom: '1px solid rgba(148, 163, 184, 0.18)',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -1658,23 +2471,34 @@ const InboxPage = () => {
               }}
             >
               <div>
-                <div style={{ fontSize: '34px', fontWeight: 800, lineHeight: 1.1 }}>Templates do WhatsApp</div>
-                <div style={{ marginTop: '8px', color: '#94a3b8' }}>Selecione um template, preencha as variaveis e envie quando estiver pronto.</div>
+                <div style={{ fontSize: modalTemplatesUltraCompacto ? '22px' : modalTemplatesEmpilhado ? '27px' : '32px', fontWeight: 800, lineHeight: 1.1, maxWidth: '100%', overflowWrap: 'anywhere' }}>Templates do WhatsApp</div>
+                <div style={{ marginTop: '8px', color: '#94a3b8', fontSize: modalTemplatesUltraCompacto ? '13px' : '14px', lineHeight: 1.5, maxWidth: '100%' }}>Selecione um template, preencha as variaveis e envie quando estiver pronto.</div>
               </div>
               <button type="button" style={{ border: 'none', background: 'transparent', color: '#cbd5e1', fontSize: '28px', lineHeight: 1, cursor: 'pointer' }} onClick={() => setModalTemplatesAberto(false)}>
                 x
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', minHeight: 0, flex: 1 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: modalTemplatesEmpilhado ? '1fr' : '248px minmax(0, 1fr)',
+                minHeight: 0,
+                flex: 1,
+                overflow: 'hidden',
+              }}
+            >
               <div
                 style={{
-                  padding: '20px',
-                  borderRight: '1px solid rgba(148, 163, 184, 0.16)',
+                  padding: modalTemplatesUltraCompacto ? '16px' : '20px',
+                  borderRight: modalTemplatesEmpilhado ? 'none' : '1px solid rgba(148, 163, 184, 0.16)',
+                  borderBottom: modalTemplatesEmpilhado ? '1px solid rgba(148, 163, 184, 0.16)' : 'none',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '14px',
+                  minWidth: 0,
                   minHeight: 0,
+                  maxHeight: modalTemplatesEmpilhado ? '28vh' : 'none',
                 }}
               >
                 <input
@@ -1684,17 +2508,18 @@ const InboxPage = () => {
                   placeholder="Pesquisar modelos"
                   style={{
                     width: '100%',
-                    padding: '13px 14px',
+                    padding: modalTemplatesUltraCompacto ? '12px 13px' : '13px 14px',
                     borderRadius: '14px',
                     border: '1px solid rgba(148, 163, 184, 0.16)',
                     backgroundColor: '#17212b',
                     color: '#f8fafc',
                     outline: 'none',
                     fontSize: '14px',
+                    boxSizing: 'border-box',
                   }}
                 />
 
-                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {carregandoTemplates ? <div style={{ color: '#94a3b8' }}>Carregando templates...</div> : null}
                   {!carregandoTemplates && erroTemplates ? <div style={{ color: '#fda4af', lineHeight: 1.6 }}>{erroTemplates}</div> : null}
                   {!carregandoTemplates && !erroTemplates && templatesFiltrados.length === 0 ? <div style={{ color: '#94a3b8' }}>Nenhum template encontrado para esta inbox.</div> : null}
@@ -1707,19 +2532,37 @@ const InboxPage = () => {
                           <div
                             key={template.id || template.name}
                             style={{
-                              padding: '14px',
-                              borderRadius: '16px',
+                              padding: modalTemplatesUltraCompacto ? '0 12px' : '0 14px',
+                              borderRadius: '14px',
                               border: ativo ? '1px solid rgba(96, 165, 250, 0.75)' : '1px solid rgba(148, 163, 184, 0.12)',
                               backgroundColor: ativo ? '#162235' : '#141d26',
                               cursor: 'pointer',
+                              overflow: 'hidden',
+                              minHeight: modalTemplatesUltraCompacto ? '46px' : '50px',
+                              display: 'flex',
+                              flexDirection: 'row',
+                              justifyContent: 'flex-start',
+                              alignItems: 'center',
                             }}
                             onClick={() => prepararTemplate(template)}
                           >
-                            <div style={{ fontWeight: 700, fontSize: '15px', color: '#f8fafc' }}>{template.name}</div>
-                            <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.6, color: '#94a3b8' }}>
-                              {getTextoTemplate(template).slice(0, 132)}
-                              {getTextoTemplate(template).length > 132 ? '...' : ''}
-                            </div>
+                            <span
+                              style={{
+                                display: 'block',
+                                width: '100%',
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                fontWeight: 700,
+                                fontSize: modalTemplatesUltraCompacto ? '12px' : '13px',
+                                lineHeight: 1.2,
+                                color: '#f8fafc',
+                              }}
+                              title={template.name}
+                            >
+                              {template.name}
+                            </span>
                           </div>
                         );
                       })
@@ -1727,22 +2570,32 @@ const InboxPage = () => {
                 </div>
               </div>
 
-              <div style={{ padding: '20px 24px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div
+                style={{
+                  padding: modalTemplatesUltraCompacto ? '16px' : '20px 24px 24px',
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '18px',
+                  minWidth: 0,
+                }}
+              >
                 {templateSelecionado ? (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '18px', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ fontSize: '26px', fontWeight: 800 }}>{templateSelecionado.name}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-start' }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: modalTemplatesUltraCompacto ? '20px' : '24px', fontWeight: 800, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{templateSelecionado.name}</div>
                         <div style={{ marginTop: '6px', color: '#94a3b8' }}>Idioma: {templateSelecionado.language || 'pt_BR'}</div>
                       </div>
-                      <div style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#162235', color: '#93c5fd', fontSize: '12px', fontWeight: 700 }}>
+                      <div style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#162235', color: '#93c5fd', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
                         {templateSelecionado.category || 'UTILITY'}
                       </div>
                     </div>
 
                     <div>
                       <div style={{ marginBottom: '8px', color: '#94a3b8', fontSize: '13px', fontWeight: 700 }}>PREVIEW</div>
-                      <div style={{ padding: '18px', borderRadius: '18px', backgroundColor: '#141d26', border: '1px solid rgba(148, 163, 184, 0.12)', whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '15px', color: '#e2e8f0' }}>
+                      <div style={{ padding: modalTemplatesUltraCompacto ? '14px' : '18px', borderRadius: '18px', backgroundColor: '#141d26', border: '1px solid rgba(148, 163, 184, 0.12)', whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: modalTemplatesUltraCompacto ? '14px' : '15px', color: '#e2e8f0', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                         {formatarPreviewTemplate(templateSelecionado, variaveisTemplate)}
                       </div>
                     </div>
@@ -1750,16 +2603,16 @@ const InboxPage = () => {
                     {variaveisDetectadas.length > 0 ? (
                       <div>
                         <div style={{ marginBottom: '10px', color: '#94a3b8', fontSize: '13px', fontWeight: 700 }}>VARIAVEIS</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: modalTemplatesVariaveisEmColuna ? '1fr' : '1fr 1fr', gap: '12px', minWidth: 0 }}>
                           {variaveisDetectadas.map((indice) => (
-                            <div key={indice}>
+                            <div key={indice} style={{ minWidth: 0 }}>
                               <label style={{ display: 'block', marginBottom: '6px', color: '#cbd5e1', fontSize: '12px', fontWeight: 700 }}>{`Valor ${indice}`}</label>
                               <input
                                 type="text"
                                 value={variaveisTemplate[indice] || ''}
                                 onChange={(event) => setVariaveisTemplate((anterior) => ({ ...anterior, [indice]: event.target.value }))}
                                 placeholder={`Insira o valor para ${indice}`}
-                                style={{ width: '100%', padding: '13px 14px', borderRadius: '14px', border: '1px solid rgba(148, 163, 184, 0.16)', backgroundColor: '#17212b', color: '#f8fafc', outline: 'none', fontSize: '14px' }}
+                                style={{ width: '100%', minWidth: 0, maxWidth: '100%', padding: '13px 14px', borderRadius: '14px', border: '1px solid rgba(148, 163, 184, 0.16)', backgroundColor: '#17212b', color: '#f8fafc', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
                               />
                             </div>
                           ))}
@@ -1771,15 +2624,15 @@ const InboxPage = () => {
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginTop: 'auto' }}>
-                      <div style={{ color: variaveisPendentes.length > 0 ? '#fca5a5' : '#94a3b8', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: modalTemplatesUltraCompacto ? 'stretch' : 'center', flexDirection: modalTemplatesUltraCompacto ? 'column' : 'row', gap: '16px', marginTop: 'auto' }}>
+                      <div style={{ color: variaveisPendentes.length > 0 ? '#fca5a5' : '#94a3b8', fontSize: '13px', minWidth: 0 }}>
                         {variaveisPendentes.length > 0 ? 'Preencha todas as variaveis para liberar o envio.' : `Destino: ${telefoneDestino || 'sem telefone identificado'}`}
                       </div>
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button type="button" style={{ ...styles.secondaryButton, color: '#10233f' }} onClick={() => setModalTemplatesAberto(false)}>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', width: modalTemplatesUltraCompacto ? '100%' : 'auto' }}>
+                        <button type="button" style={{ ...styles.secondaryButton, color: '#10233f', flex: modalTemplatesUltraCompacto ? 1 : '0 0 auto' }} onClick={() => setModalTemplatesAberto(false)}>
                           Voltar
                         </button>
-                        <button type="button" style={styles.primaryButton} onClick={enviarTemplateSelecionado} disabled={enviandoTemplate} aria-busy={enviandoTemplate}>
+                        <button type="button" style={{ ...styles.primaryButton, flex: modalTemplatesUltraCompacto ? 1 : '0 0 auto' }} onClick={enviarTemplateSelecionado} disabled={enviandoTemplate} aria-busy={enviandoTemplate}>
                           {enviandoTemplate ? 'Enviando...' : 'Enviar Template'}
                         </button>
                       </div>
@@ -1792,6 +2645,16 @@ const InboxPage = () => {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {modalVinculoAberto && conversaSelecionada ? (
+        <LinkCaseModal
+          conversationId={conversaSelecionada}
+          contactName={contatoAtual?.name || conversaAtual?.meta?.sender?.name || ''}
+          contactPhone={telefoneDestino || ''}
+          onClose={() => setModalVinculoAberto(false)}
+          onLinkSuccess={handleVinculoProcessoConcluido}
+        />
       ) : null}
 
       <div style={styles.rail}>
@@ -1858,6 +2721,8 @@ const InboxPage = () => {
               const horario = visaoAtiva === 'conversas' ? formatarHorarioConversa(item.last_non_activity_message?.created_at || item.timestamp || item.updated_at) : '';
               const naoLidas = Number(item.unread_count || 0);
               const ativo = conversaSelecionada === item.id;
+              const canal = visaoAtiva === 'conversas' ? getCanalConversa(item) : getCanaisContatoTexto(item);
+              const bloqueado = isContatoBloqueado(visaoAtiva === 'conversas' ? item?.meta?.sender : item);
 
               return (
                 <div
@@ -1875,8 +2740,20 @@ const InboxPage = () => {
                 >
                   <div style={styles.avatar(ativo)}>{nome.charAt(0).toUpperCase()}</div>
                   <div style={{ minWidth: 0, flex: 1 }}>
+                    {canal ? (
+                      <div style={{ marginBottom: '4px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {canal}
+                      </div>
+                    ) : null}
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
-                      <div style={{ fontWeight: 700, fontSize: '15px', color: '#10233f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '15px', color: '#10233f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome}</div>
+                        {bloqueado ? (
+                          <span style={{ padding: '4px 8px', borderRadius: '999px', backgroundColor: '#fee2e2', color: '#b42318', fontSize: '10px', fontWeight: 800, flexShrink: 0 }}>
+                            Bloqueado
+                          </span>
+                        ) : null}
+                      </div>
                       {horario ? <div style={{ fontSize: '11px', color: '#6b7d96', flexShrink: 0 }}>{horario}</div> : null}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
@@ -1901,14 +2778,40 @@ const InboxPage = () => {
           <>
             <div style={styles.chatHeader}>
               <div style={styles.headerInfo} onClick={() => setPainelContatoAberto(true)}>
-                <div style={{ fontSize: '30px', fontWeight: 800, lineHeight: 1.1 }}>{contatoParaDetalhar?.name || 'Atendimento'}</div>
+                {canalAtual ? (
+                  <div style={{ marginBottom: '6px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>
+                    {canalAtual}
+                  </div>
+                ) : null}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '30px', fontWeight: 800, lineHeight: 1.1 }}>{contatoAtual?.name || 'Atendimento'}</div>
+                  {contatoAtualBloqueado ? (
+                    <span style={{ padding: '6px 10px', borderRadius: '999px', backgroundColor: '#fee2e2', color: '#b42318', fontSize: '11px', fontWeight: 800 }}>
+                      Contato bloqueado
+                    </span>
+                  ) : null}
+                </div>
                 <div style={{ marginTop: '6px', color: '#6b7d96' }}>{telefoneDestino || 'Sem telefone identificado'}</div>
               </div>
               <div style={styles.headerActions}>
                 <button type="button" style={styles.secondaryButton} onClick={() => setPainelContatoAberto(true)}>
                   Contato
                 </button>
+                <button type="button" style={styles.secondaryButton} onClick={() => setModalVinculoAberto(true)}>
+                  Vincular processo
+                </button>
                 <div style={styles.badge}>WhatsApp</div>
+                <button 
+                  type="button" 
+                  style={{ ...styles.secondaryButton, width: '36px', padding: 0 }}
+                  onClick={() => {
+                    setConversaSelecionada(null);
+                    navigate('/inbox');
+                  }}
+                  title="Fechar conversa"
+                >
+                  ✕
+                </button>
               </div>
             </div>
 
@@ -1919,6 +2822,8 @@ const InboxPage = () => {
                 mensagens.map((mensagem, index) => {
                   const minha = mensagem.message_type === 'outgoing' || mensagem.message_type === 1;
                   const iniciais = mensagem.sender?.name?.charAt(0).toUpperCase() || 'C';
+                  const templateMensagem = mensagem.content_type === 'template';
+                  const motivoFalhaMensagem = mensagem.status === 'failed' ? getMotivoFalhaMensagem(mensagem) : '';
 
                   return (
                     <div key={mensagem.id || index} style={styles.messageRow(minha)}>
@@ -1929,10 +2834,53 @@ const InboxPage = () => {
                           iniciais
                         )}
                       </div>
-                      <div style={{ ...styles.bubble(minha), borderColor: mensagem.status === 'failed' ? '#fca5a5' : '#dbe3ee' }}>
+                      <div
+                        style={{
+                          ...styles.bubble(minha, templateMensagem),
+                          borderColor: mensagem.status === 'failed' ? '#fca5a5' : templateMensagem ? '#f9c86b' : '#dbe3ee',
+                        }}
+                      >
                         {renderizarAnexos(mensagem)}
-                        {getConteudoVisivelMensagem(mensagem) ? <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{getConteudoVisivelMensagem(mensagem)}</div> : null}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
+                        {templateMensagem ? (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              marginBottom: '10px',
+                              padding: '5px 10px',
+                              borderRadius: '999px',
+                              backgroundColor: 'rgba(255,255,255,0.72)',
+                              color: '#9a6700',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Template do WhatsApp
+                          </div>
+                        ) : null}
+                        {getConteudoVisivelMensagem(mensagem) ? (
+                          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.75, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                            {getConteudoVisivelMensagem(mensagem)}
+                          </div>
+                        ) : null}
+                        {motivoFalhaMensagem ? (
+                          <div
+                            style={{
+                              marginTop: '10px',
+                              padding: '9px 11px',
+                              borderRadius: '12px',
+                              backgroundColor: '#fff1f2',
+                              border: '1px solid #fecdd3',
+                              color: '#9f1239',
+                              fontSize: '12px',
+                              lineHeight: 1.55,
+                            }}
+                          >
+                            <strong>Motivo da falha:</strong> {motivoFalhaMensagem}
+                          </div>
+                        ) : null}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', flexWrap: 'wrap', marginTop: '8px', fontSize: '11px', color: '#6b7d96' }}>
                           {formatarHorario(mensagem.created_at)}
                           {minha ? <span style={styles.statusTag(mensagem.status)}>{getStatusMensagem(mensagem.status)}</span> : null}
                         </div>
@@ -1947,15 +2895,20 @@ const InboxPage = () => {
 
             <div style={styles.composer}>
               {feedbackEnvio ? <div style={styles.feedback(tipoFeedback)}>{feedbackEnvio}</div> : null}
+              {contatoAtualBloqueado ? (
+                <div style={styles.feedback('error')}>
+                  Este contato esta bloqueado. Desbloqueie o cadastro no painel lateral para voltar a enviar mensagens.
+                </div>
+              ) : null}
 
               <div style={styles.composerRow}>
-                <button type="button" style={styles.secondaryButton} onClick={abrirModalTemplates}>
+                <button type="button" style={styles.secondaryButton} onClick={abrirModalTemplates} disabled={contatoAtualBloqueado}>
                   Templates
                 </button>
-                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('arquivo')} disabled={enviandoArquivo}>
+                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('arquivo')} disabled={enviandoArquivo || contatoAtualBloqueado}>
                   Arquivo
                 </button>
-                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('audio')} disabled={enviandoArquivo}>
+                <button type="button" style={styles.secondaryButton} onClick={() => abrirSeletorArquivo('audio')} disabled={enviandoArquivo || contatoAtualBloqueado}>
                   Audio
                 </button>
                 <input
@@ -1965,8 +2918,9 @@ const InboxPage = () => {
                   onKeyDown={(event) => (event.key === 'Enter' ? enviarMensagem() : null)}
                   placeholder="Digite uma mensagem..."
                   style={styles.composerInput}
+                  disabled={contatoAtualBloqueado}
                 />
-                <button type="button" style={styles.primaryButton} onClick={enviarMensagem} disabled={enviandoArquivo || enviandoTemplate}>
+                <button type="button" style={styles.primaryButton} onClick={enviarMensagem} disabled={enviandoArquivo || enviandoTemplate || contatoAtualBloqueado}>
                   {enviandoArquivo ? 'Enviando arquivo...' : 'Enviar'}
                 </button>
               </div>
@@ -2005,8 +2959,20 @@ const InboxPage = () => {
                   {(formContato.name || contatoAtual?.name || 'C').charAt(0).toUpperCase()}
                 </div>
                 <div>
+                  {canalAtual ? (
+                    <div style={{ marginBottom: '4px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>
+                      {canalAtual}
+                    </div>
+                  ) : null}
                   <div style={{ fontSize: '22px', fontWeight: 800, color: '#10233f' }}>{formContato.name || 'Contato sem nome'}</div>
                   <div style={{ marginTop: '4px', color: '#6b7d96', fontSize: '13px' }}>{formContato.phone_number || 'Telefone indisponivel'}</div>
+                  {contatoAtualBloqueado ? (
+                    <div style={{ marginTop: '8px' }}>
+                      <span style={{ padding: '5px 10px', borderRadius: '999px', backgroundColor: '#fee2e2', color: '#b42318', fontSize: '11px', fontWeight: 800 }}>
+                        Contato bloqueado
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -2029,10 +2995,109 @@ const InboxPage = () => {
                 {formContato.id ? `ID do contato no Chatwoot: ${formContato.id}` : 'Este registro ainda nao expoe o ID do contato para edicao direta.'}
               </div>
 
-              <button type="button" style={styles.primaryButton} onClick={salvarContatoAtual} disabled={salvandoContato}>
+              <button type="button" style={styles.primaryButton} onClick={salvarContatoAtual} disabled={salvandoContato || atualizandoBloqueioContato || excluindoContato}>
                 {salvandoContato ? 'Salvando...' : 'Salvar contato'}
               </button>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.secondaryButton,
+                    flex: 1,
+                    borderColor: contatoAtualBloqueado ? '#fecaca' : '#dbe3ee',
+                    backgroundColor: contatoAtualBloqueado ? '#fff1f2' : '#f8fbff',
+                    color: contatoAtualBloqueado ? '#b42318' : '#213656',
+                  }}
+                  onClick={alternarBloqueioContatoAtual}
+                  disabled={!formContato.id || salvandoContato || atualizandoBloqueioContato || excluindoContato}
+                >
+                  {atualizandoBloqueioContato ? 'Atualizando...' : contatoAtualBloqueado ? 'Desbloquear contato' : 'Bloquear contato'}
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.secondaryButton,
+                    flex: 1,
+                    borderColor: '#fecaca',
+                    backgroundColor: '#fff1f2',
+                    color: '#b42318',
+                  }}
+                  onClick={excluirContatoAtual}
+                  disabled={!formContato.id || salvandoContato || atualizandoBloqueioContato || excluindoContato}
+                >
+                  {excluindoContato ? 'Excluindo...' : 'Excluir contato'}
+                </button>
+              </div>
             </div>
+
+            {contatoAtual?.id ? (
+              <div style={styles.fieldCard}>
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#10233f' }}>Iniciar atendimento</div>
+                  <div style={{ marginTop: '6px', color: '#6b7d96', fontSize: '13px' }}>
+                    Escolha um canal e abra a conversa para enviar mensagens a este contato.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={styles.fieldLabel}>Canal para envio</label>
+                  <select
+                    style={styles.select}
+                    value={inboxContatoSelecionado}
+                    onChange={(event) => setInboxContatoSelecionado(event.target.value)}
+                  >
+                    <option value="">Selecione o canal...</option>
+                    {opcoesInboxContatoAtual.map((canal) => (
+                      <option key={`${canal.id || canal.name}`} value={canal.id}>
+                        {canal.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={styles.helperText}>
+                  {getCanaisContato(contatoAtual).length > 0
+                    ? 'Canais conhecidos para este contato carregados do Chatwoot.'
+                    : 'Se o contato ainda nao estiver associado a um canal, selecione um da lista para tentar abrir a conversa.'}
+                </div>
+
+                <button
+                  type="button"
+                  style={styles.primaryButton}
+                  disabled={!inboxContatoSelecionado || abrindoContatoExistenteId === String(contatoAtual.id) || contatoAtualBloqueado}
+                  onClick={() =>
+                    abrirOuCriarConversaContato(contatoAtual, Number(inboxContatoSelecionado), {
+                      successMessage: 'Conversa aberta com sucesso.',
+                    })
+                  }
+                >
+                  {abrindoContatoExistenteId === String(contatoAtual.id) ? 'Abrindo...' : 'Abrir conversa'}
+                </button>
+              </div>
+            ) : null}
+
+            {visaoAtiva === 'conversas' && conversaSelecionada ? (
+              <div style={styles.fieldCard}>
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#10233f' }}>Vinculo com processo</div>
+                  <div style={{ marginTop: '6px', color: '#6b7d96', fontSize: '13px' }}>
+                    Relacione esta conversa a um processo para manter esse atendimento salvo no historico juridico.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={styles.fieldLabel}>Processo vinculado</label>
+                  <div style={{ fontWeight: 700, color: '#10233f' }}>
+                    {processoVinculado?.case_number || 'Nenhum processo vinculado nesta sessao'}
+                  </div>
+                </div>
+
+                <button type="button" style={styles.primaryButton} onClick={() => setModalVinculoAberto(true)}>
+                  {processoVinculado?.case_number ? 'Alterar vinculo' : 'Vincular processo'}
+                </button>
+              </div>
+            ) : null}
 
             {visaoAtiva === 'conversas' && conversaSelecionada ? (
               <div style={styles.fieldCard}>

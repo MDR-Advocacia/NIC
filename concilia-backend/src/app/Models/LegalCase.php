@@ -70,6 +70,7 @@ class LegalCase extends Model
         'original_value',
         'has_alcada',
         'agreement_value',
+        'agreement_closed_at',
         'ourocap_value',
         'livelo_points',
         'cause_value',
@@ -93,6 +94,7 @@ class LegalCase extends Model
         'agreement_checklist_data' => 'array',
         'has_alcada' => 'boolean',
         'livelo_points' => 'integer',
+        'agreement_closed_at' => 'date',
     ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool
