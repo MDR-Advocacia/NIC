@@ -9,6 +9,12 @@ export const LEGAL_CASE_STATUS_DETAILS = {
   failed_deal: { name: 'Acordo Frustrado', color: '#E53E3E', textColor: '#FFFFFF' },
 };
 
+export const TERMINAL_LEGAL_CASE_STATUSES = [
+  'contra_indicated',
+  'closed_deal',
+  'failed_deal',
+];
+
 export const LEGAL_CASE_STATUS_ORDER = [
   'initial_analysis',
   'indications',
@@ -20,10 +26,15 @@ export const LEGAL_CASE_STATUS_ORDER = [
   'failed_deal',
 ];
 
+export const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
+
 export const LEGAL_CASE_STATUS_OPTIONS = LEGAL_CASE_STATUS_ORDER.map((statusKey) => ({
   value: statusKey,
   ...LEGAL_CASE_STATUS_DETAILS[statusKey],
 }));
+
+export const isTerminalLegalCaseStatus = (status) =>
+  TERMINAL_LEGAL_CASE_STATUSES.includes(status);
 
 const humanizeStatus = (status) =>
   String(status ?? 'Status desconhecido')
