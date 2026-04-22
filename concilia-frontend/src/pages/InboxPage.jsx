@@ -5,6 +5,17 @@ import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 import { normalizeCaseTags } from '../constants/caseTags';
 
 const TEMPLATE_FALLBACK_STORAGE_KEY = 'nic_template_fallback_messages_v1';
+const SYSTEM_ASSIGNMENT_PATTERNS = [
+  /atribuiu .* a si mesmo/i,
+  /atribuiu (essa|esta|a) conversa/i,
+  /atribuiu (esse|este|o) atendimento/i,
+  /assumiu (essa|esta|a) conversa/i,
+  /assigned (this|the) conversation/i,
+  /removed assignment/i,
+  /\bunassigned\b/i,
+];
+
+const getNormalizedId = (value) => (value == null ? '' : String(value));
 
 const styles = {
   page: {
@@ -722,9 +733,35 @@ const InboxPage = () => {
   const getNomeTemplateMensagem = (mensagem) =>
     mensagem?.content_attributes?.template_name || mensagem?.template_params?.name || mensagem?.content_attributes?.name || '';
 
+  const isMensagemAtribuicao = (mensagem) => {
+    const texto = getConteudoVisivelMensagem(mensagem);
+    const marcadoresEvento = [
+      mensagem?.content_attributes?.event,
+      mensagem?.content_attributes?.activity,
+      mensagem?.content_attributes?.notification_type,
+      mensagem?.event,
+    ]
+      .map((valor) => String(valor || '').toLowerCase())
+      .filter(Boolean);
+
+    if (marcadoresEvento.some((valor) => valor.includes('assign'))) {
+      return true;
+    }
+
+    if (!texto || getMessageAttachments(mensagem).length > 0) {
+      return false;
+    }
+
+    return SYSTEM_ASSIGNMENT_PATTERNS.some((pattern) => pattern.test(texto));
+  };
+
   const isMensagemSistema = (mensagem) => {
     const tipoNormalizado = getTipoNormalizadoMensagem(mensagem);
     const contentType = String(mensagem?.content_type || '').toLowerCase();
+
+    if (isMensagemAtribuicao(mensagem)) {
+      return true;
+    }
 
     if (tipoNormalizado === 'incoming' || tipoNormalizado === 'outgoing') {
       return false;
@@ -1073,9 +1110,11 @@ const InboxPage = () => {
     setAbrindoContatoExistenteId('');
   };
 
+  const conversaSelecionadaKey = getNormalizedId(conversaSelecionada);
+
   const conversaAtual = useMemo(
-    () => conversas.find((conversa) => conversa.id === conversaSelecionada) || null,
-    [conversas, conversaSelecionada]
+    () => conversas.find((conversa) => getNormalizedId(conversa?.id) === conversaSelecionadaKey) || null,
+    [conversas, conversaSelecionadaKey]
   );
 
   const contatoAtual = useMemo(() => {
@@ -1094,6 +1133,25 @@ const InboxPage = () => {
     [conversaAtual]
   );
 
+  const conversaRelacionadaAoContato = useMemo(() => {
+    if (!contatoAtual?.id) {
+      return null;
+    }
+
+    const relacionadas = conversas.filter((conversa) => getNormalizedId(conversa?.meta?.sender?.id) === getNormalizedId(contatoAtual.id));
+
+    if (relacionadas.length === 0) {
+      return null;
+    }
+
+    return [...relacionadas].sort((left, right) => {
+      const timestampRight = getMessageTimestamp(right?.last_non_activity_message || { created_at: right?.updated_at || right?.timestamp });
+      const timestampLeft = getMessageTimestamp(left?.last_non_activity_message || { created_at: left?.updated_at || left?.timestamp });
+
+      return timestampRight - timestampLeft;
+    })[0];
+  }, [contatoAtual?.id, conversas]);
+
   const contatoAtualBloqueado = isContatoBloqueado(contatoAtual);
   const canaisContatoAtual = getCanaisContato(contatoAtual);
   const canalAtual = visaoAtiva === 'conversas' ? getCanalConversa(conversaAtual) : getCanaisContatoTexto(contatoAtual);
@@ -1107,10 +1165,17 @@ const InboxPage = () => {
         }));
 
   const timelineItems = getTimelineItems(mensagens);
-  const processoVinculadoTags = useMemo(() => normalizeCaseTags(processoVinculado?.tags || []), [processoVinculado?.tags]);
+  const processoResumoAtual = useMemo(() => {
+    if (conversaSelecionadaKey) {
+      return processoVinculado || conversaAtual?.linked_case || null;
+    }
+
+    return conversaRelacionadaAoContato?.linked_case || null;
+  }, [conversaSelecionadaKey, processoVinculado, conversaAtual?.linked_case, conversaRelacionadaAoContato]);
+  const processoVinculadoTags = useMemo(() => normalizeCaseTags(processoResumoAtual?.tags || []), [processoResumoAtual?.tags]);
   const processoVinculadoStatus = useMemo(
-    () => (processoVinculado?.status ? getLegalCaseStatusDetails(processoVinculado.status) : null),
-    [processoVinculado?.status]
+    () => (processoResumoAtual?.status ? getLegalCaseStatusDetails(processoResumoAtual.status) : null),
+    [processoResumoAtual?.status]
   );
 
   const agentesInboxFiltrados = useMemo(() => {
@@ -1242,7 +1307,7 @@ const InboxPage = () => {
 
     setConversas((anterior) =>
       anterior.map((conversa) => {
-        if (conversa.id !== conversaSelecionada) {
+        if (getNormalizedId(conversa.id) !== conversaSelecionadaKey) {
           return conversa;
         }
 
@@ -1256,6 +1321,24 @@ const InboxPage = () => {
         };
       })
     );
+  };
+
+  const abrirDetalhesContato = (contato = null, options = {}) => {
+    const precisaLimparConversa = options.resetConversation === true;
+    const contatoBase = contato || contatoAtual || conversaAtual?.meta?.sender || null;
+
+    if (precisaLimparConversa) {
+      setConversaSelecionada(null);
+      setMensagens([]);
+      setProcessoVinculado(null);
+      navigate('/inbox', { replace: false });
+    }
+
+    if (contatoBase) {
+      setContatoParaDetalhar(contatoBase);
+    }
+
+    setPainelContatoAberto(true);
   };
 
   const removerContatoLocal = (contactId) => {
@@ -1424,7 +1507,7 @@ const InboxPage = () => {
       const data = await response.json().catch(() => ({}));
       const conversaCriada = extrairConversaResposta(data);
 
-      const listaAtualizada = await buscarConversas('all', { silent: true });
+      const listaAtualizada = await buscarConversas('all', { silent: true, inboxId: targetInboxId });
       const conversaExistenteAtualizada =
         (conversaCriada?.id ? listaAtualizada.find((item) => String(item.id) === String(conversaCriada.id)) : null) ||
         encontrarConversaPorContatoEInbox(contato.id, targetInboxId, listaAtualizada);
@@ -1756,8 +1839,10 @@ const InboxPage = () => {
     if (!token) return [];
 
     let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
-    if (inboxSelecionada && inboxSelecionada !== 'all') {
-      url += `&inbox_id=${inboxSelecionada}`;
+    const filtroInbox = options.inboxId ?? inboxSelecionada;
+
+    if (filtroInbox && filtroInbox !== 'all') {
+      url += `&inbox_id=${filtroInbox}`;
     }
 
     try {
@@ -1843,10 +1928,12 @@ const InboxPage = () => {
 
   // Sincronizar conversa selecionada com a URL
   useEffect(() => {
-    if (urlConversationId && urlConversationId !== conversaSelecionada) {
-      setConversaSelecionada(urlConversationId);
-      carregarMensagensConversa(urlConversationId);
-    } else if (!urlConversationId && conversaSelecionada) {
+    const conversationIdFromUrl = getNormalizedId(urlConversationId);
+
+    if (conversationIdFromUrl && conversationIdFromUrl !== getNormalizedId(conversaSelecionada)) {
+      setConversaSelecionada(conversationIdFromUrl);
+      carregarMensagensConversa(conversationIdFromUrl);
+    } else if (!conversationIdFromUrl && conversaSelecionada) {
       // Se não há conversationId na URL mas há uma conversa selecionada, limpar seleção
       setConversaSelecionada(null);
       setMensagens([]);
@@ -1975,11 +2062,14 @@ const InboxPage = () => {
   useEffect(() => {
     setModalTemplatesAberto(false);
     setModalVinculoAberto(false);
-    setProcessoVinculado(null);
     setTemplateSelecionado(null);
     setVariaveisTemplate({});
     setBuscaTemplate('');
     setErroTemplates('');
+
+    if (!conversaSelecionada) {
+      setProcessoVinculado(null);
+    }
   }, [conversaSelecionada]);
 
   useEffect(() => {
@@ -2020,8 +2110,12 @@ const InboxPage = () => {
   };
 
   const abrirConversa = (chatId) => {
+    const conversationKey = getNormalizedId(chatId);
+    const conversaDaLista = conversas.find((conversa) => getNormalizedId(conversa?.id) === conversationKey) || null;
+
     shouldStickToBottomRef.current = true;
-    setConversaSelecionada(chatId);
+    setConversaSelecionada(conversationKey);
+    setProcessoVinculado(conversaDaLista?.linked_case || null);
     navigate(`/inbox/${chatId}`, { replace: false });
     setFeedbackEnvio('');
     carregarMensagensConversa(chatId);
@@ -2322,6 +2416,17 @@ const InboxPage = () => {
     event.preventDefault();
     const token = getCleanToken();
     const inboxId = Number(novoContato.inbox_id);
+    const payloadNovoContato = {
+      name: (novoContato.name || '').trim(),
+      email: (novoContato.email || '').trim() || null,
+      phone_number: (novoContato.phone_number || '').trim() || null,
+      inbox_id: inboxId,
+    };
+
+    if (!payloadNovoContato.name || !inboxId) {
+      setFeedbackBuscaContatoExistente('Informe pelo menos o nome e o canal para criar o contato.');
+      return;
+    }
 
     try {
       setCriandoContato(true);
@@ -2334,7 +2439,7 @@ const InboxPage = () => {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify(novoContato),
+        body: JSON.stringify(payloadNovoContato),
       });
 
       const data = await response.json();
@@ -2358,8 +2463,7 @@ const InboxPage = () => {
 
         fecharModalNovoContato();
         setVisaoAtiva('contatos');
-        setContatoParaDetalhar(contatoCriado);
-        setPainelContatoAberto(true);
+        abrirDetalhesContato(contatoCriado, { resetConversation: true });
         definirFeedback('Contato criado com sucesso. Abra a conversa pelo canal desejado.');
         return;
       }
@@ -2374,13 +2478,13 @@ const InboxPage = () => {
         return;
       }
 
-      const resultadosPesquisa = await buscarContatosExistentes(novoContato.phone_number || novoContato.name);
+      const resultadosPesquisa = await buscarContatosExistentes(payloadNovoContato.phone_number || payloadNovoContato.name);
       if (resultadosPesquisa.length > 0) {
         setFeedbackBuscaContatoExistente(data?.message || 'Encontramos contatos parecidos para voce reutilizar.');
         return;
       }
 
-      setFeedbackBuscaContatoExistente(data?.message || 'Nao foi possivel criar o contato.');
+      setFeedbackBuscaContatoExistente(data?.message || extrairTextoErro(data?.errors || data?.details || data) || 'Nao foi possivel criar o contato.');
     } catch (error) {
       console.error(error);
       setFeedbackBuscaContatoExistente('Falha ao criar o contato.');
@@ -2801,7 +2905,19 @@ const InboxPage = () => {
           <button type="button" style={styles.railButton(visaoAtiva === 'conversas')} onClick={() => setVisaoAtiva('conversas')}>
             Mensagens
           </button>
-          <button type="button" style={styles.railButton(visaoAtiva === 'contatos')} onClick={() => setVisaoAtiva('contatos')}>
+          <button
+            type="button"
+            style={styles.railButton(visaoAtiva === 'contatos')}
+            onClick={() => {
+              setVisaoAtiva('contatos');
+              setPainelContatoAberto(false);
+              setContatoParaDetalhar(null);
+              setConversaSelecionada(null);
+              setMensagens([]);
+              setProcessoVinculado(null);
+              navigate('/inbox', { replace: false });
+            }}
+          >
             Contatos
           </button>
           <button type="button" style={styles.addButton} onClick={() => setModalAberto(true)}>
@@ -2854,7 +2970,7 @@ const InboxPage = () => {
               const subtitulo = visaoAtiva === 'conversas' ? getConversationPreview(item) : item.phone_number || 'Abrir conversa';
               const horario = visaoAtiva === 'conversas' ? formatarHorarioConversa(item.last_non_activity_message?.created_at || item.timestamp || item.updated_at) : '';
               const naoLidas = Number(item.unread_count || 0);
-              const ativo = conversaSelecionada === item.id;
+              const ativo = visaoAtiva === 'conversas' && conversaSelecionadaKey === getNormalizedId(item.id);
               const canal = visaoAtiva === 'conversas' ? getCanalConversa(item) : getCanaisContatoTexto(item);
               const bloqueado = isContatoBloqueado(visaoAtiva === 'conversas' ? item?.meta?.sender : item);
 
@@ -2868,8 +2984,7 @@ const InboxPage = () => {
                       return;
                     }
 
-                    setContatoParaDetalhar(item);
-                    setPainelContatoAberto(true);
+                    abrirDetalhesContato(item, { resetConversation: true });
                   }}
                 >
                   <div style={styles.avatar(ativo)}>{nome.charAt(0).toUpperCase()}</div>
@@ -2911,7 +3026,7 @@ const InboxPage = () => {
         {conversaSelecionada ? (
           <>
             <div style={styles.chatHeader}>
-              <div style={styles.headerInfo} onClick={() => setPainelContatoAberto(true)}>
+              <div style={styles.headerInfo} onClick={() => abrirDetalhesContato()}>
                 {canalAtual ? (
                   <div style={{ marginBottom: '6px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>
                     {canalAtual}
@@ -2928,7 +3043,7 @@ const InboxPage = () => {
                 <div style={{ marginTop: '6px', color: '#6b7d96' }}>{telefoneDestino || 'Sem telefone identificado'}</div>
               </div>
               <div style={styles.headerActions}>
-                <button type="button" style={styles.secondaryButton} onClick={() => setPainelContatoAberto(true)}>
+                <button type="button" style={styles.secondaryButton} onClick={() => abrirDetalhesContato()}>
                   Contato
                 </button>
                 <button type="button" style={styles.secondaryButton} onClick={() => setModalVinculoAberto(true)}>
@@ -2940,6 +3055,8 @@ const InboxPage = () => {
                   style={{ ...styles.secondaryButton, width: '36px', padding: 0 }}
                   onClick={() => {
                     setConversaSelecionada(null);
+                    setMensagens([]);
+                    setProcessoVinculado(null);
                     navigate('/inbox');
                   }}
                   title="Fechar conversa"
@@ -3256,21 +3373,23 @@ const InboxPage = () => {
               </div>
             ) : null}
 
-            {visaoAtiva === 'conversas' && conversaSelecionada ? (
+            {contatoAtual ? (
               <div style={styles.fieldCard}>
                 <div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#10233f' }}>Vinculo com processo</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#10233f' }}>Resumo do processo</div>
                   <div style={{ marginTop: '6px', color: '#6b7d96', fontSize: '13px' }}>
-                    Relacione esta conversa a um processo para manter esse atendimento salvo no historico juridico.
+                    {conversaSelecionada
+                      ? 'Relacione esta conversa a um processo para manter esse atendimento salvo no historico juridico.'
+                      : 'Veja o ultimo processo vinculado a esse contato e abra a conversa para ajustar o vinculo quando precisar.'}
                   </div>
                 </div>
 
                 <div>
-                  <label style={styles.fieldLabel}>Processo vinculado</label>
-                  {processoVinculado?.case_number ? (
+                  <label style={styles.fieldLabel}>Pipeline e acordo</label>
+                  {processoResumoAtual?.case_number ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-                        <div style={{ fontWeight: 800, color: '#10233f' }}>{processoVinculado.case_number}</div>
+                        <div style={{ fontWeight: 800, color: '#10233f' }}>{processoResumoAtual.case_number}</div>
                         {processoVinculadoStatus ? (
                           <span
                             style={{
@@ -3287,9 +3406,9 @@ const InboxPage = () => {
                         ) : null}
                       </div>
 
-                      {processoVinculado?.client?.name ? (
+                      {processoResumoAtual?.client?.name ? (
                         <div style={{ fontSize: '12px', color: '#6b7d96' }}>
-                          Cliente: <strong style={{ color: '#10233f' }}>{processoVinculado.client.name}</strong>
+                          Cliente: <strong style={{ color: '#10233f' }}>{processoResumoAtual.client.name}</strong>
                         </div>
                       ) : null}
 
@@ -3302,23 +3421,23 @@ const InboxPage = () => {
                       >
                         <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
                           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Proposta</div>
-                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoVinculado.agreement_value)}</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoResumoAtual.agreement_value)}</div>
                         </div>
                         <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
                           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Risco</div>
                           <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>
-                            {Number.isFinite(Number.parseFloat(processoVinculado.updated_condemnation_value))
-                              ? formatarMoeda(processoVinculado.updated_condemnation_value)
-                              : formatarPercentual(processoVinculado.agreement_probability)}
+                            {Number.isFinite(Number.parseFloat(processoResumoAtual.updated_condemnation_value))
+                              ? formatarMoeda(processoResumoAtual.updated_condemnation_value)
+                              : formatarPercentual(processoResumoAtual.agreement_probability)}
                           </div>
                         </div>
                         <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
                           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Valor da Alcada</div>
-                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoVinculado.original_value)}</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoResumoAtual.original_value)}</div>
                         </div>
                         <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
                           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Valor da Causa</div>
-                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoVinculado.cause_value)}</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoResumoAtual.cause_value)}</div>
                         </div>
                       </div>
 
@@ -3331,11 +3450,11 @@ const InboxPage = () => {
                       >
                         <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
                           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>PCOND</div>
-                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoVinculado.pcond_probability)}</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoResumoAtual.pcond_probability)}</div>
                         </div>
                         <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
                           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Prob. de Acordo</div>
-                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarPercentual(processoVinculado.agreement_probability)}</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarPercentual(processoResumoAtual.agreement_probability)}</div>
                         </div>
                       </div>
 
@@ -3361,14 +3480,22 @@ const InboxPage = () => {
                     </div>
                   ) : (
                     <div style={{ fontWeight: 700, color: '#10233f' }}>
-                      Nenhum processo vinculado nesta sessao
+                      {conversaRelacionadaAoContato?.id
+                        ? 'Essa conversa ainda nao tem processo vinculado.'
+                        : 'Abra uma conversa deste contato para vincular e acompanhar o processo por aqui.'}
                     </div>
                   )}
                 </div>
 
-                <button type="button" style={styles.primaryButton} onClick={() => setModalVinculoAberto(true)}>
-                  {processoVinculado?.case_number ? 'Alterar vinculo' : 'Vincular processo'}
-                </button>
+                {conversaSelecionada ? (
+                  <button type="button" style={styles.primaryButton} onClick={() => setModalVinculoAberto(true)}>
+                    {processoResumoAtual?.case_number ? 'Alterar vinculo' : 'Vincular processo'}
+                  </button>
+                ) : conversaRelacionadaAoContato?.id ? (
+                  <button type="button" style={styles.primaryButton} onClick={() => abrirConversa(conversaRelacionadaAoContato.id)}>
+                    Abrir conversa vinculada
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
