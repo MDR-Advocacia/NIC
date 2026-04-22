@@ -8,6 +8,7 @@ use App\Models\LegalCase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 class ChatController extends Controller
@@ -60,12 +61,12 @@ class ChatController extends Controller
 
     public function createContact(Request $request)
     {
-        $validated = $request->validate([
+        $validated = Validator::make($this->buildContactPayload($request), [
             'name' => 'required|string',
             'email' => 'nullable|email',
             'phone_number' => 'nullable|string',
             'inbox_id' => 'required|integer',
-        ]);
+        ])->validate();
 
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", $validated);
@@ -83,12 +84,12 @@ class ChatController extends Controller
 
     public function updateContact(Request $request, $contactId)
     {
-        $validated = $request->validate([
+        $validated = Validator::make($this->buildContactPayload($request, false), [
             'name' => 'sometimes|required|string',
             'email' => 'nullable|email',
             'phone_number' => 'nullable|string',
             'blocked' => 'sometimes|boolean',
-        ]);
+        ])->validate();
 
         $payload = [];
 
@@ -228,8 +229,9 @@ class ChatController extends Controller
             }
 
             $data = $response->json();
+            $payload = $data['payload'] ?? $data;
 
-            return response()->json($data['payload'] ?? $data);
+            return response()->json(is_array($payload) ? $this->attachLinkedCasesToConversations($payload) : $payload);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Timeout'], 504);
         }
@@ -488,6 +490,54 @@ class ChatController extends Controller
         return Conversation::find($conversationId);
     }
 
+    private function attachLinkedCasesToConversations(array $conversations): array
+    {
+        if (empty($conversations)) {
+            return $conversations;
+        }
+
+        $conversationIds = collect($conversations)
+            ->map(fn ($conversation) => isset($conversation['id']) ? (string) $conversation['id'] : null)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($conversationIds->isEmpty()) {
+            return $conversations;
+        }
+
+        $query = Conversation::query()->with([
+            'legalCase.client',
+            'legalCase.lawyer',
+            'legalCase.indicator',
+        ]);
+
+        $records = $this->conversationHasChatwootIdColumn()
+            ? $query->whereIn('chatwoot_id', $conversationIds->all())->get()->keyBy(fn ($record) => (string) $record->chatwoot_id)
+            : $query->whereIn('id', $conversationIds->map(fn ($id) => (int) $id)->all())->get()->keyBy(fn ($record) => (string) $record->id);
+
+        return array_map(function ($conversation) use ($records) {
+            if (!is_array($conversation) || !isset($conversation['id'])) {
+                return $conversation;
+            }
+
+            $record = $records->get((string) $conversation['id']);
+
+            if (!$record) {
+                return $conversation;
+            }
+
+            $conversation['linked_case'] = $this->serializeLinkedCase($record->legalCase);
+            $conversation['conversation_record'] = [
+                'id' => $record->id,
+                'chatwoot_id' => $record->chatwoot_id ?? null,
+                'legal_case_id' => $record->legal_case_id,
+            ];
+
+            return $conversation;
+        }, $conversations);
+    }
+
     private function conversationHasChatwootIdColumn(): bool
     {
         static $hasChatwootIdColumn = null;
@@ -583,6 +633,36 @@ class ChatController extends Controller
             'agreement_closed_at' => $legalCase->agreement_closed_at?->toDateString(),
             'tags' => $legalCase->tags,
         ];
+    }
+
+    private function buildContactPayload(Request $request, bool $includeInbox = true): array
+    {
+        $payload = [];
+
+        foreach (['name', 'email', 'phone_number', 'blocked'] as $field) {
+            if ($request->exists($field)) {
+                $payload[$field] = in_array($field, ['name', 'email', 'phone_number'], true)
+                    ? $this->normalizeNullableText($request->input($field))
+                    : $request->input($field);
+            }
+        }
+
+        if ($includeInbox || $request->exists('inbox_id')) {
+            $payload['inbox_id'] = $request->input('inbox_id');
+        }
+
+        return $payload;
+    }
+
+    private function normalizeNullableText($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = trim((string) $value);
+
+        return $normalized === '' ? null : $normalized;
     }
 
     public function getTemplates(Request $request)
