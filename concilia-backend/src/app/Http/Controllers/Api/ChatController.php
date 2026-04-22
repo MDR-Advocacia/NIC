@@ -293,10 +293,7 @@ class ChatController extends Controller
         if ($previousCaseId === (int) $legalCase->id) {
             return response()->json([
                 'message' => 'Esta conversa ja estava vinculada a este processo.',
-                'legal_case' => [
-                    'id' => $legalCase->id,
-                    'case_number' => $legalCase->case_number,
-                ],
+                'legal_case' => $this->serializeLinkedCase($legalCase),
             ]);
         }
 
@@ -307,10 +304,7 @@ class ChatController extends Controller
 
         return response()->json([
             'message' => 'Conversa vinculada ao processo com sucesso.',
-            'legal_case' => [
-                'id' => $legalCase->id,
-                'case_number' => $legalCase->case_number,
-            ],
+            'legal_case' => $this->serializeLinkedCase($legalCase),
         ]);
     }
 
@@ -326,7 +320,31 @@ class ChatController extends Controller
             return response()->json(['error' => 'Nao foi possivel carregar as mensagens'], 500);
         }
 
-        return response()->json($response->json());
+        $payload = $response->json();
+
+        if (!is_array($payload)) {
+            $payload = ['payload' => $payload];
+        }
+
+        $conversation = $this->resolveConversationRecord($conversationId);
+        if ($conversation?->legal_case_id) {
+            $conversation->loadMissing([
+                'legalCase.client',
+                'legalCase.lawyer',
+                'legalCase.indicator',
+            ]);
+        }
+
+        $payload['linked_case'] = $this->serializeLinkedCase($conversation?->legalCase);
+        $payload['conversation_record'] = $conversation
+            ? [
+                'id' => $conversation->id,
+                'chatwoot_id' => $conversation->chatwoot_id ?? null,
+                'legal_case_id' => $conversation->legal_case_id,
+            ]
+            : null;
+
+        return response()->json($payload);
     }
 
     public function sendMessage(Request $request, $conversationId)
@@ -525,6 +543,46 @@ class ChatController extends Controller
                 ]);
             }
         }
+    }
+
+    private function serializeLinkedCase(?LegalCase $legalCase): ?array
+    {
+        if (!$legalCase) {
+            return null;
+        }
+
+        $legalCase->loadMissing([
+            'client',
+            'lawyer',
+            'indicator',
+        ]);
+
+        return [
+            'id' => $legalCase->id,
+            'case_number' => $legalCase->case_number,
+            'status' => $legalCase->status,
+            'client' => $legalCase->client ? [
+                'id' => $legalCase->client->id,
+                'name' => $legalCase->client->name,
+            ] : null,
+            'lawyer' => $legalCase->lawyer ? [
+                'id' => $legalCase->lawyer->id,
+                'name' => $legalCase->lawyer->name,
+            ] : null,
+            'indicator' => $legalCase->indicator ? [
+                'id' => $legalCase->indicator->id,
+                'name' => $legalCase->indicator->name,
+            ] : null,
+            'has_alcada' => (bool) $legalCase->has_alcada,
+            'original_value' => $legalCase->original_value,
+            'cause_value' => $legalCase->cause_value,
+            'agreement_value' => $legalCase->agreement_value,
+            'agreement_probability' => $legalCase->agreement_probability,
+            'pcond_probability' => $legalCase->pcond_probability,
+            'updated_condemnation_value' => $legalCase->updated_condemnation_value,
+            'agreement_closed_at' => $legalCase->agreement_closed_at?->toDateString(),
+            'tags' => $legalCase->tags,
+        ];
     }
 
     public function getTemplates(Request $request)

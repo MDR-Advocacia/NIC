@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import LinkCaseModal from '../components/LinkCaseModal';
+import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
+import { normalizeCaseTags } from '../constants/caseTags';
 
 const TEMPLATE_FALLBACK_STORAGE_KEY = 'nic_template_fallback_messages_v1';
 
@@ -535,6 +537,44 @@ const InboxPage = () => {
     return Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
   };
 
+  const formatarMoeda = (valor) => {
+    const numero = Number.parseFloat(valor);
+
+    if (!Number.isFinite(numero)) {
+      return 'Nao informado';
+    }
+
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(numero);
+  };
+
+  const formatarPercentual = (valor) => {
+    const numero = Number.parseFloat(valor);
+
+    if (!Number.isFinite(numero)) {
+      return 'Nao informado';
+    }
+
+    return `${numero.toFixed(0)}%`;
+  };
+
+  const getCaseTagTextColor = (backgroundColor) => {
+    const hexColor = String(backgroundColor || '').replace('#', '').trim();
+
+    if (!/^[0-9a-fA-F]{6}$/.test(hexColor)) {
+      return '#ffffff';
+    }
+
+    const red = Number.parseInt(hexColor.slice(0, 2), 16);
+    const green = Number.parseInt(hexColor.slice(2, 4), 16);
+    const blue = Number.parseInt(hexColor.slice(4, 6), 16);
+    const brightness = ((red * 299) + (green * 587) + (blue * 114)) / 1000;
+
+    return brightness > 150 ? '#111827' : '#ffffff';
+  };
+
   const persistirFallbacksLocais = (proximoMapa) => {
     fallbackMessagesRef.current = proximoMapa;
 
@@ -644,6 +684,10 @@ const InboxPage = () => {
       return mensagem.content.trim();
     }
 
+    if (typeof mensagem?.processed_message_content === 'string' && mensagem.processed_message_content.trim()) {
+      return mensagem.processed_message_content.trim();
+    }
+
     if (mensagem?.content_type === 'template') {
       const atributos = mensagem?.content_attributes || {};
       const corpoTemplate =
@@ -677,6 +721,83 @@ const InboxPage = () => {
 
   const getNomeTemplateMensagem = (mensagem) =>
     mensagem?.content_attributes?.template_name || mensagem?.template_params?.name || mensagem?.content_attributes?.name || '';
+
+  const isMensagemSistema = (mensagem) => {
+    const tipoNormalizado = getTipoNormalizadoMensagem(mensagem);
+    const contentType = String(mensagem?.content_type || '').toLowerCase();
+
+    if (tipoNormalizado === 'incoming' || tipoNormalizado === 'outgoing') {
+      return false;
+    }
+
+    if (String(mensagem?.message_type || '') === '2' || tipoNormalizado === 'activity') {
+      return true;
+    }
+
+    if (contentType === 'activity' || contentType === 'system') {
+      return true;
+    }
+
+    return Boolean(getConteudoVisivelMensagem(mensagem)) && !mensagem?.sender && !mensagem?.private;
+  };
+
+  const formatarMarcadorDataChat = (timestamp) => {
+    if (!timestamp) {
+      return '';
+    }
+
+    const dataMensagem = new Date(timestamp * 1000);
+    if (Number.isNaN(dataMensagem.getTime())) {
+      return '';
+    }
+
+    const hoje = new Date();
+    const ontem = new Date();
+    ontem.setDate(hoje.getDate() - 1);
+
+    const chaveMensagem = dataMensagem.toDateString();
+
+    if (chaveMensagem === hoje.toDateString()) {
+      return 'Hoje';
+    }
+
+    if (chaveMensagem === ontem.toDateString()) {
+      return 'Ontem';
+    }
+
+    return dataMensagem.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+      year: dataMensagem.getFullYear() === hoje.getFullYear() ? undefined : 'numeric',
+    });
+  };
+
+  const getTimelineItems = (listaMensagens) => {
+    const itens = [];
+    let ultimoDia = '';
+
+    listaMensagens.forEach((mensagem, index) => {
+      const timestamp = getMessageTimestamp(mensagem);
+      const dataChave = timestamp ? new Date(timestamp * 1000).toDateString() : '';
+
+      if (dataChave && dataChave !== ultimoDia) {
+        itens.push({
+          id: `day-${dataChave}`,
+          kind: 'day',
+          label: formatarMarcadorDataChat(timestamp),
+        });
+        ultimoDia = dataChave;
+      }
+
+      itens.push({
+        id: mensagem?.id || `message-${index}`,
+        kind: isMensagemSistema(mensagem) ? 'system' : 'message',
+        message: mensagem,
+      });
+    });
+
+    return itens;
+  };
 
   const mensagensSaoEquivalentes = (left, right) => {
     if (left?.local_failed || right?.local_failed || left?.status === 'failed' || right?.status === 'failed') {
@@ -985,6 +1106,13 @@ const InboxPage = () => {
           sourceId: '',
         }));
 
+  const timelineItems = getTimelineItems(mensagens);
+  const processoVinculadoTags = useMemo(() => normalizeCaseTags(processoVinculado?.tags || []), [processoVinculado?.tags]);
+  const processoVinculadoStatus = useMemo(
+    () => (processoVinculado?.status ? getLegalCaseStatusDetails(processoVinculado.status) : null),
+    [processoVinculado?.status]
+  );
+
   const agentesInboxFiltrados = useMemo(() => {
     const termo = buscaAgente.trim().toLowerCase();
     if (!termo) return agentesInbox;
@@ -1069,6 +1197,10 @@ const InboxPage = () => {
   const handleVinculoProcessoConcluido = (processo) => {
     setProcessoVinculado(processo || null);
     setModalVinculoAberto(false);
+
+    if (conversaSelecionada) {
+      carregarMensagensConversa(conversaSelecionada, { silent: true });
+    }
 
     if (processo?.case_number) {
       definirFeedback(`Conversa vinculada ao processo ${processo.case_number} e registrada no historico.`);
@@ -1581,6 +1713,7 @@ const InboxPage = () => {
         const agente = assigneeId ? agentesInbox.find((item) => Number(item.id) === assigneeId) || null : null;
         aplicarAgenteAtribuido(agente);
         await buscarConversas(abaAtiva, { silent: true });
+        await carregarMensagensConversa(conversaSelecionada, { silent: true });
         definirFeedback(agente ? `Conversa atribuida para ${agente.name}.` : 'A conversa ficou sem agente atribuido.');
       } else {
         definirFeedback(data?.message || 'Nao foi possivel atribuir a conversa.', 'error');
@@ -1876,6 +2009,7 @@ const InboxPage = () => {
       const mensagensOrdenadas = [...msgLista].sort((left, right) => getMessageTimestamp(left) - getMessageTimestamp(right));
       setMensagens(sincronizarFallbacksLocais(chatId, mensagensOrdenadas));
       setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
+      setProcessoVinculado(data?.linked_case || null);
     } catch (error) {
       console.error('Erro ao carregar conversa:', error);
     } finally {
@@ -2818,8 +2952,53 @@ const InboxPage = () => {
             <div ref={chatBodyRef} style={styles.chatBody} onScroll={atualizarEstadoScrollChat}>
               {carregandoChat ? (
                 <div style={{ color: '#6b7d96' }}>Carregando conversa...</div>
-              ) : mensagens.length > 0 ? (
-                mensagens.map((mensagem, index) => {
+              ) : timelineItems.length > 0 ? (
+                timelineItems.map((item, index) => {
+                  if (item.kind === 'day') {
+                    return (
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0 2px' }}>
+                        <div
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(148, 163, 184, 0.18)',
+                            color: '#54657f',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {item.label}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const mensagem = item.message;
+
+                  if (item.kind === 'system') {
+                    return (
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'center', margin: '2px 0' }}>
+                        <div
+                          style={{
+                            maxWidth: '72%',
+                            padding: '8px 14px',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(226, 232, 240, 0.7)',
+                            color: '#475569',
+                            fontSize: '12px',
+                            lineHeight: 1.5,
+                            textAlign: 'center',
+                            boxShadow: 'inset 0 0 0 1px rgba(148, 163, 184, 0.18)',
+                          }}
+                        >
+                          {getConteudoVisivelMensagem(mensagem) || 'Atualizacao do atendimento'}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   const minha = mensagem.message_type === 'outgoing' || mensagem.message_type === 1;
                   const iniciais = mensagem.sender?.name?.charAt(0).toUpperCase() || 'C';
                   const templateMensagem = mensagem.content_type === 'template';
@@ -3088,9 +3267,103 @@ const InboxPage = () => {
 
                 <div>
                   <label style={styles.fieldLabel}>Processo vinculado</label>
-                  <div style={{ fontWeight: 700, color: '#10233f' }}>
-                    {processoVinculado?.case_number || 'Nenhum processo vinculado nesta sessao'}
-                  </div>
+                  {processoVinculado?.case_number ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                        <div style={{ fontWeight: 800, color: '#10233f' }}>{processoVinculado.case_number}</div>
+                        {processoVinculadoStatus ? (
+                          <span
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: '999px',
+                              backgroundColor: processoVinculadoStatus.color,
+                              color: processoVinculadoStatus.textColor,
+                              fontSize: '11px',
+                              fontWeight: 800,
+                            }}
+                          >
+                            {processoVinculadoStatus.name}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {processoVinculado?.client?.name ? (
+                        <div style={{ fontSize: '12px', color: '#6b7d96' }}>
+                          Cliente: <strong style={{ color: '#10233f' }}>{processoVinculado.client.name}</strong>
+                        </div>
+                      ) : null}
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: '10px',
+                        }}
+                      >
+                        <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Proposta</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoVinculado.agreement_value)}</div>
+                        </div>
+                        <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Risco</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>
+                            {Number.isFinite(Number.parseFloat(processoVinculado.updated_condemnation_value))
+                              ? formatarMoeda(processoVinculado.updated_condemnation_value)
+                              : formatarPercentual(processoVinculado.agreement_probability)}
+                          </div>
+                        </div>
+                        <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Valor da Alcada</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoVinculado.original_value)}</div>
+                        </div>
+                        <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Valor da Causa</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoVinculado.cause_value)}</div>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: '10px',
+                        }}
+                      >
+                        <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>PCOND</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarMoeda(processoVinculado.pcond_probability)}</div>
+                        </div>
+                        <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #dbe3ee' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5f7291' }}>Prob. de Acordo</div>
+                          <div style={{ marginTop: '6px', fontWeight: 800, color: '#10233f' }}>{formatarPercentual(processoVinculado.agreement_probability)}</div>
+                        </div>
+                      </div>
+
+                      {processoVinculadoTags.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                          {processoVinculadoTags.map((tag) => (
+                            <span
+                              key={`${tag.text}-${tag.color}`}
+                              style={{
+                                padding: '5px 10px',
+                                borderRadius: '999px',
+                                backgroundColor: tag.color,
+                                color: getCaseTagTextColor(tag.color),
+                                fontSize: '11px',
+                                fontWeight: 800,
+                              }}
+                            >
+                              {tag.text}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div style={{ fontWeight: 700, color: '#10233f' }}>
+                      Nenhum processo vinculado nesta sessao
+                    </div>
+                  )}
                 </div>
 
                 <button type="button" style={styles.primaryButton} onClick={() => setModalVinculoAberto(true)}>
