@@ -2,6 +2,8 @@
 import React from 'react';
 import styles from '../styles/LawyerPerformanceCard.module.css';
 import { FaTrophy } from 'react-icons/fa';
+import MetricInfoHint from './MetricInfoHint';
+import { AGREEMENT_COUNT_INFO_TEXT } from '../constants/dashboardMetrics';
 
 // Adicione a nova prop 'onViewDetails'
 const LawyerPerformanceCard = ({ lawyer, rank, onViewDetails }) => {
@@ -40,7 +42,10 @@ const LawyerPerformanceCard = ({ lawyer, rank, onViewDetails }) => {
                         <span className={styles.valueBlue}>{lawyer.performance.conversion}%</span>
                     </div>
                     <div className={styles.metric}>
-                        <span>Acordos:</span>
+                        <span className={styles.metricLabelWithInfo}>
+                            <span>Acordos:</span>
+                            <MetricInfoHint text={AGREEMENT_COUNT_INFO_TEXT} />
+                        </span>
                         <span>{lawyer.performance.deals}</span>
                     </div>
                 </div>

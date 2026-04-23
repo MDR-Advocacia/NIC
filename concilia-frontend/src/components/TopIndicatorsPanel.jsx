@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
+import MetricInfoHint from './MetricInfoHint';
 import styles from '../styles/TopIndicatorsPanel.module.css';
+import { AGREEMENT_COUNT_INFO_TEXT } from '../constants/dashboardMetrics';
 
 const formatPercent = (value) =>
   new Intl.NumberFormat('pt-BR', {
@@ -82,7 +84,10 @@ const TopIndicatorsPanel = ({
 
                 <div className={styles.metrics}>
                   <span>{indicator.indications_count} indicações</span>
-                  <span>{closedDeals} acordos fechados</span>
+                  <span className={styles.metricWithInfo}>
+                    <span>{closedDeals} acordos fechados</span>
+                    <MetricInfoHint text={AGREEMENT_COUNT_INFO_TEXT} />
+                  </span>
                 </div>
 
                 <div className={styles.progressTrack}>
