@@ -85,8 +85,8 @@ class DashboardController extends Controller
             )
             ->selectRaw('COALESCE(SUM(COALESCE(original_value, 0)), 0) as total_original_value')
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as closed_cases',
-                [LegalCase::STATUS_CLOSED_DEAL]
+                "COALESCE(SUM(CASE WHEN {$this->agreementMetricStatusCaseSql()} THEN 1 ELSE 0 END), 0) as closed_cases",
+                LegalCase::AGREEMENT_METRIC_STATUSES
             )
             ->selectRaw(
                 'COALESCE(SUM(CASE WHEN status NOT IN (?, ?, ?) THEN 1 ELSE 0 END), 0) as active_cases',
@@ -131,8 +131,8 @@ class DashboardController extends Controller
         $indicationKpiRow = $indicationCasesQuery
             ->selectRaw('COUNT(*) as indications_received')
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as agreements_via_indication',
-                [LegalCase::STATUS_CLOSED_DEAL]
+                "COALESCE(SUM(CASE WHEN {$this->agreementMetricStatusCaseSql()} THEN 1 ELSE 0 END), 0) as agreements_via_indication",
+                LegalCase::AGREEMENT_METRIC_STATUSES
             )
             ->first();
 
@@ -319,12 +319,12 @@ class DashboardController extends Controller
                 [LegalCase::STATUS_INITIAL_ANALYSIS]
             )
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as closed_deals',
-                [LegalCase::STATUS_CLOSED_DEAL]
+                "COALESCE(SUM(CASE WHEN {$this->agreementMetricStatusCaseSql('legal_cases.status')} THEN 1 ELSE 0 END), 0) as closed_deals",
+                LegalCase::AGREEMENT_METRIC_STATUSES
             )
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN COALESCE(legal_cases.original_value, 0) - COALESCE(legal_cases.agreement_value, 0) ELSE 0 END), 0) as economy',
-                [LegalCase::STATUS_CLOSED_DEAL]
+                "COALESCE(SUM(CASE WHEN {$this->agreementMetricStatusCaseSql('legal_cases.status')} THEN COALESCE(legal_cases.original_value, 0) - COALESCE(legal_cases.agreement_value, 0) ELSE 0 END), 0) as economy",
+                LegalCase::AGREEMENT_METRIC_STATUSES
             )
             ->leftJoin('legal_cases', function (JoinClause $join) use ($request, $dateRange) {
                 $join->on('legal_cases.user_id', '=', 'users.id');
@@ -500,8 +500,8 @@ class DashboardController extends Controller
             ->selectRaw("COALESCE(indicators.name, 'Indicador indisponivel') as indicator_name")
             ->selectRaw('COUNT(*) as indications_count')
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as closed_deals',
-                [LegalCase::STATUS_CLOSED_DEAL]
+                "COALESCE(SUM(CASE WHEN {$this->agreementMetricStatusCaseSql('legal_cases.status')} THEN 1 ELSE 0 END), 0) as closed_deals",
+                LegalCase::AGREEMENT_METRIC_STATUSES
             )
             ->groupBy('legal_cases.indicator_user_id', 'indicators.name')
             ->orderByDesc('closed_deals')
@@ -621,10 +621,17 @@ class DashboardController extends Controller
         ?string $dateColumn = 'agreement_closed_at'
     ): Builder {
         $query = $this->newFilteredCaseQuery($request, $user, $dateRange, $dateColumn);
-        $query->where($this->qualifyLegalCaseColumn('status'), LegalCase::STATUS_CLOSED_DEAL);
+        $query->whereIn($this->qualifyLegalCaseColumn('status'), LegalCase::AGREEMENT_METRIC_STATUSES);
         $query->whereNotNull($this->qualifyLegalCaseColumn('agreement_closed_at'));
 
         return $query;
+    }
+
+    private function agreementMetricStatusCaseSql(string $column = 'status'): string
+    {
+        $placeholders = implode(', ', array_fill(0, count(LegalCase::AGREEMENT_METRIC_STATUSES), '?'));
+
+        return "{$column} IN ({$placeholders})";
     }
 
     private function resolveRecentCasesPerPage(Request $request): int
