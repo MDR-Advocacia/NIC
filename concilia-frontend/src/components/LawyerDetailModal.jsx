@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import styles from '../styles/LawyerDetailModal.module.css';
 import DetailKpiCard from './DetailKpiCard';
 import { FaTimes } from 'react-icons/fa';
+import MetricInfoHint from './MetricInfoHint';
+import { AGREEMENT_COUNT_INFO_TEXT } from '../constants/dashboardMetrics';
 
 const LawyerDetailModal = ({ isOpen, onClose, lawyer }) => {
     
@@ -93,7 +95,12 @@ const LawyerDetailModal = ({ isOpen, onClose, lawyer }) => {
                         subtext="Em andamento" 
                     />
                     <DetailKpiCard 
-                        title="Acordos Fechados" 
+                        title={(
+                            <span className={styles.titleWithInfo}>
+                                <span>Acordos Fechados</span>
+                                <MetricInfoHint text={AGREEMENT_COUNT_INFO_TEXT} />
+                            </span>
+                        )}
                         value={dealsCount} 
                         subtext="Total acumulado" 
                     />

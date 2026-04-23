@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import CasesTable from '../components/CasesTable';
 import KpiCard from '../components/KpiCard';
+import MetricInfoHint from '../components/MetricInfoHint';
 import StatusDistributionChart from '../components/StatusDistributionChartJS';
 import ProcessStageChart from '../components/ProcessStageChart';
 import MonthlyEvolutionChart from '../components/MonthlyEvolutionChart';
@@ -30,11 +31,11 @@ import {
 import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
 import { LEGAL_CASE_STATUS_OPTIONS, UNASSIGNED_RESPONSIBLE_VALUE } from '../constants/legalCaseStatus';
+import { AGREEMENT_COUNT_INFO_TEXT } from '../constants/dashboardMetrics';
 
 const GENERAL_KPI_ORDER = [
     'total_cases',
     'active_cases',
-    'closed_deals_today',
     'total_original_value',
     'total_agreement_value',
     'average_ticket',
@@ -66,7 +67,8 @@ const GENERAL_PERIOD_METRIC_CARDS = [
     {
         key: 'agreements_count',
         title: 'Acordos fechados',
-        description: 'Fechamentos do período selecionado',
+        description: 'Fechamentos e casos aguardando minuta do período selecionado',
+        infoTooltip: AGREEMENT_COUNT_INFO_TEXT,
     },
     {
         key: 'converted_indications_count',
@@ -188,7 +190,7 @@ const DashboardPage = () => {
         by_indicator: 'Conversão por indicador',
     };
     const metricsViewSubtitles = {
-        general: 'Acompanhe acordos fechados e indicações convertidas no recorte selecionado, respeitando os filtros ativos.',
+        general: 'Acompanhe acordos fechados, incluindo aguardando minuta, e indicações convertidas no recorte selecionado, respeitando os filtros ativos.',
         by_responsible: 'Compare o volume fechado por responsável no período atual sem perder os filtros já aplicados no dashboard.',
         by_indicator: 'Veja quais indicadores mais converteram acordos no período ativo, mantendo a leitura filtrada da operação.',
     };
@@ -516,6 +518,20 @@ const DashboardPage = () => {
         return value || 0;
     };
 
+    const renderAgreementCountLabel = (value, label = 'acordos') => (
+        <span className={styles.metricInlineInfo}>
+            <span>{value} {label}</span>
+            <MetricInfoHint text={AGREEMENT_COUNT_INFO_TEXT} />
+        </span>
+    );
+
+    const renderAgreementMetricLabel = (label) => (
+        <span className={styles.metricInlineInfo}>
+            <span>{label}</span>
+            <MetricInfoHint text={AGREEMENT_COUNT_INFO_TEXT} />
+        </span>
+    );
+
     const renderKpiGrid = (data, order) => {
         if (!data) {
             return <p>Não há dados de KPI para exibir.</p>;
@@ -536,6 +552,7 @@ const DashboardPage = () => {
                         key={key}
                         title={kpiTitles[key] || key}
                         value={formatKpiValue(key, value)}
+                        infoTooltip={key === 'closed_deals_today' ? AGREEMENT_COUNT_INFO_TEXT : undefined}
                     />
                 ))}
             </div>
@@ -556,6 +573,7 @@ const DashboardPage = () => {
                             title={card.title}
                             value={formatMetricSummaryValue(card.key, selectedMetricSummary[card.key])}
                             description={card.description}
+                            infoTooltip={card.infoTooltip}
                         />
                     ))}
                 </div>
@@ -586,7 +604,7 @@ const DashboardPage = () => {
                         {selectedMetricSummary.participants_count || 0} {participantLabel}
                     </span>
                     <span className={styles.metricSummaryPill}>
-                        {selectedMetricSummary.agreements_count || 0} acordos
+                        {renderAgreementCountLabel(selectedMetricSummary.agreements_count || 0)}
                     </span>
                     <span className={styles.metricSummaryPill}>
                         {selectedMetricSummary.converted_indications_count || 0} indicações convertidas
@@ -604,13 +622,13 @@ const DashboardPage = () => {
                                 <div className={styles.metricLeaderboardHeader}>
                                     <h4 className={styles.metricLeaderboardTitle}>{item.name}</h4>
                                     <span className={styles.metricLeaderboardBadge}>
-                                        {item.agreements_count || 0} acordos
+                                        {renderAgreementCountLabel(item.agreements_count || 0)}
                                     </span>
                                 </div>
 
                                 <div className={styles.metricLeaderboardMetrics}>
                                     <div className={styles.metricLeaderboardMetric}>
-                                        <span>Acordos fechados</span>
+                                        <span>{renderAgreementMetricLabel('Acordos fechados')}</span>
                                         <strong>{item.agreements_count || 0}</strong>
                                     </div>
                                     <div className={styles.metricLeaderboardMetric}>
@@ -880,7 +898,7 @@ const DashboardPage = () => {
                         <div className={styles.kpiSectionHeader}>
                             <h3 className={styles.kpiSectionTitle}>Visão Geral de Acordos</h3>
                             <p className={styles.kpiSectionSubtitle}>
-                                Casos, status e conversão seguem o período da carteira; métricas de acordo fechado respeitam a data real do fechamento.
+                                Casos, status e conversão seguem o período da carteira; métricas de acordo fechado consideram também aguardando minuta e respeitam a data real do fechamento.
                             </p>
                         </div>
                         {renderKpiGrid(dashboardData?.kpis, GENERAL_KPI_ORDER)}

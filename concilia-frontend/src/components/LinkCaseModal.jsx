@@ -69,9 +69,12 @@ const LinkCaseModal = ({ conversationId, contactName, contactPhone, onClose, onL
         contact_phone: contactPhone || '',
       });
 
+      const linkedCase = response?.data?.legal_case || {};
+
       onLinkSuccess?.({
-        id: selectedCase.id,
-        case_number: selectedCase.case_number,
+        ...linkedCase,
+        id: linkedCase.id || selectedCase.id,
+        case_number: linkedCase.case_number || selectedCase.case_number,
         backend_message: response?.data?.message || '',
       });
     } catch (error) {
