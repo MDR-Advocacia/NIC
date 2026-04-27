@@ -409,6 +409,12 @@ select.filterControl {
     gap: 1rem;
 }
 
+.metricInlineInfo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+}
+
 .kpiDescription {
     margin: 0.7rem 0 0;
     color: var(--text-secondary);
@@ -545,7 +551,7 @@ select.filterControl {
 
 .kpiGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1.5rem;
 }
 
@@ -640,6 +646,7 @@ select.filterControl {
     cursor: pointer;
     transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
     box-shadow: var(--card-shadow);
+    min-width: 0;
 }
 
 .kpiCard:hover {
@@ -647,17 +654,26 @@ select.filterControl {
     box-shadow: var(--card-shadow-strong);
 }
 
+.kpiTitleRow {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.5rem;
+}
+
 .kpiTitle {
-    margin: 0 0 0.5rem 0;
+    margin: 0;
     font-size: 1rem;
     color: var(--text-secondary);
 }
 
 .kpiValue {
     margin: 0;
-    font-size: 1.75rem;
+    font-size: clamp(1.5rem, 1.25rem + 0.8vw, 1.75rem);
     font-weight: bold;
-    word-break: break-all;
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
     color: var(--text-primary);
 }
 
@@ -1076,6 +1092,12 @@ select.filterControl {
     transform: translateX(2px);
 }
 
+@media (max-width: 1180px) {
+    .kpiGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 768px) {
     .filters {
         padding: 1.1rem;
@@ -1176,5 +1198,9 @@ select.filterControl {
     .recentCasesPagination {
         width: 100%;
         justify-content: flex-start;
+    }
+
+    .kpiGrid {
+        grid-template-columns: 1fr;
     }
 }

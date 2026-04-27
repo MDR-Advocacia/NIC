@@ -80,6 +80,12 @@
     margin-bottom: 0.5rem;
 }
 
+.metricLabelWithInfo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
 .metric span:first-child {
     color: var(--text-secondary); /* CORRIGIDO */
 }

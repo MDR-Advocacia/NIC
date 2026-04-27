@@ -762,18 +762,50 @@ class LegalCaseController extends Controller
                 }
 
                 $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
-                $caseData = $this->applyImportPartyFallbacks($caseData, $clientName, $existingCase);
-
                 if (empty($caseData['original_value'])) {
                     $caseData['original_value'] = $existingCase?->original_value ?? 0;
-                }
-                if (empty($caseData['cause_value'])) {
-                    $caseData['cause_value'] = $caseData['original_value'] ?? 0;
                 }
                 $caseData['has_alcada'] = $this->resolveImportedHasAlcada(
                     $caseData['original_value'] ?? null,
                     $existingCase
                 );
+
+                if ($existingCase) {
+                    $payload = $this->buildExistingCaseAlcadaImportPayload($caseData, $existingCase);
+
+                    $validator = Validator::make($payload, [
+                        'case_number' => 'required|string|max:255',
+                        'original_value' => 'required|numeric',
+                        'has_alcada' => 'nullable|boolean',
+                    ], $messages, $customAttributes);
+
+                    if ($validator->fails()) {
+                        $errors[] = [
+                            'line' => "Registro " . ($index + 1),
+                            'errors' => $validator->errors()->all(),
+                        ];
+                    } else {
+                        try {
+                            $existingCase->fill($payload);
+                            $existingCase->save();
+                            $updatedCount++;
+                            $successCount++;
+                        } catch (\Exception $e) {
+                            $errors[] = [
+                                'line' => "Registro " . ($index + 1),
+                                'errors' => ["Erro técnico ao salvar (Verifique dados inválidos ou caracteres especiais): " . $e->getMessage()]
+                            ];
+                        }
+                    }
+
+                    continue;
+                }
+
+                $caseData = $this->applyImportPartyFallbacks($caseData, $clientName, $existingCase);
+
+                if (empty($caseData['cause_value'])) {
+                    $caseData['cause_value'] = $caseData['original_value'] ?? 0;
+                }
 
                 unset($caseData['updated_condemnation_value']);
 
@@ -951,8 +983,6 @@ class LegalCaseController extends Controller
                 }
 
                 $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
-                $caseData = $this->applyImportPartyFallbacks($caseData, $clientName, $existingCase);
-
                 // Para sync de alçada, SEMPRE recalcular original_value do portal_agreement_offers
                 if (!empty($caseData['portal_agreement_offers'])) {
                     $pendingValue = $this->extractCurrentPortalAgreementValue(
@@ -973,6 +1003,41 @@ class LegalCaseController extends Controller
                 if (empty($caseData['original_value'])) {
                     $caseData['original_value'] = $existingCase?->original_value ?? 0;
                 }
+
+                if ($existingCase) {
+                    $payload = $this->buildExistingCaseAlcadaImportPayload($caseData, $existingCase);
+
+                    $validator = Validator::make($payload, [
+                        'case_number' => 'required|string|max:255',
+                        'original_value' => 'nullable|numeric',
+                        'has_alcada' => 'nullable|boolean',
+                    ], $messages, $customAttributes);
+
+                    if ($validator->fails()) {
+                        $errors[] = [
+                            'line' => "Registro " . ($index + 1),
+                            'errors' => $validator->errors()->all()
+                        ];
+                    } else {
+                        try {
+                            $existingCase->fill($payload);
+                            $existingCase->save();
+                            $processedCaseIds[] = $existingCase->id;
+                            $updatedCount++;
+                            $successCount++;
+                        } catch (\Exception $e) {
+                            $errors[] = [
+                                'line' => "Registro " . ($index + 1),
+                                'errors' => ["Erro ao salvar: " . $e->getMessage()]
+                            ];
+                        }
+                    }
+
+                    continue;
+                }
+
+                $caseData = $this->applyImportPartyFallbacks($caseData, $clientName, $existingCase);
+
                 if (empty($caseData['cause_value'])) {
                     $caseData['cause_value'] = $caseData['original_value'] ?? 0;
                 }
@@ -1497,6 +1562,15 @@ class LegalCaseController extends Controller
             $payload,
             static fn ($value) => $value !== ''
         );
+    }
+
+    private function buildExistingCaseAlcadaImportPayload(array $caseData, LegalCase $existingCase): array
+    {
+        return [
+            'case_number' => $existingCase->case_number,
+            'original_value' => $caseData['original_value'] ?? $existingCase->original_value ?? 0,
+            'has_alcada' => $caseData['has_alcada'] ?? $existingCase->has_alcada ?? false,
+        ];
     }
 
     private function resolveImportedHasAlcada(mixed $originalValue, ?LegalCase $existingCase): bool
@@ -2160,7 +2234,7 @@ class LegalCaseController extends Controller
         }
 
         $resolvedStatus = $payload['status'] ?? $existingCase?->status;
-        if ($resolvedStatus !== LegalCase::STATUS_CLOSED_DEAL) {
+        if (!in_array($resolvedStatus, LegalCase::AGREEMENT_METRIC_STATUSES, true)) {
             return [];
         }
 

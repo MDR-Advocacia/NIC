@@ -27,6 +27,11 @@ class LegalCase extends Model
     public const STATUS_CLOSED_DEAL = 'closed_deal';
     public const STATUS_FAILED_DEAL = 'failed_deal';
 
+    public const AGREEMENT_METRIC_STATUSES = [
+        self::STATUS_AWAITING_DRAFT,
+        self::STATUS_CLOSED_DEAL,
+    ];
+
     public const STATUSES = [
         self::STATUS_INITIAL_ANALYSIS,
         self::STATUS_INDICATIONS,

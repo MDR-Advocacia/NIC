@@ -4,6 +4,7 @@
 import React from 'react';
 import CountUp from 'react-countup'; // Importando a biblioteca
 import styles from '../styles/Dashboard.module.css';
+import MetricInfoHint from './MetricInfoHint';
 
 // Função auxiliar para extrair o número e os prefixos/sufixos do texto
 const parseValue = (valueString) => {
@@ -48,13 +49,16 @@ const parseValue = (valueString) => {
 };
 
 
-const KpiCard = ({ title, value, description }) => {
+const KpiCard = ({ title, value, description, infoTooltip }) => {
     // Analisa o valor para extrair as partes
     const { prefix, endValue, suffix, decimals, isNaN } = parseValue(value);
 
     return (
         <div className={styles.kpiCard}>
-            <h3 className={styles.kpiTitle}>{title}</h3>
+            <div className={styles.kpiTitleRow}>
+                <h3 className={styles.kpiTitle}>{title}</h3>
+                {infoTooltip && <MetricInfoHint text={infoTooltip} />}
+            </div>
             
             {/* Usamos o CountUp aqui.
               Se o valor não for um número (isNaN), ele apenas mostra o texto original.
