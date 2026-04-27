@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import LinkCaseModal from '../components/LinkCaseModal';
+import { useAuth } from '../context/AuthContext';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 import { normalizeCaseTags } from '../constants/caseTags';
 
@@ -382,6 +383,37 @@ const styles = {
     lineHeight: 1.6,
     color: '#6b7d96',
   },
+  drawerCompactPrimaryButton: {
+    padding: '11px 16px',
+    borderRadius: '12px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+    color: '#fff',
+    fontWeight: 700,
+    fontSize: '14px',
+    cursor: 'pointer',
+    alignSelf: 'flex-start',
+  },
+  drawerCompactSecondaryButton: {
+    padding: '10px 14px',
+    borderRadius: '12px',
+    border: '1px solid #dbe3ee',
+    backgroundColor: '#f8fbff',
+    color: '#213656',
+    fontWeight: 700,
+    fontSize: '13px',
+    cursor: 'pointer',
+  },
+  drawerCompactDangerButton: {
+    padding: '10px 14px',
+    borderRadius: '12px',
+    border: '1px solid #fecaca',
+    backgroundColor: '#fff1f2',
+    color: '#b42318',
+    fontWeight: 700,
+    fontSize: '13px',
+    cursor: 'pointer',
+  },
   agentSearchResults: {
     display: 'flex',
     flexDirection: 'column',
@@ -483,6 +515,7 @@ const InboxPage = () => {
       return {};
     }
   })());
+  const { user } = useAuth();
 
   const API_BASE = import.meta.env.VITE_API_URL || 'https://api-nic-lab.mdradvocacia.com/api';
 
@@ -1100,6 +1133,91 @@ const InboxPage = () => {
     return textoContato.includes(termoNormalizado);
   };
 
+  const normalizarTelefoneContato = (valor) => String(valor || '').replace(/\D+/g, '');
+
+  const normalizarEmailContato = (valor) => String(valor || '').trim().toLowerCase();
+
+  const conversaPertenceAoUsuarioAtual = (conversa) => {
+    const assignee = normalizarAgente(conversa?.meta?.assignee);
+
+    if (!assignee?.id) {
+      return false;
+    }
+
+    const emailUsuarioAtual = normalizarEmailContato(user?.email);
+    const emailAssignee = normalizarEmailContato(assignee.email);
+
+    if (emailUsuarioAtual && emailAssignee) {
+      return emailUsuarioAtual === emailAssignee;
+    }
+
+    return user?.id && assignee.id ? String(user.id) === String(assignee.id) : false;
+  };
+
+  const resolverAbaParaConversa = (conversa, fallback = 'all') => {
+    const assignee = normalizarAgente(conversa?.meta?.assignee);
+
+    if (!assignee?.id) {
+      return 'unassigned';
+    }
+
+    return conversaPertenceAoUsuarioAtual(conversa) ? 'mine' : fallback;
+  };
+
+  const inboxEhCompativelComContato = (contato, inboxId) => {
+    if (!inboxId) {
+      return true;
+    }
+
+    const canais = getCanaisContato(contato);
+
+    if (canais.length === 0) {
+      return true;
+    }
+
+    return canais.some((canal) => String(canal.id) === String(inboxId));
+  };
+
+  const encontrarMelhorContatoExistente = (lista, dadosContato, inboxId) => {
+    const telefoneDesejado = normalizarTelefoneContato(dadosContato?.phone_number);
+    const emailDesejado = normalizarEmailContato(dadosContato?.email);
+    const nomeDesejado = String(dadosContato?.name || '').trim().toLowerCase();
+
+    return (lista || [])
+      .filter(Boolean)
+      .map((contato) => {
+        let score = 0;
+
+        const telefoneContato = normalizarTelefoneContato(contato?.phone_number || contato?.identifier);
+        const emailContato = normalizarEmailContato(contato?.email);
+        const nomeContato = String(contato?.name || '').trim().toLowerCase();
+
+        if (telefoneDesejado && telefoneContato) {
+          if (telefoneContato === telefoneDesejado) {
+            score += 5;
+          } else if (telefoneContato.includes(telefoneDesejado) || telefoneDesejado.includes(telefoneContato)) {
+            score += 3;
+          }
+        }
+
+        if (emailDesejado && emailContato && emailContato === emailDesejado) {
+          score += 3;
+        }
+
+        if (nomeDesejado && nomeContato && nomeContato === nomeDesejado) {
+          score += 2;
+        }
+
+        if (inboxEhCompativelComContato(contato, inboxId)) {
+          score += 1;
+        }
+
+        return { contato, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((left, right) => right.score - left.score)[0]?.contato || null;
+  };
+
   const fecharModalNovoContato = () => {
     setModalAberto(false);
     setCriandoContato(false);
@@ -1477,8 +1595,9 @@ const InboxPage = () => {
     const conversaExistenteLocal = encontrarConversaPorContatoEInbox(contato.id, targetInboxId);
 
     if (conversaExistenteLocal) {
+      const abaDestino = resolverAbaParaConversa(conversaExistenteLocal);
       setVisaoAtiva('conversas');
-      setAbaAtiva('all');
+      setAbaAtiva(abaDestino);
       setInboxSelecionada(String(targetInboxId));
       setContatoParaDetalhar(contato);
       setPainelContatoAberto(false);
@@ -1513,8 +1632,9 @@ const InboxPage = () => {
         encontrarConversaPorContatoEInbox(contato.id, targetInboxId, listaAtualizada);
 
       if (conversaExistenteAtualizada?.id) {
+        const abaDestino = resolverAbaParaConversa(conversaExistenteAtualizada);
         setVisaoAtiva('conversas');
-        setAbaAtiva('all');
+        setAbaAtiva(abaDestino);
         setInboxSelecionada(String(targetInboxId));
         setContatoParaDetalhar(contato);
         setPainelContatoAberto(false);
@@ -1529,8 +1649,9 @@ const InboxPage = () => {
 
       if (response.ok && conversaCriada?.id) {
         garantirConversaNaLista(conversaCriada, contato, targetInboxId);
+        const abaDestino = resolverAbaParaConversa(conversaCriada);
         setVisaoAtiva('conversas');
-        setAbaAtiva('all');
+        setAbaAtiva(abaDestino);
         setInboxSelecionada(String(targetInboxId));
         setContatoParaDetalhar(contato);
         setPainelContatoAberto(false);
@@ -2428,6 +2549,11 @@ const InboxPage = () => {
       return;
     }
 
+    if (!payloadNovoContato.phone_number) {
+      setFeedbackBuscaContatoExistente('Informe o telefone do contato para criar e abrir a conversa.');
+      return;
+    }
+
     try {
       setCriandoContato(true);
       setFeedbackBuscaContatoExistente('');
@@ -2471,6 +2597,19 @@ const InboxPage = () => {
       const candidatos = Array.isArray(data?.conflict_candidates) ? data.conflict_candidates.filter(Boolean) : [];
 
       if (candidatos.length > 0) {
+        const contatoReaproveitavel = encontrarMelhorContatoExistente(candidatos, payloadNovoContato, inboxId);
+
+        if (contatoReaproveitavel) {
+          const conversaAberta = await abrirOuCriarConversaContato(contatoReaproveitavel, inboxId, {
+            successMessage: 'Contato existente reaproveitado e conversa aberta com sucesso.',
+          });
+
+          if (conversaAberta) {
+            fecharModalNovoContato();
+            return;
+          }
+        }
+
         setResultadosContatoExistente(candidatos);
         setFeedbackBuscaContatoExistente(
           data?.message || 'Ja existe um contato parecido. Use um dos resultados abaixo para abrir a conversa sem criar duplicidade.'
@@ -2479,6 +2618,20 @@ const InboxPage = () => {
       }
 
       const resultadosPesquisa = await buscarContatosExistentes(payloadNovoContato.phone_number || payloadNovoContato.name);
+
+      const contatoReaproveitavel = encontrarMelhorContatoExistente(resultadosPesquisa, payloadNovoContato, inboxId);
+
+      if (contatoReaproveitavel) {
+        const conversaAberta = await abrirOuCriarConversaContato(contatoReaproveitavel, inboxId, {
+          successMessage: 'Contato existente localizado e conversa aberta com sucesso.',
+        });
+
+        if (conversaAberta) {
+          fecharModalNovoContato();
+          return;
+        }
+      }
+
       if (resultadosPesquisa.length > 0) {
         setFeedbackBuscaContatoExistente(data?.message || 'Encontramos contatos parecidos para voce reutilizar.');
         return;
@@ -2565,7 +2718,7 @@ const InboxPage = () => {
               </div>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 700, color: '#5f7291' }}>TELEFONE</label>
-                <input style={styles.input} placeholder="+55849..." value={novoContato.phone_number} onChange={(event) => setNovoContato({ ...novoContato, phone_number: event.target.value })} />
+                <input required style={styles.input} placeholder="+55849..." value={novoContato.phone_number} onChange={(event) => setNovoContato({ ...novoContato, phone_number: event.target.value })} />
               </div>
               <div style={{ marginBottom: '22px' }}>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 700, color: '#5f7291' }}>CANAL</label>
@@ -3291,40 +3444,43 @@ const InboxPage = () => {
                 {formContato.id ? `ID do contato no Chatwoot: ${formContato.id}` : 'Este registro ainda nao expoe o ID do contato para edicao direta.'}
               </div>
 
-              <button type="button" style={styles.primaryButton} onClick={salvarContatoAtual} disabled={salvandoContato || atualizandoBloqueioContato || excluindoContato}>
+              <button
+                type="button"
+                style={styles.drawerCompactPrimaryButton}
+                onClick={salvarContatoAtual}
+                disabled={salvandoContato || atualizandoBloqueioContato || excluindoContato}
+              >
                 {salvandoContato ? 'Salvando...' : 'Salvar contato'}
               </button>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  style={{
-                    ...styles.secondaryButton,
-                    flex: 1,
-                    borderColor: contatoAtualBloqueado ? '#fecaca' : '#dbe3ee',
-                    backgroundColor: contatoAtualBloqueado ? '#fff1f2' : '#f8fbff',
-                    color: contatoAtualBloqueado ? '#b42318' : '#213656',
-                  }}
-                  onClick={alternarBloqueioContatoAtual}
-                  disabled={!formContato.id || salvandoContato || atualizandoBloqueioContato || excluindoContato}
-                >
-                  {atualizandoBloqueioContato ? 'Atualizando...' : contatoAtualBloqueado ? 'Desbloquear contato' : 'Bloquear contato'}
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    ...styles.secondaryButton,
-                    flex: 1,
-                    borderColor: '#fecaca',
-                    backgroundColor: '#fff1f2',
-                    color: '#b42318',
-                  }}
-                  onClick={excluirContatoAtual}
-                  disabled={!formContato.id || salvandoContato || atualizandoBloqueioContato || excluindoContato}
-                >
-                  {excluindoContato ? 'Excluindo...' : 'Excluir contato'}
-                </button>
-              </div>
+              <details style={{ marginTop: '-4px' }}>
+                <summary style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 700, color: '#5f7291', userSelect: 'none' }}>
+                  Mais acoes do contato
+                </summary>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.drawerCompactSecondaryButton,
+                      borderColor: contatoAtualBloqueado ? '#fecaca' : '#dbe3ee',
+                      backgroundColor: contatoAtualBloqueado ? '#fff1f2' : '#f8fbff',
+                      color: contatoAtualBloqueado ? '#b42318' : '#213656',
+                    }}
+                    onClick={alternarBloqueioContatoAtual}
+                    disabled={!formContato.id || salvandoContato || atualizandoBloqueioContato || excluindoContato}
+                  >
+                    {atualizandoBloqueioContato ? 'Atualizando...' : contatoAtualBloqueado ? 'Desbloquear' : 'Bloquear'}
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.drawerCompactDangerButton}
+                    onClick={excluirContatoAtual}
+                    disabled={!formContato.id || salvandoContato || atualizandoBloqueioContato || excluindoContato}
+                  >
+                    {excluindoContato ? 'Excluindo...' : 'Excluir'}
+                  </button>
+                </div>
+              </details>
             </div>
 
             {contatoAtual?.id ? (
@@ -3360,7 +3516,7 @@ const InboxPage = () => {
 
                 <button
                   type="button"
-                  style={styles.primaryButton}
+                  style={styles.drawerCompactPrimaryButton}
                   disabled={!inboxContatoSelecionado || abrindoContatoExistenteId === String(contatoAtual.id) || contatoAtualBloqueado}
                   onClick={() =>
                     abrirOuCriarConversaContato(contatoAtual, Number(inboxContatoSelecionado), {

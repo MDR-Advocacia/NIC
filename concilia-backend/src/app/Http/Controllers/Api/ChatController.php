@@ -68,8 +68,9 @@ class ChatController extends Controller
             'inbox_id' => 'required|integer',
         ])->validate();
 
+        $payload = $this->buildChatwootContactCreatePayload($validated);
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
-            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", $validated);
+            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", $payload);
 
         if ($response->successful()) {
             return response()->json($response->json());
@@ -139,21 +140,27 @@ class ChatController extends Controller
             $sourceId = $this->resolveContactableInboxSourceId($contactableInboxes, $inboxId);
         }
 
-        if (blank($sourceId)) {
-            return response()->json([
-                'message' => 'O contato foi criado, mas nao foi possivel localizar o source_id da inbox para abrir a conversa.',
-                'contact' => $contact,
-                'contactable_inboxes' => $contactableInboxes,
-            ], 422);
+        $payload = [
+            'inbox_id' => $inboxId,
+            'contact_id' => (int) $contactId,
+            'status' => 'open',
+        ];
+
+        if (filled($sourceId)) {
+            $payload['source_id'] = (string) $sourceId;
         }
 
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
-            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", [
-                'source_id' => (string) $sourceId,
-                'inbox_id' => $inboxId,
-                'contact_id' => (int) $contactId,
-                'status' => 'open',
-            ]);
+            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", $payload);
+
+        if ($response->failed() && blank($sourceId)) {
+            return response()->json([
+                'message' => 'Nao foi possivel abrir a conversa automaticamente para este contato.',
+                'details' => $response->json() ?? ['body' => $response->body()],
+                'contact' => $contact,
+                'contactable_inboxes' => $contactableInboxes,
+            ], $response->status());
+        }
 
         return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
     }
@@ -214,9 +221,14 @@ class ChatController extends Controller
         $status = $request->query('status', 'open');
         $assigneeType = $request->query('assignee_type', 'all');
         $queryParams = ['status' => $status];
+        $inboxId = $request->query('inbox_id');
 
         if ($assigneeType !== 'all') {
             $queryParams['assignee_type'] = $assigneeType;
+        }
+
+        if (filled($inboxId)) {
+            $queryParams['inbox_id'] = (int) $inboxId;
         }
 
         try {
@@ -387,8 +399,16 @@ class ChatController extends Controller
 
         $inboxId = isset($data['inbox_id']) ? (int) $data['inbox_id'] : null;
 
-        if ($response->successful() || !$isTemplateMessage || !$this->hasMetaMessagingConfig($inboxId)) {
+        if ($response->successful() || !$isTemplateMessage) {
             return response()->json($response->json(), $response->status());
+        }
+
+        if (!$this->hasMetaMessagingConfig($inboxId)) {
+            return response()->json([
+                'message' => 'O Chatwoot rejeitou o template e o fallback direto da Meta nao esta configurado para esta inbox.',
+                'chatwoot_error' => $response->json() ?? ['body' => $response->body()],
+                'hint' => 'Confirme o business_account_id e o phone_number_id desta inbox no Chatwoot ou configure os mapas META_WHATSAPP_BUSINESS_ACCOUNT_ID_MAP e META_WHATSAPP_PHONE_NUMBER_ID_MAP para este inbox_id.',
+            ], $response->status());
         }
 
         $phoneNumber = $data['to_phone_number'] ?? null;
@@ -649,6 +669,27 @@ class ChatController extends Controller
 
         if ($includeInbox || $request->exists('inbox_id')) {
             $payload['inbox_id'] = $request->input('inbox_id');
+        }
+
+        return $payload;
+    }
+
+    private function buildChatwootContactCreatePayload(array $validated): array
+    {
+        $payload = [];
+
+        foreach (['name', 'email', 'phone_number', 'inbox_id'] as $field) {
+            if (!array_key_exists($field, $validated)) {
+                continue;
+            }
+
+            $value = $validated[$field];
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $payload[$field] = $value;
         }
 
         return $payload;
@@ -1043,6 +1084,12 @@ class ChatController extends Controller
 
     private function findInboxById(int $inboxId): ?array
     {
+        static $cache = [];
+
+        if (array_key_exists($inboxId, $cache)) {
+            return $cache[$inboxId];
+        }
+
         try {
             $response = Http::withHeaders([
                 'api_access_token' => $this->apiToken,
@@ -1051,18 +1098,22 @@ class ChatController extends Controller
             $inboxes = $response->json('payload', []);
 
             if (!is_array($inboxes)) {
+                $cache[$inboxId] = null;
                 return null;
             }
 
             foreach ($inboxes as $inbox) {
                 if ((int) ($inbox['id'] ?? 0) === $inboxId) {
+                    $cache[$inboxId] = $inbox;
                     return $inbox;
                 }
             }
         } catch (\Exception $e) {
+            $cache[$inboxId] = null;
             return null;
         }
 
+        $cache[$inboxId] = null;
         return null;
     }
 
@@ -1076,10 +1127,49 @@ class ChatController extends Controller
         return $this->hasMetaTemplateConfig($inboxId) && filled($this->resolveMetaPhoneNumberId($inboxId));
     }
 
+    private function shouldRequireInboxScopedMetaConfig(?int $inboxId): bool
+    {
+        return $inboxId !== null && (!empty($this->metaBusinessAccountIdMap) || !empty($this->metaPhoneNumberIdMap));
+    }
+
+    private function extractMetaInboxConfigValue(?array $inbox, array $paths): ?string
+    {
+        if (!$inbox) {
+            return null;
+        }
+
+        foreach ($paths as $path) {
+            $value = data_get($inbox, $path);
+
+            if (filled($value)) {
+                return (string) $value;
+            }
+        }
+
+        return null;
+    }
+
     private function resolveMetaBusinessAccountId(?int $inboxId): ?string
     {
         if ($inboxId !== null && isset($this->metaBusinessAccountIdMap[(string) $inboxId])) {
             return (string) $this->metaBusinessAccountIdMap[(string) $inboxId];
+        }
+
+        if ($inboxId !== null) {
+            $inboxBusinessAccountId = $this->extractMetaInboxConfigValue($this->findInboxById($inboxId), [
+                'channel.provider_config.business_account_id',
+                'provider_config.business_account_id',
+                'channel.business_account_id',
+                'business_account_id',
+            ]);
+
+            if (filled($inboxBusinessAccountId)) {
+                return $inboxBusinessAccountId;
+            }
+
+            if ($this->shouldRequireInboxScopedMetaConfig($inboxId)) {
+                return null;
+            }
         }
 
         return filled($this->metaBusinessAccountId) ? (string) $this->metaBusinessAccountId : null;
@@ -1089,6 +1179,23 @@ class ChatController extends Controller
     {
         if ($inboxId !== null && isset($this->metaPhoneNumberIdMap[(string) $inboxId])) {
             return (string) $this->metaPhoneNumberIdMap[(string) $inboxId];
+        }
+
+        if ($inboxId !== null) {
+            $inboxPhoneNumberId = $this->extractMetaInboxConfigValue($this->findInboxById($inboxId), [
+                'channel.provider_config.phone_number_id',
+                'provider_config.phone_number_id',
+                'channel.phone_number_id',
+                'phone_number_id',
+            ]);
+
+            if (filled($inboxPhoneNumberId)) {
+                return $inboxPhoneNumberId;
+            }
+
+            if ($this->shouldRequireInboxScopedMetaConfig($inboxId)) {
+                return null;
+            }
         }
 
         return filled($this->metaPhoneNumberId) ? (string) $this->metaPhoneNumberId : null;
