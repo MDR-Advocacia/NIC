@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\User;
 use App\Notifications\TemporaryPasswordNotification;
+use App\Notifications\UserInvitationNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -13,6 +15,42 @@ use Tests\TestCase;
 class UserPasswordResetTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_administrator_can_create_user_without_password_and_send_invitation(): void
+    {
+        Notification::fake();
+
+        $administrator = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $department = Department::create(['name' => 'Operacao']);
+
+        Sanctum::actingAs($administrator);
+
+        $this->postJson('/api/users', [
+            'name' => 'Novo Usuario',
+            'email' => 'novo.usuario@example.com',
+            'role' => 'operador',
+            'department_id' => $department->id,
+            'status' => 'ativo',
+            'area' => 'Atendente',
+        ])
+            ->assertCreated()
+            ->assertJson([
+                'message' => 'Usuario criado com sucesso. Enviamos um e-mail para confirmar o acesso e criar a senha.',
+                'invitation_email_sent' => true,
+            ]);
+
+        $createdUser = User::where('email', 'novo.usuario@example.com')->firstOrFail();
+
+        $this->assertFalse($createdUser->must_change_password);
+        $this->assertNull($createdUser->email_verified_at);
+        $this->assertFalse(Hash::check('123456', $createdUser->password));
+
+        Notification::assertSentTo($createdUser, UserInvitationNotification::class);
+    }
 
     public function test_administrator_can_reset_another_user_password(): void
     {

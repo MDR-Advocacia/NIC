@@ -19,6 +19,7 @@ export default function ResetPassword() {
 
     const token = tokenFromPath || searchParams.get('token');
     const emailParam = searchParams.get('email');
+    const isFirstAccess = searchParams.get('first_access') === '1';
 
     const [email, setEmail] = useState(emailParam || '');
     const [password, setPassword] = useState('');
@@ -82,14 +83,18 @@ export default function ResetPassword() {
                 {success ? (
                     <div className={styles.successState}>
                         <FaCheckCircle className={styles.successIcon} />
-                        <h2 className={styles.title}>Senha redefinida</h2>
+                        <h2 className={styles.title}>{isFirstAccess ? 'Acesso confirmado' : 'Senha redefinida'}</h2>
                         <p className={styles.subtitle}>{status} Voce sera redirecionado para o login.</p>
                         <Link to="/login" className={styles.secondaryButton}>Ir para login</Link>
                     </div>
                 ) : (
                     <>
-                        <h2 className={styles.title}>Nova senha</h2>
-                        <p className={styles.subtitle}>Defina uma nova senha para acessar o sistema.</p>
+                        <h2 className={styles.title}>{isFirstAccess ? 'Criar senha de acesso' : 'Nova senha'}</h2>
+                        <p className={styles.subtitle}>
+                            {isFirstAccess
+                                ? 'Confirme seu e-mail e defina sua senha para ativar o acesso.'
+                                : 'Defina uma nova senha para acessar o sistema.'}
+                        </p>
 
                         {error && (
                             <div className={`${styles.alert} ${styles.alertError}`}>
