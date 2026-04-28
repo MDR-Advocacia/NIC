@@ -234,7 +234,6 @@ const UserManagementPage = () => {
                 department_id: formData.department_id, status: formData.status, area: formData.area 
             };
             if (formData.password) payload.password = formData.password;
-            else if (!isEditing) payload.password = '123456';
 
             if (isEditing) {
                 await apiClient.put(`/users/${currentUserId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
@@ -243,7 +242,7 @@ const UserManagementPage = () => {
             }
             setIsUserFormModalOpen(false);
             fetchData(pagination.current_page);
-            alert(isEditing ? 'Atualizado!' : 'Criado!');
+            alert(isEditing ? 'Atualizado!' : 'Usuario criado. O convite para criar a senha foi enviado por e-mail.');
         } catch {
             alert('Erro ao salvar.');
         }
@@ -742,12 +741,6 @@ const UserManagementPage = () => {
                                 <label>E-mail</label>
                                 <input required type="email" disabled={isEditing} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                             </div>
-                            {!isEditing && (
-                                <div className={styles.formGroup}>
-                                    <label>Senha</label>
-                                    <input type="password" placeholder="Padrão: 123456" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
-                                </div>
-                            )}
                             <div className={styles.formRow}>
                                 <div className={styles.formGroup}>
                                     <label>Função</label>

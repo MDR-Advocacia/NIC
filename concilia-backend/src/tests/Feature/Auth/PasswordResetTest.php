@@ -56,6 +56,7 @@ class PasswordResetTest extends TestCase
 
             $this->assertTrue(Hash::check('NovaSenha.123', $user->password));
             $this->assertFalse($user->must_change_password);
+            $this->assertNotNull($user->email_verified_at);
 
             return true;
         });

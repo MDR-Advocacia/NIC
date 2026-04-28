@@ -5,14 +5,14 @@ import styles from '../styles/AggressorLawyersModal.module.css';
 import formStyles from '../styles/Form.module.css';
 import { FaTimes } from 'react-icons/fa';
 
+const INITIAL_STATE = {
+    name: '', email: '', phone: '', password: '',
+    department_id: '', role: 'operador', status: 'ativo',
+};
+
 const AddEditUserModal = ({ isOpen, onClose, onSave, departments, existingUser }) => {
     const { token } = useAuth();
-    const initialState = {
-        name: '', email: '', phone: '', password: '',
-        department_id: '', role: 'operador', status: 'ativo',
-    };
-
-    const [formData, setFormData] = useState(initialState);
+    const [formData, setFormData] = useState(INITIAL_STATE);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
@@ -31,7 +31,7 @@ const AddEditUserModal = ({ isOpen, onClose, onSave, departments, existingUser }
             });
         } else {
             // Se estamos adicionando, garantimos que o formulário esteja limpo
-            setFormData(initialState);
+            setFormData(INITIAL_STATE);
         }
     }, [existingUser, isOpen]); // Roda sempre que o usuário em edição ou o estado de abertura mudar
 
@@ -64,7 +64,7 @@ const AddEditUserModal = ({ isOpen, onClose, onSave, departments, existingUser }
                 });
             }
             onSave();
-            setFormData(initialState);
+            setFormData(INITIAL_STATE);
         } catch (err) {
             const apiError = err.response?.data?.message || 'Ocorreu um erro.';
             setError(apiError);
@@ -102,10 +102,12 @@ const AddEditUserModal = ({ isOpen, onClose, onSave, departments, existingUser }
                                 <label htmlFor="phone">Telefone</label>
                                 <input type="text" id="phone" name="phone" value={formData.phone} onChange={handleChange} />
                             </div>
-                             <div className={formStyles.formGroup}>
-                                <label htmlFor="password">Senha {existingUser ? '(Deixe em branco para não alterar)' : '*'}</label>
-                                <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} required={!existingUser} />
-                            </div>
+                            {existingUser && (
+                                <div className={formStyles.formGroup}>
+                                    <label htmlFor="password">Senha (Deixe em branco para não alterar)</label>
+                                    <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} />
+                                </div>
+                            )}
                              <div className={formStyles.formGroup}>
                                 <label htmlFor="department_id">Departamento *</label>
                                 <select id="department_id" name="department_id" value={formData.department_id} onChange={handleChange} required>

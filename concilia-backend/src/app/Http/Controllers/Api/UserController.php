@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\AuditLog;
 use App\Notifications\TemporaryPasswordNotification;
+use App\Notifications\UserInvitationNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB; // Adicionado para transações em lote
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Password as PasswordFacade;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
@@ -153,7 +156,7 @@ class UserController extends Controller
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
+            'password' => 'nullable|string|min:8',
             'role' => 'required|string|in:administrador,supervisor,operador,indicador',
             'department_id' => 'required|exists:departments,id',
             'phone' => 'nullable|string',
@@ -161,14 +164,14 @@ class UserController extends Controller
             'area'   => 'nullable|string',
         ]);
 
-        // 1. Hash da senha
-        $validatedData['password'] = Hash::make($validatedData['password']);
+        // A senha inicial e interna: o usuario cria a propria senha pelo email de primeiro acesso.
+        $validatedData['password'] = Hash::make(Str::random(64));
+        $validatedData['must_change_password'] = false;
+        $validatedData['email_verified_at'] = null;
 
-        // 2. CORREÇÃO: Força o usuário a trocar a senha no primeiro login
-        $validatedData['must_change_password'] = true; 
-
-        // 3. Cria o usuário com a flag ativada
         $user = User::create($validatedData);
+        $token = PasswordFacade::broker()->createToken($user);
+        $user->notify(new UserInvitationNotification($token));
 
         try {
             AuditLog::create([
@@ -182,7 +185,11 @@ class UserController extends Controller
             Log::error("ERRO AO SALVAR LOG (Criação): " . $e->getMessage());
         }
 
-        return response()->json($user, 201);
+        return response()->json([
+            'user' => $user,
+            'message' => 'Usuario criado com sucesso. Enviamos um e-mail para confirmar o acesso e criar a senha.',
+            'invitation_email_sent' => true,
+        ], 201);
     }
 
     public function update(Request $request, User $user)
