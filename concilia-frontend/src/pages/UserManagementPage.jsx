@@ -11,7 +11,6 @@ import KpiCard from '../components/KpiCard';
 import AddDepartmentModal from '../components/AddDepartmentModal';
 
 const AREAS_LIST = ["Recuperação de Crédito", "Contencioso Passivo", "Atendente"];
-const DEFAULT_RESET_PASSWORD = 'Mudar.123@';
 
 const STATUS_DETAILS = {
     'ativo': { name: 'Ativo', color: '#38a169', textColor: '#FFFFFF' },
@@ -63,6 +62,13 @@ const UserManagementPage = () => {
     const [isBatchProcessing, setIsBatchProcessing] = useState(false);
     const [showBatchRoleSelect, setShowBatchRoleSelect] = useState(false); // Para mostrar select de cargo na barra
     const [resettingUserId, setResettingUserId] = useState(null);
+    const [passwordResetDialog, setPasswordResetDialog] = useState({
+        isOpen: false,
+        user: null,
+        status: 'confirm',
+        message: '',
+        error: '',
+    });
 
     const [formData, setFormData] = useState({
         name: '', email: '', password: '', role: 'operador', department_id: '', status: 'ativo', area: ''
@@ -238,7 +244,7 @@ const UserManagementPage = () => {
             setIsUserFormModalOpen(false);
             fetchData(pagination.current_page);
             alert(isEditing ? 'Atualizado!' : 'Criado!');
-        } catch (err) {
+        } catch {
             alert('Erro ao salvar.');
         }
     };
@@ -248,35 +254,75 @@ const UserManagementPage = () => {
             try {
                 await apiClient.delete(`/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
                 fetchData(pagination.current_page);
-            } catch (err) {
+            } catch {
                 alert("Erro ao excluir.");
             }
         }
     };
 
-    const handleResetPassword = async (managedUser) => {
+    const openResetPasswordDialog = (managedUser) => {
         if (!managedUser?.id) {
             return;
         }
 
-        const confirmationMessage = `Resetar a senha de ${managedUser.name} para "${DEFAULT_RESET_PASSWORD}"?\n\nO usuário será desconectado e precisará trocar a senha no próximo login.`;
+        setPasswordResetDialog({
+            isOpen: true,
+            user: managedUser,
+            status: 'confirm',
+            message: '',
+            error: '',
+        });
+    };
 
-        if (!window.confirm(confirmationMessage)) {
+    const closeResetPasswordDialog = () => {
+        if (passwordResetDialog.status === 'processing') {
+            return;
+        }
+
+        setPasswordResetDialog({
+            isOpen: false,
+            user: null,
+            status: 'confirm',
+            message: '',
+            error: '',
+        });
+    };
+
+    const handleResetPassword = async () => {
+        const managedUser = passwordResetDialog.user;
+
+        if (!managedUser?.id) {
             return;
         }
 
         setResettingUserId(managedUser.id);
+        setPasswordResetDialog((current) => ({
+            ...current,
+            status: 'processing',
+            message: '',
+            error: '',
+        }));
 
         try {
-            await apiClient.post(`/users/${managedUser.id}/reset-password`, {}, {
+            const response = await apiClient.post(`/users/${managedUser.id}/reset-password`, {}, {
                 headers: { Authorization: `Bearer ${token}` },
             });
 
-            alert(`Senha de ${managedUser.name} resetada para ${DEFAULT_RESET_PASSWORD}.`);
+            setPasswordResetDialog((current) => ({
+                ...current,
+                status: 'success',
+                message: response.data?.message || 'Senha temporaria enviada para o e-mail do usuario.',
+                error: '',
+            }));
             fetchData(pagination.current_page);
         } catch (error) {
             console.error(error);
-            alert(error.response?.data?.message || 'Erro ao resetar senha.');
+            setPasswordResetDialog((current) => ({
+                ...current,
+                status: 'error',
+                message: '',
+                error: error.response?.data?.message || 'Erro ao resetar senha.',
+            }));
         } finally {
             setResettingUserId(null);
         }
@@ -480,8 +526,8 @@ const UserManagementPage = () => {
                                                         <button
                                                             type="button"
                                                             className={`${styles.actionIconButton} ${styles.actionIconButtonWarning}`}
-                                                            title="Resetar senha para o padrão"
-                                                            onClick={() => handleResetPassword(managedUser)}
+                                                            title="Gerar senha temporaria"
+                                                            onClick={() => openResetPasswordDialog(managedUser)}
                                                             disabled={resettingUserId === managedUser.id}
                                                         >
                                                             <FaKey />
@@ -590,6 +636,92 @@ const UserManagementPage = () => {
                         </button>
 
                         <button className={styles.batchClose} onClick={() => setSelectedUsers([])}><FaTimes /></button>
+                    </div>
+                </div>
+            )}
+
+            {passwordResetDialog.isOpen && (
+                <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-labelledby="reset-password-title">
+                    <div className={`${styles.modalContent} ${styles.resetPasswordModal}`}>
+                        <div className={styles.modalHeader}>
+                            <h2 id="reset-password-title">Resetar senha</h2>
+                            <button
+                                type="button"
+                                className={styles.closeButton}
+                                onClick={closeResetPasswordDialog}
+                                disabled={passwordResetDialog.status === 'processing'}
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+
+                        <div className={styles.resetPasswordBody}>
+                            <div className={`${styles.resetPasswordIcon} ${styles[`resetPasswordIcon_${passwordResetDialog.status}`] || ''}`}>
+                                {passwordResetDialog.status === 'success' ? <FaCheckSquare /> : passwordResetDialog.status === 'error' ? <FaBan /> : <FaKey />}
+                            </div>
+
+                            {passwordResetDialog.status === 'success' ? (
+                                <>
+                                    <h3>Senha temporaria enviada</h3>
+                                    <p>{passwordResetDialog.message}</p>
+                                    <p className={styles.resetPasswordHint}>
+                                        O usuario recebera a senha por e-mail e devera criar uma nova senha no proximo acesso.
+                                    </p>
+                                </>
+                            ) : passwordResetDialog.status === 'error' ? (
+                                <>
+                                    <h3>Nao foi possivel resetar</h3>
+                                    <p>{passwordResetDialog.error}</p>
+                                </>
+                            ) : (
+                                <>
+                                    <h3>{passwordResetDialog.user?.name}</h3>
+                                    <p>
+                                        Uma senha temporaria aleatoria sera gerada e enviada para{' '}
+                                        <strong>{passwordResetDialog.user?.email}</strong>.
+                                    </p>
+                                    <p className={styles.resetPasswordHint}>
+                                        As sessoes ativas serao encerradas e o usuario precisara alterar a senha no proximo login.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+
+                        <div className={styles.modalActions}>
+                            {passwordResetDialog.status === 'success' ? (
+                                <button type="button" className={styles.saveButton} onClick={closeResetPasswordDialog}>
+                                    Fechar
+                                </button>
+                            ) : passwordResetDialog.status === 'error' ? (
+                                <>
+                                    <button type="button" className={styles.cancelButton} onClick={closeResetPasswordDialog}>
+                                        Fechar
+                                    </button>
+                                    <button type="button" className={styles.saveButton} onClick={handleResetPassword}>
+                                        Tentar novamente
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        type="button"
+                                        className={styles.cancelButton}
+                                        onClick={closeResetPasswordDialog}
+                                        disabled={passwordResetDialog.status === 'processing'}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={styles.saveButton}
+                                        onClick={handleResetPassword}
+                                        disabled={passwordResetDialog.status === 'processing'}
+                                    >
+                                        {passwordResetDialog.status === 'processing' ? 'Enviando...' : 'Gerar e enviar'}
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

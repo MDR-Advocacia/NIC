@@ -1,6 +1,16 @@
 import { useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+    FaArrowLeft,
+    FaCheckCircle,
+    FaEnvelope,
+    FaExclamationCircle,
+    FaHandshake,
+    FaLock,
+    FaSpinner,
+} from 'react-icons/fa';
 import apiClient from '../api';
+import styles from '../styles/PasswordFlow.module.css';
 
 export default function ResetPassword() {
     const [searchParams] = useSearchParams();
@@ -15,85 +25,137 @@ export default function ResetPassword() {
     const [passwordConfirmation, setPasswordConfirmation] = useState('');
     const [status, setStatus] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState(false);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
         setStatus('');
         setError('');
+        setLoading(true);
 
         if (!token) {
             setError('Token de redefinicao invalido ou ausente.');
+            setLoading(false);
             return;
         }
 
         if (password !== passwordConfirmation) {
             setError('As senhas nao conferem.');
+            setLoading(false);
             return;
         }
 
         try {
-            await apiClient.post('/reset-password', {
+            const response = await apiClient.post('/reset-password', {
                 token,
                 email: email.trim(),
                 password,
                 password_confirmation: passwordConfirmation,
             });
 
-            setStatus('Senha alterada com sucesso! Redirecionando...');
-            setTimeout(() => navigate('/login'), 3000);
+            setSuccess(true);
+            setStatus(response.data?.status || 'Senha redefinida com sucesso.');
+            setTimeout(() => navigate('/login'), 2500);
         } catch (err) {
             setError(err.response?.data?.message || err.response?.data?.email || 'Erro ao resetar senha. O link pode ter expirado.');
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
-        <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
-            <div className="bg-white p-8 rounded shadow-md w-96">
-                <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Nova Senha</h2>
-
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    <input type="hidden" value={token || ''} />
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Confirmar E-mail</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(event) => setEmail(event.target.value)}
-                            className="mt-1 p-2 w-full border rounded bg-gray-50"
-                            required
-                        />
+        <div className={styles.page}>
+            <div className={styles.panel}>
+                <div className={styles.brandWrapper}>
+                    <FaHandshake className={styles.mainIcon} />
+                    <div className={styles.textGroup}>
+                        <h1 className={styles.nicTitle}>NIC</h1>
+                        <div className={styles.meaningBox}>
+                            <span>NUCLEO</span>
+                            <span>INTEGRADO DE</span>
+                            <span>CONCILIACOES</span>
+                        </div>
                     </div>
+                </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Nova Senha</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(event) => setPassword(event.target.value)}
-                            className="mt-1 p-2 w-full border rounded"
-                            required
-                        />
+                {success ? (
+                    <div className={styles.successState}>
+                        <FaCheckCircle className={styles.successIcon} />
+                        <h2 className={styles.title}>Senha redefinida</h2>
+                        <p className={styles.subtitle}>{status} Voce sera redirecionado para o login.</p>
+                        <Link to="/login" className={styles.secondaryButton}>Ir para login</Link>
                     </div>
+                ) : (
+                    <>
+                        <h2 className={styles.title}>Nova senha</h2>
+                        <p className={styles.subtitle}>Defina uma nova senha para acessar o sistema.</p>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Confirmar Nova Senha</label>
-                        <input
-                            type="password"
-                            value={passwordConfirmation}
-                            onChange={(event) => setPasswordConfirmation(event.target.value)}
-                            className="mt-1 p-2 w-full border rounded"
-                            required
-                        />
-                    </div>
+                        {error && (
+                            <div className={`${styles.alert} ${styles.alertError}`}>
+                                <FaExclamationCircle />
+                                <span>{error}</span>
+                            </div>
+                        )}
 
-                    <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white p-2 rounded transition">
-                        Redefinir Senha
-                    </button>
-                </form>
+                        <form onSubmit={handleSubmit} className={styles.form}>
+                            <input type="hidden" value={token || ''} />
 
-                {status && <div className="mt-4 p-2 bg-green-100 text-green-700 rounded text-sm text-center">{status}</div>}
-                {error && <div className="mt-4 p-2 bg-red-100 text-red-700 rounded text-sm text-center">{error}</div>}
+                            <div className={styles.field}>
+                                <label htmlFor="email">Confirmar e-mail</label>
+                                <div className={styles.inputGroup}>
+                                    <FaEnvelope className={styles.inputIcon} />
+                                    <input
+                                        id="email"
+                                        type="email"
+                                        value={email}
+                                        onChange={(event) => setEmail(event.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className={styles.field}>
+                                <label htmlFor="password">Nova senha</label>
+                                <div className={styles.inputGroup}>
+                                    <FaLock className={styles.inputIcon} />
+                                    <input
+                                        id="password"
+                                        type="password"
+                                        value={password}
+                                        onChange={(event) => setPassword(event.target.value)}
+                                        minLength={8}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className={styles.field}>
+                                <label htmlFor="passwordConfirmation">Confirmar nova senha</label>
+                                <div className={styles.inputGroup}>
+                                    <FaLock className={styles.inputIcon} />
+                                    <input
+                                        id="passwordConfirmation"
+                                        type="password"
+                                        value={passwordConfirmation}
+                                        onChange={(event) => setPasswordConfirmation(event.target.value)}
+                                        minLength={8}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <button type="submit" className={styles.button} disabled={loading}>
+                                {loading ? <><FaSpinner className={styles.spinner} /> Salvando...</> : 'Redefinir senha'}
+                            </button>
+                        </form>
+
+                        <Link to="/login" className={styles.ghostButton}>
+                            <FaArrowLeft />
+                            Voltar para login
+                        </Link>
+                    </>
+                )}
             </div>
         </div>
     );

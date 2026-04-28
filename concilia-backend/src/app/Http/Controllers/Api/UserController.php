@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\AuditLog;
+use App\Notifications\TemporaryPasswordNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +18,46 @@ class UserController extends Controller
 {
     use AuthorizesRequests;
 
-    private const DEFAULT_RESET_PASSWORD = 'Mudar.123@';
+    private function randomCharacter(string $characters): string
+    {
+        return $characters[random_int(0, strlen($characters) - 1)];
+    }
+
+    private function shufflePassword(string $password): string
+    {
+        $characters = str_split($password);
+
+        for ($index = count($characters) - 1; $index > 0; $index--) {
+            $swapIndex = random_int(0, $index);
+            [$characters[$index], $characters[$swapIndex]] = [$characters[$swapIndex], $characters[$index]];
+        }
+
+        return implode('', $characters);
+    }
+
+    private function generateTemporaryPassword(int $length = 12): string
+    {
+        $sets = [
+            'ABCDEFGHJKLMNPQRSTUVWXYZ',
+            'abcdefghijkmnopqrstuvwxyz',
+            '23456789',
+            '@#$%&*+-?',
+        ];
+
+        $password = '';
+
+        foreach ($sets as $set) {
+            $password .= $this->randomCharacter($set);
+        }
+
+        $availableCharacters = implode('', $sets);
+
+        while (strlen($password) < $length) {
+            $password .= $this->randomCharacter($availableCharacters);
+        }
+
+        return $this->shufflePassword($password);
+    }
 
     public function index(Request $request)
     {
@@ -187,13 +227,16 @@ class UserController extends Controller
     {
         $this->authorize('resetPassword', $user);
 
+        $temporaryPassword = $this->generateTemporaryPassword();
+
         $user->forceFill([
-            'password' => Hash::make(self::DEFAULT_RESET_PASSWORD),
+            'password' => Hash::make($temporaryPassword),
             'must_change_password' => true,
             'remember_token' => null,
         ])->save();
 
         $user->tokens()->delete();
+        $user->notify(new TemporaryPasswordNotification($temporaryPassword));
 
         try {
             AuditLog::create([
@@ -208,7 +251,8 @@ class UserController extends Controller
         }
 
         return response()->json([
-            'message' => 'Senha resetada com sucesso. O usuário precisará alterar a senha no próximo login.',
+            'message' => 'Senha temporaria gerada e enviada para o e-mail do usuario. Ele precisara altera-la no proximo login.',
+            'temporary_password_email_sent' => true,
         ]);
     }
 
