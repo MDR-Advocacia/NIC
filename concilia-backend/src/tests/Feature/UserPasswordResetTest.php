@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Notifications\TemporaryPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -14,6 +16,8 @@ class UserPasswordResetTest extends TestCase
 
     public function test_administrator_can_reset_another_user_password(): void
     {
+        Notification::fake();
+
         $administrator = User::factory()->create([
             'role' => 'administrador',
             'status' => 'ativo',
@@ -33,14 +37,20 @@ class UserPasswordResetTest extends TestCase
         $this->postJson("/api/users/{$managedUser->id}/reset-password")
             ->assertOk()
             ->assertJson([
-                'message' => 'Senha resetada com sucesso. O usuário precisará alterar a senha no próximo login.',
+                'message' => 'Senha temporaria gerada e enviada para o e-mail do usuario. Ele precisara altera-la no proximo login.',
+                'temporary_password_email_sent' => true,
             ]);
 
         $managedUser->refresh();
 
-        $this->assertTrue(Hash::check('Mudar.123@', $managedUser->password));
         $this->assertTrue($managedUser->must_change_password);
         $this->assertSame(0, $managedUser->tokens()->count());
+
+        Notification::assertSentTo(
+            $managedUser,
+            TemporaryPasswordNotification::class,
+            fn (TemporaryPasswordNotification $notification) => Hash::check($notification->temporaryPassword, $managedUser->password)
+        );
     }
 
     public function test_supervisor_cannot_reset_user_password(): void

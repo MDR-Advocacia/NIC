@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\PasswordResetLinkNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo; // ADICIONADO
@@ -75,5 +76,10 @@ class User extends Authenticatable
     public function indicatedCases(): HasMany
     {
         return $this->hasMany(LegalCase::class, 'indicator_user_id');
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new PasswordResetLinkNotification($token));
     }
 }

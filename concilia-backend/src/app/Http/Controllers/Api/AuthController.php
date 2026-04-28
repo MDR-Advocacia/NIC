@@ -12,6 +12,18 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
+    private function passwordStatusMessage(string $status): string
+    {
+        return match ($status) {
+            PasswordFacade::RESET_LINK_SENT => 'Enviamos o link de redefinicao para o e-mail informado.',
+            PasswordFacade::PASSWORD_RESET => 'Senha redefinida com sucesso.',
+            PasswordFacade::INVALID_USER => 'Nao encontramos um usuario ativo com este e-mail.',
+            PasswordFacade::INVALID_TOKEN => 'Este link de redefinicao e invalido ou expirou.',
+            PasswordFacade::RESET_THROTTLED => 'Aguarde alguns instantes antes de solicitar um novo link.',
+            default => __($status),
+        };
+    }
+
     private function normalizeLoginEmail(?string $email): string
     {
         $normalized = (string) $email;
@@ -242,10 +254,10 @@ class AuthController extends Controller
         $status = PasswordFacade::sendResetLink($request->only('email'));
 
         if ($status === PasswordFacade::RESET_LINK_SENT) {
-            return response()->json(['status' => __($status)]);
+            return response()->json(['status' => $this->passwordStatusMessage($status)]);
         }
 
-        return response()->json(['email' => __($status)], 422);
+        return response()->json(['email' => $this->passwordStatusMessage($status)], 422);
     }
 
     /**
@@ -264,6 +276,7 @@ class AuthController extends Controller
             function ($user, $password) {
                 $user->forceFill([
                     'password' => Hash::make($password),
+                    'must_change_password' => false,
                 ])->setRememberToken(Str::random(60));
 
                 $user->save();
@@ -273,9 +286,9 @@ class AuthController extends Controller
         );
 
         if ($status === PasswordFacade::PASSWORD_RESET) {
-            return response()->json(['status' => __($status)]);
+            return response()->json(['status' => $this->passwordStatusMessage($status)]);
         }
 
-        return response()->json(['email' => __($status)], 400);
+        return response()->json(['email' => $this->passwordStatusMessage($status)], 400);
     }
 }

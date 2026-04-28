@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaArrowLeft, FaEnvelope } from 'react-icons/fa';
+import { FaArrowLeft, FaCheckCircle, FaEnvelope, FaExclamationCircle, FaHandshake, FaSpinner } from 'react-icons/fa';
 import apiClient from '../api';
-import styles from '../styles/ForgotPassword.module.css';
+import styles from '../styles/PasswordFlow.module.css';
 
 export default function ForgotPassword() {
     const [email, setEmail] = useState('');
@@ -17,8 +17,8 @@ export default function ForgotPassword() {
         setLoading(true);
 
         try {
-            await apiClient.post('/forgot-password', { email: email.trim() });
-            setMessage('Link enviado! Verifique seu e-mail.');
+            const response = await apiClient.post('/forgot-password', { email: email.trim() });
+            setMessage(response.data?.status || 'Link enviado. Verifique seu e-mail.');
         } catch (err) {
             console.error('Erro detalhado:', err);
 
@@ -33,35 +33,61 @@ export default function ForgotPassword() {
     };
 
     return (
-        <div className={styles.container}>
-            <div className={styles.card}>
-                <h2 className={styles.title}>Recuperar Senha</h2>
+        <div className={styles.page}>
+            <div className={styles.panel}>
+                <div className={styles.brandWrapper}>
+                    <FaHandshake className={styles.mainIcon} />
+                    <div className={styles.textGroup}>
+                        <h1 className={styles.nicTitle}>NIC</h1>
+                        <div className={styles.meaningBox}>
+                            <span>NUCLEO</span>
+                            <span>INTEGRADO DE</span>
+                            <span>CONCILIACOES</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h2 className={styles.title}>Recuperar senha</h2>
                 <p className={styles.subtitle}>Digite seu e-mail corporativo para receber o link de redefinicao.</p>
 
-                <form onSubmit={handleSubmit}>
-                    <div className={styles.inputGroup}>
-                        <FaEnvelope color="#9CA3AF" />
-                        <input
-                            type="email"
-                            placeholder="exemplo@mdradvocacia.com"
-                            value={email}
-                            onChange={(event) => setEmail(event.target.value)}
-                            className={styles.input}
-                            required
-                        />
+                {message && (
+                    <div className={`${styles.alert} ${styles.alertSuccess}`}>
+                        <FaCheckCircle />
+                        <span>{message}</span>
+                    </div>
+                )}
+
+                {error && (
+                    <div className={`${styles.alert} ${styles.alertError}`}>
+                        <FaExclamationCircle />
+                        <span>{error}</span>
+                    </div>
+                )}
+
+                <form onSubmit={handleSubmit} className={styles.form}>
+                    <div className={styles.field}>
+                        <label htmlFor="email">E-mail</label>
+                        <div className={styles.inputGroup}>
+                            <FaEnvelope className={styles.inputIcon} />
+                            <input
+                                id="email"
+                                type="email"
+                                placeholder="exemplo@mdradvocacia.com"
+                                value={email}
+                                onChange={(event) => setEmail(event.target.value)}
+                                required
+                            />
+                        </div>
                     </div>
 
                     <button type="submit" className={styles.button} disabled={loading}>
-                        {loading ? 'Enviando...' : 'Enviar Link'}
+                        {loading ? <><FaSpinner className={styles.spinner} /> Enviando...</> : 'Enviar link'}
                     </button>
                 </form>
 
-                {message && <div className={styles.successMessage}>{message}</div>}
-                {error && <div className={styles.errorMessage}>{error}</div>}
-
-                <Link to="/login" className={styles.backLink}>
-                    <FaArrowLeft style={{ marginRight: '5px', verticalAlign: 'middle' }} />
-                    Voltar para Login
+                <Link to="/login" className={styles.ghostButton}>
+                    <FaArrowLeft />
+                    Voltar para login
                 </Link>
             </div>
         </div>

@@ -704,6 +704,73 @@
     transform: translateY(-1px);
 }
 
+.resetPasswordModal {
+    max-width: 500px;
+}
+
+.resetPasswordBody {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.85rem;
+}
+
+.resetPasswordIcon {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    background: var(--warning-soft);
+    color: var(--warning-primary);
+    font-size: 1.45rem;
+    border: 1px solid var(--warning-soft-strong);
+}
+
+.resetPasswordIcon_success {
+    background: var(--success-soft);
+    color: var(--success-primary);
+    border-color: var(--success-soft-strong);
+}
+
+.resetPasswordIcon_error {
+    background: var(--danger-soft);
+    color: var(--danger-primary);
+    border-color: var(--danger-soft-strong);
+}
+
+.resetPasswordIcon_processing {
+    background: var(--accent-surface);
+    color: var(--accent-primary);
+    border-color: var(--accent-border-soft);
+}
+
+.resetPasswordBody h3 {
+    margin: 0.2rem 0 0;
+    color: var(--text-primary);
+    font-size: 1.18rem;
+}
+
+.resetPasswordBody p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-size: 0.95rem;
+}
+
+.resetPasswordBody strong {
+    color: var(--text-primary);
+}
+
+.resetPasswordHint {
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    background: var(--surface-card-sunken);
+    border: 1px solid var(--border-color-light);
+    width: 100%;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-8px); }
     to { opacity: 1; transform: translateY(0); }

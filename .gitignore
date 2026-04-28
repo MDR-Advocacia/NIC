@@ -77,3 +77,5 @@ concilia-backend/.env
 concilia-backend/.env
 
 .claude/
+
+outputs/
