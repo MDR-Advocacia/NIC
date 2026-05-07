@@ -176,7 +176,7 @@ class ChatContactManagementTest extends TestCase
                 ], 422);
             }
 
-            if ($request->method() === 'GET' && str_starts_with($request->url(), 'https://chatwoot.test/api/v1/accounts/1/contacts?search=')) {
+            if ($request->method() === 'GET' && str_starts_with($request->url(), 'https://chatwoot.test/api/v1/accounts/1/contacts/search?q=')) {
                 return Http::response([
                     'payload' => [
                         [
@@ -221,7 +221,7 @@ class ChatContactManagementTest extends TestCase
                 ], 422);
             }
 
-            if ($request->method() === 'GET' && str_starts_with($request->url(), 'https://chatwoot.test/api/v1/accounts/1/contacts?search=')) {
+            if ($request->method() === 'GET' && str_starts_with($request->url(), 'https://chatwoot.test/api/v1/accounts/1/contacts/search?q=')) {
                 return Http::response([
                     'payload' => [
                         [
@@ -256,6 +256,57 @@ class ChatContactManagementTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('reused_existing', true)
             ->assertJsonPath('payload.contact.id', 45);
+    }
+
+    public function test_create_contact_scans_contact_pages_when_duplicate_phone_search_returns_no_match(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        Http::fake(function ($request) {
+            if ($request->method() === 'POST' && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/contacts') {
+                return Http::response([
+                    'message' => 'Phone number has already been taken',
+                ], 422);
+            }
+
+            if ($request->method() === 'GET' && str_contains($request->url(), '/contacts/search?')) {
+                return Http::response(['payload' => []], 200);
+            }
+
+            if ($request->method() === 'GET' && str_contains($request->url(), '/contacts?search=')) {
+                return Http::response(['payload' => []], 200);
+            }
+
+            if ($request->method() === 'POST' && str_ends_with($request->url(), '/contacts/filter')) {
+                return Http::response(['payload' => []], 200);
+            }
+
+            if ($request->method() === 'GET' && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/contacts?page=1') {
+                return Http::response([
+                    'payload' => [
+                        [
+                            'id' => 46,
+                            'name' => 'Contato Paginado',
+                            'phone_number' => '+5584999990000',
+                        ],
+                    ],
+                ], 200);
+            }
+
+            if ($request->method() === 'GET' && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/contacts?page=2') {
+                return Http::response(['payload' => []], 200);
+            }
+
+            return Http::response([], 404);
+        });
+
+        $this->postJson('/api/chat/contacts', [
+            'name' => 'Contato Paginado',
+            'phone_number' => '(84) 99999-0000',
+            'inbox_id' => 3,
+        ])->assertOk()
+            ->assertJsonPath('reused_existing', true)
+            ->assertJsonPath('payload.contact.id', 46);
     }
 
     public function test_create_contact_omits_empty_optional_fields_when_proxying_to_chatwoot(): void

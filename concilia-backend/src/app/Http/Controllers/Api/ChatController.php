@@ -1445,6 +1445,7 @@ class ChatController extends Controller
 
         $terms = collect([
             $normalizedPhone,
+            $validated['phone_number'] ?? null,
             $phoneDigits,
             $nationalPhone,
             $validated['email'] ?? null,
@@ -1461,10 +1462,34 @@ class ChatController extends Controller
         $matches = collect();
 
         foreach ($terms as $term) {
+            $matches = $matches->merge($this->fetchContactsBySearchTerm($term));
+        }
+
+        $filteredMatches = $this->filterEquivalentContacts($matches, $validated);
+
+        if (!empty($filteredMatches)) {
+            return $filteredMatches;
+        }
+
+        if ($phoneDigits !== '') {
+            $matches = $matches->merge($this->fetchContactsByFilter('phone_number', $normalizedPhone));
+            $matches = $matches->merge($this->fetchContactsByFilter('identifier', $normalizedPhone));
+            $matches = $matches->merge($this->fetchContactsByPages(6));
+        }
+
+        return $this->filterEquivalentContacts($matches, $validated);
+    }
+
+    private function fetchContactsBySearchTerm(string $term): array
+    {
+        $matches = collect();
+
+        foreach ([
+            ['path' => 'contacts/search', 'params' => ['q' => $term]],
+            ['path' => 'contacts', 'params' => ['search' => $term]],
+        ] as $attempt) {
             $response = Http::withHeaders(['api_access_token' => $this->apiToken])
-                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", [
-                    'search' => $term,
-                ]);
+                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/{$attempt['path']}", $attempt['params']);
 
             if ($response->failed()) {
                 continue;
@@ -1473,7 +1498,66 @@ class ChatController extends Controller
             $matches = $matches->merge($this->extractChatwootContactsList($response->json()));
         }
 
-        return $matches
+        return $matches->filter(fn ($contact) => is_array($contact))->values()->all();
+    }
+
+    private function fetchContactsByFilter(string $attributeKey, ?string $value): array
+    {
+        if (blank($value)) {
+            return [];
+        }
+
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/filter", [
+                'payload' => [
+                    [
+                        'attribute_key' => $attributeKey,
+                        'filter_operator' => 'equal_to',
+                        'values' => [$value],
+                        'query_operator' => null,
+                    ],
+                ],
+            ]);
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        return collect($this->extractChatwootContactsList($response->json()))
+            ->filter(fn ($contact) => is_array($contact))
+            ->values()
+            ->all();
+    }
+
+    private function fetchContactsByPages(int $pages): array
+    {
+        $matches = collect();
+
+        for ($page = 1; $page <= $pages; $page++) {
+            $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", [
+                    'page' => $page,
+                ]);
+
+            if ($response->failed()) {
+                continue;
+            }
+
+            $contacts = $this->extractChatwootContactsList($response->json());
+
+            if (empty($contacts)) {
+                break;
+            }
+
+            $matches = $matches->merge($contacts);
+        }
+
+        return $matches->filter(fn ($contact) => is_array($contact))->values()->all();
+    }
+
+    private function filterEquivalentContacts($contacts, array $validated): array
+    {
+        return collect($contacts)
             ->filter(fn ($contact) => is_array($contact) && $this->contactLooksEquivalent($contact, $validated))
             ->unique('id')
             ->values()
