@@ -63,6 +63,9 @@ class ChatContactManagementTest extends TestCase
                     ],
                 ],
             ], 200),
+            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=7' => Http::response([
+                'payload' => [],
+            ], 200),
             'https://chatwoot.test/api/v1/accounts/1/conversations' => Http::response([
                 'payload' => [
                     'id' => 321,
@@ -85,7 +88,7 @@ class ChatContactManagementTest extends TestCase
         });
     }
 
-    public function test_create_conversation_for_contact_can_continue_without_source_id_when_chatwoot_accepts_contact_and_inbox(): void
+    public function test_create_conversation_for_contact_creates_contact_inbox_from_phone_when_source_id_is_missing(): void
     {
         Sanctum::actingAs($this->makeAuthorizedUser());
 
@@ -93,11 +96,22 @@ class ChatContactManagementTest extends TestCase
             'https://chatwoot.test/api/v1/accounts/1/contacts/91' => Http::response([
                 'payload' => [
                     'id' => 91,
-                    'name' => 'Contato sem sessao',
+                    'name' => 'Contato sem source',
+                    'phone_number' => '(84) 99999-0000',
                     'contact_inboxes' => [],
                 ],
             ], 200),
             'https://chatwoot.test/api/v1/accounts/1/contacts/91/contactable_inboxes' => Http::response([
+                'payload' => [],
+            ], 200),
+            'https://chatwoot.test/api/v1/accounts/1/contacts/91/contact_inboxes' => Http::response([
+                'source_id' => '+5584999990000',
+                'inbox' => [
+                    'id' => 5,
+                    'name' => 'WhatsApp',
+                ],
+            ], 200),
+            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=5' => Http::response([
                 'payload' => [],
             ], 200),
             'https://chatwoot.test/api/v1/accounts/1/conversations' => Http::response([
@@ -115,14 +129,21 @@ class ChatContactManagementTest extends TestCase
 
         Http::assertSent(function ($request) {
             return $request->method() === 'POST'
+                && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/contacts/91/contact_inboxes'
+                && (int) $request['inbox_id'] === 5
+                && $request['source_id'] === '+5584999990000';
+        });
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'POST'
                 && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/conversations'
                 && (int) $request['inbox_id'] === 5
                 && (int) $request['contact_id'] === 91
-                && !isset($request['source_id']);
+                && $request['source_id'] === '+5584999990000';
         });
     }
 
-    public function test_create_contact_returns_existing_candidates_when_chatwoot_rejects_the_creation(): void
+    public function test_create_contact_reuses_existing_candidate_when_chatwoot_rejects_the_creation(): void
     {
         Sanctum::actingAs($this->makeAuthorizedUser());
 
@@ -161,7 +182,9 @@ class ChatContactManagementTest extends TestCase
             'name' => 'Murilo Ti',
             'phone_number' => '+55 84 99999-0000',
             'inbox_id' => 3,
-        ])->assertUnprocessable()
+        ])->assertOk()
+            ->assertJsonPath('reused_existing', true)
+            ->assertJsonPath('payload.contact.id', 44)
             ->assertJsonPath('conflict_candidates.0.id', 44);
     }
 
@@ -195,6 +218,36 @@ class ChatContactManagementTest extends TestCase
                 && (int) $request['inbox_id'] === 9
                 && !isset($request['email'])
                 && !isset($request['phone_number']);
+        });
+    }
+
+    public function test_create_contact_normalizes_brazilian_phone_before_proxying_to_chatwoot(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        Http::fake([
+            'https://chatwoot.test/api/v1/accounts/1/contacts' => Http::response([
+                'payload' => [
+                    'contact' => [
+                        'id' => 72,
+                        'name' => 'Contato BR',
+                        'phone_number' => '+5584999990000',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $this->postJson('/api/chat/contacts', [
+            'name' => 'Contato BR',
+            'phone_number' => '(84) 99999-0000',
+            'inbox_id' => 9,
+        ])->assertOk()
+            ->assertJsonPath('payload.contact.id', 72);
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'POST'
+                && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/contacts'
+                && $request['phone_number'] === '+5584999990000';
         });
     }
 
