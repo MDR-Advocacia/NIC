@@ -9,7 +9,7 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
-      APP_URL: ${APP_URL:-${SERVICE_URL_NGINX:-http://localhost:8123}}
+      APP_URL: ${APP_URL:-http://localhost:8123}
       APP_KEY: ${APP_KEY:-}
       DB_CONNECTION: ${DB_CONNECTION:-mysql}
       DB_HOST: ${DB_HOST:-db}
@@ -20,10 +20,10 @@ services:
       CACHE_STORE: ${CACHE_STORE:-array}
       SESSION_DRIVER: ${SESSION_DRIVER:-array}
       QUEUE_CONNECTION: ${QUEUE_CONNECTION:-sync}
-      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-${FRONTEND_URL:-${SERVICE_URL_FRONTEND:-http://localhost:5173}}}
-      FRONTEND_URL: ${FRONTEND_URL:-${SERVICE_URL_FRONTEND:-http://localhost:5173}}
-      SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-${SERVICE_FQDN_FRONTEND:-localhost,localhost:5173,127.0.0.1,127.0.0.1:5173}}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-${SERVICE_URL_FRONTEND:-http://localhost:5173},https://lab-nic.mdradvocacia.com,https://nic.mdradvocacia.com,http://localhost:3000,http://localhost:5173}
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-localhost,localhost:5173,127.0.0.1,127.0.0.1:5173}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,https://lab-nic.mdradvocacia.com,https://nic.mdradvocacia.com,http://localhost:3000}
       CHATWOOT_URL: ${CHATWOOT_URL:-}
       CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN:-}
       CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-}
@@ -82,7 +82,7 @@ services:
       context: ./concilia-frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-${SERVICE_URL_NGINX:-http://localhost:8123}/api}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8123/api}
     restart: unless-stopped
     ports:
       - "5173:80"
@@ -94,7 +94,7 @@ services:
         limits:
           memory: 1024M
     environment:
-      VITE_API_URL: ${VITE_API_URL:-${SERVICE_URL_NGINX:-http://localhost:8123}/api}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8123/api}
 
 volumes:
   db_data:
