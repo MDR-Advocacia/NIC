@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\LegalCase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
@@ -73,13 +74,29 @@ class ChatController extends Controller
             ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", $payload);
 
         if ($response->successful()) {
-            return response()->json($response->json());
+            return response()->json($this->normalizeContactCreateResponse($response->json()));
+        }
+
+        $conflictCandidates = $this->findPotentialExistingContacts($validated);
+
+        if (!empty($conflictCandidates) && in_array($response->status(), [400, 409, 422], true)) {
+            return response()->json([
+                'message' => 'Contato ja existia no Chatwoot e foi reaproveitado.',
+                'payload' => [
+                    'contact' => $conflictCandidates[0],
+                ],
+                'contact' => $conflictCandidates[0],
+                'reused_existing' => true,
+                'chatwoot_status' => $response->status(),
+                'details' => $response->json() ?? ['body' => $response->body()],
+                'conflict_candidates' => $conflictCandidates,
+            ]);
         }
 
         return response()->json([
             'message' => 'Nao foi possivel criar o contato.',
             'details' => $response->json() ?? ['body' => $response->body()],
-            'conflict_candidates' => $this->findPotentialExistingContacts($validated),
+            'conflict_candidates' => $conflictCandidates,
         ], $response->status());
     }
 
@@ -118,6 +135,8 @@ class ChatController extends Controller
     {
         $validated = $request->validate([
             'inbox_id' => 'required|integer',
+            'assignee_id' => 'nullable|integer',
+            'assign_to_current_user' => 'sometimes|boolean',
         ]);
 
         $inboxId = (int) $validated['inbox_id'];
@@ -132,34 +151,63 @@ class ChatController extends Controller
         }
 
         $contact = $contactResponse['contact'] ?? [];
-        $sourceId = $this->resolveContactInboxSourceId($contact, $inboxId);
-        $contactableInboxes = [];
+        $sourceResolution = $this->resolveConversationSourceForContact($contactId, $contact, $inboxId);
+        $sourceId = $sourceResolution['source_id'] ?? null;
 
         if (blank($sourceId)) {
-            $contactableInboxes = $this->fetchContactableInboxes($contactId);
-            $sourceId = $this->resolveContactableInboxSourceId($contactableInboxes, $inboxId);
+            return response()->json([
+                'message' => 'Nao foi possivel abrir a conversa: o Chatwoot nao retornou o source_id do contato neste canal.',
+                'hint' => 'Confira se o contato tem telefone em formato internacional (+55...) e se esta associado a inbox selecionada.',
+                'contact' => $contact,
+                'contactable_inboxes' => $sourceResolution['contactable_inboxes'] ?? [],
+                'created_contact_inbox' => $sourceResolution['created_contact_inbox'] ?? null,
+            ], 422);
+        }
+
+        $assigneeId = $validated['assignee_id'] ?? null;
+
+        if (!$assigneeId && ($validated['assign_to_current_user'] ?? false)) {
+            $assigneeId = $this->resolveChatwootAssigneeIdForRequest($request);
+        }
+
+        $existingConversation = $this->findExistingOpenConversationForContact($contactId, $inboxId, $sourceId);
+
+        if ($existingConversation) {
+            $existingConversation = $this->assignConversationIfNeeded($existingConversation, $assigneeId);
+
+            return response()->json([
+                'payload' => $existingConversation,
+                'reused_existing' => true,
+            ]);
         }
 
         $payload = [
             'inbox_id' => $inboxId,
             'contact_id' => (int) $contactId,
             'status' => 'open',
+            'source_id' => (string) $sourceId,
         ];
 
-        if (filled($sourceId)) {
-            $payload['source_id'] = (string) $sourceId;
+        if ($assigneeId) {
+            $payload['assignee_id'] = (int) $assigneeId;
         }
 
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", $payload);
 
-        if ($response->failed() && blank($sourceId)) {
-            return response()->json([
-                'message' => 'Nao foi possivel abrir a conversa automaticamente para este contato.',
-                'details' => $response->json() ?? ['body' => $response->body()],
-                'contact' => $contact,
-                'contactable_inboxes' => $contactableInboxes,
-            ], $response->status());
+        if ($response->failed()) {
+            $existingConversation = $this->findExistingOpenConversationForContact($contactId, $inboxId, $sourceId);
+
+            if ($existingConversation) {
+                $existingConversation = $this->assignConversationIfNeeded($existingConversation, $assigneeId);
+
+                return response()->json([
+                    'payload' => $existingConversation,
+                    'reused_existing' => true,
+                    'chatwoot_status' => $response->status(),
+                    'details' => $response->json() ?? ['body' => $response->body()],
+                ]);
+            }
         }
 
         return response()->json($response->json() ?: ['success' => $response->successful()], $response->status());
@@ -220,6 +268,20 @@ class ChatController extends Controller
     {
         $status = $request->query('status', 'open');
         $assigneeType = $request->query('assignee_type', 'all');
+        $currentUserAssigneeId = null;
+
+        if ($assigneeType === 'mine') {
+            $assigneeType = 'me';
+        }
+
+        if ($assigneeType === 'me') {
+            $currentUserAssigneeId = $this->resolveChatwootAssigneeIdForRequest($request);
+
+            if ($currentUserAssigneeId) {
+                $assigneeType = 'all';
+            }
+        }
+
         $queryParams = ['status' => $status];
         $inboxId = $request->query('inbox_id');
 
@@ -241,7 +303,11 @@ class ChatController extends Controller
             }
 
             $data = $response->json();
-            $payload = $data['payload'] ?? $data;
+            $payload = $data['payload'] ?? data_get($data, 'data.payload') ?? $data;
+
+            if ($currentUserAssigneeId && is_array($payload)) {
+                $payload = $this->filterConversationsByAssignee($payload, $currentUserAssigneeId, $request->user()?->email);
+            }
 
             return response()->json(is_array($payload) ? $this->attachLinkedCasesToConversations($payload) : $payload);
         } catch (\Exception $e) {
@@ -510,6 +576,40 @@ class ChatController extends Controller
         return Conversation::find($conversationId);
     }
 
+    private function filterConversationsByAssignee(array $conversations, int $assigneeId, ?string $assigneeEmail = null): array
+    {
+        $normalizedEmail = Str::lower(trim((string) $assigneeEmail));
+
+        return collect($conversations)
+            ->filter(function ($conversation) use ($assigneeId, $normalizedEmail) {
+                if (!is_array($conversation)) {
+                    return false;
+                }
+
+                $currentAssigneeId = data_get($conversation, 'meta.assignee.id')
+                    ?? data_get($conversation, 'assignee.id')
+                    ?? data_get($conversation, 'assignee_id');
+
+                if ($currentAssigneeId && (int) $currentAssigneeId === (int) $assigneeId) {
+                    return true;
+                }
+
+                if ($normalizedEmail === '') {
+                    return false;
+                }
+
+                $currentAssigneeEmail = Str::lower(trim((string) (
+                    data_get($conversation, 'meta.assignee.email')
+                    ?? data_get($conversation, 'assignee.email')
+                    ?? ''
+                )));
+
+                return $currentAssigneeEmail !== '' && $currentAssigneeEmail === $normalizedEmail;
+            })
+            ->values()
+            ->all();
+    }
+
     private function attachLinkedCasesToConversations(array $conversations): array
     {
         if (empty($conversations)) {
@@ -661,7 +761,12 @@ class ChatController extends Controller
 
         foreach (['name', 'email', 'phone_number', 'blocked'] as $field) {
             if ($request->exists($field)) {
-                $payload[$field] = in_array($field, ['name', 'email', 'phone_number'], true)
+                if ($field === 'phone_number') {
+                    $payload[$field] = $this->normalizePhoneNumberForChatwoot($request->input($field));
+                    continue;
+                }
+
+                $payload[$field] = in_array($field, ['name', 'email'], true)
                     ? $this->normalizeNullableText($request->input($field))
                     : $request->input($field);
             }
@@ -695,6 +800,33 @@ class ChatController extends Controller
         return $payload;
     }
 
+    private function normalizeContactCreateResponse($data): array
+    {
+        $data = is_array($data) ? $data : [];
+        $contact = $this->extractChatwootContact($data);
+
+        if (empty($contact)) {
+            return $data;
+        }
+
+        $rawPayload = $data['payload'] ?? null;
+        $data['contact'] = $contact;
+
+        if (!is_array($rawPayload) || array_is_list($rawPayload)) {
+            $data['payload'] = ['contact' => $contact];
+
+            if ($rawPayload !== null) {
+                $data['raw_payload'] = $rawPayload;
+            }
+
+            return $data;
+        }
+
+        $data['payload']['contact'] = $data['payload']['contact'] ?? $contact;
+
+        return $data;
+    }
+
     private function normalizeNullableText($value): ?string
     {
         if ($value === null) {
@@ -704,6 +836,41 @@ class ChatController extends Controller
         $normalized = trim((string) $value);
 
         return $normalized === '' ? null : $normalized;
+    }
+
+    private function normalizePhoneNumberForChatwoot($value): ?string
+    {
+        $normalized = $this->normalizeNullableText($value);
+
+        if ($normalized === null) {
+            return null;
+        }
+
+        $hasPlus = Str::startsWith($normalized, '+');
+        $digits = preg_replace('/\D+/', '', $normalized);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (Str::startsWith($digits, '00')) {
+            $digits = substr($digits, 2);
+            return $digits !== '' ? "+{$digits}" : null;
+        }
+
+        if (!$hasPlus && Str::startsWith($digits, '0') && in_array(strlen($digits), [11, 12, 13], true)) {
+            $digits = ltrim($digits, '0');
+        }
+
+        if ($hasPlus) {
+            return "+{$digits}";
+        }
+
+        if (in_array(strlen($digits), [10, 11], true)) {
+            return "+55{$digits}";
+        }
+
+        return "+{$digits}";
     }
 
     public function getTemplates(Request $request)
@@ -798,7 +965,23 @@ class ChatController extends Controller
         }
 
         if (is_array($data['payload'] ?? null)) {
+            if (array_is_list($data['payload'])) {
+                return is_array($data['payload'][0] ?? null) ? $data['payload'][0] : [];
+            }
+
             return $data['payload'];
+        }
+
+        if (is_array($data['data']['payload']['contact'] ?? null)) {
+            return $data['data']['payload']['contact'];
+        }
+
+        if (is_array($data['data']['payload'] ?? null)) {
+            if (array_is_list($data['data']['payload'])) {
+                return is_array($data['data']['payload'][0] ?? null) ? $data['data']['payload'][0] : [];
+            }
+
+            return $data['data']['payload'];
         }
 
         if (is_array($data['contact'] ?? null)) {
@@ -886,11 +1069,222 @@ class ChatController extends Controller
         return $this->extractChatwootContactsList($response->json());
     }
 
+    private function resolveConversationSourceForContact($contactId, array $contact, int $inboxId): array
+    {
+        $sourceId = $this->resolveContactInboxSourceId($contact, $inboxId);
+        $contactableInboxes = [];
+        $createdContactInbox = null;
+
+        if (blank($sourceId)) {
+            $contactableInboxes = $this->fetchContactableInboxes($contactId);
+            $sourceId = $this->resolveContactableInboxSourceId($contactableInboxes, $inboxId);
+        }
+
+        if (blank($sourceId)) {
+            $sourceCandidate = $this->deriveContactSourceId($contact);
+
+            if (filled($sourceCandidate)) {
+                $createdContactInbox = $this->createContactInbox($contactId, $inboxId, $sourceCandidate);
+                $sourceId = $createdContactInbox['source_id'] ?? null;
+
+                if (blank($sourceId)) {
+                    $contactableInboxes = $this->fetchContactableInboxes($contactId);
+                    $sourceId = $this->resolveContactableInboxSourceId($contactableInboxes, $inboxId);
+                }
+            }
+        }
+
+        return [
+            'source_id' => filled($sourceId) ? (string) $sourceId : null,
+            'contactable_inboxes' => $contactableInboxes,
+            'created_contact_inbox' => $createdContactInbox,
+        ];
+    }
+
+    private function createContactInbox($contactId, int $inboxId, string $sourceId): array
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}/contact_inboxes", [
+                'inbox_id' => $inboxId,
+                'source_id' => $sourceId,
+            ]);
+
+        $data = $response->json() ?? [];
+
+        if ($response->failed()) {
+            return [
+                'ok' => false,
+                'status' => $response->status(),
+                'source_id' => null,
+                'details' => is_array($data) ? $data : ['body' => $response->body()],
+            ];
+        }
+
+        $resolvedSourceId = data_get($data, 'source_id')
+            ?? data_get($data, 'payload.source_id')
+            ?? $this->resolveContactableInboxSourceId([is_array($data) ? $data : []], $inboxId);
+
+        return [
+            'ok' => true,
+            'status' => $response->status(),
+            'source_id' => filled($resolvedSourceId) ? (string) $resolvedSourceId : $sourceId,
+            'details' => $data,
+        ];
+    }
+
+    private function deriveContactSourceId(array $contact): ?string
+    {
+        $candidates = [
+            $contact['phone_number'] ?? null,
+            $contact['identifier'] ?? null,
+            data_get($contact, 'additional_attributes.phone_number'),
+            data_get($contact, 'custom_attributes.phone_number'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizePhoneNumberForChatwoot($candidate);
+
+            if (filled($normalized)) {
+                return $normalized;
+            }
+        }
+
+        return null;
+    }
+
+    private function findExistingOpenConversationForContact($contactId, int $inboxId, ?string $sourceId = null): ?array
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->timeout(10)
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", [
+                'status' => 'open',
+                'assignee_type' => 'all',
+                'inbox_id' => $inboxId,
+            ]);
+
+        if ($response->failed()) {
+            return null;
+        }
+
+        $conversations = collect($this->extractChatwootContactsList($response->json()))
+            ->filter(fn ($conversation) => is_array($conversation))
+            ->filter(function ($conversation) use ($contactId, $inboxId, $sourceId) {
+                $conversationInboxId = data_get($conversation, 'inbox_id')
+                    ?? data_get($conversation, 'meta.inbox.id')
+                    ?? data_get($conversation, 'inbox.id');
+
+                if ((int) $conversationInboxId !== (int) $inboxId) {
+                    return false;
+                }
+
+                $conversationContactId = data_get($conversation, 'meta.sender.id')
+                    ?? data_get($conversation, 'contact.id')
+                    ?? data_get($conversation, 'contact_inbox.contact_id');
+
+                if ((string) $conversationContactId === (string) $contactId) {
+                    return true;
+                }
+
+                if (blank($sourceId)) {
+                    return false;
+                }
+
+                $conversationSourceId = data_get($conversation, 'contact_inbox.source_id')
+                    ?? data_get($conversation, 'source_id')
+                    ?? data_get($conversation, 'last_non_activity_message.source_id');
+
+                return filled($conversationSourceId) && (string) $conversationSourceId === (string) $sourceId;
+            })
+            ->sortByDesc(fn ($conversation) => $this->getConversationActivityTimestamp($conversation))
+            ->values();
+
+        return $conversations->first();
+    }
+
+    private function getConversationActivityTimestamp(array $conversation): int
+    {
+        foreach ([
+            data_get($conversation, 'last_activity_at'),
+            data_get($conversation, 'last_non_activity_message.created_at'),
+            data_get($conversation, 'updated_at'),
+            data_get($conversation, 'timestamp'),
+            data_get($conversation, 'created_at'),
+        ] as $value) {
+            if (is_numeric($value)) {
+                return (int) $value;
+            }
+
+            if (is_string($value) && trim($value) !== '') {
+                $parsed = strtotime($value);
+
+                if ($parsed !== false) {
+                    return $parsed;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    private function resolveChatwootAssigneeIdForRequest(Request $request): ?int
+    {
+        $email = Str::lower(trim((string) ($request->user()?->email ?? '')));
+
+        if ($email === '') {
+            return null;
+        }
+
+        return Cache::remember("chatwoot:agent_id_by_email:{$email}", now()->addMinutes(10), function () use ($email) {
+            $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+                ->timeout(5)
+                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/agents");
+
+            if ($response->failed()) {
+                return null;
+            }
+
+            $agent = collect($this->extractChatwootContactsList($response->json()))
+                ->filter(fn ($candidate) => is_array($candidate))
+                ->first(fn ($candidate) => Str::lower(trim((string) ($candidate['email'] ?? ''))) === $email);
+
+            return isset($agent['id']) ? (int) $agent['id'] : null;
+        });
+    }
+
+    private function assignConversationIfNeeded(array $conversation, ?int $assigneeId): array
+    {
+        if (!$assigneeId || data_get($conversation, 'meta.assignee.id')) {
+            return $conversation;
+        }
+
+        $conversationId = $conversation['id'] ?? null;
+
+        if (!$conversationId) {
+            return $conversation;
+        }
+
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/assignments", [
+                'assignee_id' => $assigneeId,
+            ]);
+
+        if ($response->successful()) {
+            $conversation['meta']['assignee'] = $response->json();
+        }
+
+        return $conversation;
+    }
+
     private function findPotentialExistingContacts(array $validated): array
     {
+        $normalizedPhone = $this->normalizePhoneNumberForChatwoot($validated['phone_number'] ?? null);
+        $phoneDigits = preg_replace('/\D+/', '', (string) $normalizedPhone);
+        $nationalPhone = Str::startsWith($phoneDigits, '55') ? substr($phoneDigits, 2) : $phoneDigits;
+
         $terms = collect([
-            $validated['phone_number'] ?? null,
-            preg_replace('/\D+/', '', (string) ($validated['phone_number'] ?? '')),
+            $normalizedPhone,
+            $phoneDigits,
+            $nationalPhone,
             $validated['email'] ?? null,
             $validated['name'] ?? null,
         ])
@@ -926,12 +1320,19 @@ class ChatController extends Controller
 
     private function contactLooksEquivalent(array $contact, array $validated): bool
     {
-        $requestedPhone = preg_replace('/\D+/', '', (string) ($validated['phone_number'] ?? ''));
-        $contactPhone = preg_replace('/\D+/', '', (string) ($contact['phone_number'] ?? $contact['identifier'] ?? ''));
+        $requestedPhone = preg_replace('/\D+/', '', (string) $this->normalizePhoneNumberForChatwoot($validated['phone_number'] ?? ''));
+        $contactPhone = preg_replace('/\D+/', '', (string) $this->normalizePhoneNumberForChatwoot($contact['phone_number'] ?? $contact['identifier'] ?? ''));
+        $requestedNationalPhone = Str::startsWith($requestedPhone, '55') ? substr($requestedPhone, 2) : $requestedPhone;
+        $contactNationalPhone = Str::startsWith($contactPhone, '55') ? substr($contactPhone, 2) : $contactPhone;
 
         $matchesPhone = $requestedPhone !== ''
             && $contactPhone !== ''
-            && (Str::contains($contactPhone, $requestedPhone) || Str::contains($requestedPhone, $contactPhone));
+            && (
+                $requestedPhone === $contactPhone
+                || $requestedNationalPhone === $contactNationalPhone
+                || Str::contains($contactPhone, $requestedPhone)
+                || Str::contains($requestedPhone, $contactPhone)
+            );
 
         $requestedEmail = Str::lower(trim((string) ($validated['email'] ?? '')));
         $contactEmail = Str::lower(trim((string) ($contact['email'] ?? '')));
@@ -941,7 +1342,7 @@ class ChatController extends Controller
         $contactName = Str::lower(trim((string) ($contact['name'] ?? '')));
         $matchesName = $requestedName !== '' && $contactName !== '' && $requestedName === $contactName;
 
-        return $matchesPhone || $matchesEmail || $matchesName;
+        return $matchesPhone || $matchesEmail || ($requestedPhone === '' && $requestedEmail === '' && $matchesName);
     }
 
     private function fetchMetaTemplates(?int $inboxId): array
