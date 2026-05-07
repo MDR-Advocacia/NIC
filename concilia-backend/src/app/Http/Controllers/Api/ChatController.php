@@ -8,6 +8,7 @@ use App\Models\LegalCase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -116,6 +117,7 @@ class ChatController extends Controller
             return response()->json($this->normalizeContactCreateResponse($response->json()));
         }
 
+        $details = $response->json() ?? ['body' => $response->body()];
         $conflictCandidates = $this->findPotentialExistingContacts($validated);
 
         if (!empty($conflictCandidates) && in_array($response->status(), [400, 409, 422], true)) {
@@ -127,14 +129,27 @@ class ChatController extends Controller
                 'contact' => $conflictCandidates[0],
                 'reused_existing' => true,
                 'chatwoot_status' => $response->status(),
-                'details' => $response->json() ?? ['body' => $response->body()],
+                'details' => $details,
                 'conflict_candidates' => $conflictCandidates,
             ]);
         }
 
+        Log::warning('Chatwoot rejeitou a criacao de contato', [
+            'status' => $response->status(),
+            'payload' => array_merge($payload, [
+                'phone_number' => $payload['phone_number'] ?? null,
+                'email' => filled($payload['email'] ?? null) ? '[email informado]' : null,
+            ]),
+            'details' => $details,
+        ]);
+
+        $chatwootMessage = $this->extractErrorText($details);
+
         return response()->json([
-            'message' => 'Nao foi possivel criar o contato.',
-            'details' => $response->json() ?? ['body' => $response->body()],
+            'message' => $chatwootMessage
+                ? "Nao foi possivel criar o contato: {$chatwootMessage}"
+                : 'Nao foi possivel criar o contato.',
+            'details' => $details,
             'conflict_candidates' => $conflictCandidates,
         ], $response->status());
     }
@@ -925,6 +940,41 @@ class ChatController extends Controller
         return $normalized === '' ? null : $normalized;
     }
 
+    private function extractErrorText($value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (is_string($value) || is_numeric($value) || is_bool($value)) {
+            return trim((string) $value);
+        }
+
+        if (is_array($value)) {
+            foreach (['message', 'error', 'error_message', 'errors', 'details', 'description', 'body'] as $key) {
+                if (!array_key_exists($key, $value)) {
+                    continue;
+                }
+
+                $text = $this->extractErrorText($value[$key]);
+
+                if ($text !== '') {
+                    return $text;
+                }
+            }
+
+            foreach ($value as $item) {
+                $text = $this->extractErrorText($item);
+
+                if ($text !== '') {
+                    return $text;
+                }
+            }
+        }
+
+        return '';
+    }
+
     private function normalizePhoneNumberForChatwoot($value): ?string
     {
         $normalized = $this->normalizeNullableText($value);
@@ -1226,10 +1276,8 @@ class ChatController extends Controller
     private function deriveContactSourceId(array $contact): ?string
     {
         $candidates = [
-            $contact['phone_number'] ?? null,
+            $this->getContactPhoneCandidate($contact),
             $contact['identifier'] ?? null,
-            data_get($contact, 'additional_attributes.phone_number'),
-            data_get($contact, 'custom_attributes.phone_number'),
         ];
 
         foreach ($candidates as $candidate) {
@@ -1237,6 +1285,29 @@ class ChatController extends Controller
 
             if (filled($normalized)) {
                 return $normalized;
+            }
+        }
+
+        return null;
+    }
+
+    private function getContactPhoneCandidate(array $contact): ?string
+    {
+        foreach ([
+            $contact['phone_number'] ?? null,
+            $contact['identifier'] ?? null,
+            data_get($contact, 'additional_attributes.phone_number'),
+            data_get($contact, 'additional_attributes.phone'),
+            data_get($contact, 'additional_attributes.whatsapp'),
+            data_get($contact, 'additional_attributes.whatsapp_number'),
+            data_get($contact, 'custom_attributes.phone_number'),
+            data_get($contact, 'custom_attributes.phone'),
+            data_get($contact, 'custom_attributes.whatsapp'),
+            data_get($contact, 'custom_attributes.whatsapp_number'),
+            data_get($contact, 'contact_inboxes.0.source_id'),
+        ] as $candidate) {
+            if (filled($candidate)) {
+                return (string) $candidate;
             }
         }
 
@@ -1403,7 +1474,7 @@ class ChatController extends Controller
         }
 
         return $matches
-            ->filter(fn ($contact) => $this->contactLooksEquivalent($contact, $validated))
+            ->filter(fn ($contact) => is_array($contact) && $this->contactLooksEquivalent($contact, $validated))
             ->unique('id')
             ->values()
             ->all();
@@ -1412,7 +1483,7 @@ class ChatController extends Controller
     private function contactLooksEquivalent(array $contact, array $validated): bool
     {
         $requestedPhone = preg_replace('/\D+/', '', (string) $this->normalizePhoneNumberForChatwoot($validated['phone_number'] ?? ''));
-        $contactPhone = preg_replace('/\D+/', '', (string) $this->normalizePhoneNumberForChatwoot($contact['phone_number'] ?? $contact['identifier'] ?? ''));
+        $contactPhone = preg_replace('/\D+/', '', (string) $this->normalizePhoneNumberForChatwoot($this->getContactPhoneCandidate($contact)));
         $requestedNationalPhone = Str::startsWith($requestedPhone, '55') ? substr($requestedPhone, 2) : $requestedPhone;
         $contactNationalPhone = Str::startsWith($contactPhone, '55') ? substr($contactPhone, 2) : $contactPhone;
 

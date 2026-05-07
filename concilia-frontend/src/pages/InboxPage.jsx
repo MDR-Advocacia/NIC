@@ -1128,8 +1128,8 @@ const InboxPage = () => {
     if (!termoNormalizado) return true;
 
     const telefoneBusca = termoNormalizado.replace(/\D+/g, '');
-    const telefoneContato = `${contato?.phone_number || ''} ${contato?.identifier || ''}`.replace(/\D+/g, '');
-    const textoContato = `${contato?.name || ''} ${contato?.email || ''} ${contato?.phone_number || ''} ${contato?.identifier || ''}`.toLowerCase();
+    const telefoneContato = getTelefoneContatoComparavel(contato);
+    const textoContato = `${contato?.name || ''} ${contato?.email || ''} ${getValoresTelefoneContato(contato).join(' ')}`.toLowerCase();
 
     if (telefoneBusca && telefoneContato) {
       return telefoneContato.includes(telefoneBusca) || telefoneBusca.includes(telefoneContato);
@@ -1141,6 +1141,23 @@ const InboxPage = () => {
   const normalizarTelefoneContato = (valor) => String(valor || '').replace(/\D+/g, '');
 
   const normalizarEmailContato = (valor) => String(valor || '').trim().toLowerCase();
+
+  const getValoresTelefoneContato = (contato) =>
+    [
+      contato?.phone_number,
+      contato?.identifier,
+      contato?.additional_attributes?.phone_number,
+      contato?.additional_attributes?.phone,
+      contato?.additional_attributes?.whatsapp,
+      contato?.additional_attributes?.whatsapp_number,
+      contato?.custom_attributes?.phone_number,
+      contato?.custom_attributes?.phone,
+      contato?.custom_attributes?.whatsapp,
+      contato?.custom_attributes?.whatsapp_number,
+      ...(Array.isArray(contato?.contact_inboxes) ? contato.contact_inboxes.map((item) => item?.source_id || item?.source?.id) : []),
+    ].filter(Boolean);
+
+  const getTelefoneContatoComparavel = (contato) => getValoresTelefoneContato(contato).map(normalizarTelefoneContato).filter(Boolean).join(' ');
 
   const conversaPertenceAoUsuarioAtual = (conversa) => {
     const assignee = normalizarAgente(conversa?.meta?.assignee);
@@ -1193,7 +1210,7 @@ const InboxPage = () => {
       .map((contato) => {
         let score = 0;
 
-        const telefoneContato = normalizarTelefoneContato(contato?.phone_number || contato?.identifier);
+        const telefoneContato = getTelefoneContatoComparavel(contato);
         const emailContato = normalizarEmailContato(contato?.email);
         const nomeContato = String(contato?.name || '').trim().toLowerCase();
 
@@ -2617,7 +2634,7 @@ const InboxPage = () => {
 
         setResultadosContatoExistente(candidatos);
         setFeedbackBuscaContatoExistente(
-          data?.message || 'Ja existe um contato parecido. Use um dos resultados abaixo para abrir a conversa sem criar duplicidade.'
+          getMensagemErroResposta(data, 'Ja existe um contato parecido. Use um dos resultados abaixo para abrir a conversa sem criar duplicidade.')
         );
         return;
       }
@@ -2642,7 +2659,7 @@ const InboxPage = () => {
         return;
       }
 
-      setFeedbackBuscaContatoExistente(data?.message || extrairTextoErro(data?.errors || data?.details || data) || 'Nao foi possivel criar o contato.');
+      setFeedbackBuscaContatoExistente(getMensagemErroResposta(data, 'Nao foi possivel criar o contato.'));
     } catch (error) {
       console.error(error);
       setFeedbackBuscaContatoExistente('Falha ao criar o contato.');
