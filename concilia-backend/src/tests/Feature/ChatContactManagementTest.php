@@ -21,6 +21,28 @@ class ChatContactManagementTest extends TestCase
         $this->setChatwootEnv('CHATWOOT_ACCOUNT_ID', '1');
     }
 
+    public function test_chatwoot_routes_return_configuration_error_before_proxying_without_credentials(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        config([
+            'app.chatwoot_url' => null,
+            'app.chatwoot_api_token' => null,
+            'app.chatwoot_account_id' => null,
+        ]);
+
+        Http::fake();
+
+        $this->getJson('/api/chat/contacts')
+            ->assertStatus(503)
+            ->assertJsonPath('message', 'Integracao com Chatwoot nao configurada no backend.')
+            ->assertJsonPath('missing.0', 'CHATWOOT_URL')
+            ->assertJsonPath('missing.1', 'CHATWOOT_API_TOKEN')
+            ->assertJsonPath('missing.2', 'CHATWOOT_ACCOUNT_ID');
+
+        Http::assertNothingSent();
+    }
+
     public function test_update_contact_can_toggle_blocked_status(): void
     {
         Sanctum::actingAs($this->makeAuthorizedUser());
@@ -361,5 +383,13 @@ class ChatContactManagementTest extends TestCase
         putenv("{$key}={$value}");
         $_ENV[$key] = $value;
         $_SERVER[$key] = $value;
+
+        config([
+            match ($key) {
+                'CHATWOOT_URL' => 'app.chatwoot_url',
+                'CHATWOOT_API_TOKEN' => 'app.chatwoot_api_token',
+                'CHATWOOT_ACCOUNT_ID' => 'app.chatwoot_account_id',
+            } => $value,
+        ]);
     }
 }

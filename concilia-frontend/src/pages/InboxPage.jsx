@@ -4,6 +4,7 @@ import LinkCaseModal from '../components/LinkCaseModal';
 import { useAuth } from '../context/AuthContext';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 import { normalizeCaseTags } from '../constants/caseTags';
+import { API_BASE_URL } from '../api';
 
 const TEMPLATE_FALLBACK_STORAGE_KEY = 'nic_template_fallback_messages_v1';
 const SYSTEM_ASSIGNMENT_PATTERNS = [
@@ -517,7 +518,7 @@ const InboxPage = () => {
   })());
   const { user } = useAuth();
 
-  const API_BASE = import.meta.env.VITE_API_URL || 'https://api-nic-lab.mdradvocacia.com/api';
+  const API_BASE = API_BASE_URL;
 
   const getCleanToken = () => {
     const token = localStorage.getItem('authToken');

@@ -26,9 +26,9 @@ class ChatController extends Controller
 
     public function __construct()
     {
-        $this->chatwootUrl = env('CHATWOOT_URL');
-        $this->apiToken = env('CHATWOOT_API_TOKEN');
-        $this->accountId = env('CHATWOOT_ACCOUNT_ID');
+        $this->chatwootUrl = rtrim((string) config('app.chatwoot_url'), '/');
+        $this->apiToken = config('app.chatwoot_api_token');
+        $this->accountId = config('app.chatwoot_account_id');
         $this->metaAccessToken = config('services.meta_whatsapp.access_token');
         $this->metaBusinessAccountId = config('services.meta_whatsapp.business_account_id');
         $this->metaPhoneNumberId = config('services.meta_whatsapp.phone_number_id');
@@ -37,8 +37,39 @@ class ChatController extends Controller
         $this->metaApiVersion = config('services.meta_whatsapp.api_version', 'v22.0');
     }
 
+    private function chatwootConfigurationErrorResponse()
+    {
+        $missing = [];
+
+        if (blank($this->chatwootUrl)) {
+            $missing[] = 'CHATWOOT_URL';
+        }
+
+        if (blank($this->apiToken)) {
+            $missing[] = 'CHATWOOT_API_TOKEN';
+        }
+
+        if (blank($this->accountId)) {
+            $missing[] = 'CHATWOOT_ACCOUNT_ID';
+        }
+
+        if (empty($missing)) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'Integracao com Chatwoot nao configurada no backend.',
+            'missing' => $missing,
+            'hint' => 'Defina as variaveis CHATWOOT_URL, CHATWOOT_API_TOKEN e CHATWOOT_ACCOUNT_ID no ambiente do backend e refaca o deploy.',
+        ], 503);
+    }
+
     public function getContacts(Request $request)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $search = $request->query('search');
 
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
@@ -51,6 +82,10 @@ class ChatController extends Controller
 
     public function resolveConversation($conversationId)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $response = Http::withHeaders([
             'api_access_token' => $this->apiToken,
         ])->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/toggle_status", [
@@ -62,6 +97,10 @@ class ChatController extends Controller
 
     public function createContact(Request $request)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $validated = Validator::make($this->buildContactPayload($request), [
             'name' => 'required|string',
             'email' => 'nullable|email',
@@ -102,6 +141,10 @@ class ChatController extends Controller
 
     public function updateContact(Request $request, $contactId)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $validated = Validator::make($this->buildContactPayload($request, false), [
             'name' => 'sometimes|required|string',
             'email' => 'nullable|email',
@@ -125,6 +168,10 @@ class ChatController extends Controller
 
     public function destroyContact($contactId)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->delete("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}");
 
@@ -133,6 +180,10 @@ class ChatController extends Controller
 
     public function createConversationForContact(Request $request, $contactId)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $validated = $request->validate([
             'inbox_id' => 'required|integer',
             'assignee_id' => 'nullable|integer',
@@ -215,6 +266,10 @@ class ChatController extends Controller
 
     public function getInboxAgents($inboxId)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inbox_members/{$inboxId}");
 
@@ -225,6 +280,10 @@ class ChatController extends Controller
 
     public function getAccountAgents()
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/agents");
 
@@ -235,6 +294,10 @@ class ChatController extends Controller
 
     public function addAgentToInbox(Request $request, $inboxId)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $validated = $request->validate([
             'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'integer',
@@ -251,6 +314,10 @@ class ChatController extends Controller
 
     public function assignConversation(Request $request, $conversationId)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $validated = $request->validate([
             'assignee_id' => 'nullable|integer',
         ]);
@@ -266,6 +333,10 @@ class ChatController extends Controller
 
     public function getConversations(Request $request)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $status = $request->query('status', 'open');
         $assigneeType = $request->query('assignee_type', 'all');
         $currentUserAssigneeId = null;
@@ -317,6 +388,10 @@ class ChatController extends Controller
 
     public function getInboxes()
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $response = Http::withHeaders(['api_access_token' => $this->apiToken])
             ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
 
@@ -327,6 +402,10 @@ class ChatController extends Controller
 
     public function getMyInboxes(Request $request)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         try {
             $response = Http::withHeaders([
                 'api_access_token' => $this->apiToken,
@@ -390,6 +469,10 @@ class ChatController extends Controller
 
     public function getConversationMessages($conversationId)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $response = Http::withHeaders([
             'api_access_token' => $this->apiToken,
         ])
@@ -429,6 +512,10 @@ class ChatController extends Controller
 
     public function sendMessage(Request $request, $conversationId)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $data = $request->all();
         $attachments = $request->file('attachments', []);
 
@@ -875,6 +962,10 @@ class ChatController extends Controller
 
     public function getTemplates(Request $request)
     {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+            return $configurationError;
+        }
+
         $validated = $request->validate([
             'inbox_id' => 'required|integer',
         ]);
