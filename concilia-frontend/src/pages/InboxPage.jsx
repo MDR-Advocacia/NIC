@@ -1033,7 +1033,11 @@ const InboxPage = () => {
 
   const extrairContatoResposta = (data) => {
     if (data?.payload?.contact) return data.payload.contact;
+    if (Array.isArray(data?.payload)) return data.payload[0] || null;
+    if (Array.isArray(data?.data?.payload)) return data.data.payload[0] || null;
     if (data?.payload) return data.payload;
+    if (data?.data?.payload?.contact) return data.data.payload.contact;
+    if (data?.data?.payload) return data.data.payload;
     if (data?.contact) return data.contact;
     return data;
   };
@@ -1161,7 +1165,7 @@ const InboxPage = () => {
       return 'unassigned';
     }
 
-    return conversaPertenceAoUsuarioAtual(conversa) ? 'mine' : fallback;
+    return conversaPertenceAoUsuarioAtual(conversa) ? 'me' : fallback;
   };
 
   const inboxEhCompativelComContato = (contato, inboxId) => {
@@ -1620,7 +1624,7 @@ const InboxPage = () => {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({ inbox_id: targetInboxId }),
+        body: JSON.stringify({ inbox_id: targetInboxId, assign_to_current_user: true }),
       });
 
       const data = await response.json().catch(() => ({}));
