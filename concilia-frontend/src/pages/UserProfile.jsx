@@ -3,10 +3,40 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import apiClient from '../api';
 import styles from '../styles/UserProfile.module.css';
-import { FaComments, FaPlug, FaSave, FaShieldAlt, FaSyncAlt, FaUnlink, FaUserCircle } from 'react-icons/fa';
+import { FaComments, FaSave, FaShieldAlt, FaSyncAlt, FaUserCircle } from 'react-icons/fa';
+
+const getChatwootStatusCopy = (status, user) => {
+    if (!status) {
+        return {
+            title: 'Verificando integracao',
+            text: 'O NIC esta conferindo se existe uma conta do Chatwoot para este usuario.',
+        };
+    }
+
+    if (status.connected) {
+        return {
+            title: status.agent?.name || 'Conta conectada automaticamente',
+            text: `${status.agent?.email || user?.email || 'Usuario'} sera usado nas acoes da Caixa de Entrada.`,
+        };
+    }
+
+    if (status.integration_mode === 'agent_found_without_token') {
+        return {
+            title: status.agent?.name || 'Agente encontrado',
+            text: status.automatic_sync_available
+                ? 'O agente foi localizado no Chatwoot. Sincronize novamente para liberar a identidade de atendimento.'
+                : 'O agente foi localizado no Chatwoot, mas o backend ainda precisa do token da Platform API para obter a identidade automaticamente.',
+        };
+    }
+
+    return {
+        title: 'Aguardando sincronizacao',
+        text: 'O NIC vai vincular automaticamente quando encontrar um agente do Chatwoot com o mesmo e-mail deste usuario.',
+    };
+};
 
 const UserProfile = () => {
-    const { user, token, setUser } = useAuth();
+    const { user, token } = useAuth();
     const { theme } = useTheme();
 
     const [loading, setLoading] = useState(false);
@@ -17,17 +47,8 @@ const UserProfile = () => {
         new_password_confirmation: ''
     });
     const [chatwootStatus, setChatwootStatus] = useState(null);
-    const [chatwootAccessToken, setChatwootAccessToken] = useState('');
     const [chatwootLoading, setChatwootLoading] = useState(true);
-    const [chatwootSaving, setChatwootSaving] = useState(false);
     const [chatwootMsg, setChatwootMsg] = useState({ type: '', text: '' });
-
-    const syncUser = (nextUser) => {
-        if (!nextUser) return;
-
-        localStorage.setItem('user', JSON.stringify(nextUser));
-        setUser?.(nextUser);
-    };
 
     const carregarConexaoChatwoot = async (silent = false) => {
         if (!silent) {
@@ -39,23 +60,26 @@ const UserProfile = () => {
             setChatwootStatus(response.data);
 
             if (!silent) {
-                setChatwootMsg({ type: '', text: '' });
+                setChatwootMsg({
+                    type: response.data?.connected ? 'success' : 'info',
+                    text: response.data?.connected
+                        ? 'Integracao automatica ativa.'
+                        : 'Sincronizacao automatica ainda pendente.'
+                });
             }
         } catch (error) {
-            setChatwootStatus(null);
+            setChatwootStatus(error.response?.data || null);
             setChatwootMsg({
                 type: 'error',
-                text: error.response?.data?.message || 'Nao foi possivel consultar a conexao do Chatwoot.'
+                text: error.response?.data?.hint || error.response?.data?.message || 'Nao foi possivel consultar a conexao do Chatwoot.'
             });
         } finally {
-            if (!silent) {
-                setChatwootLoading(false);
-            }
+            setChatwootLoading(false);
         }
     };
 
     useEffect(() => {
-        carregarConexaoChatwoot();
+        carregarConexaoChatwoot(true);
     }, []);
 
     const handleChange = (e) => {
@@ -88,68 +112,9 @@ const UserProfile = () => {
         }
     };
 
-    const handleChatwootConnect = async (event) => {
-        event.preventDefault();
-
-        const trimmedToken = chatwootAccessToken.trim();
-
-        if (!trimmedToken) {
-            setChatwootMsg({ type: 'error', text: 'Informe o access token pessoal do Chatwoot.' });
-            return;
-        }
-
-        setChatwootSaving(true);
-        setChatwootMsg({ type: '', text: '' });
-
-        try {
-            const response = await apiClient.put('/chat/connection', {
-                chatwoot_access_token: trimmedToken,
-            });
-
-            setChatwootStatus(response.data.connection);
-            syncUser(response.data.user);
-            setChatwootAccessToken('');
-            setChatwootMsg({ type: 'success', text: response.data.message || 'Conta do Chatwoot conectada.' });
-        } catch (error) {
-            setChatwootMsg({
-                type: 'error',
-                text: error.response?.data?.message || 'Nao foi possivel conectar a conta do Chatwoot.'
-            });
-        } finally {
-            setChatwootSaving(false);
-        }
-    };
-
-    const handleChatwootDisconnect = async () => {
-        const confirmar = window.confirm('Deseja desconectar sua conta do Chatwoot neste usuario do NIC?');
-
-        if (!confirmar) {
-            return;
-        }
-
-        setChatwootSaving(true);
-        setChatwootMsg({ type: '', text: '' });
-
-        try {
-            const response = await apiClient.delete('/chat/connection');
-
-            setChatwootStatus(response.data.connection);
-            syncUser(response.data.user);
-            setChatwootAccessToken('');
-            setChatwootMsg({ type: 'success', text: response.data.message || 'Conta do Chatwoot desconectada.' });
-        } catch (error) {
-            setChatwootMsg({
-                type: 'error',
-                text: error.response?.data?.message || 'Nao foi possivel desconectar a conta do Chatwoot.'
-            });
-        } finally {
-            setChatwootSaving(false);
-        }
-    };
-
     const themeClass = theme === 'dark' ? styles.containerDark : styles.containerLight;
-    const agenteChatwoot = chatwootStatus?.agent;
     const chatwootConnected = Boolean(chatwootStatus?.connected);
+    const statusCopy = getChatwootStatusCopy(chatwootStatus, user);
 
     return (
         <div className={`${styles.pageContainer} ${themeClass}`}>
@@ -187,49 +152,14 @@ const UserProfile = () => {
                         <span className={`${styles.statusBadge} ${chatwootConnected ? styles.statusOk : styles.statusWarn}`}>
                             {chatwootLoading ? 'Verificando' : chatwootConnected ? 'Conectado' : 'Pendente'}
                         </span>
-                        <h2 className={styles.sectionTitle}>
-                            {chatwootConnected ? agenteChatwoot?.name || 'Conta conectada' : 'Conectar conta pessoal'}
-                        </h2>
-                        <p className={styles.helperText}>
-                            {chatwootConnected
-                                ? `${agenteChatwoot?.email || user?.email || 'Usuario'} sera usado nas acoes da Caixa de Entrada.`
-                                : 'Use o token da sua conta do Chatwoot com o mesmo e-mail do NIC.'}
-                        </p>
+                        <h2 className={styles.sectionTitle}>{statusCopy.title}</h2>
+                        <p className={styles.helperText}>{statusCopy.text}</p>
                     </div>
 
-                    <button type="button" className={styles.iconButton} onClick={() => carregarConexaoChatwoot()} disabled={chatwootLoading || chatwootSaving} title="Atualizar status">
+                    <button type="button" className={styles.iconButton} onClick={() => carregarConexaoChatwoot()} disabled={chatwootLoading} title="Sincronizar Chatwoot">
                         <FaSyncAlt />
                     </button>
                 </div>
-
-                <form onSubmit={handleChatwootConnect}>
-                    <div className={styles.group}>
-                        <label className={styles.label}>Access token pessoal</label>
-                        <input
-                            type="password"
-                            className={styles.input}
-                            value={chatwootAccessToken}
-                            onChange={(event) => {
-                                setChatwootAccessToken(event.target.value);
-                                if (chatwootMsg.text) setChatwootMsg({ type: '', text: '' });
-                            }}
-                            placeholder={chatwootConnected ? 'Informe um novo token para trocar a conta' : 'Cole o token do Chatwoot'}
-                            autoComplete="off"
-                        />
-                    </div>
-
-                    <div className={styles.buttonRow}>
-                        <button type="submit" className={styles.btn} disabled={chatwootSaving || chatwootLoading}>
-                            <FaPlug /> {chatwootSaving ? 'Validando...' : chatwootConnected ? 'Atualizar Conexao' : 'Conectar Conta'}
-                        </button>
-
-                        {chatwootConnected && (
-                            <button type="button" className={`${styles.btn} ${styles.dangerBtn}`} onClick={handleChatwootDisconnect} disabled={chatwootSaving || chatwootLoading}>
-                                <FaUnlink /> Desconectar
-                            </button>
-                        )}
-                    </div>
-                </form>
             </div>
 
             <div className={styles.card}>

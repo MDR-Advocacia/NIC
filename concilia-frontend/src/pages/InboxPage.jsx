@@ -734,7 +734,8 @@ const InboxPage = () => {
       return false;
     }
 
-    const mensagem = data?.message || 'Conecte sua conta pessoal do Chatwoot no perfil antes de usar a Caixa de Entrada.';
+    const mensagemBase = data?.message || 'Nao foi possivel integrar automaticamente sua conta do Chatwoot.';
+    const mensagem = data?.hint ? `${mensagemBase} ${data.hint}` : mensagemBase;
     setChatwootConnectionRequired(mensagem);
     setConversas([]);
     setContatos([]);
@@ -2861,11 +2862,19 @@ const InboxPage = () => {
       {chatwootConnectionRequired ? (
         <div style={styles.connectionRequired}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 800, marginBottom: '4px' }}>Conexao do Chatwoot pendente</div>
+            <div style={{ fontWeight: 800, marginBottom: '4px' }}>Sincronizacao do Chatwoot pendente</div>
             <div style={{ fontSize: '13px', lineHeight: 1.5 }}>{chatwootConnectionRequired}</div>
           </div>
-          <button type="button" style={{ ...styles.primaryButton, flexShrink: 0 }} onClick={() => navigate('/profile')}>
-            Abrir perfil
+          <button
+            type="button"
+            style={{ ...styles.primaryButton, flexShrink: 0 }}
+            onClick={() => {
+              setChatwootConnectionRequired('');
+              carregarDadosIniciais();
+              buscarConversas(abaAtiva);
+            }}
+          >
+            Tentar novamente
           </button>
         </div>
       ) : null}

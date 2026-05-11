@@ -18,6 +18,7 @@ class ChatController extends Controller
 {
     private $chatwootUrl;
     private $apiToken;
+    private $platformApiToken;
     private $accountId;
     private $metaAccessToken;
     private $metaBusinessAccountId;
@@ -31,6 +32,7 @@ class ChatController extends Controller
     {
         $this->chatwootUrl = rtrim((string) config('app.chatwoot_url'), '/');
         $this->apiToken = config('app.chatwoot_api_token');
+        $this->platformApiToken = config('app.chatwoot_platform_api_token');
         $this->accountId = config('app.chatwoot_account_id');
         $this->metaAccessToken = config('services.meta_whatsapp.access_token');
         $this->metaBusinessAccountId = config('services.meta_whatsapp.business_account_id');
@@ -92,20 +94,41 @@ class ChatController extends Controller
 
     private function chatwootConnectionRequiredResponse(Request $request)
     {
+        $user = $request->user();
+        $hasAgentLink = filled($user?->chatwoot_agent_id);
+        $platformConfigured = filled($this->platformApiToken);
+
         return response()->json([
-            'message' => 'Conecte sua conta pessoal do Chatwoot no perfil antes de usar a Caixa de Entrada.',
-            'hint' => 'Acesse Meu Perfil e informe o access_token da sua conta do Chatwoot para operar o chat com a identidade correta.',
-            'user_email' => $request->user()?->email,
+            'message' => $hasAgentLink
+                ? 'Sua conta foi encontrada no Chatwoot, mas ainda nao foi possivel liberar a identidade automatica para envio.'
+                : 'Nao foi possivel integrar automaticamente sua conta do Chatwoot.',
+            'hint' => $platformConfigured
+                ? 'Confirme se existe um agente ativo no Chatwoot com o mesmo e-mail do usuario do NIC.'
+                : 'Configure CHATWOOT_PLATFORM_API_TOKEN no backend para o NIC obter automaticamente o token de cada agente sem pedir nada ao colaborador.',
+            'user_email' => $user?->email,
+            'agent' => $hasAgentLink ? [
+                'id' => $user->chatwoot_agent_id ? (int) $user->chatwoot_agent_id : null,
+                'name' => $user->chatwoot_agent_name,
+                'email' => $user->chatwoot_agent_email,
+                'role' => $user->chatwoot_role,
+            ] : null,
+            'requires_admin_action' => true,
         ], 409);
     }
 
     private function bootstrapChatwootTokenForRequest(Request $request, bool $allowSystemFallback = false)
     {
-        if ($configurationError = $this->chatwootConfigurationErrorResponse($allowSystemFallback)) {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse($allowSystemFallback || blank($this->resolveUserChatwootApiToken($request->user())))) {
             return $configurationError;
         }
 
-        $token = $this->resolveUserChatwootApiToken($request->user());
+        $user = $request->user();
+        $token = $this->resolveUserChatwootApiToken($user);
+
+        if (blank($token) && $user) {
+            $user = $this->autoConnectChatwootUser($user);
+            $token = $this->resolveUserChatwootApiToken($user);
+        }
 
         if (blank($token) && $allowSystemFallback) {
             $token = $this->apiToken;
@@ -156,13 +179,91 @@ class ChatController extends Controller
         ];
     }
 
+    private function normalizeChatwootEmail(?string $email): string
+    {
+        return Str::lower(trim((string) $email));
+    }
+
+    private function fetchChatwootAgentByEmail(string $email): ?array
+    {
+        $normalizedEmail = $this->normalizeChatwootEmail($email);
+
+        if ($normalizedEmail === '' || blank($this->apiToken)) {
+            return null;
+        }
+
+        $cacheKey = "chatwoot:account:{$this->accountId}:agent_by_email:{$normalizedEmail}";
+
+        if (Cache::has($cacheKey)) {
+            return Cache::get($cacheKey);
+        }
+
+        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            ->timeout(10)
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/agents");
+
+        if ($response->failed()) {
+            Log::warning('Nao foi possivel buscar agentes do Chatwoot para vinculo automatico', [
+                'status' => $response->status(),
+                'details' => $response->json() ?? ['body' => $response->body()],
+            ]);
+
+            return null;
+        }
+
+        $agent = collect($this->extractChatwootContactsList($response->json()))
+            ->filter(fn ($candidate) => is_array($candidate))
+            ->first(fn ($candidate) => $this->normalizeChatwootEmail($candidate['email'] ?? null) === $normalizedEmail);
+
+        if ($agent) {
+            Cache::put($cacheKey, $agent, now()->addMinutes(10));
+        }
+
+        return $agent;
+    }
+
+    private function fetchChatwootPlatformUserProfile(array $agent): ?array
+    {
+        if (blank($this->platformApiToken)) {
+            return null;
+        }
+
+        $userId = $agent['id'] ?? $agent['user_id'] ?? null;
+
+        if (!$userId) {
+            return null;
+        }
+
+        $response = Http::withHeaders(['api_access_token' => $this->platformApiToken])
+            ->timeout(10)
+            ->get("{$this->chatwootUrl}/platform/api/v1/users/{$userId}");
+
+        if ($response->failed()) {
+            Log::warning('Nao foi possivel buscar usuario na Platform API do Chatwoot', [
+                'chatwoot_user_id' => $userId,
+                'status' => $response->status(),
+                'details' => $response->json() ?? ['body' => $response->body()],
+            ]);
+
+            return null;
+        }
+
+        $profile = $response->json();
+
+        return is_array($profile) ? $profile : null;
+    }
+
     private function formatChatwootConnectionStatus(User $user): array
     {
+        $hasAgent = filled($user->chatwoot_agent_id);
+
         return [
             'connected' => (bool) $user->chatwoot_connected,
+            'integration_mode' => $user->chatwoot_connected ? 'automatic_user_token' : ($hasAgent ? 'agent_found_without_token' : 'pending'),
+            'automatic_sync_available' => filled($this->platformApiToken),
             'chatwoot_url' => $this->chatwootUrl,
             'chatwoot_account_id' => $this->accountId ? (int) $this->accountId : null,
-            'agent' => $user->chatwoot_connected ? [
+            'agent' => $hasAgent ? [
                 'id' => $user->chatwoot_agent_id ? (int) $user->chatwoot_agent_id : null,
                 'name' => $user->chatwoot_agent_name,
                 'email' => $user->chatwoot_agent_email,
@@ -195,6 +296,64 @@ class ChatController extends Controller
         return $user->fresh();
     }
 
+    private function storeChatwootAgentLink(User $user, array $agent): User
+    {
+        $user->forceFill([
+            'chatwoot_agent_id' => isset($agent['id']) ? (int) $agent['id'] : null,
+            'chatwoot_agent_name' => data_get($agent, 'available_name')
+                ?: data_get($agent, 'display_name')
+                ?: data_get($agent, 'name')
+                ?: $user->name,
+            'chatwoot_agent_email' => data_get($agent, 'email'),
+            'chatwoot_account_id' => data_get($agent, 'account_id') ?: ($this->accountId ? (int) $this->accountId : null),
+            'chatwoot_role' => data_get($agent, 'role'),
+            'chatwoot_last_validated_at' => now(),
+        ])->save();
+
+        return $user->fresh();
+    }
+
+    private function autoConnectChatwootUser(User $user): User
+    {
+        if ($user->chatwoot_connected) {
+            return $user;
+        }
+
+        $agent = $this->fetchChatwootAgentByEmail((string) $user->email);
+
+        if (!$agent) {
+            return $user;
+        }
+
+        $user = $this->storeChatwootAgentLink($user, $agent);
+
+        $profile = $this->fetchChatwootPlatformUserProfile($agent);
+
+        if (!$profile) {
+            return $user;
+        }
+
+        $platformEmail = $this->normalizeChatwootEmail($profile['email'] ?? null);
+        $nicEmail = $this->normalizeChatwootEmail($user->email);
+        $accessToken = trim((string) ($profile['access_token'] ?? ''));
+
+        if ($platformEmail !== '' && $nicEmail !== '' && $platformEmail !== $nicEmail) {
+            Log::warning('Usuario Platform API do Chatwoot nao corresponde ao e-mail do usuario NIC', [
+                'nic_email' => $nicEmail,
+                'chatwoot_email' => $platformEmail,
+                'chatwoot_user_id' => $profile['id'] ?? null,
+            ]);
+
+            return $user;
+        }
+
+        if (blank($accessToken) || !$this->findMatchingChatwootAccount($profile)) {
+            return $user;
+        }
+
+        return $this->storeChatwootConnection($user, $accessToken, $profile);
+    }
+
     private function clearChatwootConnection(User $user): User
     {
         $user->forceFill([
@@ -213,11 +372,18 @@ class ChatController extends Controller
 
     public function getConnectionStatus(Request $request)
     {
-        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+        $user = $request->user();
+        $needsAutoSync = !$user?->chatwoot_connected;
+
+        if ($configurationError = $this->chatwootConfigurationErrorResponse($needsAutoSync)) {
             return $configurationError;
         }
 
-        return response()->json($this->formatChatwootConnectionStatus($request->user()));
+        if ($needsAutoSync && $user) {
+            $user = $this->autoConnectChatwootUser($user);
+        }
+
+        return response()->json($this->formatChatwootConnectionStatus($user));
     }
 
     public function updateConnection(Request $request)

@@ -127,5 +127,6 @@ return [
 
     'chatwoot_url' => env('CHATWOOT_URL'),
     'chatwoot_api_token' => env('CHATWOOT_API_TOKEN'),
+    'chatwoot_platform_api_token' => env('CHATWOOT_PLATFORM_API_TOKEN'),
     'chatwoot_account_id' => env('CHATWOOT_ACCOUNT_ID'),
 ];

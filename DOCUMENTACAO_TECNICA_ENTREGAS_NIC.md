@@ -257,9 +257,12 @@ Tambem houve sensibilidade nas configuracoes de:
 
 - `CHATWOOT_URL`
 - `CHATWOOT_API_TOKEN`
+- `CHATWOOT_PLATFORM_API_TOKEN`
 - `CHATWOOT_ACCOUNT_ID`
 - CORS do backend
 - URL da API consumida pelo frontend
+
+`CHATWOOT_PLATFORM_API_TOKEN` deve ser configurado no backend para que a Inbox vincule automaticamente cada usuario do NIC ao agente do Chatwoot com o mesmo e-mail, dispensando entrada manual de token pelos colaboradores.
 
 ## 9. Validacoes realizadas
 

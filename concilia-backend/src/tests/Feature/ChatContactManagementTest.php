@@ -19,6 +19,7 @@ class ChatContactManagementTest extends TestCase
         $this->setChatwootEnv('CHATWOOT_URL', 'https://chatwoot.test');
         $this->setChatwootEnv('CHATWOOT_API_TOKEN', 'chatwoot-token');
         $this->setChatwootEnv('CHATWOOT_ACCOUNT_ID', '1');
+        config(['app.chatwoot_platform_api_token' => null]);
     }
 
     public function test_chatwoot_routes_return_configuration_error_before_proxying_without_credentials(): void
@@ -49,13 +50,93 @@ class ChatContactManagementTest extends TestCase
             'chatwoot_agent_id' => null,
         ]));
 
-        Http::fake();
+        Http::fake([
+            'https://chatwoot.test/api/v1/accounts/1/agents' => Http::response([], 200),
+        ]);
 
         $this->getJson('/api/chat/contacts')
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Conecte sua conta pessoal do Chatwoot no perfil antes de usar a Caixa de Entrada.');
+            ->assertJsonPath('message', 'Nao foi possivel integrar automaticamente sua conta do Chatwoot.')
+            ->assertJsonPath('requires_admin_action', true);
 
-        Http::assertNothingSent();
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/agents'
+                && $this->requestHasChatwootToken($request, 'chatwoot-token');
+        });
+    }
+
+    public function test_chatwoot_connection_is_automatic_when_platform_token_can_resolve_the_agent_token(): void
+    {
+        config(['app.chatwoot_platform_api_token' => 'platform-token']);
+
+        $user = $this->makeAuthorizedUser([
+            'email' => 'agente@nic.test',
+            'chatwoot_access_token' => null,
+            'chatwoot_agent_id' => null,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        Http::fake([
+            'https://chatwoot.test/api/v1/accounts/1/agents' => Http::response([
+                [
+                    'id' => 777,
+                    'account_id' => 1,
+                    'email' => 'agente@nic.test',
+                    'name' => 'Agente Automatico',
+                    'available_name' => 'Agente Automatico',
+                    'role' => 'agent',
+                ],
+            ], 200),
+            'https://chatwoot.test/platform/api/v1/users/777' => Http::response([
+                'id' => 777,
+                'access_token' => 'agent-auto-token',
+                'email' => 'agente@nic.test',
+                'name' => 'Agente Automatico',
+                'available_name' => 'Agente Automatico',
+                'role' => 'agent',
+                'accounts' => [
+                    [
+                        'id' => 1,
+                        'role' => 'agent',
+                    ],
+                ],
+            ], 200),
+            'https://chatwoot.test/api/v1/accounts/1/contacts' => Http::response([
+                'payload' => [
+                    ['id' => 10, 'name' => 'Cliente'],
+                ],
+            ], 200),
+        ]);
+
+        $this->getJson('/api/chat/contacts')
+            ->assertOk()
+            ->assertJsonPath('payload.0.id', 10);
+
+        $user->refresh();
+
+        $this->assertTrue($user->chatwoot_connected);
+        $this->assertSame('agent-auto-token', $user->chatwoot_access_token);
+        $this->assertSame(777, (int) $user->chatwoot_agent_id);
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/agents'
+                && $this->requestHasChatwootToken($request, 'chatwoot-token');
+        });
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && $request->url() === 'https://chatwoot.test/platform/api/v1/users/777'
+                && $this->requestHasChatwootToken($request, 'platform-token');
+        });
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/contacts'
+                && $this->requestHasChatwootToken($request, 'agent-auto-token');
+        });
     }
 
     public function test_user_can_connect_chatwoot_account_with_matching_profile(): void
