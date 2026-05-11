@@ -297,6 +297,23 @@ const styles = {
     fontSize: '13px',
     lineHeight: 1.5,
   }),
+  connectionRequired: {
+    position: 'absolute',
+    left: '24px',
+    right: '24px',
+    top: '24px',
+    zIndex: 60,
+    padding: '16px',
+    borderRadius: '16px',
+    border: '1px solid #fed7aa',
+    backgroundColor: '#fff7ed',
+    color: '#9a3412',
+    boxShadow: '0 18px 38px rgba(154, 52, 18, 0.14)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '14px',
+  },
   empty: {
     flex: 1,
     display: 'flex',
@@ -499,6 +516,7 @@ const InboxPage = () => {
   const [assigneeSelecionado, setAssigneeSelecionado] = useState('');
   const [atribuindoConversa, setAtribuindoConversa] = useState(false);
   const [adicionandoAgente, setAdicionandoAgente] = useState(false);
+  const [chatwootConnectionRequired, setChatwootConnectionRequired] = useState('');
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const chatBodyRef = useRef(null);
@@ -710,6 +728,26 @@ const InboxPage = () => {
   };
 
   const getMensagemErroResposta = (data, fallback) => getMotivoFalhaMensagem(data) || extrairTextoErro(data) || fallback;
+
+  const tratarConexaoChatwootPendente = (response, data) => {
+    if (response?.status !== 409) {
+      return false;
+    }
+
+    const mensagem = data?.message || 'Conecte sua conta pessoal do Chatwoot no perfil antes de usar a Caixa de Entrada.';
+    setChatwootConnectionRequired(mensagem);
+    setConversas([]);
+    setContatos([]);
+    setMensagens([]);
+    setConversaSelecionada(null);
+    setProcessoVinculado(null);
+
+    if (urlConversationId) {
+      navigate('/inbox', { replace: true });
+    }
+
+    return true;
+  };
 
   const criarMensagemFalhaLocal = ({ content = '', attachments = [], contentType = null, contentAttributes = {}, templateParams = null, reason = '' }) => ({
     id: `failed-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1530,6 +1568,11 @@ const InboxPage = () => {
 
       const data = await response.json().catch(() => ({}));
 
+      if (tratarConexaoChatwootPendente(response, data)) {
+        setResultadosContatoExistente([]);
+        return [];
+      }
+
       if (!response.ok) {
         setResultadosContatoExistente([]);
         setFeedbackBuscaContatoExistente(data?.message || 'Nao foi possivel pesquisar os contatos agora.');
@@ -1646,6 +1689,11 @@ const InboxPage = () => {
       });
 
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return false;
+      }
+
       const conversaCriada = extrairConversaResposta(data);
 
       const listaAtualizada = await buscarConversas('all', { silent: true, inboxId: targetInboxId });
@@ -1711,6 +1759,12 @@ const InboxPage = () => {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        setAgentesInbox([]);
+        return;
+      }
+
       const lista = extrairLista(data).map(normalizarAgente).filter(Boolean);
       setAgentesInbox(lista);
     } catch (error) {
@@ -1730,6 +1784,12 @@ const InboxPage = () => {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        setAgentesConta([]);
+        return;
+      }
+
       const lista = extrairLista(data).map(normalizarAgente).filter(Boolean);
       setAgentesConta(lista);
     } catch (error) {
@@ -1959,13 +2019,37 @@ const InboxPage = () => {
       const resInboxes = await fetch(`${API_BASE}/chat/inboxes`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
-      const dataInboxes = await resInboxes.json();
+      const dataInboxes = await resInboxes.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(resInboxes, dataInboxes)) {
+        setInboxes([]);
+        return;
+      }
+
+      if (!resInboxes.ok) {
+        setInboxes([]);
+        definirFeedback(dataInboxes?.message || 'Nao foi possivel carregar os canais do Chatwoot.', 'error');
+        return;
+      }
+
+      setChatwootConnectionRequired('');
       setInboxes(extrairLista(dataInboxes));
 
       const resContatos = await fetch(`${API_BASE}/chat/contacts`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
-      const dataContatos = await resContatos.json();
+      const dataContatos = await resContatos.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(resContatos, dataContatos)) {
+        return;
+      }
+
+      if (!resContatos.ok) {
+        setContatos([]);
+        definirFeedback(dataContatos?.message || 'Nao foi possivel carregar os contatos do Chatwoot.', 'error');
+        return;
+      }
+
       setContatos(extrairLista(dataContatos));
     } catch (error) {
       console.error('Erro ao carregar dados iniciais:', error);
@@ -1979,7 +2063,12 @@ const InboxPage = () => {
     }
 
     const token = getCleanToken();
-    if (!token) return [];
+    if (!token) {
+      if (!silent) {
+        setCarregando(false);
+      }
+      return [];
+    }
 
     let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
     const filtroInbox = options.inboxId ?? inboxSelecionada;
@@ -1990,7 +2079,21 @@ const InboxPage = () => {
 
     try {
       const response = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return [];
+      }
+
+      if (!response.ok) {
+        if (!silent) {
+          setConversas([]);
+          definirFeedback(data?.message || 'Nao foi possivel carregar as conversas do Chatwoot.', 'error');
+        }
+        return [];
+      }
+
+      setChatwootConnectionRequired('');
       const lista = extrairLista(data);
 
       const listaComFallback = aplicarPreviewFallbackNasConversas(lista);
@@ -2036,7 +2139,13 @@ const InboxPage = () => {
       const res = await fetch(`${API_BASE}/chat/templates?inbox_id=${inboxId}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(res, data)) {
+        setTemplates([]);
+        setTemplateSelecionado(null);
+        return;
+      }
 
       if (!res.ok) {
         console.error('Erro ao carregar templates da Meta:', data);
@@ -2237,7 +2346,18 @@ const InboxPage = () => {
       const response = await fetch(`${API_BASE}/chat/conversations/${chatId}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
+
+      if (!response.ok) {
+        definirFeedback(data?.message || 'Nao foi possivel carregar a conversa.', 'error');
+        return;
+      }
+
+      setChatwootConnectionRequired('');
       const msgLista = extrairLista(data);
       const mensagensOrdenadas = [...msgLista].sort((left, right) => getMessageTimestamp(left) - getMessageTimestamp(right));
       setMensagens(sincronizarFallbacksLocais(chatId, mensagensOrdenadas));
@@ -2331,6 +2451,11 @@ const InboxPage = () => {
       });
 
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
+
       const anexosLocais = arquivos.map((arquivo) => ({
         file_type: detectarTipoArquivo(arquivo),
         data_url: URL.createObjectURL(arquivo),
@@ -2416,6 +2541,10 @@ const InboxPage = () => {
       });
 
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
 
       if (response.ok) {
         shouldStickToBottomRef.current = true;
@@ -2504,6 +2633,10 @@ const InboxPage = () => {
 
       const data = await response.json().catch(() => ({}));
 
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
+
       if (response.ok) {
         const mensagemEnviada = normalizarMensagemRetorno(data, { content: payload.content });
 
@@ -2590,7 +2723,11 @@ const InboxPage = () => {
         body: JSON.stringify(payloadNovoContato),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
 
       if (response.ok) {
         const contatoCriado = extrairContatoResposta(data);
@@ -2720,6 +2857,18 @@ const InboxPage = () => {
     <div style={styles.page}>
       <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar" style={{ display: 'none' }} onChange={(event) => handleArquivoSelecionado(event)} />
       <input ref={audioInputRef} type="file" accept="audio/*" style={{ display: 'none' }} onChange={(event) => handleArquivoSelecionado(event, 'audio')} />
+
+      {chatwootConnectionRequired ? (
+        <div style={styles.connectionRequired}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, marginBottom: '4px' }}>Conexao do Chatwoot pendente</div>
+            <div style={{ fontSize: '13px', lineHeight: 1.5 }}>{chatwootConnectionRequired}</div>
+          </div>
+          <button type="button" style={{ ...styles.primaryButton, flexShrink: 0 }} onClick={() => navigate('/profile')}>
+            Abrir perfil
+          </button>
+        </div>
+      ) : null}
 
       {imagemAberta ? (
         <div style={styles.modalOverlay} onClick={() => setImagemAberta(null)}>

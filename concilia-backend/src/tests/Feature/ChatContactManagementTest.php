@@ -37,10 +37,68 @@ class ChatContactManagementTest extends TestCase
             ->assertStatus(503)
             ->assertJsonPath('message', 'Integracao com Chatwoot nao configurada no backend.')
             ->assertJsonPath('missing.0', 'CHATWOOT_URL')
-            ->assertJsonPath('missing.1', 'CHATWOOT_API_TOKEN')
-            ->assertJsonPath('missing.2', 'CHATWOOT_ACCOUNT_ID');
+            ->assertJsonPath('missing.1', 'CHATWOOT_ACCOUNT_ID');
 
         Http::assertNothingSent();
+    }
+
+    public function test_chatwoot_routes_require_connected_user_account_before_proxying(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser([
+            'chatwoot_access_token' => null,
+            'chatwoot_agent_id' => null,
+        ]));
+
+        Http::fake();
+
+        $this->getJson('/api/chat/contacts')
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Conecte sua conta pessoal do Chatwoot no perfil antes de usar a Caixa de Entrada.');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_user_can_connect_chatwoot_account_with_matching_profile(): void
+    {
+        $user = $this->makeAuthorizedUser([
+            'chatwoot_access_token' => null,
+            'chatwoot_agent_id' => null,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        Http::fake([
+            'https://chatwoot.test/api/v1/profile' => Http::response([
+                'id' => 321,
+                'available_name' => 'Agente NIC',
+                'email' => $user->email,
+                'accounts' => [
+                    [
+                        'id' => 1,
+                        'role' => 'agent',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $this->putJson('/api/chat/connection', [
+            'chatwoot_access_token' => 'personal-token-321',
+        ])->assertOk()
+            ->assertJsonPath('connection.connected', true)
+            ->assertJsonPath('connection.agent.id', 321)
+            ->assertJsonPath('connection.agent.email', $user->email);
+
+        $user->refresh();
+
+        $this->assertTrue($user->chatwoot_connected);
+        $this->assertSame('personal-token-321', $user->chatwoot_access_token);
+        $this->assertSame(321, (int) $user->chatwoot_agent_id);
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && $request->url() === 'https://chatwoot.test/api/v1/profile'
+                && $this->requestHasChatwootToken($request, 'personal-token-321');
+        });
     }
 
     public function test_update_contact_can_toggle_blocked_status(): void
@@ -58,6 +116,7 @@ class ChatContactManagementTest extends TestCase
         Http::assertSent(function ($request) {
             return $request->method() === 'PUT'
                 && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/contacts/15'
+                && $this->requestHasChatwootToken($request)
                 && $request['blocked'] === true;
         });
     }
@@ -152,6 +211,7 @@ class ChatContactManagementTest extends TestCase
         Http::assertSent(function ($request) {
             return $request->method() === 'POST'
                 && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/contacts/91/contact_inboxes'
+                && $this->requestHasChatwootToken($request)
                 && (int) $request['inbox_id'] === 5
                 && $request['source_id'] === '+5584999990000';
         });
@@ -163,6 +223,8 @@ class ChatContactManagementTest extends TestCase
                 && (int) $request['contact_id'] === 91
                 && $request['source_id'] === '+5584999990000';
         });
+
+        $this->assertEveryChatwootRequestUsedUserToken();
     }
 
     public function test_create_contact_reuses_existing_candidate_when_chatwoot_rejects_the_creation(): void
@@ -469,12 +531,41 @@ class ChatContactManagementTest extends TestCase
         });
     }
 
-    private function makeAuthorizedUser(): User
+    private function makeAuthorizedUser(array $overrides = []): User
     {
-        return User::factory()->create([
+        return User::factory()->create(array_merge([
             'role' => 'administrador',
             'status' => 'ativo',
-        ]);
+            'chatwoot_access_token' => 'chatwoot-agent-token',
+            'chatwoot_agent_id' => 777,
+            'chatwoot_agent_name' => 'Agente NIC',
+            'chatwoot_agent_email' => 'agente@nic.test',
+            'chatwoot_account_id' => 1,
+            'chatwoot_role' => 'agent',
+            'chatwoot_connected_at' => now(),
+            'chatwoot_last_validated_at' => now(),
+        ], $overrides));
+    }
+
+    private function requestHasChatwootToken($request, string $token = 'chatwoot-agent-token'): bool
+    {
+        return in_array($token, $request->header('api_access_token') ?? [], true);
+    }
+
+    private function assertEveryChatwootRequestUsedUserToken(string $token = 'chatwoot-agent-token'): void
+    {
+        Http::recorded()->each(function ($record) use ($token) {
+            [$request] = $record;
+
+            if (!str_starts_with($request->url(), 'https://chatwoot.test/')) {
+                return;
+            }
+
+            $this->assertTrue(
+                $this->requestHasChatwootToken($request, $token),
+                "Chatwoot request {$request->method()} {$request->url()} did not use the connected user's token."
+            );
+        });
     }
 
     private function setChatwootEnv(string $key, string $value): void

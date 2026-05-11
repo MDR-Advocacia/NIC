@@ -81,7 +81,7 @@ class ChatController extends Controller
             return $this->apiToken;
         }
 
-        return $this->requestScopedApiToken ?: $this->apiToken;
+        return $this->requestScopedApiToken;
     }
 
     private function resolveUserChatwootApiToken(?User $user): ?string
@@ -838,7 +838,7 @@ class ChatController extends Controller
     private function sendAttachmentMessage($conversationId, array $data, array $attachments)
     {
         $requestBuilder = Http::withHeaders([
-            'api_access_token' => $this->apiToken,
+            'api_access_token' => $this->chatwootApiToken(),
         ])->acceptJson();
 
         foreach ($attachments as $attachment) {
@@ -1233,8 +1233,8 @@ class ChatController extends Controller
 
     public function getTemplates(Request $request)
     {
-        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
-            return $configurationError;
+        if ($tokenBootstrap = $this->bootstrapChatwootTokenForRequest($request)) {
+            return $tokenBootstrap;
         }
 
         $validated = $request->validate([
@@ -1246,7 +1246,7 @@ class ChatController extends Controller
 
         try {
             $response = Http::withHeaders([
-                'api_access_token' => $this->apiToken,
+                'api_access_token' => $this->chatwootApiToken(),
             ])->get($url);
 
             if ($response->successful()) {
@@ -1408,7 +1408,7 @@ class ChatController extends Controller
 
     private function fetchChatwootContact($contactId): array
     {
-        $contactResponse = Http::withHeaders(['api_access_token' => $this->apiToken])
+        $contactResponse = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
             ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}");
 
         return [
@@ -1421,7 +1421,7 @@ class ChatController extends Controller
 
     private function fetchContactableInboxes($contactId): array
     {
-        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
             ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}/contactable_inboxes");
 
         if ($response->failed()) {
@@ -1465,7 +1465,7 @@ class ChatController extends Controller
 
     private function createContactInbox($contactId, int $inboxId, string $sourceId): array
     {
-        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
             ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/{$contactId}/contact_inboxes", [
                 'inbox_id' => $inboxId,
                 'source_id' => $sourceId,
@@ -1537,7 +1537,7 @@ class ChatController extends Controller
 
     private function findExistingOpenConversationForContact($contactId, int $inboxId, ?string $sourceId = null): ?array
     {
-        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
             ->timeout(10)
             ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", [
                 'status' => 'open',
@@ -1611,14 +1611,18 @@ class ChatController extends Controller
 
     private function resolveChatwootAssigneeIdForRequest(Request $request): ?int
     {
+        if ($request->user()?->chatwoot_agent_id) {
+            return (int) $request->user()->chatwoot_agent_id;
+        }
+
         $email = Str::lower(trim((string) ($request->user()?->email ?? '')));
 
         if ($email === '') {
             return null;
         }
 
-        return Cache::remember("chatwoot:agent_id_by_email:{$email}", now()->addMinutes(10), function () use ($email) {
-            $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        return Cache::remember("chatwoot:account:{$this->accountId}:agent_id_by_email:{$email}", now()->addMinutes(10), function () use ($email) {
+            $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
                 ->timeout(5)
                 ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/agents");
 
@@ -1646,7 +1650,7 @@ class ChatController extends Controller
             return $conversation;
         }
 
-        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
             ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/assignments", [
                 'assignee_id' => $assigneeId,
             ]);
@@ -1709,7 +1713,7 @@ class ChatController extends Controller
             ['path' => 'contacts/search', 'params' => ['q' => $term]],
             ['path' => 'contacts', 'params' => ['search' => $term]],
         ] as $attempt) {
-            $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
                 ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/{$attempt['path']}", $attempt['params']);
 
             if ($response->failed()) {
@@ -1728,7 +1732,7 @@ class ChatController extends Controller
             return [];
         }
 
-        $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+        $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
             ->post("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts/filter", [
                 'payload' => [
                     [
@@ -1755,7 +1759,7 @@ class ChatController extends Controller
         $matches = collect();
 
         for ($page = 1; $page <= $pages; $page++) {
-            $response = Http::withHeaders(['api_access_token' => $this->apiToken])
+            $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
                 ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/contacts", [
                     'page' => $page,
                 ]);
@@ -1960,7 +1964,7 @@ class ChatController extends Controller
 
         try {
             $response = Http::withHeaders([
-                'api_access_token' => $this->apiToken,
+                'api_access_token' => $this->chatwootApiToken(),
             ])->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/inboxes");
 
             $inboxes = $response->json('payload', []);
