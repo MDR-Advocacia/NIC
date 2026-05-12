@@ -60,7 +60,7 @@ class ChatContactManagementTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_chatwoot_connection_is_automatic_when_platform_token_can_resolve_the_agent_token(): void
+    public function test_chatwoot_connection_is_automatic_when_platform_api_can_provision_the_user(): void
     {
         config(['app.chatwoot_platform_api_token' => 'platform-token']);
 
@@ -68,22 +68,54 @@ class ChatContactManagementTest extends TestCase
             'email' => 'agente@nic.test',
             'chatwoot_access_token' => null,
             'chatwoot_agent_id' => null,
+            'chatwoot_user_id' => null,
         ]);
 
         Sanctum::actingAs($user);
 
         Http::fake([
-            'https://chatwoot.test/api/v1/platform/users?email=agente%40nic.test' => Http::response([
-                [
-                    'id' => 777,
-                    'email' => 'agente@nic.test',
-                    'name' => 'Agente Automatico',
-                    'available_name' => 'Agente Automatico',
+            'https://chatwoot.test/platform/api/v1/accounts/1/account_users' => Http::response([], 200),
+            'https://chatwoot.test/platform/api/v1/users' => Http::response([
+                'id' => 777,
+                'access_token' => 'agent-auto-token',
+                'email' => 'agente@nic.test',
+                'name' => 'Agente Automatico',
+                'display_name' => 'Agente Automatico',
+                'available_name' => 'Agente Automatico',
+                'custom_attributes' => [
+                    'nic_user_id' => $user->id,
+                    'nic_role' => 'administrador',
+                    'nic_source' => 'nic',
                 ],
+                'accounts' => [],
+            ], 200),
+            'https://chatwoot.test/platform/api/v1/accounts/1/account_users' => Http::response([
+                'account_id' => 1,
+                'user_id' => 777,
+                'role' => 'administrator',
             ], 200),
             'https://chatwoot.test/platform/api/v1/users/777' => Http::response([
                 'id' => 777,
                 'access_token' => 'agent-auto-token',
+                'email' => 'agente@nic.test',
+                'name' => 'Agente Automatico',
+                'display_name' => 'Agente Automatico',
+                'available_name' => 'Agente Automatico',
+                'role' => 'agent',
+                'custom_attributes' => [
+                    'nic_user_id' => $user->id,
+                    'nic_role' => 'administrador',
+                    'nic_source' => 'nic',
+                ],
+                'accounts' => [
+                    [
+                        'id' => 1,
+                        'role' => 'agent',
+                    ],
+                ],
+            ], 200),
+            'https://chatwoot.test/api/v1/profile' => Http::response([
+                'id' => 777,
                 'email' => 'agente@nic.test',
                 'name' => 'Agente Automatico',
                 'available_name' => 'Agente Automatico',
@@ -111,11 +143,27 @@ class ChatContactManagementTest extends TestCase
         $this->assertTrue($user->chatwoot_connected);
         $this->assertSame('agent-auto-token', $user->chatwoot_access_token);
         $this->assertSame(777, (int) $user->chatwoot_agent_id);
+        $this->assertSame(777, (int) $user->chatwoot_user_id);
 
         Http::assertSent(function ($request) {
             return $request->method() === 'GET'
-                && $request->url() === 'https://chatwoot.test/api/v1/platform/users?email=agente%40nic.test'
+                && $request->url() === 'https://chatwoot.test/platform/api/v1/accounts/1/account_users'
                 && $this->requestHasChatwootToken($request, 'platform-token');
+        });
+
+        Http::assertSent(function ($request) use ($user) {
+            return $request->method() === 'POST'
+                && $request->url() === 'https://chatwoot.test/platform/api/v1/users'
+                && $this->requestHasChatwootToken($request, 'platform-token')
+                && $request['email'] === 'agente@nic.test'
+                && (string) data_get($request['custom_attributes'] ?? [], 'nic_user_id') === (string) $user->id;
+        });
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'POST'
+                && $request->url() === 'https://chatwoot.test/platform/api/v1/accounts/1/account_users'
+                && $this->requestHasChatwootToken($request, 'platform-token')
+                && (int) $request['user_id'] === 777;
         });
 
         Http::assertSent(function ($request) {
@@ -126,37 +174,131 @@ class ChatContactManagementTest extends TestCase
 
         Http::assertSent(function ($request) {
             return $request->method() === 'GET'
+                && $request->url() === 'https://chatwoot.test/api/v1/profile'
+                && $this->requestHasChatwootToken($request, 'agent-auto-token');
+        });
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
                 && $request->url() === 'https://chatwoot.test/api/v1/accounts/1/contacts'
                 && $this->requestHasChatwootToken($request, 'agent-auto-token');
         });
     }
 
-    public function test_chatwoot_routes_return_clear_message_when_platform_user_is_not_found_by_email(): void
+    public function test_chatwoot_connection_reuses_saved_platform_user_id_before_creating_a_new_one(): void
     {
         config(['app.chatwoot_platform_api_token' => 'platform-token']);
 
         $user = $this->makeAuthorizedUser([
-            'email' => 'ausente@nic.test',
+            'email' => 'vinculado@nic.test',
             'chatwoot_access_token' => null,
             'chatwoot_agent_id' => null,
+            'chatwoot_user_id' => 888,
         ]);
 
         Sanctum::actingAs($user);
 
         Http::fake([
-            'https://chatwoot.test/api/v1/platform/users?email=ausente%40nic.test' => Http::response([], 200),
+            'https://chatwoot.test/platform/api/v1/users/888' => Http::response([
+                'id' => 888,
+                'access_token' => 'saved-platform-token',
+                'email' => 'vinculado@nic.test',
+                'name' => $user->name,
+                'display_name' => $user->name,
+                'available_name' => $user->name,
+                'role' => 'agent',
+                'custom_attributes' => [
+                    'nic_user_id' => $user->id,
+                    'nic_role' => 'administrador',
+                    'nic_source' => 'nic',
+                ],
+                'accounts' => [
+                    [
+                        'id' => 1,
+                        'role' => 'agent',
+                    ],
+                ],
+            ], 200),
+            'https://chatwoot.test/api/v1/profile' => Http::response([
+                'id' => 888,
+                'email' => 'vinculado@nic.test',
+                'name' => $user->name,
+                'available_name' => $user->name,
+                'role' => 'agent',
+                'accounts' => [
+                    [
+                        'id' => 1,
+                        'role' => 'agent',
+                    ],
+                ],
+            ], 200),
+            'https://chatwoot.test/api/v1/accounts/1/contacts' => Http::response([
+                'payload' => [
+                    ['id' => 20, 'name' => 'Cliente Vinculado'],
+                ],
+            ], 200),
+        ]);
+
+        $this->getJson('/api/chat/contacts')
+            ->assertOk()
+            ->assertJsonPath('payload.0.id', 20);
+
+        $user->refresh();
+
+        $this->assertSame(888, (int) $user->chatwoot_user_id);
+        $this->assertSame('saved-platform-token', $user->chatwoot_access_token);
+        $this->assertSame(888, (int) $user->chatwoot_agent_id);
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && $request->url() === 'https://chatwoot.test/platform/api/v1/users/888'
+                && $this->requestHasChatwootToken($request, 'platform-token');
+        });
+
+        Http::assertNotSent(function ($request) {
+            return $request->method() === 'POST'
+                && $request->url() === 'https://chatwoot.test/platform/api/v1/users';
+        });
+    }
+
+    public function test_chatwoot_routes_return_clear_message_when_existing_email_cannot_be_provisioned_by_the_platform_app(): void
+    {
+        config(['app.chatwoot_platform_api_token' => 'platform-token']);
+
+        $user = $this->makeAuthorizedUser([
+            'email' => 'conflito@nic.test',
+            'chatwoot_access_token' => null,
+            'chatwoot_agent_id' => null,
+            'chatwoot_user_id' => null,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        Http::fake([
+            'https://chatwoot.test/platform/api/v1/accounts/1/account_users' => Http::response([], 200),
+            'https://chatwoot.test/platform/api/v1/users' => Http::response([
+                'errors' => [
+                    'email' => ['has already been taken'],
+                ],
+            ], 422),
         ]);
 
         $this->getJson('/api/chat/contacts')
             ->assertStatus(409)
-            ->assertJsonPath('reason', 'chatwoot_user_not_found')
-            ->assertJsonPath('message', 'Nenhum usuario do Chatwoot foi encontrado com o e-mail ausente@nic.test.')
-            ->assertJsonPath('details.user_email', 'ausente@nic.test')
+            ->assertJsonPath('reason', 'chatwoot_user_provisioning_conflict')
+            ->assertJsonPath('message', 'Ja existe um usuario no Chatwoot com o e-mail conflito@nic.test, mas ele nao esta sob o controle desta Platform App do NIC.')
+            ->assertJsonPath('details.user_email', 'conflito@nic.test')
             ->assertJsonPath('requires_admin_action', true);
 
         Http::assertSent(function ($request) {
             return $request->method() === 'GET'
-                && $request->url() === 'https://chatwoot.test/api/v1/platform/users?email=ausente%40nic.test'
+                && $request->url() === 'https://chatwoot.test/platform/api/v1/accounts/1/account_users'
+                && $this->requestHasChatwootToken($request, 'platform-token');
+        });
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'POST'
+                && $request->url() === 'https://chatwoot.test/platform/api/v1/users'
                 && $this->requestHasChatwootToken($request, 'platform-token');
         });
     }
@@ -639,6 +781,7 @@ class ChatContactManagementTest extends TestCase
         return User::factory()->create(array_merge([
             'role' => 'administrador',
             'status' => 'ativo',
+            'chatwoot_user_id' => 777,
             'chatwoot_access_token' => 'chatwoot-agent-token',
             'chatwoot_agent_id' => 777,
             'chatwoot_agent_name' => 'Agente NIC',

@@ -32,6 +32,7 @@ class User extends Authenticatable
         'last_login_at',
         'department_id',
         'must_change_password',
+        'chatwoot_user_id',
         'chatwoot_agent_id',
         'chatwoot_agent_name',
         'chatwoot_agent_email',
@@ -58,6 +59,7 @@ class User extends Authenticatable
 
         'last_login_at' => 'datetime', // NOVO CAST ADICIONADO
         'must_change_password' => 'boolean',
+        'chatwoot_user_id' => 'integer',
         'chatwoot_access_token' => 'encrypted',
         'chatwoot_connected_at' => 'datetime',
         'chatwoot_last_validated_at' => 'datetime',
