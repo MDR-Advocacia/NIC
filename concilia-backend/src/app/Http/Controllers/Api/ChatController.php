@@ -101,36 +101,9 @@ class ChatController extends Controller
     private function chatwootConnectionRequiredResponse(Request $request)
     {
         $user = $request->user();
-        $hasAgentLink = filled($user?->chatwoot_agent_id);
-        $platformConfigured = filled($this->platformApiToken);
         $issue = is_array($this->requestScopedChatwootConnectionIssue) ? $this->requestScopedChatwootConnectionIssue : null;
 
-        $response = [
-            'message' => $issue['message'] ?? ($hasAgentLink
-                ? 'Sua conta foi encontrada no Chatwoot, mas ainda nao foi possivel liberar a identidade automatica para envio.'
-                : 'Nao foi possivel integrar automaticamente sua conta do Chatwoot.'),
-            'hint' => $issue['hint'] ?? ($platformConfigured
-                ? 'Confirme se existe um agente ativo no Chatwoot com o mesmo e-mail do usuario do NIC.'
-                : 'Configure CHATWOOT_PLATFORM_API_TOKEN no backend para o NIC obter automaticamente o token de cada agente sem pedir nada ao colaborador.'),
-            'user_email' => $user?->email,
-            'agent' => $hasAgentLink ? [
-                'id' => $user->chatwoot_agent_id ? (int) $user->chatwoot_agent_id : null,
-                'name' => $user->chatwoot_agent_name,
-                'email' => $user->chatwoot_agent_email,
-                'role' => $user->chatwoot_role,
-            ] : null,
-            'requires_admin_action' => true,
-        ];
-
-        if (filled($issue['code'] ?? null)) {
-            $response['reason'] = $issue['code'];
-        }
-
-        if (!empty($issue['details'] ?? null)) {
-            $response['details'] = $issue['details'];
-        }
-
-        return response()->json($response, 409);
+        return response()->json($this->formatChatwootConnectionStatus($user, $issue), 409);
     }
 
     private function bootstrapChatwootTokenForRequest(Request $request, bool $allowSystemFallback = false)
@@ -435,7 +408,7 @@ class ChatController extends Controller
             $this->setRequestScopedChatwootConnectionIssue([
                 'code' => 'chatwoot_user_provisioning_conflict',
                 'message' => "Ja existe um usuario no Chatwoot com o e-mail {$user->email}, mas ele nao esta sob o controle desta Platform App do NIC.",
-                'hint' => 'Como a documentacao do Chatwoot limita a Platform API aos objetos criados pela mesma Platform App, o caminho profissional e provisionar todos os agentes do NIC por esta Platform App, em vez de cria-los manualmente pela UI.',
+                'hint' => 'Como a documentacao do Chatwoot limita a Platform API aos objetos criados pela mesma Platform App, conecte o access token pessoal deste agente no NIC para liberar o uso imediato e trate o provisionamento automatico como opcional.',
                 'details' => [
                     'user_email' => $user->email,
                     'chatwoot_error' => $errorText ?: $details,
@@ -586,14 +559,38 @@ class ChatController extends Controller
         return $this->syncChatwootPlatformUser($user, $profile) ?? $profile;
     }
 
-    private function formatChatwootConnectionStatus(User $user): array
+    private function chatwootManualConnectionInstructions(): array
+    {
+        return [
+            'Abra o Chatwoot com a mesma conta usada neste login do NIC.',
+            'No perfil do Chatwoot, copie o seu access token pessoal.',
+            'Cole esse token no NIC para que as mensagens saiam com o seu nome e a sua conta.',
+        ];
+    }
+
+    private function formatChatwootConnectionStatus(User $user, ?array $issue = null): array
     {
         $hasAgent = filled($user->chatwoot_agent_id);
+        $connected = (bool) $user->chatwoot_connected;
+        $platformConfigured = filled($this->platformApiToken);
+        $message = $issue['message'] ?? ($connected
+            ? 'Conta do Chatwoot conectada e pronta para uso no NIC.'
+            : ($hasAgent
+                ? 'Sua conta foi encontrada no Chatwoot, mas o NIC ainda precisa do seu access token pessoal para enviar mensagens com a sua identidade.'
+                : 'Conecte seu access token pessoal do Chatwoot para liberar a Caixa de Entrada no NIC.'));
+        $hint = $issue['hint'] ?? ($connected
+            ? 'As chamadas do Chatwoot ja estao autenticadas com o seu proprio token de agente.'
+            : ($platformConfigured
+                ? 'A sincronizacao automatica continua como tentativa secundaria, mas o caminho mais confiavel e validar o seu access token pessoal.'
+                : 'Sem Platform API ativa, o caminho oficial e informar o access token pessoal do seu usuario no Chatwoot.'));
 
-        return [
-            'connected' => (bool) $user->chatwoot_connected,
-            'integration_mode' => $user->chatwoot_connected ? 'automatic_user_token' : ($hasAgent ? 'agent_found_without_token' : 'pending'),
+        $response = [
+            'connected' => $connected,
+            'integration_mode' => $connected ? 'automatic_user_token' : ($hasAgent ? 'agent_found_without_token' : 'pending'),
             'automatic_sync_available' => filled($this->platformApiToken),
+            'manual_token_supported' => true,
+            'manual_token_label' => 'Access token pessoal do Chatwoot',
+            'manual_token_instructions' => $this->chatwootManualConnectionInstructions(),
             'chatwoot_url' => $this->chatwootUrl,
             'chatwoot_account_id' => $this->accountId ? (int) $this->accountId : null,
             'agent' => $hasAgent ? [
@@ -604,7 +601,21 @@ class ChatController extends Controller
             ] : null,
             'connected_at' => $user->chatwoot_connected_at?->toIso8601String(),
             'last_validated_at' => $user->chatwoot_last_validated_at?->toIso8601String(),
+            'message' => $message,
+            'hint' => $hint,
         ];
+
+        if (!$connected) {
+            $response['requires_admin_action'] = true;
+            $response['requires_user_action'] = true;
+            $response['reason'] = $issue['code'] ?? 'chatwoot_connection_pending';
+        }
+
+        if (!empty($issue['details'] ?? null)) {
+            $response['details'] = $issue['details'];
+        }
+
+        return $response;
     }
 
     private function storeChatwootConnection(User $user, string $accessToken, array $profile): User
@@ -666,7 +677,7 @@ class ChatController extends Controller
                 $this->setRequestScopedChatwootConnectionIssue([
                     'code' => 'chatwoot_user_not_ready',
                     'message' => 'O NIC nao conseguiu localizar nem provisionar automaticamente o usuario no Chatwoot.',
-                    'hint' => 'Garanta que o account esteja permitido para a Platform App e que os usuarios do NIC passem a ser provisionados por ela.',
+                    'hint' => 'Se a sincronizacao automatica continuar falhando, conecte o access token pessoal deste usuario diretamente no NIC para liberar a identidade de atendimento.',
                     'details' => [
                         'user_email' => $user->email,
                     ],
@@ -779,7 +790,10 @@ class ChatController extends Controller
             $user = $this->autoConnectChatwootUser($user);
         }
 
-        return response()->json($this->formatChatwootConnectionStatus($user));
+        return response()->json($this->formatChatwootConnectionStatus(
+            $user,
+            is_array($this->requestScopedChatwootConnectionIssue) ? $this->requestScopedChatwootConnectionIssue : null
+        ));
     }
 
     public function updateConnection(Request $request)

@@ -130,6 +130,12 @@
     border-color: var(--danger-soft-strong);
 }
 
+.info {
+    background: var(--warning-soft, #fff7d6);
+    color: var(--warning-text, #8a5a00);
+    border-color: #facc15;
+}
+
 .connectionPanel {
     display: flex;
     align-items: flex-start;
@@ -140,6 +146,12 @@
     border: 1px solid var(--border-color-light);
     border-radius: 16px;
     background: var(--neutral-soft);
+}
+
+.connectionSetup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: 1rem;
 }
 
 .statusBadge {
@@ -176,6 +188,73 @@
     color: var(--text-secondary);
     font-size: 0.9rem;
     line-height: 1.5;
+}
+
+.instructionsPanel,
+.tokenPanel {
+    border: 1px solid var(--border-color-light);
+    border-radius: 18px;
+    padding: 1rem;
+    background: var(--bg-card);
+}
+
+.instructionsTitle {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.instructionsList {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 1rem;
+}
+
+.instructionItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
+.instructionBadge {
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 999px;
+    background: var(--warning-soft, #fff7d6);
+    color: var(--warning-text, #8a5a00);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.helperCallout {
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    background: var(--neutral-soft);
+    color: var(--text-secondary);
+    line-height: 1.5;
+    border: 1px solid var(--border-color-light);
+}
+
+.tokenPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.checkboxRow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
 }
 
 .iconButton {
@@ -230,6 +309,10 @@
 
     .connectionPanel {
         flex-direction: column;
+    }
+
+    .connectionSetup {
+        grid-template-columns: 1fr;
     }
 
     .buttonRow {

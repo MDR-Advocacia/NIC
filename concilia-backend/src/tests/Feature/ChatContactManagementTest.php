@@ -54,8 +54,30 @@ class ChatContactManagementTest extends TestCase
 
         $this->getJson('/api/chat/contacts')
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Nao foi possivel integrar automaticamente sua conta do Chatwoot.')
-            ->assertJsonPath('requires_admin_action', true);
+            ->assertJsonPath('message', 'Conecte seu access token pessoal do Chatwoot para liberar a Caixa de Entrada no NIC.')
+            ->assertJsonPath('manual_token_supported', true)
+            ->assertJsonPath('requires_admin_action', true)
+            ->assertJsonPath('requires_user_action', true);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_chatwoot_connection_status_exposes_manual_token_flow_when_user_is_pending(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser([
+            'chatwoot_access_token' => null,
+            'chatwoot_agent_id' => null,
+        ]));
+
+        Http::fake();
+
+        $this->getJson('/api/chat/connection')
+            ->assertOk()
+            ->assertJsonPath('connected', false)
+            ->assertJsonPath('manual_token_supported', true)
+            ->assertJsonPath('manual_token_label', 'Access token pessoal do Chatwoot')
+            ->assertJsonPath('manual_token_instructions.0', 'Abra o Chatwoot com a mesma conta usada neste login do NIC.')
+            ->assertJsonPath('requires_user_action', true);
 
         Http::assertNothingSent();
     }
@@ -288,7 +310,8 @@ class ChatContactManagementTest extends TestCase
             ->assertJsonPath('reason', 'chatwoot_user_provisioning_conflict')
             ->assertJsonPath('message', 'Ja existe um usuario no Chatwoot com o e-mail conflito@nic.test, mas ele nao esta sob o controle desta Platform App do NIC.')
             ->assertJsonPath('details.user_email', 'conflito@nic.test')
-            ->assertJsonPath('requires_admin_action', true);
+            ->assertJsonPath('requires_admin_action', true)
+            ->assertJsonPath('manual_token_supported', true);
 
         Http::assertSent(function ($request) {
             return $request->method() === 'GET'
