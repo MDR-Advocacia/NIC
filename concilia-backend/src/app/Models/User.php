@@ -32,6 +32,14 @@ class User extends Authenticatable
         'last_login_at',
         'department_id',
         'must_change_password',
+        'chatwoot_user_id',
+        'chatwoot_agent_id',
+        'chatwoot_agent_name',
+        'chatwoot_agent_email',
+        'chatwoot_account_id',
+        'chatwoot_role',
+        'chatwoot_connected_at',
+        'chatwoot_last_validated_at',
     ];
 
     /**
@@ -39,7 +47,7 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'chatwoot_access_token'];
 
     /**
      * The attributes that should be cast.
@@ -48,10 +56,16 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
-        
+
         'last_login_at' => 'datetime', // NOVO CAST ADICIONADO
         'must_change_password' => 'boolean',
+        'chatwoot_user_id' => 'integer',
+        'chatwoot_access_token' => 'encrypted',
+        'chatwoot_connected_at' => 'datetime',
+        'chatwoot_last_validated_at' => 'datetime',
     ];
+
+    protected $appends = ['chatwoot_connected'];
 
     /**
      * Get the legal cases for the user.
@@ -82,5 +96,10 @@ class User extends Authenticatable
     public function sendPasswordResetNotification($token): void
     {
         $this->notify(new PasswordResetLinkNotification($token));
+    }
+
+    public function getChatwootConnectedAttribute(): bool
+    {
+        return filled($this->chatwoot_access_token) && filled($this->chatwoot_agent_id);
     }
 }

@@ -130,6 +130,168 @@
     border-color: var(--danger-soft-strong);
 }
 
+.info {
+    background: var(--warning-soft, #fff7d6);
+    color: var(--warning-text, #8a5a00);
+    border-color: #facc15;
+}
+
+.connectionPanel {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid var(--border-color-light);
+    border-radius: 16px;
+    background: var(--neutral-soft);
+}
+
+.connectionSetup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: 1rem;
+}
+
+.statusBadge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 0.65rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 0.7rem;
+}
+
+.statusOk {
+    background: var(--success-soft);
+    color: var(--success-text);
+}
+
+.statusWarn {
+    background: var(--warning-soft, #fff7d6);
+    color: var(--warning-text, #8a5a00);
+}
+
+.sectionTitle {
+    margin: 0;
+    font-size: 1.12rem;
+    line-height: 1.25;
+    color: var(--text-primary);
+}
+
+.helperText {
+    margin: 0.45rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.instructionsPanel,
+.tokenPanel {
+    border: 1px solid var(--border-color-light);
+    border-radius: 18px;
+    padding: 1rem;
+    background: var(--bg-card);
+}
+
+.instructionsTitle {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.instructionsList {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 1rem;
+}
+
+.instructionItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
+.instructionBadge {
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 999px;
+    background: var(--warning-soft, #fff7d6);
+    color: var(--warning-text, #8a5a00);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.helperCallout {
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    background: var(--neutral-soft);
+    color: var(--text-secondary);
+    line-height: 1.5;
+    border: 1px solid var(--border-color-light);
+}
+
+.tokenPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.checkboxRow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+}
+
+.iconButton {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color-light);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.iconButton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.buttonRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.buttonRow .btn {
+    margin-left: 0;
+}
+
+.dangerBtn {
+    background: var(--danger-text);
+    box-shadow: none;
+}
+
 @media (max-width: 768px) {
     .card {
         padding: 1.2rem;
@@ -143,5 +305,17 @@
     .btn {
         width: 100%;
         margin-left: 0;
+    }
+
+    .connectionPanel {
+        flex-direction: column;
+    }
+
+    .connectionSetup {
+        grid-template-columns: 1fr;
+    }
+
+    .buttonRow {
+        flex-direction: column;
     }
 }

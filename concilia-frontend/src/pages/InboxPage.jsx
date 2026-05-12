@@ -4,6 +4,7 @@ import LinkCaseModal from '../components/LinkCaseModal';
 import { useAuth } from '../context/AuthContext';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 import { normalizeCaseTags } from '../constants/caseTags';
+import { API_BASE_URL } from '../api';
 
 const TEMPLATE_FALLBACK_STORAGE_KEY = 'nic_template_fallback_messages_v1';
 const SYSTEM_ASSIGNMENT_PATTERNS = [
@@ -296,6 +297,23 @@ const styles = {
     fontSize: '13px',
     lineHeight: 1.5,
   }),
+  connectionRequired: {
+    position: 'absolute',
+    left: '24px',
+    right: '24px',
+    top: '24px',
+    zIndex: 60,
+    padding: '16px',
+    borderRadius: '16px',
+    border: '1px solid #fed7aa',
+    backgroundColor: '#fff7ed',
+    color: '#9a3412',
+    boxShadow: '0 18px 38px rgba(154, 52, 18, 0.14)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '14px',
+  },
   empty: {
     flex: 1,
     display: 'flex',
@@ -498,6 +516,13 @@ const InboxPage = () => {
   const [assigneeSelecionado, setAssigneeSelecionado] = useState('');
   const [atribuindoConversa, setAtribuindoConversa] = useState(false);
   const [adicionandoAgente, setAdicionandoAgente] = useState(false);
+  const [chatwootConnectionRequired, setChatwootConnectionRequired] = useState(null);
+  const [chatwootConnectionStatus, setChatwootConnectionStatus] = useState(null);
+  const [chatwootAccessToken, setChatwootAccessToken] = useState('');
+  const [chatwootConnectionFeedback, setChatwootConnectionFeedback] = useState({ type: '', text: '' });
+  const [chatwootSubmittingConnection, setChatwootSubmittingConnection] = useState(false);
+  const [chatwootRefreshingConnection, setChatwootRefreshingConnection] = useState(false);
+  const [chatwootTokenVisible, setChatwootTokenVisible] = useState(false);
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const chatBodyRef = useRef(null);
@@ -517,7 +542,7 @@ const InboxPage = () => {
   })());
   const { user } = useAuth();
 
-  const API_BASE = import.meta.env.VITE_API_URL || 'https://api-nic-lab.mdradvocacia.com/api';
+  const API_BASE = API_BASE_URL;
 
   const getCleanToken = () => {
     const token = localStorage.getItem('authToken');
@@ -709,6 +734,59 @@ const InboxPage = () => {
   };
 
   const getMensagemErroResposta = (data, fallback) => getMotivoFalhaMensagem(data) || extrairTextoErro(data) || fallback;
+
+  const getInstrucoesConexaoChatwoot = (data) => {
+    const instrucoes = Array.isArray(data?.manual_token_instructions) ? data.manual_token_instructions.filter(Boolean) : [];
+
+    if (instrucoes.length > 0) {
+      return instrucoes;
+    }
+
+    return [
+      'Clique no botão abaixo "Abrir Chatwoot",ele irá lhe redirecionar para seu perfil.',
+      'Na página que abrir, role até o final e copie o seu Token de Acesso.',
+      'Cole esse token abaixo para conectar sua conta ao NIC.',
+    ];
+  };
+
+  const montarEstadoConexaoChatwoot = (data = {}) => {
+    const mensagemBase = data?.message || 'Conecte seu access token pessoal do Chatwoot para liberar a Caixa de Entrada no NIC.';
+
+    return {
+      ...data,
+      title: data?.connected ? 'Conta do Chatwoot conectada' : 'Sincronizacao do Chatwoot pendente',
+      text: data?.hint ? `${mensagemBase} ${data.hint}` : mensagemBase,
+      message: mensagemBase,
+      hint: data?.hint || '',
+      manual_token_label: data?.manual_token_label || 'Access token pessoal do Chatwoot',
+      manual_token_instructions: getInstrucoesConexaoChatwoot(data),
+    };
+  };
+
+  const limparInboxPorConexaoPendente = () => {
+    setConversas([]);
+    setContatos([]);
+    setMensagens([]);
+    setConversaSelecionada(null);
+    setProcessoVinculado(null);
+  };
+
+  const tratarConexaoChatwootPendente = (response, data) => {
+    if (response?.status !== 409) {
+      return false;
+    }
+
+    const estadoConexao = montarEstadoConexaoChatwoot(data);
+    setChatwootConnectionStatus(estadoConexao);
+    setChatwootConnectionRequired(estadoConexao);
+    limparInboxPorConexaoPendente();
+
+    if (urlConversationId) {
+      navigate('/inbox', { replace: true });
+    }
+
+    return true;
+  };
 
   const criarMensagemFalhaLocal = ({ content = '', attachments = [], contentType = null, contentAttributes = {}, templateParams = null, reason = '' }) => ({
     id: `failed-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1033,7 +1111,11 @@ const InboxPage = () => {
 
   const extrairContatoResposta = (data) => {
     if (data?.payload?.contact) return data.payload.contact;
+    if (Array.isArray(data?.payload)) return data.payload[0] || null;
+    if (Array.isArray(data?.data?.payload)) return data.data.payload[0] || null;
     if (data?.payload) return data.payload;
+    if (data?.data?.payload?.contact) return data.data.payload.contact;
+    if (data?.data?.payload) return data.data.payload;
     if (data?.contact) return data.contact;
     return data;
   };
@@ -1123,8 +1205,8 @@ const InboxPage = () => {
     if (!termoNormalizado) return true;
 
     const telefoneBusca = termoNormalizado.replace(/\D+/g, '');
-    const telefoneContato = `${contato?.phone_number || ''} ${contato?.identifier || ''}`.replace(/\D+/g, '');
-    const textoContato = `${contato?.name || ''} ${contato?.email || ''} ${contato?.phone_number || ''} ${contato?.identifier || ''}`.toLowerCase();
+    const telefoneContato = getTelefoneContatoComparavel(contato);
+    const textoContato = `${contato?.name || ''} ${contato?.email || ''} ${getValoresTelefoneContato(contato).join(' ')}`.toLowerCase();
 
     if (telefoneBusca && telefoneContato) {
       return telefoneContato.includes(telefoneBusca) || telefoneBusca.includes(telefoneContato);
@@ -1136,6 +1218,23 @@ const InboxPage = () => {
   const normalizarTelefoneContato = (valor) => String(valor || '').replace(/\D+/g, '');
 
   const normalizarEmailContato = (valor) => String(valor || '').trim().toLowerCase();
+
+  const getValoresTelefoneContato = (contato) =>
+    [
+      contato?.phone_number,
+      contato?.identifier,
+      contato?.additional_attributes?.phone_number,
+      contato?.additional_attributes?.phone,
+      contato?.additional_attributes?.whatsapp,
+      contato?.additional_attributes?.whatsapp_number,
+      contato?.custom_attributes?.phone_number,
+      contato?.custom_attributes?.phone,
+      contato?.custom_attributes?.whatsapp,
+      contato?.custom_attributes?.whatsapp_number,
+      ...(Array.isArray(contato?.contact_inboxes) ? contato.contact_inboxes.map((item) => item?.source_id || item?.source?.id) : []),
+    ].filter(Boolean);
+
+  const getTelefoneContatoComparavel = (contato) => getValoresTelefoneContato(contato).map(normalizarTelefoneContato).filter(Boolean).join(' ');
 
   const conversaPertenceAoUsuarioAtual = (conversa) => {
     const assignee = normalizarAgente(conversa?.meta?.assignee);
@@ -1161,7 +1260,7 @@ const InboxPage = () => {
       return 'unassigned';
     }
 
-    return conversaPertenceAoUsuarioAtual(conversa) ? 'mine' : fallback;
+    return conversaPertenceAoUsuarioAtual(conversa) ? 'me' : fallback;
   };
 
   const inboxEhCompativelComContato = (contato, inboxId) => {
@@ -1188,7 +1287,7 @@ const InboxPage = () => {
       .map((contato) => {
         let score = 0;
 
-        const telefoneContato = normalizarTelefoneContato(contato?.phone_number || contato?.identifier);
+        const telefoneContato = getTelefoneContatoComparavel(contato);
         const emailContato = normalizarEmailContato(contato?.email);
         const nomeContato = String(contato?.name || '').trim().toLowerCase();
 
@@ -1508,6 +1607,11 @@ const InboxPage = () => {
 
       const data = await response.json().catch(() => ({}));
 
+      if (tratarConexaoChatwootPendente(response, data)) {
+        setResultadosContatoExistente([]);
+        return [];
+      }
+
       if (!response.ok) {
         setResultadosContatoExistente([]);
         setFeedbackBuscaContatoExistente(data?.message || 'Nao foi possivel pesquisar os contatos agora.');
@@ -1620,10 +1724,15 @@ const InboxPage = () => {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({ inbox_id: targetInboxId }),
+        body: JSON.stringify({ inbox_id: targetInboxId, assign_to_current_user: true }),
       });
 
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return false;
+      }
+
       const conversaCriada = extrairConversaResposta(data);
 
       const listaAtualizada = await buscarConversas('all', { silent: true, inboxId: targetInboxId });
@@ -1689,6 +1798,12 @@ const InboxPage = () => {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        setAgentesInbox([]);
+        return;
+      }
+
       const lista = extrairLista(data).map(normalizarAgente).filter(Boolean);
       setAgentesInbox(lista);
     } catch (error) {
@@ -1708,6 +1823,12 @@ const InboxPage = () => {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        setAgentesConta([]);
+        return;
+      }
+
       const lista = extrairLista(data).map(normalizarAgente).filter(Boolean);
       setAgentesConta(lista);
     } catch (error) {
@@ -1930,6 +2051,155 @@ const InboxPage = () => {
     }
   };
 
+  const carregarStatusConexaoChatwoot = async (options = {}) => {
+    const silent = options.silent === true;
+    const promoverPainelPendente = options.promoverPainelPendente !== false;
+    const token = getCleanToken();
+
+    if (!token) {
+      return null;
+    }
+
+    if (!silent) {
+      setChatwootRefreshingConnection(true);
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/chat/connection`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const estadoConexao = montarEstadoConexaoChatwoot(data);
+        setChatwootConnectionStatus(estadoConexao);
+
+        if (promoverPainelPendente) {
+          setChatwootConnectionRequired(estadoConexao);
+        }
+
+        return estadoConexao;
+      }
+
+      const estadoConexao = montarEstadoConexaoChatwoot(data);
+      setChatwootConnectionStatus(estadoConexao);
+
+      if (estadoConexao.connected) {
+        setChatwootConnectionRequired(null);
+      } else if (promoverPainelPendente) {
+        setChatwootConnectionRequired(estadoConexao);
+      }
+
+      return estadoConexao;
+    } catch (error) {
+      console.error('Erro ao consultar a conexao do Chatwoot:', error);
+
+      if (!silent) {
+        setChatwootConnectionFeedback({
+          type: 'error',
+          text: 'Falha de comunicacao ao consultar a conexao do Chatwoot.',
+        });
+      }
+
+      return null;
+    } finally {
+      if (!silent) {
+        setChatwootRefreshingConnection(false);
+      }
+    }
+  };
+
+  const conectarContaChatwoot = async (event) => {
+    event?.preventDefault();
+
+    const token = getCleanToken();
+    const accessToken = chatwootAccessToken.trim();
+
+    if (!token) {
+      return;
+    }
+
+    if (!accessToken) {
+      setChatwootConnectionFeedback({
+        type: 'error',
+        text: 'Cole o access token pessoal do Chatwoot antes de continuar.',
+      });
+      return;
+    }
+
+    try {
+      setChatwootSubmittingConnection(true);
+      setChatwootConnectionFeedback({ type: '', text: '' });
+
+      const response = await fetch(`${API_BASE}/chat/connection`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          chatwoot_access_token: accessToken,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setChatwootConnectionFeedback({
+          type: 'error',
+          text: data?.message || 'Nao foi possivel validar o access token informado no Chatwoot.',
+        });
+        return;
+      }
+
+      const estadoConexao = montarEstadoConexaoChatwoot(data?.connection || {});
+      setChatwootConnectionStatus(estadoConexao);
+      setChatwootConnectionRequired(null);
+      setChatwootAccessToken('');
+      setChatwootTokenVisible(false);
+      setChatwootConnectionFeedback({
+        type: 'success',
+        text: data?.message || 'Conta do Chatwoot conectada com sucesso.',
+      });
+      definirFeedback('Conta do Chatwoot conectada. Carregando sua Caixa de Entrada.');
+      await carregarDadosIniciais();
+      await buscarConversas(abaAtiva);
+    } catch (error) {
+      console.error('Erro ao conectar conta do Chatwoot:', error);
+      setChatwootConnectionFeedback({
+        type: 'error',
+        text: 'Falha de comunicacao ao validar o token do Chatwoot.',
+      });
+    } finally {
+      setChatwootSubmittingConnection(false);
+    }
+  };
+
+  const revalidarConexaoChatwoot = async () => {
+    setChatwootConnectionFeedback({ type: '', text: '' });
+    const estadoConexao = await carregarStatusConexaoChatwoot();
+
+    if (estadoConexao?.connected) {
+      definirFeedback('Conexao do Chatwoot revalidada com sucesso.');
+      await carregarDadosIniciais();
+      await buscarConversas(abaAtiva);
+    }
+  };
+
+  const abrirChatwootEmNovaAba = () => {
+  let url = chatwootConnectionStatus?.chatwoot_url || chatwootConnectionRequired?.chatwoot_url;
+
+  if (!url || typeof window === 'undefined') {
+    return;
+  }
+
+  // Se a URL termina com dashboard ou não tem o caminho do perfil, a gente ajusta
+  // Isso garante que ele vá para accounts/1/profile/settings
+  const urlAjustada = url.replace('/dashboard', '/profile/settings');
+
+  window.open(urlAjustada, '_blank', 'noopener,noreferrer');
+};
+
   const carregarDadosIniciais = async () => {
     const token = getCleanToken();
 
@@ -1937,13 +2207,37 @@ const InboxPage = () => {
       const resInboxes = await fetch(`${API_BASE}/chat/inboxes`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
-      const dataInboxes = await resInboxes.json();
+      const dataInboxes = await resInboxes.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(resInboxes, dataInboxes)) {
+        setInboxes([]);
+        return;
+      }
+
+      if (!resInboxes.ok) {
+        setInboxes([]);
+        definirFeedback(dataInboxes?.message || 'Nao foi possivel carregar os canais do Chatwoot.', 'error');
+        return;
+      }
+
+      setChatwootConnectionRequired(null);
       setInboxes(extrairLista(dataInboxes));
 
       const resContatos = await fetch(`${API_BASE}/chat/contacts`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
-      const dataContatos = await resContatos.json();
+      const dataContatos = await resContatos.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(resContatos, dataContatos)) {
+        return;
+      }
+
+      if (!resContatos.ok) {
+        setContatos([]);
+        definirFeedback(dataContatos?.message || 'Nao foi possivel carregar os contatos do Chatwoot.', 'error');
+        return;
+      }
+
       setContatos(extrairLista(dataContatos));
     } catch (error) {
       console.error('Erro ao carregar dados iniciais:', error);
@@ -1957,7 +2251,12 @@ const InboxPage = () => {
     }
 
     const token = getCleanToken();
-    if (!token) return [];
+    if (!token) {
+      if (!silent) {
+        setCarregando(false);
+      }
+      return [];
+    }
 
     let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
     const filtroInbox = options.inboxId ?? inboxSelecionada;
@@ -1968,7 +2267,21 @@ const InboxPage = () => {
 
     try {
       const response = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return [];
+      }
+
+      if (!response.ok) {
+        if (!silent) {
+          setConversas([]);
+          definirFeedback(data?.message || 'Nao foi possivel carregar as conversas do Chatwoot.', 'error');
+        }
+        return [];
+      }
+
+      setChatwootConnectionRequired(null);
       const lista = extrairLista(data);
 
       const listaComFallback = aplicarPreviewFallbackNasConversas(lista);
@@ -2014,7 +2327,13 @@ const InboxPage = () => {
       const res = await fetch(`${API_BASE}/chat/templates?inbox_id=${inboxId}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(res, data)) {
+        setTemplates([]);
+        setTemplateSelecionado(null);
+        return;
+      }
 
       if (!res.ok) {
         console.error('Erro ao carregar templates da Meta:', data);
@@ -2044,6 +2363,7 @@ const InboxPage = () => {
   };
 
   useEffect(() => {
+    carregarStatusConexaoChatwoot({ silent: true });
     carregarDadosIniciais();
   }, []);
 
@@ -2098,6 +2418,11 @@ const InboxPage = () => {
   }, [abaAtiva, inboxSelecionada]);
 
   useEffect(() => {
+    if (chatwootConnectionRequired) {
+      document.title = 'NIC';
+      return undefined;
+    }
+
     const intervaloConversas = window.setInterval(async () => {
       const lista = await buscarConversas(abaAtiva, { silent: true });
 
@@ -2146,7 +2471,7 @@ const InboxPage = () => {
       window.clearInterval(intervaloConversas);
       document.title = 'NIC';
     };
-  }, [abaAtiva, inboxSelecionada]);
+  }, [abaAtiva, inboxSelecionada, chatwootConnectionRequired]);
 
   useEffect(() => {
     if (!conversaSelecionada) {
@@ -2215,7 +2540,18 @@ const InboxPage = () => {
       const response = await fetch(`${API_BASE}/chat/conversations/${chatId}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
+
+      if (!response.ok) {
+        definirFeedback(data?.message || 'Nao foi possivel carregar a conversa.', 'error');
+        return;
+      }
+
+      setChatwootConnectionRequired(null);
       const msgLista = extrairLista(data);
       const mensagensOrdenadas = [...msgLista].sort((left, right) => getMessageTimestamp(left) - getMessageTimestamp(right));
       setMensagens(sincronizarFallbacksLocais(chatId, mensagensOrdenadas));
@@ -2309,6 +2645,11 @@ const InboxPage = () => {
       });
 
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
+
       const anexosLocais = arquivos.map((arquivo) => ({
         file_type: detectarTipoArquivo(arquivo),
         data_url: URL.createObjectURL(arquivo),
@@ -2394,6 +2735,10 @@ const InboxPage = () => {
       });
 
       const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
 
       if (response.ok) {
         shouldStickToBottomRef.current = true;
@@ -2482,6 +2827,10 @@ const InboxPage = () => {
 
       const data = await response.json().catch(() => ({}));
 
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
+
       if (response.ok) {
         const mensagemEnviada = normalizarMensagemRetorno(data, { content: payload.content });
 
@@ -2568,7 +2917,11 @@ const InboxPage = () => {
         body: JSON.stringify(payloadNovoContato),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (tratarConexaoChatwootPendente(response, data)) {
+        return;
+      }
 
       if (response.ok) {
         const contatoCriado = extrairContatoResposta(data);
@@ -2612,7 +2965,7 @@ const InboxPage = () => {
 
         setResultadosContatoExistente(candidatos);
         setFeedbackBuscaContatoExistente(
-          data?.message || 'Ja existe um contato parecido. Use um dos resultados abaixo para abrir a conversa sem criar duplicidade.'
+          getMensagemErroResposta(data, 'Ja existe um contato parecido. Use um dos resultados abaixo para abrir a conversa sem criar duplicidade.')
         );
         return;
       }
@@ -2637,7 +2990,7 @@ const InboxPage = () => {
         return;
       }
 
-      setFeedbackBuscaContatoExistente(data?.message || extrairTextoErro(data?.errors || data?.details || data) || 'Nao foi possivel criar o contato.');
+      setFeedbackBuscaContatoExistente(getMensagemErroResposta(data, 'Nao foi possivel criar o contato.'));
     } catch (error) {
       console.error(error);
       setFeedbackBuscaContatoExistente('Falha ao criar o contato.');
@@ -2694,10 +3047,132 @@ const InboxPage = () => {
     });
   };
 
+  const painelConexaoChatwoot = chatwootConnectionRequired || (chatwootConnectionStatus && !chatwootConnectionStatus.connected ? chatwootConnectionStatus : null);
+  const painelConexaoChatwootEmpilhado = viewportWidth < 1220;
+  const agenteConexaoChatwoot = painelConexaoChatwoot?.agent || null;
+  const instrucoesConexaoChatwoot = getInstrucoesConexaoChatwoot(painelConexaoChatwoot);
+  const podeAbrirChatwoot = Boolean((chatwootConnectionStatus?.chatwoot_url || painelConexaoChatwoot?.chatwoot_url));
+
   return (
     <div style={styles.page}>
       <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar" style={{ display: 'none' }} onChange={(event) => handleArquivoSelecionado(event)} />
       <input ref={audioInputRef} type="file" accept="audio/*" style={{ display: 'none' }} onChange={(event) => handleArquivoSelecionado(event, 'audio')} />
+
+      {painelConexaoChatwoot ? (
+        <div
+          style={{
+            ...styles.connectionRequired,
+            display: 'grid',
+            gridTemplateColumns: painelConexaoChatwootEmpilhado ? '1fr' : 'minmax(0, 1.15fr) minmax(320px, 420px)',
+            alignItems: 'stretch',
+            gap: '18px',
+            padding: '18px',
+          }}
+        >
+          <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', padding: '5px 10px', borderRadius: '999px', backgroundColor: '#ffedd5', color: '#c2410c', fontSize: '11px', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Chatwoot
+              </div>
+              <div style={{ marginTop: '10px', fontWeight: 800, fontSize: '18px', color: '#7c2d12' }}>{painelConexaoChatwoot.title || 'Sincronizacao do Chatwoot pendente'}</div>
+              <div style={{ marginTop: '6px', fontSize: '13px', lineHeight: 1.6, color: '#9a3412' }}>
+                {painelConexaoChatwoot.message}
+              </div>
+              {painelConexaoChatwoot.hint ? (
+                <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.6, color: '#b45309' }}>
+                  {painelConexaoChatwoot.hint}
+                </div>
+              ) : null}
+            </div>
+
+            {agenteConexaoChatwoot ? (
+              <div style={{ padding: '12px 14px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.72)', border: '1px solid #fdba74', color: '#7c2d12' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#c2410c' }}>Agente localizado</div>
+                <div style={{ marginTop: '6px', fontSize: '14px', fontWeight: 700 }}>{agenteConexaoChatwoot.name || 'Conta encontrada no Chatwoot'}</div>
+                <div style={{ marginTop: '4px', fontSize: '12px', color: '#9a3412' }}>{agenteConexaoChatwoot.email || 'E-mail nao informado'}</div>
+              </div>
+            ) : null}
+
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {instrucoesConexaoChatwoot.map((instrucao, index) => (
+                <div key={`${instrucao}-${index}`} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', color: '#7c2d12' }}>
+                  <div style={{ width: '22px', height: '22px', borderRadius: '999px', backgroundColor: '#fdba74', color: '#7c2d12', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {index + 1}
+                  </div>
+                  <div style={{ fontSize: '13px', lineHeight: 1.55 }}>{instrucao}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+              <button type="button" style={styles.secondaryButton} onClick={abrirChatwootEmNovaAba} disabled={!podeAbrirChatwoot}>
+                Abrir Chatwoot
+              </button>
+              <button type="button" style={{ ...styles.secondaryButton, color: '#10233f' }} onClick={revalidarConexaoChatwoot} disabled={chatwootRefreshingConnection}>
+                {chatwootRefreshingConnection ? 'Verificando...' : 'Verificar novamente'}
+              </button>
+            </div>
+          </div>
+
+          <form
+            onSubmit={conectarContaChatwoot}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              padding: '16px',
+              borderRadius: '18px',
+              border: '1px solid #fdba74',
+              backgroundColor: 'rgba(255,255,255,0.86)',
+              boxShadow: '0 12px 24px rgba(194, 65, 12, 0.08)',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: '#10233f' }}>{painelConexaoChatwoot.manual_token_label || 'Access token pessoal do Chatwoot'}</div>
+              <div style={{ marginTop: '6px', fontSize: '12px', lineHeight: 1.55, color: '#6b7d96' }}>
+                Esse e o token oficial que o Chatwoot usa para autenticar as APIs de agente. Depois de validado, o NIC passa a enviar mensagens com a sua identidade.
+              </div>
+            </div>
+
+            <label style={{ display: 'block' }}>
+              <span style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 700, color: '#5f7291' }}>TOKEN PESSOAL</span>
+              <input
+                type={chatwootTokenVisible ? 'text' : 'password'}
+                style={styles.input}
+                placeholder="Cole aqui o access token do Chatwoot"
+                value={chatwootAccessToken}
+                onChange={(event) => setChatwootAccessToken(event.target.value)}
+                autoComplete="off"
+              />
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#5f7291' }}>
+              <input type="checkbox" checked={chatwootTokenVisible} onChange={(event) => setChatwootTokenVisible(event.target.checked)} />
+              Mostrar token enquanto digito
+            </label>
+
+            {chatwootConnectionFeedback.text ? (
+              <div
+                style={{
+                  padding: '11px 12px',
+                  borderRadius: '12px',
+                  border: chatwootConnectionFeedback.type === 'error' ? '1px solid #fecaca' : chatwootConnectionFeedback.type === 'success' ? '1px solid #bbf7d0' : '1px solid #dbeafe',
+                  backgroundColor: chatwootConnectionFeedback.type === 'error' ? '#fff1f2' : chatwootConnectionFeedback.type === 'success' ? '#ecfdf3' : '#eff6ff',
+                  color: chatwootConnectionFeedback.type === 'error' ? '#b42318' : chatwootConnectionFeedback.type === 'success' ? '#166534' : '#1d4ed8',
+                  fontSize: '12px',
+                  lineHeight: 1.55,
+                }}
+              >
+                {chatwootConnectionFeedback.text}
+              </div>
+            ) : null}
+
+            <button type="submit" style={styles.primaryButton} disabled={chatwootSubmittingConnection}>
+              {chatwootSubmittingConnection ? 'Validando token...' : 'Conectar minha conta'}
+            </button>
+          </form>
+        </div>
+      ) : null}
 
       {imagemAberta ? (
         <div style={styles.modalOverlay} onClick={() => setImagemAberta(null)}>

@@ -21,19 +21,22 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WebhookController;
 
 Route::post('/webhooks/chatwoot', [WebhookController::class, 'receive']);
-Route::post('/chat/conversations/{conversationId}/resolve', [ChatController::class, 'resolveConversation']);
 Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/chat/connection', [ChatController::class, 'getConnectionStatus']);
+    Route::put('/chat/connection', [ChatController::class, 'updateConnection']);
+    Route::delete('/chat/connection', [ChatController::class, 'disconnectConnection']);
     Route::get('/chat/conversations', [ChatController::class, 'getConversations']);
     Route::get('/chat/inboxes', [ChatController::class, 'getInboxes']);
     Route::get('/chat/templates', [ChatController::class, 'getTemplates']);
     Route::get('/chat/conversations/{conversationId}', [ChatController::class, 'getConversationMessages']);
     Route::post('/chat/conversations/{conversationId}/messages', [ChatController::class, 'sendMessage']);
     Route::post('/chat/conversations/{conversationId}/assign', [ChatController::class, 'assignConversation']);
+    Route::post('/chat/conversations/{conversationId}/resolve', [ChatController::class, 'resolveConversation']);
     Route::get('/chat/agents', [ChatController::class, 'getAccountAgents']);
     Route::post('/chat/conversations/{conversationId}/link', [ChatController::class, 'linkConversation']);
     Route::get('/chat/inboxes/{inboxId}/agents', [ChatController::class, 'getInboxAgents']);

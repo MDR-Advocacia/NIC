@@ -308,7 +308,10 @@ Estas variaveis sao essenciais para a operacao da Inbox:
 
 - `CHATWOOT_URL`
 - `CHATWOOT_API_TOKEN`
+- `CHATWOOT_PLATFORM_API_TOKEN`
 - `CHATWOOT_ACCOUNT_ID`
+
+`CHATWOOT_PLATFORM_API_TOKEN` permite que o NIC sincronize automaticamente o usuario logado com o agente do Chatwoot de mesmo e-mail, sem pedir token para o colaborador.
 
 #### Meta / WhatsApp
 
