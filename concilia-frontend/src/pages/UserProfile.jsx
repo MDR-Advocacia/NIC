@@ -43,9 +43,9 @@ const getChatwootManualInstructions = (status) => {
     }
 
     return [
-        'Abra o Chatwoot com a mesma conta usada no NIC.',
-        'No perfil do Chatwoot, copie o seu access token pessoal.',
-        'Cole esse token abaixo para que as mensagens saiam com a sua identidade.',
+        'Clique no botão abaixo "Abrir Chatwoot",ele irá lhe redirecionar para seu perfil.',
+        'Na página que abrir, role até o final e copie o seu Token de Acesso.',
+        'Cole esse token abaixo para conectar sua conta ao NIC.',
     ];
 };
 

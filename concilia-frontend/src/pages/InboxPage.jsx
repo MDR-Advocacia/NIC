@@ -743,9 +743,9 @@ const InboxPage = () => {
     }
 
     return [
-      'Abra o Chatwoot com a mesma conta usada neste login do NIC.',
-      'No perfil do Chatwoot, copie o seu access token pessoal.',
-      'Cole esse token abaixo para que as mensagens saiam com o seu nome no NIC.',
+      'Clique no botão abaixo "Abrir Chatwoot",ele irá lhe redirecionar para seu perfil.',
+      'Na página que abrir, role até o final e copie o seu Token de Acesso.',
+      'Cole esse token abaixo para conectar sua conta ao NIC.',
     ];
   };
 
@@ -2187,14 +2187,18 @@ const InboxPage = () => {
   };
 
   const abrirChatwootEmNovaAba = () => {
-    const url = chatwootConnectionStatus?.chatwoot_url || chatwootConnectionRequired?.chatwoot_url;
+  let url = chatwootConnectionStatus?.chatwoot_url || chatwootConnectionRequired?.chatwoot_url;
 
-    if (!url || typeof window === 'undefined') {
-      return;
-    }
+  if (!url || typeof window === 'undefined') {
+    return;
+  }
 
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+  // Se a URL termina com dashboard ou não tem o caminho do perfil, a gente ajusta
+  // Isso garante que ele vá para accounts/1/profile/settings
+  const urlAjustada = url.replace('/dashboard', '/profile/settings');
+
+  window.open(urlAjustada, '_blank', 'noopener,noreferrer');
+};
 
   const carregarDadosIniciais = async () => {
     const token = getCleanToken();
