@@ -92,6 +92,60 @@ class ChatController extends Controller
         return $this->requestScopedApiToken;
     }
 
+    private function getChatwootRequestHeaders(string $apiAccessToken): array
+    {
+        return [
+            'api_access_token' => $apiAccessToken,
+            'Accept' => 'application/json',
+        ];
+    }
+
+    private function safeChatwootRequest(string $method, string $url, string $apiAccessToken, string $tokenSource, array $payload = []): ?\Illuminate\Http\Client\Response
+    {
+        try {
+            $request = Http::withHeaders($this->getChatwootRequestHeaders($apiAccessToken))
+                ->timeout(10);
+
+            return match (strtolower($method)) {
+                'get' => $request->get($url, $payload),
+                'post' => $request->post($url, $payload),
+                'put' => $request->put($url, $payload),
+                'patch' => $request->patch($url, $payload),
+                'delete' => $request->delete($url, $payload),
+                default => throw new \InvalidArgumentException("Metodo HTTP invalido para Chatwoot: {$method}"),
+            };
+        } catch (\Throwable $exception) {
+            Log::error('Falha de comunicacao ao chamar o Chatwoot', [
+                'url' => $url,
+                'method' => strtoupper($method),
+                'token_source' => $tokenSource,
+                'error' => $exception->getMessage(),
+                'exception_class' => get_class($exception),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function logChatwootPlatformApiError(string $message, string $url, string $tokenSource, ?int $status, $details, ?\Throwable $exception = null): void
+    {
+        $context = [
+            'url' => $url,
+            'token_source' => $tokenSource,
+            'status' => $status,
+            'details' => $details,
+        ];
+
+        if ($exception !== null) {
+            $context['exception'] = [
+                'message' => $exception->getMessage(),
+                'class' => get_class($exception),
+            ];
+        }
+
+        Log::warning($message, $context);
+    }
+
     private function resolveUserChatwootApiToken(?User $user): ?string
     {
         $token = trim((string) ($user?->chatwoot_access_token ?? ''));
@@ -118,7 +172,24 @@ class ChatController extends Controller
         $token = $this->resolveUserChatwootApiToken($user);
 
         if (blank($token) && $user) {
-            $user = $this->autoConnectChatwootUser($user);
+            try {
+                $user = $this->autoConnectChatwootUser($user);
+            } catch (\Throwable $exception) {
+                Log::error('Erro interno ao sincronizar usuario do Chatwoot durante bootstrap de token', [
+                    'user_id' => $user->id,
+                    'error' => $exception->getMessage(),
+                    'exception_class' => get_class($exception),
+                ]);
+
+                return response()->json([
+                    'message' => 'Falha interna ao sincronizar com o Chatwoot. Consulte os logs do servidor.',
+                    'details' => [
+                        'user_id' => $user->id,
+                        'url' => $this->chatwootUrl,
+                    ],
+                ], 502);
+            }
+
             $token = $this->resolveUserChatwootApiToken($user);
         }
 
@@ -159,14 +230,35 @@ class ChatController extends Controller
 
     private function fetchChatwootProfileFromAccessToken(string $accessToken): array
     {
-        $response = Http::withHeaders([
-            'api_access_token' => $accessToken,
-        ])->get("{$this->chatwootUrl}/api/v1/profile");
+        $url = "{$this->chatwootUrl}/api/v1/profile";
+        $response = $this->safeChatwootRequest('get', $url, $accessToken, 'personal');
+
+        if ($response === null) {
+            return [
+                'response' => null,
+                'status' => 502,
+                'details' => [
+                    'message' => 'Falha de conectividade ao validar o access token do Chatwoot.',
+                    'url' => $url,
+                ],
+                'profile' => [],
+            ];
+        }
+
+        $details = $response->json() ?? ['body' => $response->body()];
+
+        if (!$response->successful()) {
+            Log::warning('Falha ao validar access token pessoal do Chatwoot', [
+                'url' => $url,
+                'status' => $response->status(),
+                'details' => $details,
+            ]);
+        }
 
         return [
             'response' => $response,
             'status' => $response->status(),
-            'details' => $response->json() ?? ['body' => $response->body()],
+            'details' => $details,
             'profile' => $response->successful() && is_array($response->json()) ? $response->json() : [],
         ];
     }
@@ -234,9 +326,18 @@ class ChatController extends Controller
         ];
 
         foreach ($attempts as $url) {
-            $response = Http::withHeaders(['api_access_token' => $this->platformApiToken])
-                ->timeout(10)
-                ->get($url);
+            $response = $this->safeChatwootRequest('get', $url, $this->platformApiToken, 'platform');
+
+            if ($response === null) {
+                $this->setRequestScopedChatwootConnectionIssue([
+                    'code' => 'chatwoot_platform_network_error',
+                    'message' => 'Falha de conectividade com a Platform API do Chatwoot ao buscar o usuario.',
+                    'hint' => 'Verifique se o backend do NIC consegue resolver o host do Chatwoot e se a conectividade entre containers esta funcionando.',
+                    'details' => ['url' => $url],
+                ]);
+
+                return null;
+            }
 
             if ($response->successful()) {
                 $profile = $response->json();
@@ -247,12 +348,8 @@ class ChatController extends Controller
                 continue;
             }
 
-            Log::warning('Nao foi possivel buscar detalhes do usuario na Platform API do Chatwoot', [
-                'chatwoot_user_id' => $userId,
-                'url' => $url,
-                'status' => $response->status(),
-                'details' => $response->json() ?? ['body' => $response->body()],
-            ]);
+            $details = $response->json() ?? ['body' => $response->body()];
+            $this->logChatwootPlatformApiError('Nao foi possivel buscar detalhes do usuario na Platform API do Chatwoot', $url, 'platform', $response->status(), $details);
 
             if ($recordIssue) {
                 if ($response->status() === 401) {
@@ -284,20 +381,27 @@ class ChatController extends Controller
             return null;
         }
 
-        $response = Http::withHeaders(['api_access_token' => $this->platformApiToken])
-            ->timeout(10)
-            ->get("{$this->chatwootUrl}/platform/api/v1/accounts/{$this->accountId}/account_users");
+        $url = "{$this->chatwootUrl}/platform/api/v1/accounts/{$this->accountId}/account_users";
+        $response = $this->safeChatwootRequest('get', $url, $this->platformApiToken, 'platform');
+
+        if ($response === null) {
+            $this->setRequestScopedChatwootConnectionIssue([
+                'code' => 'chatwoot_platform_network_error',
+                'message' => 'Falha de conectividade com a Platform API do Chatwoot ao listar account_users.',
+                'hint' => 'Verifique a rede entre o NIC e a instancia do Chatwoot e se o token da Platform API esta correto.',
+                'details' => ['url' => $url],
+            ]);
+
+            return null;
+        }
 
         if ($response->successful()) {
             $payload = $response->json();
             return is_array($payload) ? array_values(array_filter($payload, 'is_array')) : [];
         }
 
-        Log::warning('Nao foi possivel listar os account_users do Chatwoot pela Platform API', [
-            'account_id' => $this->accountId,
-            'status' => $response->status(),
-            'details' => $response->json() ?? ['body' => $response->body()],
-        ]);
+        $details = $response->json() ?? ['body' => $response->body()];
+        $this->logChatwootPlatformApiError('Nao foi possivel listar os account_users do Chatwoot pela Platform API', $url, 'platform', $response->status(), $details);
 
         if ($response->status() === 401) {
             $this->setPlatformPermissionIssue(
@@ -341,27 +445,31 @@ class ChatController extends Controller
             return $profile;
         }
 
-        $response = Http::withHeaders([
-            'api_access_token' => $this->platformApiToken,
-            'Content-Type' => 'application/json',
-        ])
-            ->timeout(10)
-            ->patch("{$this->chatwootUrl}/platform/api/v1/users/{$userId}", [
-                'name' => $desiredName,
-                'display_name' => $desiredName,
-                'email' => $desiredEmail,
-                'custom_attributes' => $desiredCustomAttributes,
+        $url = "{$this->chatwootUrl}/platform/api/v1/users/{$userId}";
+        $response = $this->safeChatwootRequest('patch', $url, $this->platformApiToken, 'platform', [
+            'name' => $desiredName,
+            'display_name' => $desiredName,
+            'email' => $desiredEmail,
+            'custom_attributes' => $desiredCustomAttributes,
+        ]);
+
+        if ($response === null) {
+            $this->setRequestScopedChatwootConnectionIssue([
+                'code' => 'chatwoot_platform_network_error',
+                'message' => 'Falha de conectividade com a Platform API do Chatwoot ao sincronizar o usuario.',
+                'hint' => 'Verifique se o NIC consegue acessar o Chatwoot pela URL configurada e se o token da Platform API esta valido.',
+                'details' => ['url' => $url],
             ]);
+
+            return null;
+        }
 
         if ($response->successful() && is_array($response->json())) {
             return $response->json();
         }
 
-        Log::warning('Nao foi possivel sincronizar o usuario gerenciado pelo NIC na Platform API do Chatwoot', [
-            'chatwoot_user_id' => $userId,
-            'status' => $response->status(),
-            'details' => $response->json() ?? ['body' => $response->body()],
-        ]);
+        $details = $response->json() ?? ['body' => $response->body()];
+        $this->logChatwootPlatformApiError('Nao foi possivel sincronizar o usuario gerenciado pelo NIC na Platform API do Chatwoot', $url, 'platform', $response->status(), $details);
 
         $this->setRequestScopedChatwootConnectionIssue([
             'code' => 'chatwoot_user_sync_failed',
@@ -378,18 +486,25 @@ class ChatController extends Controller
 
     private function createChatwootPlatformUser(User $user): ?array
     {
-        $response = Http::withHeaders([
-            'api_access_token' => $this->platformApiToken,
-            'Content-Type' => 'application/json',
-        ])
-            ->timeout(10)
-            ->post("{$this->chatwootUrl}/platform/api/v1/users", [
-                'name' => $user->name,
-                'display_name' => $user->name,
-                'email' => $user->email,
-                'password' => $this->generateChatwootProvisioningPassword(),
-                'custom_attributes' => $this->buildChatwootPlatformCustomAttributes($user),
+        $url = "{$this->chatwootUrl}/platform/api/v1/users";
+        $response = $this->safeChatwootRequest('post', $url, $this->platformApiToken, 'platform', [
+            'name' => $user->name,
+            'display_name' => $user->name,
+            'email' => $user->email,
+            'password' => $this->generateChatwootProvisioningPassword(),
+            'custom_attributes' => $this->buildChatwootPlatformCustomAttributes($user),
+        ]);
+
+        if ($response === null) {
+            $this->setRequestScopedChatwootConnectionIssue([
+                'code' => 'chatwoot_platform_network_error',
+                'message' => 'Falha de conectividade com a Platform API do Chatwoot ao provisionar o usuario.',
+                'hint' => 'Verifique se o NIC consegue alcançar o Chatwoot e se o token da Platform API esta correto.',
+                'details' => ['url' => $url],
             ]);
+
+            return null;
+        }
 
         if ($response->successful() && is_array($response->json())) {
             return $response->json();
@@ -446,23 +561,26 @@ class ChatController extends Controller
             return null;
         }
 
-        $response = Http::withHeaders([
-            'api_access_token' => $this->platformApiToken,
-            'Content-Type' => 'application/json',
-        ])
-            ->timeout(10)
-            ->post("{$this->chatwootUrl}/platform/api/v1/accounts/{$this->accountId}/account_users", [
-                'user_id' => $userId,
-                'role' => $this->chatwootPlatformRoleForUser($user),
+        $url = "{$this->chatwootUrl}/platform/api/v1/accounts/{$this->accountId}/account_users";
+        $response = $this->safeChatwootRequest('post', $url, $this->platformApiToken, 'platform', [
+            'user_id' => $userId,
+            'role' => $this->chatwootPlatformRoleForUser($user),
+        ]);
+
+        if ($response === null) {
+            $this->setRequestScopedChatwootConnectionIssue([
+                'code' => 'chatwoot_platform_network_error',
+                'message' => 'Falha de conectividade com a Platform API do Chatwoot ao vincular o usuario ao account.',
+                'hint' => 'Verifique se o NIC consegue acessar o Chatwoot e se o token da Platform API esta valido.',
+                'details' => ['url' => $url],
             ]);
 
+            return null;
+        }
+
         if ($response->failed()) {
-            Log::warning('Nao foi possivel vincular o usuario do NIC ao account do Chatwoot pela Platform API', [
-                'chatwoot_user_id' => $userId,
-                'account_id' => $this->accountId,
-                'status' => $response->status(),
-                'details' => $response->json() ?? ['body' => $response->body()],
-            ]);
+            $details = $response->json() ?? ['body' => $response->body()];
+            $this->logChatwootPlatformApiError('Nao foi possivel vincular o usuario do NIC ao account do Chatwoot pela Platform API', $url, 'platform', $response->status(), $details);
 
             if ($response->status() === 401) {
                 $this->setPlatformPermissionIssue(
@@ -787,7 +905,23 @@ class ChatController extends Controller
         }
 
         if ($needsAutoSync && $user) {
-            $user = $this->autoConnectChatwootUser($user);
+            try {
+                $user = $this->autoConnectChatwootUser($user);
+            } catch (\Throwable $exception) {
+                Log::error('Erro interno ao sincronizar usuario do Chatwoot', [
+                    'user_id' => $user->id,
+                    'error' => $exception->getMessage(),
+                    'exception_class' => get_class($exception),
+                ]);
+
+                return response()->json([
+                    'message' => 'Falha interna ao sincronizar com o Chatwoot. Consulte os logs do servidor.',
+                    'details' => [
+                        'user_id' => $user->id,
+                        'url' => $this->chatwootUrl,
+                    ],
+                ], 502);
+            }
         }
 
         return response()->json($this->formatChatwootConnectionStatus(
@@ -798,7 +932,7 @@ class ChatController extends Controller
 
     public function updateConnection(Request $request)
     {
-        if ($configurationError = $this->chatwootConfigurationErrorResponse()) {
+        if ($configurationError = $this->chatwootConfigurationErrorResponse(false)) {
             return $configurationError;
         }
 
@@ -809,11 +943,11 @@ class ChatController extends Controller
         $providedToken = trim((string) $validated['chatwoot_access_token']);
         $profileResponse = $this->fetchChatwootProfileFromAccessToken($providedToken);
 
-        if (($profileResponse['response'] ?? null)?->failed()) {
+        if (($profileResponse['response'] ?? null) === null || ($profileResponse['response'] ?? null)?->failed()) {
             return response()->json([
                 'message' => 'Nao foi possivel validar o access_token informado no Chatwoot.',
                 'details' => $profileResponse['details'] ?? null,
-            ], 422);
+            ], $profileResponse['status'] ?? 502);
         }
 
         $profile = $profileResponse['profile'] ?? [];
