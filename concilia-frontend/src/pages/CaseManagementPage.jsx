@@ -7,7 +7,7 @@ import {
     FaCheckSquare, FaTrashAlt, FaTimes, 
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
-    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag
+    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag, FaFileExport
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
@@ -23,6 +23,7 @@ import {
 } from '../constants/legalCaseStatus';
 import { canAccessCaseCreation, isIndicatorRole, normalizeUserRole } from '../constants/access';
 import { formatLiveloPoints } from '../constants/settlementBenefit';
+import { downloadCasesWorkbook, fetchAllCasesForExport } from '../utils/caseExport';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -172,6 +173,7 @@ const CaseManagementPage = () => {
     const [searchFeedback, setSearchFeedback] = useState(null);
     const [editingCase, setEditingCase] = useState(null);
     const [indicationCase, setIndicationCase] = useState(null);
+    const [isExporting, setIsExporting] = useState(false);
 
     // --- PAGINAÇÃO (ESTADOS) ---
     const [currentPage, setCurrentPage] = useState(1);
@@ -349,6 +351,32 @@ const CaseManagementPage = () => {
         } catch (err) {
             console.error('Erro ao excluir etiqueta salva:', err);
             window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+        }
+    };
+
+    const handleExportCases = async () => {
+        if (!token || isExporting) {
+            return;
+        }
+
+        setIsExporting(true);
+
+        try {
+            const exportedCases = await fetchAllCasesForExport({
+                ...filters,
+                sort_by: sortConfig.key,
+                sort_order: sortConfig.direction,
+            }, token);
+
+            downloadCasesWorkbook(exportedCases, {
+                filePrefix: 'gestao-casos',
+                sheetName: 'Gestao de Casos',
+            });
+        } catch (err) {
+            console.error('Erro ao exportar casos:', err);
+            window.alert('Não foi possível exportar a planilha de casos.');
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -602,6 +630,15 @@ const CaseManagementPage = () => {
             <header className={styles.header}>
                 <div><h1>Gestão de Casos</h1><p>Gerencie todos os casos direcionados para o escritório</p></div>
                 <div className={styles.headerActions}>
+                    <button
+                        type="button"
+                        className={styles.exportButton}
+                        onClick={handleExportCases}
+                        disabled={isExporting}
+                    >
+                        <FaFileExport />
+                        {isExporting ? 'Exportando...' : 'Exportar Excel'}
+                    </button>
                     {canAccessCaseCreation(user?.role) && (
                         <Link to="/cases/create" className={styles.newCaseButton}><FaPlus /> Novo Caso</Link>
                     )}

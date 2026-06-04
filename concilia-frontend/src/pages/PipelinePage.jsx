@@ -29,6 +29,7 @@ import {
     FaEraser,
     FaBolt,
     FaTag,
+    FaFileExport,
 } from 'react-icons/fa';
 import {
     LEGAL_CASE_STATUS_DETAILS,
@@ -42,6 +43,13 @@ import {
     normalizeUserRole,
 } from '../constants/access';
 import IndicationChecklistModal from '../components/IndicationChecklistModal';
+import {
+    downloadCasesWorkbook,
+    fetchAllCasesForExport,
+    isDelayedCaseForExport,
+    mergeCasesById,
+    sortCasesByUpdatedAtDesc,
+} from '../utils/caseExport';
 
 const MAX_API_PAGE_SIZE = 200;
 const INITIAL_FILTERS = {
@@ -107,6 +115,7 @@ const PipelinePage = () => {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [debouncedActionObject, setDebouncedActionObject] = useState('');
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
 
     const searchTerm = filters.search.trim();
@@ -569,6 +578,58 @@ const PipelinePage = () => {
         }
     };
 
+    const handleExportPipelineCases = async () => {
+        if (!token || isExporting) {
+            return;
+        }
+
+        setIsExporting(true);
+
+        try {
+            const exportFilters = {
+                search: searchTerm,
+                action_object: actionObjectFilter,
+                client_id: clientFilter,
+                lawyer_id: lawyerFilter,
+                indicator_user_id: indicatorFilter,
+                priority: priorityFilter,
+                tag: tagFilter,
+                sort_by: 'updated_at',
+                sort_order: 'desc',
+            };
+
+            let exportedCases = [];
+
+            if (isIndicator) {
+                const [availableCases, indicatedCases] = await Promise.all([
+                    fetchAllCasesForExport(exportFilters, token),
+                    fetchAllCasesForExport({
+                        ...exportFilters,
+                        indicator_user_id: String(user?.id || ''),
+                    }, token),
+                ]);
+
+                exportedCases = mergeCasesById(availableCases, indicatedCases);
+            } else {
+                exportedCases = await fetchAllCasesForExport(exportFilters, token);
+            }
+
+            const visibleExportCases = showDelayedOnly
+                ? exportedCases.filter((legalCase) => isDelayedCaseForExport(legalCase))
+                : exportedCases;
+
+            downloadCasesWorkbook(sortCasesByUpdatedAtDesc(visibleExportCases), {
+                filePrefix: 'pipeline-casos',
+                sheetName: 'Pipeline',
+            });
+        } catch (err) {
+            console.error('Erro ao exportar pipeline:', err);
+            window.alert('Não foi possível exportar a planilha do pipeline.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     const handleClearFilters = () => {
         setFilters({ ...INITIAL_FILTERS });
         setShowDelayedOnly(false);
@@ -601,6 +662,15 @@ const PipelinePage = () => {
             <div className={styles.header}>
                 <h1>{isIndicator ? 'Indicações e Acompanhamento' : 'Pipeline de Acordos'}</h1>
                 <div className={styles.headerActions}>
+                    <button
+                        type="button"
+                        className={styles.exportButton}
+                        onClick={handleExportPipelineCases}
+                        disabled={isExporting}
+                    >
+                        <FaFileExport />
+                        {isExporting ? 'Exportando...' : 'Exportar Excel'}
+                    </button>
                     {canAccessCaseCreation(user?.role) && (
                         <Link to="/cases/create" className={styles.newCaseButton}>
                             + Novo Caso

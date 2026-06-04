@@ -25,7 +25,7 @@
 .header p { margin: 0; color: var(--text-secondary); }
 
 /* BOTÕES */
-.headerActions { display: flex; gap: 1rem; }
+.headerActions { display: flex; gap: 1rem; flex-wrap: wrap; }
 
 .newCaseButton {
     display: flex;
@@ -40,6 +40,32 @@
     transition: transform 0.2s;
 }
 .newCaseButton:hover { transform: translateY(-2px); }
+
+.exportButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border: 1px solid var(--accent-primary);
+    border-radius: 6px;
+    background: var(--surface-card-elevated);
+    color: var(--accent-primary);
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s, background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.exportButton:hover:not(:disabled) {
+    background: var(--accent-primary);
+    color: #fff;
+    transform: translateY(-2px);
+}
+
+.exportButton:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
 
 /* KPIS */
 .kpiGrid {
@@ -264,7 +290,7 @@
 .header p { margin: 0; color: var(--text-secondary); }
 
 /* BOTÕES */
-.headerActions { display: flex; gap: 1rem; }
+.headerActions { display: flex; gap: 1rem; flex-wrap: wrap; }
 
 .newCaseButton {
     display: flex;
@@ -875,6 +901,16 @@
         align-items: stretch;
     }
 
+    .headerActions {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .newCaseButton {
+        width: 100%;
+        justify-content: center;
+    }
+
     .filterCount {
         align-self: flex-start;
     }
@@ -894,6 +930,10 @@
     }
 
     .clearFiltersButton {
+        width: 100%;
+    }
+
+    .exportButton {
         width: 100%;
     }
 
