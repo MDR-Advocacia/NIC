@@ -614,8 +614,8 @@ const CaseManagementPage = () => {
 
         if (isIndicator) {
             return {
-                title: 'Nenhum caso disponível para indicação no momento.',
-                description: 'Quando houver processos em Análise Inicial aptos para a sua fila, eles aparecerão aqui.',
+                title: 'Nenhum caso disponível no momento.',
+                description: 'Quando houver processos no pipeline disponíveis para o seu perfil, eles aparecerão aqui.',
             };
         }
 
@@ -648,9 +648,9 @@ const CaseManagementPage = () => {
             {isIndicator && (
                 <section className={styles.indicatorNotice}>
                     <div className={styles.indicatorNoticeLabel}>Fluxo de indicação</div>
-                    <div className={styles.indicatorNoticeTitle}>Fila pronta para triagem inicial</div>
+                    <div className={styles.indicatorNoticeTitle}>Visão completa do pipeline</div>
                     <p className={styles.indicatorNoticeText}>
-                        Esta fila mostra os casos em Análise Inicial disponíveis para indicação de acordo.
+                        Esta fila mostra os casos do pipeline para acompanhamento. A indicação continua disponível apenas em Análise Inicial.
                     </p>
                 </section>
             )}

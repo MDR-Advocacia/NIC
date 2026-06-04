@@ -25,6 +25,10 @@ class LegalCasePolicy
         }
 
         if ($user->role === 'indicador') {
+            if ($legalCase->has_alcada) {
+                return true;
+            }
+
             if ($legalCase->status === LegalCase::STATUS_INITIAL_ANALYSIS) {
                 return true;
             }

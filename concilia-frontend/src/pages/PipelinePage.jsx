@@ -47,7 +47,6 @@ import {
     downloadCasesWorkbook,
     fetchAllCasesForExport,
     isDelayedCaseForExport,
-    mergeCasesById,
     sortCasesByUpdatedAtDesc,
 } from '../utils/caseExport';
 
@@ -281,37 +280,11 @@ const PipelinePage = () => {
                 }
             }
 
-            let fetchedCases = [];
-
-            if (isIndicator) {
-                const [availableCases, indicatedCases] = await Promise.all([
-                    fetchAllPaginatedResults('/cases', token, {
-                        ...effectiveFilters,
-                        sort_by: 'updated_at',
-                        sort_order: 'desc',
-                    }),
-                    fetchAllPaginatedResults('/cases', token, {
-                        ...effectiveFilters,
-                        indicator_user_id: String(user?.id || ''),
-                        sort_by: 'updated_at',
-                        sort_order: 'desc',
-                    }),
-                ]);
-
-                const mergedCases = new Map();
-
-                [...availableCases, ...indicatedCases].forEach((legalCase) => {
-                    mergedCases.set(String(legalCase.id), legalCase);
-                });
-
-                fetchedCases = Array.from(mergedCases.values());
-            } else {
-                fetchedCases = await fetchAllPaginatedResults('/cases', token, {
-                    ...effectiveFilters,
-                    sort_by: 'updated_at',
-                    sort_order: 'desc',
-                });
-            }
+            let fetchedCases = await fetchAllPaginatedResults('/cases', token, {
+                ...effectiveFilters,
+                sort_by: 'updated_at',
+                sort_order: 'desc',
+            });
 
             // Filtro de Atraso
             if (showDelayedOnly) {
@@ -340,7 +313,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseResponsible, canChooseIndicator, isIndicator, user?.id]);
+    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseResponsible, canChooseIndicator, user?.id]);
 
     useEffect(() => {
         fetchAllData();
@@ -598,21 +571,7 @@ const PipelinePage = () => {
                 sort_order: 'desc',
             };
 
-            let exportedCases = [];
-
-            if (isIndicator) {
-                const [availableCases, indicatedCases] = await Promise.all([
-                    fetchAllCasesForExport(exportFilters, token),
-                    fetchAllCasesForExport({
-                        ...exportFilters,
-                        indicator_user_id: String(user?.id || ''),
-                    }, token),
-                ]);
-
-                exportedCases = mergeCasesById(availableCases, indicatedCases);
-            } else {
-                exportedCases = await fetchAllCasesForExport(exportFilters, token);
-            }
+            const exportedCases = await fetchAllCasesForExport(exportFilters, token);
 
             const visibleExportCases = showDelayedOnly
                 ? exportedCases.filter((legalCase) => isDelayedCaseForExport(legalCase))
@@ -689,7 +648,7 @@ const PipelinePage = () => {
                             <h2 className={styles.filterPanelTitle}>{isIndicator ? 'Filtros das Indicações' : 'Filtros do Pipeline'}</h2>
                             <p className={styles.filterPanelSubtitle}>
                                 {isIndicator
-                                    ? 'Os casos em Análise Inicial continuam disponíveis para indicação, e os processos já indicados por você seguem visíveis nas demais fases apenas para acompanhamento.'
+                                    ? 'Visualize todos os cards do pipeline e indique somente os casos que ainda estão em Análise Inicial.'
                                     : 'Refine os cards por caso, causa de pedir, cliente, responsável, indicador, prioridade e destaque rapidamente os casos parados.'}
                             </p>
                         </div>
@@ -878,7 +837,7 @@ const PipelinePage = () => {
 
             {isIndicator && (
                 <div className={styles.indicatorInfoBanner}>
-                    Você pode indicar casos na coluna de Análise Inicial. Depois da indicação, o acompanhamento das próximas fases continua disponível aqui em modo somente leitura.
+                    Todos os cards do pipeline ficam visíveis para acompanhamento. A indicação continua disponível apenas nos casos em Análise Inicial.
                 </div>
             )}
 

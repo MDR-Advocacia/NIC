@@ -159,18 +159,6 @@ export const sortCasesByUpdatedAtDesc = (cases = []) =>
         return (secondDate?.getTime() || 0) - (firstDate?.getTime() || 0);
     });
 
-export const mergeCasesById = (...caseLists) => {
-    const mergedCases = new Map();
-
-    caseLists.flat().forEach((legalCase) => {
-        if (legalCase?.id) {
-            mergedCases.set(String(legalCase.id), legalCase);
-        }
-    });
-
-    return Array.from(mergedCases.values());
-};
-
 export const downloadCasesWorkbook = (cases = [], options = {}) => {
     const headers = EXPORT_COLUMNS.map((column) => column.header);
     const rows = cases.map((legalCase) => EXPORT_COLUMNS.map((column) => column.getValue(legalCase)));

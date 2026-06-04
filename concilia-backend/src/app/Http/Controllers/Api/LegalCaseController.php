@@ -68,13 +68,7 @@ class LegalCaseController extends Controller
 
         if ($user->role === 'indicador') {
             if ($indicatorFilterRequested) {
-                if ((string) $request->input('indicator_user_id') !== (string) $user->id) {
-                    return response()->json(['message' => 'Acesso negado.'], 403);
-                }
-
-                $query->where('indicator_user_id', $user->id);
-            } else {
-                $query->where('status', LegalCase::STATUS_INITIAL_ANALYSIS);
+                $query->where('indicator_user_id', $request->input('indicator_user_id'));
             }
         } elseif ($indicatorFilterRequested) {
             $query->where('indicator_user_id', $request->input('indicator_user_id'));
@@ -2046,15 +2040,6 @@ class LegalCaseController extends Controller
                 ];
             }
 
-            if ($user?->role === 'indicador') {
-                return [
-                    'type' => 'case_number_list_unavailable_for_indicator',
-                    'total_terms' => $totalTerms,
-                    'matched_count' => $matchedCount,
-                    'missing_count' => $missingCount,
-                ];
-            }
-
             return [
                 'type' => 'case_number_list_filtered_out',
                 'total_terms' => $totalTerms,
@@ -2084,13 +2069,6 @@ class LegalCaseController extends Controller
         if (!$caseExistsInBase) {
             return [
                 'type' => 'case_number_not_found',
-                'search' => $searchTerm,
-            ];
-        }
-
-        if ($user?->role === 'indicador') {
-            return [
-                'type' => 'case_number_unavailable_for_indicator',
                 'search' => $searchTerm,
             ];
         }
