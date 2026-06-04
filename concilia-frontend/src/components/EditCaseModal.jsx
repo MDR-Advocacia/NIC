@@ -6,7 +6,6 @@ import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
 import { FaPencilAlt, FaRegCommentDots, FaTimes, FaExclamationTriangle, FaClock } from 'react-icons/fa';
-import ChatPreview from './ChatPreview';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditOpposingLawyerModal from './AddEditOpposingLawyerModal';
 import OpposingLawyerListModal from './OpposingLawyerListModal';
@@ -822,11 +821,6 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     const [isPlaintiffModalOpen, setIsPlaintiffModalOpen] = useState(false);
     const [isDefendantModalOpen, setIsDefendantModalOpen] = useState(false);
 
-    const [conversation, setConversation] = useState(null);
-    const [messages, setMessages] = useState([]);
-    const [chatLoading, setChatLoading] = useState(false);
-    const [isSending, setIsSending] = useState(false);
-
     // Carregar Listas (Advogados, Autores, Réus)
     useEffect(() => {
         const fetchData = async () => {
@@ -898,8 +892,6 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
             setDefendantSearchTerm(getStringValue(legalCase.defendant || legalCase.defendantRel));
             setSettlementBenefitType(getSettlementBenefitType(legalCase));
             
-            setConversation(null);
-            setMessages([]);
             setActiveTab('details');
         }
     }, [legalCase]);
@@ -972,44 +964,6 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         handleSelectDefendant(newDefendant);
     };
 
-    // --- CHAT ---
-    const fetchConversation = useCallback(async () => {
-        if (!legalCase?.id) return;
-        setChatLoading(true);
-        try {
-            const response = await apiClient.get(`/cases/${legalCase.id}/conversation`, {
-                 headers: { Authorization: `Bearer ${token}` }
-            });
-            setConversation(response.data.conversation);
-            setMessages(response.data.messages || []);
-        } catch (err) {
-            console.error("Erro ao buscar conversa:", err);
-            setConversation(null);
-            setMessages([]);
-        } finally {
-            setChatLoading(false);
-        }
-    }, [legalCase?.id, token]);
-
-    useEffect(() => {
-        if (activeTab === 'chat') fetchConversation();
-    }, [activeTab, fetchConversation]);
-
-    const handleSendMessage = async (content) => {
-        if (!content.trim() || !conversation?.id) return;
-        setIsSending(true);
-        try {
-            await apiClient.post(`/chat/conversations/${conversation.id}/messages`, { content }, {
-                 headers: { Authorization: `Bearer ${token}` }
-            });
-            fetchConversation();
-        } catch (err) {
-            alert('Não foi possível enviar a mensagem.');
-        } finally {
-            setIsSending(false);
-        }
-    };
-    
     const handleChange = (e) => { 
         const { name, value } = e.target; 
         if (name === 'action_object') {
@@ -1167,7 +1121,6 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
 
                     <div className={styles.tabNav}>
                         <button className={`${styles.tabButton} ${activeTab === 'details' ? styles.active : ''}`} onClick={() => setActiveTab('details')}>Detalhes</button>
-                        <button className={`${styles.tabButton} ${activeTab === 'chat' ? styles.active : ''}`} onClick={() => setActiveTab('chat')}>Chat</button>
                         <button className={`${styles.tabButton} ${activeTab === 'history' ? styles.active : ''}`} onClick={() => setActiveTab('history')}>Histórico</button>
                     </div>
 
@@ -1238,21 +1191,6 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     <button type="submit" className={styles.saveButton} disabled={isSubmitting}> {isSubmitting ? 'Salvando...' : 'Salvar Alterações'} </button> 
                                 </div>
                             </form>
-                        )}
-
-                        {activeTab === 'chat' && (
-                            <div className={styles.chatColumn}>
-                                {chatLoading ? <p>Carregando...</p> : conversation ? (
-                                    <ChatPreview
-                                        messages={messages}
-                                        onSendMessage={handleSendMessage}
-                                        isSending={isSending}
-                                        isInteractive={true}
-                                        contactName={legalCase.opposing_party}
-                                        contactNumber={legalCase.opposing_contact}
-                                    />
-                                ) : <p>Sem conversa iniciada.</p>}
-                            </div>
                         )}
 
                         {activeTab === 'history' && <HistoryTab caseId={legalCase.id} />}
