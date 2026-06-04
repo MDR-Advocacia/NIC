@@ -609,6 +609,74 @@ class LegalCaseController extends Controller
         return response()->json($case->fresh($this->caseRelationshipLoads()));
     }
 
+    public function requestReanalysis(Request $request, LegalCase $case): JsonResponse
+    {
+        $user = Auth::user();
+
+        if (!in_array($user?->role, ['indicador', 'administrador', 'supervisor'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $allowedStatuses = [
+            LegalCase::STATUS_CONTRA_INDICATED,
+            LegalCase::STATUS_FAILED_DEAL,
+        ];
+
+        if (!in_array($case->status, $allowedStatuses, true)) {
+            return response()->json([
+                'message' => 'Somente casos Contra Indicados ou com Acordo Frustrado podem ser enviados para reanálise.',
+            ], 422);
+        }
+
+        $oldStatus = $case->status;
+        $supportsIndicatorUserId = $this->legalCasesTableHasIndicatorUserId();
+        $previousIndicatorUserId = $supportsIndicatorUserId ? $case->indicator_user_id : null;
+        $previousContraIndicationReason = $case->contra_indication_reason;
+
+        $caseUpdatePayload = [
+            'status' => LegalCase::STATUS_INITIAL_ANALYSIS,
+            'contra_indication_reason' => null,
+            'contra_indicated_at' => null,
+            'contra_indicated_by_user_id' => null,
+        ];
+
+        if ($supportsIndicatorUserId) {
+            $caseUpdatePayload['indicator_user_id'] = $user->id;
+        }
+
+        $case->update($caseUpdatePayload);
+
+        $case->histories()->create([
+            'user_id' => Auth::id(),
+            'event_type' => 'update',
+            'description' => 'Reanálise solicitada pelo indicador.',
+            'old_values' => [
+                'status' => $oldStatus,
+                'indicator_user_id' => $previousIndicatorUserId,
+                'contra_indication_reason' => $previousContraIndicationReason,
+            ],
+            'new_values' => [
+                'status' => LegalCase::STATUS_INITIAL_ANALYSIS,
+                'indicator_user_id' => $supportsIndicatorUserId ? $user->id : null,
+                'contra_indication_reason' => null,
+            ],
+        ]);
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Solicitação de Reanálise',
+                'details' => "Solicitou reanálise do caso #{$case->case_number} e vinculou o indicador {$user->name}",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Erro AuditLog request reanalysis: " . $e->getMessage());
+        }
+
+        return response()->json($case->fresh($this->caseRelationshipLoads()));
+    }
+
     /**
      * Remove um caso.
      */

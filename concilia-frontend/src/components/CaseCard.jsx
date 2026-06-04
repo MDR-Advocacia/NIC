@@ -6,15 +6,6 @@ import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle 
 import { normalizeCaseTags } from '../constants/caseTags';
 import { isTerminalLegalCaseStatus } from '../constants/legalCaseStatus';
 
-const getBadgeInitials = (value, maxLetters = 3) =>
-  String(value ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((chunk) => chunk.charAt(0).toUpperCase())
-    .join('')
-    .slice(0, maxLetters);
-
 const getDisplayValue = (value, fallback = 'Nao informado') => {
   if (value === null || value === undefined) return fallback;
   if (typeof value === 'string' || typeof value === 'number') {
@@ -65,6 +56,8 @@ const CaseCardBody = ({
   listeners = {},
   canIndicate = false,
   onIndicate,
+  canRequestReanalysis = false,
+  onRequestReanalysis,
 }) => {
   const lastUpdate = new Date(legalCase.updated_at);
   const today = new Date();
@@ -169,6 +162,21 @@ const CaseCardBody = ({
               className={styles.indicateButton}
             >
               Indicar Caso para acordo
+            </button>
+          )}
+
+          {canRequestReanalysis && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                if (onRequestReanalysis) {
+                  onRequestReanalysis(legalCase);
+                }
+              }}
+              className={`${styles.indicateButton} ${styles.reanalysisButton}`}
+            >
+              Solicitar reanálise
             </button>
           )}
         </div>

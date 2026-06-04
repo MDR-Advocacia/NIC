@@ -244,3 +244,14 @@
     transform: translateY(-1px);
     box-shadow: var(--accent-shadow-hover);
 }
+
+.reanalysisButton {
+    background: var(--surface-card-elevated);
+    color: var(--accent-primary);
+    border: 1px solid var(--accent-primary);
+    box-shadow: none;
+}
+
+.reanalysisButton:hover {
+    box-shadow: var(--card-shadow);
+}

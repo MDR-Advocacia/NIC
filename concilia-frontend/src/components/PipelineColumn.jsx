@@ -15,6 +15,8 @@ const PipelineColumn = ({
     enableDrag = true,
     canIndicateCase = false,
     onIndicateCase,
+    canRequestReanalysis = false,
+    onRequestReanalysis,
 }) => {
     const { setNodeRef } = useDroppable({ id, disabled: !enableDrag });
     const caseIds = cases.map(c => c.id);
@@ -38,6 +40,11 @@ const PipelineColumn = ({
                         enableDrag={enableDrag}
                         canIndicate={canIndicateCase && legalCase.status === 'initial_analysis'}
                         onIndicate={onIndicateCase}
+                        canRequestReanalysis={
+                            canRequestReanalysis
+                            && ['contra_indicated', 'failed_deal'].includes(legalCase.status)
+                        }
+                        onRequestReanalysis={onRequestReanalysis}
                     />
                 ))
             ) : (

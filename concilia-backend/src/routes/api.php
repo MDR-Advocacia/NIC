@@ -70,6 +70,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cases/sync-alcada', [LegalCaseController::class, 'syncAlcada']);
     Route::post('/cases/batch-update', [LegalCaseController::class, 'batchUpdate']);
     Route::post('/cases/{case}/indicate', [LegalCaseController::class, 'indicate']);
+    Route::post('/cases/{case}/request-reanalysis', [LegalCaseController::class, 'requestReanalysis']);
     Route::get('/cases/{id}/agreement', [LegalCaseController::class, 'generateAgreement']);
     Route::apiResource('cases', LegalCaseController::class);
 

@@ -52,6 +52,7 @@ import {
 } from '../utils/caseExport';
 
 const MAX_API_PAGE_SIZE = 200;
+const REANALYSIS_STATUSES = ['contra_indicated', 'failed_deal'];
 const INITIAL_FILTERS = {
     search: '',
     action_object: '',
@@ -116,7 +117,6 @@ const PipelinePage = () => {
     const [debouncedActionObject, setDebouncedActionObject] = useState('');
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
-    const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
     const [contraIndicationPrompt, setContraIndicationPrompt] = useState(null);
     const [contraIndicationReason, setContraIndicationReason] = useState('');
     const [contraIndicationError, setContraIndicationError] = useState('');
@@ -176,6 +176,32 @@ const PipelinePage = () => {
     const handleCaseIndicated = () => {
         setIndicationCase(null);
         fetchAllData();
+    };
+
+    const handleRequestReanalysis = async (caseToReanalyze) => {
+        if (!caseToReanalyze?.id || !REANALYSIS_STATUSES.includes(caseToReanalyze.status)) {
+            return;
+        }
+
+        const caseLabel = caseToReanalyze.case_number || `#${caseToReanalyze.id}`;
+        const confirmed = window.confirm(
+            `Solicitar reanálise do processo ${caseLabel}?\n\nO caso voltará para Análise Inicial e ficará vinculado a você como indicador.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            await apiClient.post(`/cases/${caseToReanalyze.id}/request-reanalysis`, {}, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            window.alert('Reanálise solicitada com sucesso.');
+            fetchAllData();
+        } catch (err) {
+            console.error('Erro ao solicitar reanálise:', err);
+            window.alert(err.response?.data?.message || 'Não foi possível solicitar a reanálise.');
+        }
     };
 
     useEffect(() => {
@@ -342,10 +368,6 @@ const PipelinePage = () => {
         );
     };
 
-    const handleDragStart = (event) => {
-        setActiveId(event.active.id);
-    };
-
     const handleDragOver = (event) => {
         const { active, over } = event;
         const overId = over?.id;
@@ -507,7 +529,6 @@ const PipelinePage = () => {
 
         // 1. Se soltou fora de qualquer lugar válido, cancela
         if (!over) {
-            setActiveId(null);
             return;
         }
 
@@ -519,7 +540,6 @@ const PipelinePage = () => {
         const currentContainerOfItem = findContainer(active.id);
 
         if (!overContainer || !currentContainerOfItem) {
-            setActiveId(null);
             return;
         }
 
@@ -529,7 +549,6 @@ const PipelinePage = () => {
         );
 
         if (!movedCase) {
-            setActiveId(null);
             return;
         }
 
@@ -546,7 +565,6 @@ const PipelinePage = () => {
                 });
                 setContraIndicationReason(movedCase.contra_indication_reason || '');
                 setContraIndicationError('');
-                setActiveId(null);
                 return;
             }
 
@@ -568,7 +586,6 @@ const PipelinePage = () => {
             }
         }
 
-        setActiveId(null);
     };
 
     const handleFilterChange = (name, value) => {
@@ -670,6 +687,8 @@ const PipelinePage = () => {
                         enableDrag={!isIndicator}
                         canIndicateCase={isIndicator}
                         onIndicateCase={handleOpenIndicationModal}
+                        canRequestReanalysis={isIndicator}
+                        onRequestReanalysis={handleRequestReanalysis}
                     />
                 ))}
             </div>
@@ -937,10 +956,9 @@ const PipelinePage = () => {
             {isIndicator ? (
                 boardContent
             ) : (
-                <DndContext 
-                    sensors={sensors} 
+                <DndContext
+                    sensors={sensors}
                     collisionDetection={closestCorners}
-                    onDragStart={handleDragStart}
                     onDragOver={handleDragOver}
                     onDragEnd={handleDragEnd}
                 >

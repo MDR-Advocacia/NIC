@@ -42,6 +42,7 @@ const PRIORITY_OPTIONS = Object.entries(PRIORITY_DETAILS).map(([value, details])
 const MULTI_CASE_NUMBER_MIN_DIGITS = 15;
 const CASE_NUMBER_TOKEN_PATTERN = /^[0-9./-]+$/;
 const CONTRA_INDICATED_STATUS = 'contra_indicated';
+const REANALYSIS_STATUSES = [CONTRA_INDICATED_STATUS, 'failed_deal'];
 const INITIAL_FILTERS = {
     search: '',
     action_object: '',
@@ -501,6 +502,32 @@ const CaseManagementPage = () => {
     const handleCaseIndicated = () => {
         setIndicationCase(null);
         fetchCases();
+    };
+
+    const handleRequestReanalysis = async (legalCase) => {
+        if (!legalCase?.id || !REANALYSIS_STATUSES.includes(legalCase.status)) {
+            return;
+        }
+
+        const caseLabel = legalCase.case_number || `#${legalCase.id}`;
+        const confirmed = window.confirm(
+            `Solicitar reanálise do processo ${caseLabel}?\n\nO caso voltará para Análise Inicial e ficará vinculado a você como indicador.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            await apiClient.post(`/cases/${legalCase.id}/request-reanalysis`, {}, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            window.alert('Reanálise solicitada com sucesso.');
+            fetchCases();
+        } catch (err) {
+            console.error('Erro ao solicitar reanálise:', err);
+            window.alert(err.response?.data?.message || 'Não foi possível solicitar a reanálise.');
+        }
     };
 
     const formatValue = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -988,7 +1015,7 @@ const CaseManagementPage = () => {
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                         <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
                                                         {!isIndicator && (
                                                             <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
@@ -1000,6 +1027,15 @@ const CaseManagementPage = () => {
                                                                 className={styles.indicateButton}
                                                             >
                                                                 Indicar caso para acordo
+                                                            </button>
+                                                        )}
+                                                        {isIndicator && REANALYSIS_STATUSES.includes(legalCase.status) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRequestReanalysis(legalCase)}
+                                                                className={`${styles.indicateButton} ${styles.reanalysisButton}`}
+                                                            >
+                                                                Solicitar reanálise
                                                             </button>
                                                         )}
                                                         

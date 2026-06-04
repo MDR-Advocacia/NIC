@@ -885,6 +885,13 @@
     box-shadow: var(--accent-shadow-hover);
 }
 
+.reanalysisButton {
+    background: var(--surface-card-elevated);
+    color: var(--accent-primary);
+    border: 1px solid var(--accent-primary);
+    box-shadow: none;
+}
+
 @media (min-width: 992px) {
     .searchField {
         grid-column: span 2;
