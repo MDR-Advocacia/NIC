@@ -1125,7 +1125,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                             <div className={styles.statusSinceCard}>
                                 <span className={styles.statusSinceLabel}>
                                     <FaClock />
-                                    No status atual desde
+                                    No status
                                 </span>
                                 <strong>{formatStatusSinceDate(statusStartedAt)}</strong>
                                 <small>{statusDetails.name} · {formatStatusDuration(statusStartedAt) || 'tempo não calculado'}</small>
