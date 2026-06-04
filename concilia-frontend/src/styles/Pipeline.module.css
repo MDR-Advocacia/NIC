@@ -309,6 +309,36 @@
     width: 95%;
 }
 
+.statusReasonModal {
+    max-width: 560px;
+}
+
+.statusReasonHeader {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding-right: 2.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.statusReasonIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: var(--danger-soft);
+    color: var(--danger-primary);
+    flex: 0 0 auto;
+}
+
+.statusReasonSubtitle {
+    margin: 0.45rem 0 0;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
 .modalHeader {
     display: flex;
     justify-content: space-between;

@@ -8,6 +8,7 @@ import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
 import EditCaseModal from '../components/EditCaseModal';
 import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
+import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
 import { 
     DndContext, 
     PointerSensor, 
@@ -116,6 +117,10 @@ const PipelinePage = () => {
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
+    const [contraIndicationPrompt, setContraIndicationPrompt] = useState(null);
+    const [contraIndicationReason, setContraIndicationReason] = useState('');
+    const [contraIndicationError, setContraIndicationError] = useState('');
+    const [isSavingContraIndication, setIsSavingContraIndication] = useState(false);
 
     const searchTerm = filters.search.trim();
     const actionObjectFilter = filters.action_object.trim();
@@ -391,6 +396,112 @@ const PipelinePage = () => {
         });
     };
 
+    const buildStatusUpdatePayload = (movedCase, targetStatus, extraPayload = {}) => {
+        const updatedCasePayload = {
+            ...movedCase,
+            status: targetStatus,
+            client_id: movedCase.client?.id || movedCase.client_id,
+            lawyer_id: movedCase.lawyer?.id || movedCase.lawyer_id,
+            plaintiff_id: movedCase.plaintiff?.id || movedCase.plaintiff_id,
+            defendant_id: movedCase.defendant?.id || movedCase.defendant_id,
+            opposing_lawyer_id: movedCase.opposing_lawyer?.id || movedCase.opposing_lawyer_id,
+            ...extraPayload,
+        };
+
+        delete updatedCasePayload.client;
+        delete updatedCasePayload.lawyer;
+        delete updatedCasePayload.indicator;
+        delete updatedCasePayload.contra_indicated_by;
+        delete updatedCasePayload.plaintiff;
+        delete updatedCasePayload.defendant;
+        delete updatedCasePayload.opposing_lawyer;
+
+        return updatedCasePayload;
+    };
+
+    const updateCaseStatusLocally = (caseId, targetStatus, extraFields = {}) => {
+        setPipelineData((prev) => {
+            if (!prev?.grouped) return prev;
+
+            const newGrouped = { ...prev.grouped };
+            const listContainer = Object.keys(newGrouped).find((key) =>
+                newGrouped[key].some((item) => String(item.id) === String(caseId))
+            );
+
+            if (!listContainer) return prev;
+
+            const items = [...newGrouped[listContainer]];
+            const itemIndex = items.findIndex((item) => String(item.id) === String(caseId));
+
+            if (itemIndex === -1) return prev;
+
+            items[itemIndex] = {
+                ...items[itemIndex],
+                ...extraFields,
+                status: targetStatus,
+            };
+            newGrouped[listContainer] = items;
+
+            return { ...prev, grouped: newGrouped };
+        });
+    };
+
+    const persistCaseStatusChange = async (movedCase, targetStatus, extraPayload = {}) => {
+        console.log(`Movendo card ${movedCase.id}: ${movedCase.status} -> ${targetStatus}`);
+
+        const updatedCasePayload = buildStatusUpdatePayload(movedCase, targetStatus, extraPayload);
+        updateCaseStatusLocally(movedCase.id, targetStatus, extraPayload);
+
+        try {
+            await apiClient.put(`/cases/${movedCase.id}`, updatedCasePayload, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            console.log('Status salvo com sucesso no backend.');
+        } catch (err) {
+            console.error('Erro ao atualizar status:', err);
+            fetchAllData();
+            throw err;
+        }
+    };
+
+    const handleCancelContraIndication = () => {
+        setContraIndicationPrompt(null);
+        setContraIndicationReason('');
+        setContraIndicationError('');
+        setIsSavingContraIndication(false);
+        fetchAllData();
+    };
+
+    const handleConfirmContraIndication = async (event) => {
+        event.preventDefault();
+
+        const normalizedReason = contraIndicationReason.trim();
+        if (!normalizedReason) {
+            setContraIndicationError('Informe o motivo da contraindicação.');
+            return;
+        }
+
+        if (!contraIndicationPrompt?.legalCase) return;
+
+        setIsSavingContraIndication(true);
+        setContraIndicationError('');
+
+        try {
+            await persistCaseStatusChange(
+                contraIndicationPrompt.legalCase,
+                contraIndicationPrompt.targetStatus,
+                { contra_indication_reason: normalizedReason }
+            );
+            setContraIndicationPrompt(null);
+            setContraIndicationReason('');
+        } catch (err) {
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setContraIndicationError(firstBackendError || err.response?.data?.message || 'Não foi possível salvar a contraindicação.');
+        } finally {
+            setIsSavingContraIndication(false);
+        }
+    };
+
     const handleDragEnd = (event) => {
         const { active, over } = event;
 
@@ -428,66 +539,18 @@ const PipelinePage = () => {
         const isStatusChange = movedCase.status !== overContainer;
 
         if (isStatusChange) {
-            // Confirmação ao mover para Contra Indicado
             if (overContainer === 'contra_indicated') {
-                if (!window.confirm('Tem certeza que deseja marcar este caso como Contraindicado?')) {
-                    setActiveId(null);
-                    fetchAllData(); // Reverte animação visual
-                    return;
-                }
+                setContraIndicationPrompt({
+                    legalCase: movedCase,
+                    targetStatus: overContainer,
+                });
+                setContraIndicationReason(movedCase.contra_indication_reason || '');
+                setContraIndicationError('');
+                setActiveId(null);
+                return;
             }
 
-            console.log(`🔄 Movendo card ${movedCase.id}: ${movedCase.status} -> ${overContainer}`);
-
-            // Prepara o objeto para enviar ao Backend
-            const updatedCasePayload = { 
-                ...movedCase, 
-                status: overContainer, // Força o novo status
-                // Garante que os IDs relacionados sejam mantidos
-                client_id: movedCase.client?.id || movedCase.client_id,
-                lawyer_id: movedCase.lawyer?.id || movedCase.lawyer_id,
-                plaintiff_id: movedCase.plaintiff?.id || movedCase.plaintiff_id,
-                defendant_id: movedCase.defendant?.id || movedCase.defendant_id,
-                opposing_lawyer_id: movedCase.opposing_lawyer?.id || movedCase.opposing_lawyer_id
-            };
-
-            // Remove objetos aninhados para não quebrar a API (se o backend esperar apenas IDs)
-            delete updatedCasePayload.client;
-            delete updatedCasePayload.lawyer;
-            delete updatedCasePayload.plaintiff;
-            delete updatedCasePayload.defendant;
-            delete updatedCasePayload.opposing_lawyer;
-
-            // 4. Atualiza o State Local para persistir a mudança visualmente
-            setPipelineData((prev) => {
-                const newGrouped = { ...prev.grouped };
-                const listContainer = findContainer(active.id); 
-                
-                if (listContainer && newGrouped[listContainer]) {
-                    const items = [...newGrouped[listContainer]];
-                    const itemIndex = items.findIndex(c => String(c.id) === String(active.id));
-                    
-                    if (itemIndex !== -1) {
-                        // Atualiza a propriedade 'status' dentro do objeto para bater com a nova coluna
-                        items[itemIndex] = { ...items[itemIndex], status: overContainer };
-                        newGrouped[listContainer] = items;
-                    }
-                }
-                return { ...prev, grouped: newGrouped };
-            });
-
-            // 5. CHAMA A API PARA SALVAR
-            apiClient.put(`/cases/${movedCase.id}`, updatedCasePayload, {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-            .then(() => {
-                console.log("✅ Salvo com sucesso no Backend!");
-            })
-            .catch(err => {
-                console.error("❌ Erro ao atualizar status:", err);
-                // Se der erro, recarrega os dados para desfazer a mudança visual enganosa
-                fetchAllData(); 
-            });
+            persistCaseStatusChange(movedCase, overContainer).catch(() => {});
         } 
         else {
             // Lógica de Reordenação na MESMA coluna (apenas visual, ou salva posição se tiver endpoint)
@@ -858,6 +921,18 @@ const PipelinePage = () => {
                 onClose={handleCloseIndicationModal}
                 onSuccess={handleCaseIndicated}
             />
+
+            {contraIndicationPrompt && (
+                <ContraIndicationReasonModal
+                    caseNumber={contraIndicationPrompt.legalCase?.case_number}
+                    reason={contraIndicationReason}
+                    onReasonChange={setContraIndicationReason}
+                    error={contraIndicationError}
+                    isSubmitting={isSavingContraIndication}
+                    onCancel={handleCancelContraIndication}
+                    onConfirm={handleConfirmContraIndication}
+                />
+            )}
 
             {isIndicator ? (
                 boardContent

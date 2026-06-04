@@ -80,6 +80,9 @@ class LegalCase extends Model
         'description',
         'status',
         'status_started_at',
+        'contra_indication_reason',
+        'contra_indicated_at',
+        'contra_indicated_by_user_id',
         'priority',
         'original_value',
         'has_alcada',
@@ -110,6 +113,7 @@ class LegalCase extends Model
         'livelo_points' => 'integer',
         'agreement_closed_at' => 'date',
         'status_started_at' => 'datetime',
+        'contra_indicated_at' => 'datetime',
     ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool
@@ -160,6 +164,11 @@ class LegalCase extends Model
     public function indicator()
     {
         return $this->belongsTo(User::class, 'indicator_user_id');
+    }
+
+    public function contraIndicatedBy()
+    {
+        return $this->belongsTo(User::class, 'contra_indicated_by_user_id');
     }
     
     public function opposingLawyer()

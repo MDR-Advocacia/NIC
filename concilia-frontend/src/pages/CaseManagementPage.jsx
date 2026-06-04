@@ -12,6 +12,7 @@ import {
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
 import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
+import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -40,6 +41,7 @@ const PRIORITY_OPTIONS = Object.entries(PRIORITY_DETAILS).map(([value, details])
 
 const MULTI_CASE_NUMBER_MIN_DIGITS = 15;
 const CASE_NUMBER_TOKEN_PATTERN = /^[0-9./-]+$/;
+const CONTRA_INDICATED_STATUS = 'contra_indicated';
 const INITIAL_FILTERS = {
     search: '',
     action_object: '',
@@ -192,6 +194,9 @@ const CaseManagementPage = () => {
     const [selectedCaseIds, setSelectedCaseIds] = useState([]);
     const [batchActionType, setBatchActionType] = useState(null); 
     const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+    const [batchContraIndicationPrompt, setBatchContraIndicationPrompt] = useState(false);
+    const [batchContraIndicationReason, setBatchContraIndicationReason] = useState('');
+    const [batchContraIndicationError, setBatchContraIndicationError] = useState('');
 
     const [filters, setFilters] = useState(INITIAL_FILTERS);
 
@@ -401,34 +406,81 @@ const CaseManagementPage = () => {
         });
     };
 
-    const executeBatchUpdate = async (action, value) => {
+    const executeBatchUpdate = async (action, value, options = {}) => {
         const isUnassignTransfer = action === 'transfer_user' && value === UNASSIGNED_RESPONSIBLE_VALUE;
         if ((!value || value === '') && action !== 'delete' && !isUnassignTransfer) return;
+
+        const isContraIndicationStatus = action === 'update_status' && value === CONTRA_INDICATED_STATUS;
+        const normalizedContraReason = String(options.contraIndicationReason || '').trim();
+
+        if (isContraIndicationStatus && !normalizedContraReason) {
+            setBatchContraIndicationPrompt(true);
+            setBatchContraIndicationReason('');
+            setBatchContraIndicationError('');
+            return;
+        }
 
         const confirmMessage = action === 'delete'
             ? `Tem certeza que deseja excluir ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?\n\nEssa ação não pode ser desfeita e removerá os casos definitivamente.`
             : `Aplicar alteração em ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?`;
 
-        if (!window.confirm(confirmMessage)) return;
+        if (!options.skipConfirm && !window.confirm(confirmMessage)) return;
 
         setIsBatchProcessing(true);
         try {
-            await apiClient.post('/cases/batch-update', {
+            const payload = {
                 case_ids: selectedCaseIds,
                 action: action,
-                value: value
-            }, { headers: { Authorization: `Bearer ${token}` } });
+                value: value,
+            };
+
+            if (isContraIndicationStatus) {
+                payload.contra_indication_reason = normalizedContraReason;
+            }
+
+            await apiClient.post('/cases/batch-update', payload, { headers: { Authorization: `Bearer ${token}` } });
 
             alert('Ação em lote concluída!');
             setSelectedCaseIds([]);
             setBatchActionType(null);
+            setBatchContraIndicationPrompt(false);
+            setBatchContraIndicationReason('');
+            setBatchContraIndicationError('');
             fetchCases(); 
         } catch (err) {
             console.error(err);
-            alert(err?.response?.data?.message || 'Erro ao processar lote.');
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            const message = firstBackendError || err?.response?.data?.message || 'Erro ao processar lote.';
+            if (isContraIndicationStatus) {
+                setBatchContraIndicationError(message);
+            } else {
+                alert(message);
+            }
         } finally {
             setIsBatchProcessing(false);
         }
+    };
+
+    const handleCancelBatchContraIndication = () => {
+        setBatchContraIndicationPrompt(false);
+        setBatchContraIndicationReason('');
+        setBatchContraIndicationError('');
+        setBatchActionType(null);
+    };
+
+    const handleConfirmBatchContraIndication = (event) => {
+        event.preventDefault();
+
+        const normalizedReason = batchContraIndicationReason.trim();
+        if (!normalizedReason) {
+            setBatchContraIndicationError('Informe o motivo da contraindicação.');
+            return;
+        }
+
+        executeBatchUpdate('update_status', CONTRA_INDICATED_STATUS, {
+            contraIndicationReason: normalizedReason,
+            skipConfirm: true,
+        });
     };
 
     const handleDeleteCase = async (legalCase) => {
@@ -918,6 +970,15 @@ const CaseManagementPage = () => {
                                                 </td>
                                                 <td>
                                                     <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
+                                                    {legalCase.status === CONTRA_INDICATED_STATUS && legalCase.contra_indication_reason && (
+                                                        <div
+                                                            className={styles.subText}
+                                                            title={legalCase.contra_indication_reason}
+                                                            style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                        >
+                                                            Motivo: {legalCase.contra_indication_reason}
+                                                        </div>
+                                                    )}
                                                     <PriorityTag priority={legalCase.priority} />
                                                 </td>
                                                 <td>
@@ -1090,6 +1151,18 @@ const CaseManagementPage = () => {
                 onClose={() => setIndicationCase(null)}
                 onSuccess={handleCaseIndicated}
             />
+
+            {batchContraIndicationPrompt && (
+                <ContraIndicationReasonModal
+                    selectedCount={selectedCaseIds.length}
+                    reason={batchContraIndicationReason}
+                    onReasonChange={setBatchContraIndicationReason}
+                    error={batchContraIndicationError}
+                    isSubmitting={isBatchProcessing}
+                    onCancel={handleCancelBatchContraIndication}
+                    onConfirm={handleConfirmBatchContraIndication}
+                />
+            )}
 
             {editingCase && (
                 <EditCaseModal 

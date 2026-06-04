@@ -156,6 +156,30 @@
     gap: 1.5rem;
 }
 
+.contraIndicationNotice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border-radius: 10px;
+    background: var(--danger-soft);
+    border: 1px solid var(--danger-soft-strong);
+    color: var(--danger-text);
+}
+
+.contraIndicationNotice p {
+    margin: 0.35rem 0;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    line-height: 1.55;
+}
+
+.contraIndicationNotice span {
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+}
+
 .infoCard {
     background-color: var(--bg-card);
     padding: 1.5rem;

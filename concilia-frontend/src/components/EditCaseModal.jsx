@@ -85,6 +85,9 @@ const HistoryItem = ({ entry }) => {
         user_id: 'Responsável do caso',
         indicator_user_id: 'Indicador',
         lawyer_id: 'Responsável do caso',
+        contra_indication_reason: 'Motivo da contraindicação',
+        contra_indicated_at: 'Data da contraindicação',
+        contra_indicated_by_user_id: 'Responsável pela contraindicação',
     };
 
     const priorityTranslations = {
@@ -110,7 +113,7 @@ const HistoryItem = ({ entry }) => {
             return `ID ${value}`;
         }
 
-        if (key === 'agreement_closed_at') {
+        if (key === 'agreement_closed_at' || key === 'contra_indicated_at') {
             const parsedDate = new Date(value);
             return Number.isNaN(parsedDate.getTime())
                 ? String(value)
@@ -359,6 +362,24 @@ const DetailsTab = ({
                             ))}
                         </select>
                     </div>
+                    {formData.status === 'contra_indicated' && (
+                        <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+                            <label className={styles.label}>Motivo da contraindicação *</label>
+                            <textarea
+                                className={styles.textarea}
+                                name="contra_indication_reason"
+                                value={formData.contra_indication_reason || ''}
+                                onChange={handleChange}
+                                rows={4}
+                                maxLength={4000}
+                                placeholder="Descreva por que este caso foi contraindicado."
+                                required
+                            />
+                            <span className={styles.inputDescription}>
+                                Este motivo ficará visível no caso enquanto ele estiver contraindicado.
+                            </span>
+                        </div>
+                    )}
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Causa de Pedir</label>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
@@ -1078,8 +1099,15 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 return;
             }
 
+            if (formData.status === 'contra_indicated' && !String(formData.contra_indication_reason || '').trim()) {
+                setError('Informe o motivo da contraindicação.');
+                setIsSubmitting(false);
+                return;
+            }
+
             const payload = {
                 ...formData,
+                contra_indication_reason: String(formData.contra_indication_reason || '').trim(),
                 tags: normalizeCaseTags(formData.tags),
                 action_object: (formData.action_object || '').trim(),
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,

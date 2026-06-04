@@ -277,6 +277,8 @@ const CaseDetailPage = () => {
     // Segurança no Status/Prioridade (evita erro se vier nulo da importação)
     const currentStatus = getLegalCaseStatusDetails(legalCase.status);
     const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority || 'Normal', color: '#CBD5E0', textColor: '#1A202C' };
+    const contraIndicationReason = String(legalCase.contra_indication_reason || '').trim();
+    const contraIndicatedByName = getLawyerName(legalCase.contra_indicated_by);
 
     return (
         <div className={styles.pageContainer}>
@@ -323,6 +325,19 @@ const CaseDetailPage = () => {
                 </div>
             )}
 
+            {legalCase.status === 'contra_indicated' && contraIndicationReason && (
+                <div className={styles.contraIndicationNotice}>
+                    <FaExclamationTriangle size={20} />
+                    <div>
+                        <strong>Motivo da contraindicação</strong>
+                        <p>{contraIndicationReason}</p>
+                        <span>
+                            Registrado por {contraIndicatedByName} em {formatDate(legalCase.contra_indicated_at)}
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {isIndicator && (
                 <div style={{background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', padding: '1rem', borderRadius: '10px', marginBottom: '1.5rem', fontWeight: 600}}>
                     Este detalhe está disponível em modo somente leitura para acompanhamento das suas indicações.
@@ -352,6 +367,9 @@ const CaseDetailPage = () => {
                             <div className={styles.infoItem}><label>Banco</label><p>{legalCase.client?.name || 'Não vinculado'}</p></div>
                             <div className={styles.infoItem}><label>Responsavel pelo Caso</label><p>{getResponsibleName(legalCase)}</p></div>
                             <div className={styles.infoItem}><label>Indicador</label><p>{getIndicatorName(legalCase)}</p></div>
+                            {legalCase.status === 'contra_indicated' && (
+                                <div className={styles.infoItem}><label>Contraindicado por</label><p>{contraIndicatedByName}</p></div>
+                            )}
                             {/* Usa helper formatDate */}
                             <div className={styles.infoItem}><label>Distribuição</label><p>{formatDate(legalCase.start_date)}</p></div>
                             <div className={styles.infoItem}><label>Juizado Especial?</label><p>{legalCase.special_court || 'Não'}</p></div>

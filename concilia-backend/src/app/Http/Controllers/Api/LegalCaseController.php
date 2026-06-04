@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log; 
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 
@@ -228,6 +229,7 @@ class LegalCaseController extends Controller
             'action_object_id' => 'nullable|exists:action_objects,id',
             'description' => 'nullable|string',
             'status' => 'required|string',
+            'contra_indication_reason' => 'nullable|string|max:4000',
             'priority' => 'required|string',
             'original_value' => 'required|numeric',
             'agreement_value' => 'nullable|numeric',
@@ -252,6 +254,8 @@ class LegalCaseController extends Controller
             'updated_condemnation_value' => 'nullable|numeric',
             'agreement_checklist_data' => 'nullable|array',
         ]);
+
+        $validatedData = $this->applyContraIndicationPayload($validatedData);
 
         $case = LegalCase::create($validatedData);
         $this->syncCaseTagCatalog($validatedData['tags'] ?? []);
@@ -332,6 +336,7 @@ class LegalCaseController extends Controller
             'action_object_id' => 'nullable|exists:action_objects,id',
             'description' => 'nullable|string',
             'status' => 'sometimes|required|string',
+            'contra_indication_reason' => 'nullable|string|max:4000',
             'priority' => 'sometimes|required|string',
             'original_value' => 'sometimes|required|numeric',
             'agreement_value' => 'nullable|numeric',
@@ -356,6 +361,8 @@ class LegalCaseController extends Controller
             'updated_condemnation_value' => 'nullable|numeric',
             'agreement_checklist_data' => 'nullable|array',
         ]);
+
+        $validatedData = $this->applyContraIndicationPayload($validatedData, $case);
 
         $originalData = $case->getOriginal();
         $case->update($validatedData);
@@ -1174,12 +1181,14 @@ class LegalCaseController extends Controller
             'case_ids.*' => 'exists:legal_cases,id',
             'action' => 'required|string|in:update_status,update_priority,transfer_user,add_tag,update_opposing_lawyer,delete',
             'value' => 'nullable', 
+            'contra_indication_reason' => 'nullable|string|max:4000',
         ]);
 
         $caseIds = $validated['case_ids'];
         $action = $validated['action'];
         $value = $validated['value'] ?? null;
         $currentUser = Auth::user();
+        $contraIndicationReason = trim((string) ($validated['contra_indication_reason'] ?? ''));
 
         if ($action === 'delete' && !in_array($currentUser?->role, ['administrador', 'admin'], true)) {
             return response()->json(['message' => 'Apenas administradores podem excluir processos em lote.'], 403);
@@ -1197,6 +1206,16 @@ class LegalCaseController extends Controller
             )->validate();
         }
 
+        if (
+            $action === 'update_status'
+            && $value === LegalCase::STATUS_CONTRA_INDICATED
+            && $contraIndicationReason === ''
+        ) {
+            throw ValidationException::withMessages([
+                'contra_indication_reason' => 'Informe o motivo da contraindicação.',
+            ]);
+        }
+
         DB::beginTransaction();
         try {
             $query = LegalCase::whereIn('id', $caseIds);
@@ -1208,26 +1227,55 @@ class LegalCaseController extends Controller
                     $statusStartedAt = Carbon::now();
                     $casesToUpdate = (clone $query)
                         ->where('status', '<>', $value)
-                        ->get(['id', 'case_number', 'status']);
+                        ->get([
+                            'id',
+                            'case_number',
+                            'status',
+                            'contra_indication_reason',
+                            'contra_indicated_at',
+                            'contra_indicated_by_user_id',
+                        ]);
 
                     $changedCaseIds = $casesToUpdate->pluck('id')->all();
                     $count = count($changedCaseIds);
 
                     if ($count > 0) {
-                        LegalCase::whereIn('id', $changedCaseIds)->update([
+                        $statusUpdatePayload = [
                             'status' => $value,
                             'status_started_at' => $statusStartedAt,
                             'updated_at' => $statusStartedAt,
-                        ]);
+                        ];
 
-                        $historyRows = $casesToUpdate->map(function (LegalCase $caseToUpdate) use ($value, $statusStartedAt) {
+                        if ($value === LegalCase::STATUS_CONTRA_INDICATED) {
+                            $statusUpdatePayload['contra_indication_reason'] = $contraIndicationReason;
+                            $statusUpdatePayload['contra_indicated_at'] = $statusStartedAt;
+                            $statusUpdatePayload['contra_indicated_by_user_id'] = Auth::id();
+                        } else {
+                            $statusUpdatePayload['contra_indication_reason'] = null;
+                            $statusUpdatePayload['contra_indicated_at'] = null;
+                            $statusUpdatePayload['contra_indicated_by_user_id'] = null;
+                        }
+
+                        LegalCase::whereIn('id', $changedCaseIds)->update($statusUpdatePayload);
+
+                        $historyRows = $casesToUpdate->map(function (LegalCase $caseToUpdate) use ($value, $statusStartedAt, $contraIndicationReason) {
+                            $oldValues = ['status' => $caseToUpdate->status];
+                            $newValues = ['status' => $value];
+
+                            if ($value === LegalCase::STATUS_CONTRA_INDICATED) {
+                                $newValues['contra_indication_reason'] = $contraIndicationReason;
+                            } elseif ($caseToUpdate->status === LegalCase::STATUS_CONTRA_INDICATED) {
+                                $oldValues['contra_indication_reason'] = $caseToUpdate->contra_indication_reason;
+                                $newValues['contra_indication_reason'] = null;
+                            }
+
                             return [
                                 'legal_case_id' => $caseToUpdate->id,
                                 'user_id' => Auth::id(),
                                 'event_type' => 'update',
                                 'description' => 'Status atualizado em lote.',
-                                'old_values' => json_encode(['status' => $caseToUpdate->status]),
-                                'new_values' => json_encode(['status' => $value]),
+                                'old_values' => json_encode($oldValues),
+                                'new_values' => json_encode($newValues),
                                 'created_at' => $statusStartedAt,
                                 'updated_at' => $statusStartedAt,
                             ];
@@ -1237,6 +1285,9 @@ class LegalCaseController extends Controller
                     }
 
                     $logDetails = "Alterou status de {$count} processos para '{$value}'";
+                    if ($value === LegalCase::STATUS_CONTRA_INDICATED) {
+                        $logDetails .= " com justificativa de contraindicação";
+                    }
                     break;
 
                 case 'update_priority':
@@ -2324,6 +2375,48 @@ class LegalCaseController extends Controller
         return $hasIndicatorUserIdColumn;
     }
 
+    private function applyContraIndicationPayload(array $data, ?LegalCase $case = null): array
+    {
+        $currentStatus = $case?->status;
+        $targetStatus = $data['status'] ?? $currentStatus;
+
+        if ($targetStatus === LegalCase::STATUS_CONTRA_INDICATED) {
+            $reason = trim((string) ($data['contra_indication_reason'] ?? $case?->contra_indication_reason ?? ''));
+
+            if ($reason === '') {
+                throw ValidationException::withMessages([
+                    'contra_indication_reason' => 'Informe o motivo da contraindicação.',
+                ]);
+            }
+
+            $data['contra_indication_reason'] = $reason;
+
+            if ($currentStatus !== LegalCase::STATUS_CONTRA_INDICATED || empty($case?->contra_indicated_at)) {
+                $data['contra_indicated_at'] = now();
+                $data['contra_indicated_by_user_id'] = Auth::id();
+            }
+
+            return $data;
+        }
+
+        if (
+            $targetStatus !== LegalCase::STATUS_CONTRA_INDICATED
+            && (array_key_exists('status', $data) || array_key_exists('contra_indication_reason', $data))
+        ) {
+            $data['contra_indication_reason'] = null;
+        }
+
+        if (
+            array_key_exists('status', $data)
+            && $targetStatus !== LegalCase::STATUS_CONTRA_INDICATED
+        ) {
+            $data['contra_indicated_at'] = null;
+            $data['contra_indicated_by_user_id'] = null;
+        }
+
+        return $data;
+    }
+
     private function caseRelationshipLoads(array $extraRelationships = []): array
     {
         $relationships = [
@@ -2333,6 +2426,7 @@ class LegalCaseController extends Controller
             'plaintiff',
             'defendantRel',
             'actionObject',
+            'contraIndicatedBy',
         ];
 
         if ($this->legalCasesTableHasIndicatorUserId()) {

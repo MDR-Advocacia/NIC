@@ -75,6 +75,7 @@ const CaseCardBody = ({
   const alcadaValue = parseFloat(legalCase.original_value);
   const indicatorName = getIndicatorName(legalCase);
   const caseTags = normalizeCaseTags(legalCase.tags);
+  const contraIndicationReason = String(legalCase.contra_indication_reason || '').trim();
 
   let economyPercentage = null;
   const originalValue = parseFloat(legalCase.original_value);
@@ -139,6 +140,13 @@ const CaseCardBody = ({
           <div className={styles.infoRow}><FaGavel /><span>Responsavel: {getResponsibleName(legalCase)}</span></div>
           {indicatorName && (
             <div className={styles.infoRow}><FaUser /><span>Indicador: {indicatorName}</span></div>
+          )}
+
+          {legalCase.status === 'contra_indicated' && contraIndicationReason && (
+            <div className={styles.contraReason} title={contraIndicationReason}>
+              <FaExclamationTriangle />
+              <span>Motivo: {contraIndicationReason}</span>
+            </div>
           )}
 
           <div className={`${styles.infoRow} ${isDelayed ? styles.textDelayed : ''}`}>
