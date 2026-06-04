@@ -318,8 +318,60 @@
     border-bottom: 1px solid var(--border-color-light);
 }
 
+.modalHeaderInfo {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    padding-right: 3rem;
+}
+
 .modalTitle {
     margin-bottom: 0;
+}
+
+.statusSinceCard {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 250px;
+    max-width: 330px;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--accent-border-soft);
+    border-radius: 8px;
+    background: var(--surface-panel-accent);
+    color: var(--text-primary);
+    box-shadow: var(--card-shadow);
+}
+
+.statusSinceLabel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.statusSinceCard strong {
+    color: var(--text-primary);
+    font-size: 0.98rem;
+    line-height: 1.25;
+}
+
+.statusSinceCard small,
+.statusSinceCard em {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.statusSinceCard em {
+    color: var(--warning-text);
+    font-style: normal;
+    font-weight: 700;
 }
 
 .tabNav {
@@ -917,6 +969,17 @@
 
   .filterBar {
     gap: 1rem;
+  }
+
+  .modalHeaderInfo {
+    flex-direction: column;
+    padding-right: 2.5rem;
+  }
+
+  .statusSinceCard {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
   }
 
   .filterPanel {

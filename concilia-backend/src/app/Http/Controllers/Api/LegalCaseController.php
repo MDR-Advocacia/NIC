@@ -373,6 +373,7 @@ class LegalCaseController extends Controller
         // --- SISTEMA DE HISTÓRICO INTERNO DO CASO (Lógica Original Mantida) ---
         if (!empty($changes)) {
             unset($changes['updated_at']);
+            unset($changes['status_started_at']);
             if (!empty($changes)) {
                 $oldValues = Arr::only($originalData, array_keys($changes));
                 $newValues = $changes;
@@ -1210,8 +1211,37 @@ class LegalCaseController extends Controller
 
             switch ($action) {
                 case 'update_status':
-                    // Assume que o frontend envia o enum correto
-                    $query->update(['status' => $value]);
+                    $statusStartedAt = Carbon::now();
+                    $casesToUpdate = (clone $query)
+                        ->where('status', '<>', $value)
+                        ->get(['id', 'case_number', 'status']);
+
+                    $changedCaseIds = $casesToUpdate->pluck('id')->all();
+                    $count = count($changedCaseIds);
+
+                    if ($count > 0) {
+                        LegalCase::whereIn('id', $changedCaseIds)->update([
+                            'status' => $value,
+                            'status_started_at' => $statusStartedAt,
+                            'updated_at' => $statusStartedAt,
+                        ]);
+
+                        $historyRows = $casesToUpdate->map(function (LegalCase $caseToUpdate) use ($value, $statusStartedAt) {
+                            return [
+                                'legal_case_id' => $caseToUpdate->id,
+                                'user_id' => Auth::id(),
+                                'event_type' => 'update',
+                                'description' => 'Status atualizado em lote.',
+                                'old_values' => json_encode(['status' => $caseToUpdate->status]),
+                                'new_values' => json_encode(['status' => $value]),
+                                'created_at' => $statusStartedAt,
+                                'updated_at' => $statusStartedAt,
+                            ];
+                        })->all();
+
+                        DB::table('case_histories')->insert($historyRows);
+                    }
+
                     $logDetails = "Alterou status de {$count} processos para '{$value}'";
                     break;
 
@@ -1299,6 +1329,7 @@ class LegalCaseController extends Controller
             $caseData['id'],
             $caseData['created_at'],
             $caseData['updated_at'],
+            $caseData['status_started_at'],
             $caseData['deleted_at']
         );
 

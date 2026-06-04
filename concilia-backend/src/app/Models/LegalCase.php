@@ -15,6 +15,14 @@ class LegalCase extends Model
     {
         static::saving(function (self $legalCase) {
             $legalCase->has_alcada = $legalCase->resolveHasAlcadaFromOriginalValue();
+
+            if (!$legalCase->exists && empty($legalCase->status_started_at)) {
+                $legalCase->status_started_at = now();
+            } elseif ($legalCase->exists && $legalCase->isDirty('status')) {
+                $legalCase->status_started_at = now();
+            } elseif (empty($legalCase->status_started_at)) {
+                $legalCase->status_started_at = $legalCase->created_at ?: now();
+            }
         });
     }
 
@@ -71,6 +79,7 @@ class LegalCase extends Model
         'action_object_id',
         'description',
         'status',
+        'status_started_at',
         'priority',
         'original_value',
         'has_alcada',
@@ -100,6 +109,7 @@ class LegalCase extends Model
         'has_alcada' => 'boolean',
         'livelo_points' => 'integer',
         'agreement_closed_at' => 'date',
+        'status_started_at' => 'datetime',
     ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool

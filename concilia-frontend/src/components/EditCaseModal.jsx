@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
-import { FaPencilAlt, FaRegCommentDots, FaTimes, FaExclamationTriangle } from 'react-icons/fa';
+import { FaPencilAlt, FaRegCommentDots, FaTimes, FaExclamationTriangle, FaClock } from 'react-icons/fa';
 import ChatPreview from './ChatPreview';
 import AgreementChecklist from './AgreementChecklist';
 import AddEditOpposingLawyerModal from './AddEditOpposingLawyerModal';
@@ -38,6 +38,39 @@ const IconTag = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none
 const IconTie = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#38b2ac'}}><path d="M6 3L12 21L18 3"/><path d="M6 3H18"/></svg>;
 const IconPlus = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
 const IconSearch = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
+
+const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
+
+const parseDateValue = (value) => {
+    if (!value) return null;
+    const parsedDate = new Date(value);
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const formatStatusSinceDate = (value) => {
+    const parsedDate = parseDateValue(value);
+    if (!parsedDate) return 'Data não registrada';
+
+    return parsedDate.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+const formatStatusDuration = (value) => {
+    const parsedDate = parseDateValue(value);
+    if (!parsedDate) return '';
+
+    const days = Math.floor(Math.max(0, Date.now() - parsedDate.getTime()) / MILLISECONDS_PER_DAY);
+
+    if (days === 0) return 'há menos de 1 dia';
+    if (days === 1) return 'há 1 dia';
+
+    return `há ${days} dias`;
+};
 
 // --- Sub-componente HistoryItem ---
 const HistoryItem = ({ entry }) => {
@@ -1077,12 +1110,30 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
 
     if (!legalCase) return null;
 
+    const persistedStatus = legalCase.status || formData.status;
+    const statusDetails = getLegalCaseStatusDetails(persistedStatus);
+    const statusStartedAt = formData.status_started_at || legalCase.status_started_at || legalCase.created_at;
+    const pendingStatusChange = formData.status && persistedStatus && formData.status !== persistedStatus;
+
     return (
         <>
             <div className={styles.modalOverlay} onClick={onClose}>
                 <div className={`${styles.modalContent} ${styles.large}`} onClick={(e) => e.stopPropagation()}>
                     <div className={styles.modalHeader}>
-                        <h2 className={styles.modalTitle}>Editar Processo #{formData.case_number}</h2>
+                        <div className={styles.modalHeaderInfo}>
+                            <h2 className={styles.modalTitle}>Editar Processo #{formData.case_number}</h2>
+                            <div className={styles.statusSinceCard}>
+                                <span className={styles.statusSinceLabel}>
+                                    <FaClock />
+                                    No status atual desde
+                                </span>
+                                <strong>{formatStatusSinceDate(statusStartedAt)}</strong>
+                                <small>{statusDetails.name} · {formatStatusDuration(statusStartedAt) || 'tempo não calculado'}</small>
+                                {pendingStatusChange && (
+                                    <em>O novo status começa a contar após salvar.</em>
+                                )}
+                            </div>
+                        </div>
                         <button className={styles.closeButton} onClick={onClose}><FaTimes /></button>
                     </div>
 
