@@ -83,6 +83,9 @@ class LegalCase extends Model
         'contra_indication_reason',
         'contra_indicated_at',
         'contra_indicated_by_user_id',
+        'reanalysis_reason',
+        'reanalysis_requested_at',
+        'reanalysis_requested_by_user_id',
         'priority',
         'original_value',
         'has_alcada',
@@ -114,6 +117,7 @@ class LegalCase extends Model
         'agreement_closed_at' => 'date',
         'status_started_at' => 'datetime',
         'contra_indicated_at' => 'datetime',
+        'reanalysis_requested_at' => 'datetime',
     ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool
@@ -169,6 +173,11 @@ class LegalCase extends Model
     public function contraIndicatedBy()
     {
         return $this->belongsTo(User::class, 'contra_indicated_by_user_id');
+    }
+
+    public function reanalysisRequestedBy()
+    {
+        return $this->belongsTo(User::class, 'reanalysis_requested_by_user_id');
     }
     
     public function opposingLawyer()

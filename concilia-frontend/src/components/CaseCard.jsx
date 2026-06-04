@@ -2,7 +2,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
-import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
+import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import { normalizeCaseTags } from '../constants/caseTags';
 import { isTerminalLegalCaseStatus } from '../constants/legalCaseStatus';
 
@@ -69,6 +69,7 @@ const CaseCardBody = ({
   const indicatorName = getIndicatorName(legalCase);
   const caseTags = normalizeCaseTags(legalCase.tags);
   const contraIndicationReason = String(legalCase.contra_indication_reason || '').trim();
+  const reanalysisReason = String(legalCase.reanalysis_reason || '').trim();
 
   let economyPercentage = null;
   const originalValue = parseFloat(legalCase.original_value);
@@ -139,6 +140,13 @@ const CaseCardBody = ({
             <div className={styles.contraReason} title={contraIndicationReason}>
               <FaExclamationTriangle />
               <span>Motivo: {contraIndicationReason}</span>
+            </div>
+          )}
+
+          {reanalysisReason && (
+            <div className={`${styles.contraReason} ${styles.reanalysisReason}`} title={reanalysisReason}>
+              <FaRedo />
+              <span>Reanálise: {reanalysisReason}</span>
             </div>
           )}
 

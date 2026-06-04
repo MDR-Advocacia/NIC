@@ -87,6 +87,9 @@ const HistoryItem = ({ entry }) => {
         contra_indication_reason: 'Motivo da contraindicação',
         contra_indicated_at: 'Data da contraindicação',
         contra_indicated_by_user_id: 'Responsável pela contraindicação',
+        reanalysis_reason: 'Motivo da reanálise',
+        reanalysis_requested_at: 'Data da solicitação de reanálise',
+        reanalysis_requested_by_user_id: 'Responsável pela solicitação de reanálise',
     };
 
     const priorityTranslations = {
@@ -112,7 +115,7 @@ const HistoryItem = ({ entry }) => {
             return `ID ${value}`;
         }
 
-        if (key === 'agreement_closed_at' || key === 'contra_indicated_at') {
+        if (key === 'agreement_closed_at' || key === 'contra_indicated_at' || key === 'reanalysis_requested_at') {
             const parsedDate = new Date(value);
             return Number.isNaN(parsedDate.getTime())
                 ? String(value)

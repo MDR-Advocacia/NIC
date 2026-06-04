@@ -9,6 +9,7 @@ import PipelineColumn from '../components/PipelineColumn';
 import EditCaseModal from '../components/EditCaseModal';
 import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
 import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
+import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import { 
     DndContext, 
     PointerSensor, 
@@ -121,6 +122,10 @@ const PipelinePage = () => {
     const [contraIndicationReason, setContraIndicationReason] = useState('');
     const [contraIndicationError, setContraIndicationError] = useState('');
     const [isSavingContraIndication, setIsSavingContraIndication] = useState(false);
+    const [reanalysisPrompt, setReanalysisPrompt] = useState(null);
+    const [reanalysisReason, setReanalysisReason] = useState('');
+    const [reanalysisError, setReanalysisError] = useState('');
+    const [isSavingReanalysis, setIsSavingReanalysis] = useState(false);
 
     const searchTerm = filters.search.trim();
     const actionObjectFilter = filters.action_object.trim();
@@ -178,29 +183,52 @@ const PipelinePage = () => {
         fetchAllData();
     };
 
-    const handleRequestReanalysis = async (caseToReanalyze) => {
+    const handleOpenReanalysisModal = (caseToReanalyze) => {
         if (!caseToReanalyze?.id || !REANALYSIS_STATUSES.includes(caseToReanalyze.status)) {
             return;
         }
 
-        const caseLabel = caseToReanalyze.case_number || `#${caseToReanalyze.id}`;
-        const confirmed = window.confirm(
-            `Solicitar reanálise do processo ${caseLabel}?\n\nO caso voltará para Análise Inicial e ficará vinculado a você como indicador.`
-        );
+        setReanalysisPrompt(caseToReanalyze);
+        setReanalysisReason('');
+        setReanalysisError('');
+    };
 
-        if (!confirmed) {
+    const handleCancelReanalysis = () => {
+        setReanalysisPrompt(null);
+        setReanalysisReason('');
+        setReanalysisError('');
+        setIsSavingReanalysis(false);
+    };
+
+    const handleConfirmReanalysis = async (event) => {
+        event.preventDefault();
+
+        const normalizedReason = reanalysisReason.trim();
+        if (!normalizedReason) {
+            setReanalysisError('Informe o motivo da reanálise.');
             return;
         }
 
+        if (!reanalysisPrompt?.id) return;
+
+        setIsSavingReanalysis(true);
+        setReanalysisError('');
+
         try {
-            await apiClient.post(`/cases/${caseToReanalyze.id}/request-reanalysis`, {}, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            window.alert('Reanálise solicitada com sucesso.');
+            await apiClient.post(
+                `/cases/${reanalysisPrompt.id}/request-reanalysis`,
+                { reanalysis_reason: normalizedReason },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setReanalysisPrompt(null);
+            setReanalysisReason('');
             fetchAllData();
         } catch (err) {
             console.error('Erro ao solicitar reanálise:', err);
-            window.alert(err.response?.data?.message || 'Não foi possível solicitar a reanálise.');
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setReanalysisError(firstBackendError || err.response?.data?.message || 'Não foi possível solicitar a reanálise.');
+        } finally {
+            setIsSavingReanalysis(false);
         }
     };
 
@@ -434,6 +462,7 @@ const PipelinePage = () => {
         delete updatedCasePayload.lawyer;
         delete updatedCasePayload.indicator;
         delete updatedCasePayload.contra_indicated_by;
+        delete updatedCasePayload.reanalysis_requested_by;
         delete updatedCasePayload.plaintiff;
         delete updatedCasePayload.defendant;
         delete updatedCasePayload.opposing_lawyer;
@@ -688,7 +717,7 @@ const PipelinePage = () => {
                         canIndicateCase={isIndicator}
                         onIndicateCase={handleOpenIndicationModal}
                         canRequestReanalysis={isIndicator}
-                        onRequestReanalysis={handleRequestReanalysis}
+                        onRequestReanalysis={handleOpenReanalysisModal}
                     />
                 ))}
             </div>
@@ -950,6 +979,18 @@ const PipelinePage = () => {
                     isSubmitting={isSavingContraIndication}
                     onCancel={handleCancelContraIndication}
                     onConfirm={handleConfirmContraIndication}
+                />
+            )}
+
+            {reanalysisPrompt && (
+                <ReanalysisReasonModal
+                    caseNumber={reanalysisPrompt.case_number}
+                    reason={reanalysisReason}
+                    onReasonChange={setReanalysisReason}
+                    error={reanalysisError}
+                    isSubmitting={isSavingReanalysis}
+                    onCancel={handleCancelReanalysis}
+                    onConfirm={handleConfirmReanalysis}
                 />
             )}
 

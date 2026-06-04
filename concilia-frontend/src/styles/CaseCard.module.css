@@ -187,6 +187,12 @@
     -webkit-box-orient: vertical;
 }
 
+.reanalysisReason {
+    background: var(--accent-pill-bg);
+    border-color: var(--accent-border-soft);
+    color: var(--accent-pill-text);
+}
+
 .valueRow {
     display: flex;
     align-items: baseline;

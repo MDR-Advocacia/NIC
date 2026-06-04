@@ -628,16 +628,32 @@ class LegalCaseController extends Controller
             ], 422);
         }
 
+        $validatedData = $request->validate([
+            'reanalysis_reason' => 'required|string|max:4000',
+        ]);
+        $reanalysisReason = trim((string) $validatedData['reanalysis_reason']);
+
+        if ($reanalysisReason === '') {
+            throw ValidationException::withMessages([
+                'reanalysis_reason' => 'Informe o motivo da reanálise.',
+            ]);
+        }
+
         $oldStatus = $case->status;
         $supportsIndicatorUserId = $this->legalCasesTableHasIndicatorUserId();
         $previousIndicatorUserId = $supportsIndicatorUserId ? $case->indicator_user_id : null;
         $previousContraIndicationReason = $case->contra_indication_reason;
+        $previousReanalysisReason = $case->reanalysis_reason;
+        $requestedAt = now();
 
         $caseUpdatePayload = [
             'status' => LegalCase::STATUS_INITIAL_ANALYSIS,
             'contra_indication_reason' => null,
             'contra_indicated_at' => null,
             'contra_indicated_by_user_id' => null,
+            'reanalysis_reason' => $reanalysisReason,
+            'reanalysis_requested_at' => $requestedAt,
+            'reanalysis_requested_by_user_id' => $user->id,
         ];
 
         if ($supportsIndicatorUserId) {
@@ -654,11 +670,15 @@ class LegalCaseController extends Controller
                 'status' => $oldStatus,
                 'indicator_user_id' => $previousIndicatorUserId,
                 'contra_indication_reason' => $previousContraIndicationReason,
+                'reanalysis_reason' => $previousReanalysisReason,
             ],
             'new_values' => [
                 'status' => LegalCase::STATUS_INITIAL_ANALYSIS,
                 'indicator_user_id' => $supportsIndicatorUserId ? $user->id : null,
                 'contra_indication_reason' => null,
+                'reanalysis_reason' => $reanalysisReason,
+                'reanalysis_requested_at' => $requestedAt->toIso8601String(),
+                'reanalysis_requested_by_user_id' => $user->id,
             ],
         ]);
 
@@ -667,7 +687,7 @@ class LegalCaseController extends Controller
                 'user_id' => auth()->id(),
                 'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
                 'action' => 'Solicitação de Reanálise',
-                'details' => "Solicitou reanálise do caso #{$case->case_number} e vinculou o indicador {$user->name}",
+                'details' => "Solicitou reanálise do caso #{$case->case_number} e vinculou o indicador {$user->name}. Motivo: {$reanalysisReason}",
                 'ip_address' => $request->ip(),
             ]);
         } catch (\Exception $e) {
@@ -2495,6 +2515,7 @@ class LegalCaseController extends Controller
             'defendantRel',
             'actionObject',
             'contraIndicatedBy',
+            'reanalysisRequestedBy',
         ];
 
         if ($this->legalCasesTableHasIndicatorUserId()) {

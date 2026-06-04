@@ -13,6 +13,7 @@ import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
 import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
 import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
+import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -176,6 +177,10 @@ const CaseManagementPage = () => {
     const [searchFeedback, setSearchFeedback] = useState(null);
     const [editingCase, setEditingCase] = useState(null);
     const [indicationCase, setIndicationCase] = useState(null);
+    const [reanalysisPrompt, setReanalysisPrompt] = useState(null);
+    const [reanalysisReason, setReanalysisReason] = useState('');
+    const [reanalysisError, setReanalysisError] = useState('');
+    const [isSavingReanalysis, setIsSavingReanalysis] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
     // --- PAGINAÇÃO (ESTADOS) ---
@@ -504,29 +509,52 @@ const CaseManagementPage = () => {
         fetchCases();
     };
 
-    const handleRequestReanalysis = async (legalCase) => {
+    const handleOpenReanalysisModal = (legalCase) => {
         if (!legalCase?.id || !REANALYSIS_STATUSES.includes(legalCase.status)) {
             return;
         }
 
-        const caseLabel = legalCase.case_number || `#${legalCase.id}`;
-        const confirmed = window.confirm(
-            `Solicitar reanálise do processo ${caseLabel}?\n\nO caso voltará para Análise Inicial e ficará vinculado a você como indicador.`
-        );
+        setReanalysisPrompt(legalCase);
+        setReanalysisReason('');
+        setReanalysisError('');
+    };
 
-        if (!confirmed) {
+    const handleCancelReanalysis = () => {
+        setReanalysisPrompt(null);
+        setReanalysisReason('');
+        setReanalysisError('');
+        setIsSavingReanalysis(false);
+    };
+
+    const handleConfirmReanalysis = async (event) => {
+        event.preventDefault();
+
+        const normalizedReason = reanalysisReason.trim();
+        if (!normalizedReason) {
+            setReanalysisError('Informe o motivo da reanálise.');
             return;
         }
 
+        if (!reanalysisPrompt?.id) return;
+
+        setIsSavingReanalysis(true);
+        setReanalysisError('');
+
         try {
-            await apiClient.post(`/cases/${legalCase.id}/request-reanalysis`, {}, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            window.alert('Reanálise solicitada com sucesso.');
+            await apiClient.post(
+                `/cases/${reanalysisPrompt.id}/request-reanalysis`,
+                { reanalysis_reason: normalizedReason },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setReanalysisPrompt(null);
+            setReanalysisReason('');
             fetchCases();
         } catch (err) {
             console.error('Erro ao solicitar reanálise:', err);
-            window.alert(err.response?.data?.message || 'Não foi possível solicitar a reanálise.');
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setReanalysisError(firstBackendError || err.response?.data?.message || 'Não foi possível solicitar a reanálise.');
+        } finally {
+            setIsSavingReanalysis(false);
         }
     };
 
@@ -1006,6 +1034,15 @@ const CaseManagementPage = () => {
                                                             Motivo: {legalCase.contra_indication_reason}
                                                         </div>
                                                     )}
+                                                    {legalCase.reanalysis_reason && (
+                                                        <div
+                                                            className={styles.subText}
+                                                            title={legalCase.reanalysis_reason}
+                                                            style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                        >
+                                                            Reanálise: {legalCase.reanalysis_reason}
+                                                        </div>
+                                                    )}
                                                     <PriorityTag priority={legalCase.priority} />
                                                 </td>
                                                 <td>
@@ -1032,7 +1069,7 @@ const CaseManagementPage = () => {
                                                         {isIndicator && REANALYSIS_STATUSES.includes(legalCase.status) && (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => handleRequestReanalysis(legalCase)}
+                                                                onClick={() => handleOpenReanalysisModal(legalCase)}
                                                                 className={`${styles.indicateButton} ${styles.reanalysisButton}`}
                                                             >
                                                                 Solicitar reanálise
@@ -1197,6 +1234,18 @@ const CaseManagementPage = () => {
                     isSubmitting={isBatchProcessing}
                     onCancel={handleCancelBatchContraIndication}
                     onConfirm={handleConfirmBatchContraIndication}
+                />
+            )}
+
+            {reanalysisPrompt && (
+                <ReanalysisReasonModal
+                    caseNumber={reanalysisPrompt.case_number}
+                    reason={reanalysisReason}
+                    onReasonChange={setReanalysisReason}
+                    error={reanalysisError}
+                    isSubmitting={isSavingReanalysis}
+                    onCancel={handleCancelReanalysis}
+                    onConfirm={handleConfirmReanalysis}
                 />
             )}
 

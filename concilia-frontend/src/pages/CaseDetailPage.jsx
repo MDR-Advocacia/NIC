@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import styles from '../styles/CaseDetail.module.css';
 import DetailKpiCard from '../components/DetailKpiCard';
-import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, FaMapMarkerAlt, FaGavel, FaUserTie } from 'react-icons/fa'; 
+import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, FaMapMarkerAlt, FaGavel, FaUserTie, FaRedo } from 'react-icons/fa';
 import { ImSpinner2 } from 'react-icons/im';
 import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
@@ -279,6 +279,8 @@ const CaseDetailPage = () => {
     const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority || 'Normal', color: '#CBD5E0', textColor: '#1A202C' };
     const contraIndicationReason = String(legalCase.contra_indication_reason || '').trim();
     const contraIndicatedByName = getLawyerName(legalCase.contra_indicated_by);
+    const reanalysisReason = String(legalCase.reanalysis_reason || '').trim();
+    const reanalysisRequestedByName = getLawyerName(legalCase.reanalysis_requested_by);
 
     return (
         <div className={styles.pageContainer}>
@@ -333,6 +335,19 @@ const CaseDetailPage = () => {
                         <p>{contraIndicationReason}</p>
                         <span>
                             Registrado por {contraIndicatedByName} em {formatDate(legalCase.contra_indicated_at)}
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {reanalysisReason && (
+                <div className={styles.contraIndicationNotice}>
+                    <FaRedo size={20} />
+                    <div>
+                        <strong>Motivo da reanálise</strong>
+                        <p>{reanalysisReason}</p>
+                        <span>
+                            Solicitado por {reanalysisRequestedByName} em {formatDate(legalCase.reanalysis_requested_at)}
                         </span>
                     </div>
                 </div>
