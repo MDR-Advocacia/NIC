@@ -453,33 +453,31 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
-        <div className={styles.header}>
-          <div className={styles.headerContent}>
-            <p className={styles.eyebrow}>INDICAÇÃO DE CASO</p>
-            <h2 className={styles.title}>Indicar caso para acordo</h2>
-            <p className={styles.subtitle}>
-              Processo {caseTitle}. O checklist abaixo é obrigatório para concluir a análise.
-            </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className={styles.closeButton}
+          aria-label="Fechar modal"
+        >
+          <FaTimes />
+        </button>
 
-            <div className={styles.headerHighlights}>
-              {headerHighlights.map((item) => (
-                <div key={item.label} className={styles.headerHighlightCard}>
-                  <span className={styles.headerHighlightLabel}>{item.label}</span>
-                  <strong className={styles.headerHighlightValue}>{item.value}</strong>
-                </div>
-              ))}
-            </div>
+        <aside className={styles.sidebar}>
+          <p className={styles.eyebrow}>INDICAÇÃO DE CASO</p>
+          <h2 className={styles.title}>Indicar caso para acordo</h2>
+          <p className={styles.subtitle}>
+            Processo {caseTitle}
+          </p>
+
+          <div className={styles.headerHighlights}>
+            {headerHighlights.map((item) => (
+              <div key={item.label} className={styles.headerHighlightCard}>
+                <span className={styles.headerHighlightLabel}>{item.label}</span>
+                <strong className={styles.headerHighlightValue}>{item.value}</strong>
+              </div>
+            ))}
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className={styles.closeButton}
-            aria-label="Fechar modal"
-          >
-            <FaTimes />
-          </button>
-        </div>
+        </aside>
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.grid}>
