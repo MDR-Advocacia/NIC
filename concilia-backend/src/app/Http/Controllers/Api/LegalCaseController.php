@@ -1722,7 +1722,10 @@ class LegalCaseController extends Controller
                 continue;
             }
 
-            $matchedUser = User::query()->find((int) $candidateId);
+            $matchedUser = User::query()
+                ->where('role', 'operador')
+                ->where('status', 'ativo')
+                ->find((int) $candidateId);
             if ($matchedUser) {
                 return $matchedUser;
             }
@@ -1752,6 +1755,7 @@ class LegalCaseController extends Controller
 
         $directMatch = User::query()
             ->where('status', 'ativo')
+            ->where('role', 'operador')
             ->where('name', 'LIKE', '%' . $trimmedCandidate . '%')
             ->orderBy('id')
             ->first();
@@ -1801,8 +1805,9 @@ class LegalCaseController extends Controller
 
         $users = User::query()
             ->where('status', 'ativo')
+            ->where('role', 'operador')
             ->orderBy('id')
-            ->get(['id', 'name', 'status']);
+            ->get(['id', 'name', 'status', 'role']);
 
         $tokenFrequency = [];
         foreach ($users as $user) {

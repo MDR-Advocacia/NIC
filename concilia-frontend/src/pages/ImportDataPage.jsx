@@ -332,7 +332,7 @@ const mapWeeklyBankSpreadsheetRow = (headers, row) => {
   return compactMappedRow({
     case_number: pickFirstFilledValue(rowByHeader.TX_NR_IVT, rowByHeader['Número do Processo']),
     internal_number: pickFirstFilledValue(rowByHeader.NR_PRC1, rowByHeader.NPJ),
-    lawyer_name: rowByHeader.NM_RZSC_CLI,
+    opposing_party: rowByHeader.NM_RZSC_CLI,
     action_object: actionObject,
     opposing_lawyer: rowByHeader.Advogado_Adverso,
     comarca: rowByHeader.Comarca,

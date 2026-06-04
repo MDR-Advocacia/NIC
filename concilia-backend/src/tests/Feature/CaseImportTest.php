@@ -77,4 +77,56 @@ class CaseImportTest extends TestCase
         $this->assertSame('Descricao correta', $legalCase->description);
         $this->assertSame($operator->id, $legalCase->user_id);
     }
+
+    public function test_import_does_not_assign_indicator_as_responsible(): void
+    {
+        $manager = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $indicator = User::factory()->create([
+            'name' => 'Marcos da Silva Andrade Junior',
+            'role' => 'indicador',
+            'status' => 'ativo',
+        ]);
+
+        $client = Client::create([
+            'name' => 'Cliente Importacao',
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        $this->postJson('/api/cases/import', [
+            'client_id' => $client->id,
+            'cases' => [[
+                'case_number' => '0900000-00.2026.8.06.0001',
+                'original_value' => '2500',
+                'cause_value' => '2500',
+                'opposing_party' => 'Autor Importado',
+                'defendant' => 'Reu Importado',
+                'lawyer_name' => $indicator->name,
+            ], [
+                'case_number' => '0900001-00.2026.8.06.0001',
+                'original_value' => '2500',
+                'cause_value' => '2500',
+                'opposing_party' => 'Autor Importado Dois',
+                'defendant' => 'Reu Importado Dois',
+                'user_id' => $indicator->id,
+            ]],
+        ])->assertCreated()
+            ->assertJsonPath('success_count', 2)
+            ->assertJsonPath('created_count', 2)
+            ->assertJsonPath('updated_count', 0);
+
+        $this->assertDatabaseHas('legal_cases', [
+            'case_number' => '0900000-00.2026.8.06.0001',
+            'user_id' => null,
+        ]);
+
+        $this->assertDatabaseHas('legal_cases', [
+            'case_number' => '0900001-00.2026.8.06.0001',
+            'user_id' => null,
+        ]);
+    }
 }
