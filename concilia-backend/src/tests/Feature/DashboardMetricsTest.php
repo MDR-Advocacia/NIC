@@ -316,6 +316,91 @@ class DashboardMetricsTest extends TestCase
             ->assertJsonPath('team_performance.1.total_cases', 0);
     }
 
+    public function test_dashboard_global_period_and_indicator_filter_apply_to_dashboard_metrics(): void
+    {
+        $manager = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $operator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        $targetIndicator = User::factory()->create([
+            'name' => 'Indicador Alvo',
+            'role' => 'indicador',
+            'status' => 'ativo',
+        ]);
+
+        $otherIndicator = User::factory()->create([
+            'name' => 'Indicador Outro',
+            'role' => 'indicador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, 'GLOBAL-INDICATOR-IN', [
+            'original_value' => 3000,
+            'agreement_value' => 1800,
+            'created_at' => Carbon::parse('2026-03-10 09:00:00'),
+            'agreement_closed_at' => '2026-03-15',
+            'indicator_user_id' => $targetIndicator->id,
+            'agreement_checklist_data' => [
+                'indication_checklist' => [
+                    'completed_at' => '2026-03-10T10:00:00-03:00',
+                ],
+            ],
+        ]);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, 'GLOBAL-INDICATOR-OTHER', [
+            'original_value' => 4000,
+            'agreement_value' => 2400,
+            'created_at' => Carbon::parse('2026-03-11 09:00:00'),
+            'agreement_closed_at' => '2026-03-16',
+            'indicator_user_id' => $otherIndicator->id,
+            'agreement_checklist_data' => [
+                'indication_checklist' => [
+                    'completed_at' => '2026-03-11T10:00:00-03:00',
+                ],
+            ],
+        ]);
+
+        $this->createLegalCase($operator, LegalCase::STATUS_CLOSED_DEAL, 'GLOBAL-INDICATOR-OUT', [
+            'original_value' => 5000,
+            'agreement_value' => 3000,
+            'created_at' => Carbon::parse('2026-02-10 09:00:00'),
+            'agreement_closed_at' => '2026-02-15',
+            'indicator_user_id' => $targetIndicator->id,
+            'agreement_checklist_data' => [
+                'indication_checklist' => [
+                    'completed_at' => '2026-02-10T10:00:00-03:00',
+                ],
+            ],
+        ]);
+
+        $response = $this->getJson(
+            '/api/dashboard?start_date=2026-03-01&end_date=2026-03-31'
+            . '&indicator_user_ids[]=' . $targetIndicator->id
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('kpis.total_cases', 1)
+            ->assertJsonPath('kpis.total_agreement_value', 1800.0)
+            ->assertJsonPath('indication_metrics.indications_received', 1)
+            ->assertJsonPath('indicator_leaderboard.0.name', 'Indicador Alvo')
+            ->assertJsonPath('indicator_leaderboard.0.closed_deals', 1)
+            ->assertJsonPath('team_performance_period.start_date', '2026-03-01')
+            ->assertJsonPath('team_performance_period.end_date', '2026-03-31')
+            ->assertJsonPath('team_performance.0.total_cases', 1)
+            ->assertJsonPath('view_metrics.general.filtered.summary.agreements_count', 1)
+            ->assertJsonPath('view_metrics.by_indicator.filtered.summary.participants_count', 1)
+            ->assertJsonPath('view_metrics.by_indicator.filtered.items.0.name', 'Indicador Alvo');
+    }
+
     public function test_dashboard_recent_cases_follow_recent_alcada_events_with_pagination(): void
     {
         $manager = User::factory()->create([

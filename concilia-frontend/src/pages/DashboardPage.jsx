@@ -25,6 +25,7 @@ import {
     FaCalendarAlt,
     FaBuilding,
     FaUserTie,
+    FaUserTag,
     FaFlag,
     FaSearch,
     FaEraser,
@@ -53,15 +54,9 @@ const INDICATION_KPI_ORDER = [
 ];
 
 const METRIC_VIEW_OPTIONS = [
-    { key: 'general', label: 'Visão geral' },
-    { key: 'by_responsible', label: 'Por Responsável' },
-    { key: 'by_indicator', label: 'Por Indicador' },
-];
-
-const METRIC_PERIOD_OPTIONS = [
-    { key: 'day', label: 'Dia' },
-    { key: 'week', label: 'Semana' },
-    { key: 'month', label: 'Mês' },
+    { key: 'general', label: 'Geral' },
+    { key: 'by_responsible', label: 'Responsáveis' },
+    { key: 'by_indicator', label: 'Indicadores' },
 ];
 
 const GENERAL_PERIOD_METRIC_CARDS = [
@@ -116,18 +111,16 @@ const DashboardPage = () => {
     const [recentCasesPerPage, setRecentCasesPerPage] = useState(20);
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
+    const [indicators, setIndicators] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     // Filtros
-    const [portfolioStartDate, setPortfolioStartDate] = useState('');
-    const [portfolioEndDate, setPortfolioEndDate] = useState('');
-    const [closingStartDate, setClosingStartDate] = useState('');
-    const [closingEndDate, setClosingEndDate] = useState('');
-    const [teamStartDate, setTeamStartDate] = useState('');
-    const [teamEndDate, setTeamEndDate] = useState('');
+    const [dashboardStartDate, setDashboardStartDate] = useState('');
+    const [dashboardEndDate, setDashboardEndDate] = useState('');
     const [selectedClient, setSelectedClient] = useState('');
     const [selectedLawyerIds, setSelectedLawyerIds] = useState([]);
+    const [selectedIndicatorIds, setSelectedIndicatorIds] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState('');
 
     // Modais
@@ -138,14 +131,17 @@ const DashboardPage = () => {
     const [modalStatusKey, setModalStatusKey] = useState(null);
     const [modalStatusName, setModalStatusName] = useState('');
     const [selectedMetricsView, setSelectedMetricsView] = useState('general');
-    const [selectedMetricsPeriod, setSelectedMetricsPeriod] = useState('day');
+    const selectedMetricsPeriod = 'filtered';
 
     const activeFilterValues = [
-        portfolioStartDate,
-        portfolioEndDate,
-        closingStartDate,
-        closingEndDate,
-        ...(isManager ? [teamStartDate, teamEndDate, selectedClient, selectedLawyerIds.length > 0 ? 'responsible' : '', selectedStatus] : []),
+        dashboardStartDate,
+        dashboardEndDate,
+        ...(isManager ? [
+            selectedClient,
+            selectedLawyerIds.length > 0 ? 'responsible' : '',
+            selectedIndicatorIds.length > 0 ? 'indicator' : '',
+            selectedStatus,
+        ] : []),
     ];
 
     const activeFilterCount = activeFilterValues
@@ -202,8 +198,22 @@ const DashboardPage = () => {
 
         return `${selectedLawyerNames.slice(0, 2).join(' + ')} + ${selectedLawyerNames.length - 2}`;
     })();
+    const selectedIndicatorNames = selectedIndicatorIds
+        .map((indicatorId) => indicators.find((indicator) => String(indicator.id) === String(indicatorId))?.name)
+        .filter(Boolean);
+    const selectedIndicatorFilterLabel = (() => {
+        if (selectedIndicatorNames.length === 0) {
+            return null;
+        }
+
+        if (selectedIndicatorNames.length <= 2) {
+            return selectedIndicatorNames.join(' + ');
+        }
+
+        return `${selectedIndicatorNames.slice(0, 2).join(' + ')} + ${selectedIndicatorNames.length - 2}`;
+    })();
     const selectedStatusName = LEGAL_CASE_STATUS_OPTIONS.find((statusOption) => statusOption.value === selectedStatus)?.name;
-    const hasClosingDateFilter = Boolean(closingStartDate || closingEndDate);
+    const hasDashboardDateFilter = Boolean(dashboardStartDate || dashboardEndDate);
     const metricsViewTitles = {
         general: 'Leitura rápida do período',
         by_responsible: 'Desempenho por responsável',
@@ -216,20 +226,18 @@ const DashboardPage = () => {
     };
 
     const activeFilterChips = [
-        buildDateRangeChip('Carteira', portfolioStartDate, portfolioEndDate),
-        buildDateRangeChip('Fechamento', closingStartDate, closingEndDate),
-        ...(isManager ? [buildDateRangeChip('Performance', teamStartDate, teamEndDate)] : []),
+        buildDateRangeChip('Período', dashboardStartDate, dashboardEndDate),
         ...(isManager
             ? [
                 selectedClientName ? `Cliente: ${selectedClientName}` : null,
                 selectedLawyerFilterLabel ? `Responsáveis: ${selectedLawyerFilterLabel}` : null,
+                selectedIndicatorFilterLabel ? `Indicadores: ${selectedIndicatorFilterLabel}` : null,
                 selectedStatusName ? `Status: ${selectedStatusName}` : null,
             ]
             : []),
     ].filter(Boolean);
 
-    const teamPerformanceRangeLabel = buildDateRangeChip('Período', teamStartDate, teamEndDate)
-        || buildDateRangeChip('Período', portfolioStartDate, portfolioEndDate)
+    const teamPerformanceRangeLabel = buildDateRangeChip('Período', dashboardStartDate, dashboardEndDate)
         || 'Período: todo o histórico';
 
     const handleOpenDetailModal = (lawyer) => {
@@ -241,33 +249,34 @@ const DashboardPage = () => {
         if (!token || !isManager) {
             setClients([]);
             setLawyers([]);
+            setIndicators([]);
             return;
         }
 
         try {
-            const [clientsResponse, lawyersResponse] = await Promise.all([
+            const [clientsResponse, lawyersResponse, indicatorsResponse] = await Promise.all([
                 apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
                 apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
+                apiClient.get('/users/indicators', { headers: { Authorization: `Bearer ${token}` } }),
             ]);
 
             setClients(clientsResponse.data);
             setLawyers(Array.isArray(lawyersResponse.data) ? lawyersResponse.data : []);
+            setIndicators(Array.isArray(indicatorsResponse.data) ? indicatorsResponse.data : []);
         } catch (err) {
             console.error('Erro ao carregar opções de filtro:', err);
             setClients([]);
             setLawyers([]);
+            setIndicators([]);
         }
     }, [token, isManager]);
 
     const fetchDashboardData = useCallback(async ({
-        portfolioStartDate: filterPortfolioStartDate = '',
-        portfolioEndDate: filterPortfolioEndDate = '',
-        closingStartDate: filterClosingStartDate = '',
-        closingEndDate: filterClosingEndDate = '',
-        teamStartDate: filterTeamStartDate = '',
-        teamEndDate: filterTeamEndDate = '',
+        dashboardStartDate: filterDashboardStartDate = '',
+        dashboardEndDate: filterDashboardEndDate = '',
         selectedClient: filterClient = '',
         selectedLawyerIds: filterLawyerIds = [],
+        selectedIndicatorIds: filterIndicatorIds = [],
         selectedStatus: filterStatus = '',
         recentCasesPage: filterRecentCasesPage = 1,
         recentCasesPerPage: filterRecentCasesPerPage = 20,
@@ -279,17 +288,16 @@ const DashboardPage = () => {
 
         try {
             const params = new URLSearchParams();
-            if (filterPortfolioStartDate) params.append('portfolio_start_date', filterPortfolioStartDate);
-            if (filterPortfolioEndDate) params.append('portfolio_end_date', filterPortfolioEndDate);
-            if (filterClosingStartDate) params.append('closing_start_date', filterClosingStartDate);
-            if (filterClosingEndDate) params.append('closing_end_date', filterClosingEndDate);
-            if (filterTeamStartDate) params.append('team_start_date', filterTeamStartDate);
-            if (filterTeamEndDate) params.append('team_end_date', filterTeamEndDate);
+            if (filterDashboardStartDate) params.append('start_date', filterDashboardStartDate);
+            if (filterDashboardEndDate) params.append('end_date', filterDashboardEndDate);
 
             if (isManager) {
                 if (filterClient) params.append('client_id', filterClient);
                 (Array.isArray(filterLawyerIds) ? filterLawyerIds : []).forEach((lawyerId) => {
                     if (lawyerId) params.append('lawyer_ids[]', lawyerId);
+                });
+                (Array.isArray(filterIndicatorIds) ? filterIndicatorIds : []).forEach((indicatorId) => {
+                    if (indicatorId) params.append('indicator_user_ids[]', indicatorId);
                 });
             }
 
@@ -337,41 +345,32 @@ const DashboardPage = () => {
     const handleApplyFilters = useCallback(() => {
         setRecentCasesPage(1);
         fetchDashboardData({
-            portfolioStartDate,
-            portfolioEndDate,
-            closingStartDate,
-            closingEndDate,
-            teamStartDate,
-            teamEndDate,
+            dashboardStartDate,
+            dashboardEndDate,
             selectedClient,
             selectedLawyerIds,
+            selectedIndicatorIds,
             selectedStatus,
             recentCasesPage: 1,
             recentCasesPerPage,
         });
     }, [
         fetchDashboardData,
-        portfolioStartDate,
-        portfolioEndDate,
-        closingStartDate,
-        closingEndDate,
-        teamStartDate,
-        teamEndDate,
+        dashboardStartDate,
+        dashboardEndDate,
         selectedClient,
         selectedLawyerIds,
+        selectedIndicatorIds,
         selectedStatus,
         recentCasesPerPage,
     ]);
 
     const handleResetFilters = useCallback(() => {
-        setPortfolioStartDate('');
-        setPortfolioEndDate('');
-        setClosingStartDate('');
-        setClosingEndDate('');
-        setTeamStartDate('');
-        setTeamEndDate('');
+        setDashboardStartDate('');
+        setDashboardEndDate('');
         setSelectedClient('');
         setSelectedLawyerIds([]);
+        setSelectedIndicatorIds([]);
         setSelectedStatus('');
         setRecentCasesPage(1);
         fetchDashboardData({
@@ -388,14 +387,11 @@ const DashboardPage = () => {
         setRecentCasesPerPage(nextPerPage);
         setRecentCasesPage(1);
         fetchDashboardData({
-            portfolioStartDate,
-            portfolioEndDate,
-            closingStartDate,
-            closingEndDate,
-            teamStartDate,
-            teamEndDate,
+            dashboardStartDate,
+            dashboardEndDate,
             selectedClient,
             selectedLawyerIds,
+            selectedIndicatorIds,
             selectedStatus,
             recentCasesPage: 1,
             recentCasesPerPage: nextPerPage,
@@ -403,14 +399,11 @@ const DashboardPage = () => {
     }, [
         fetchDashboardData,
         recentCasesPerPage,
-        portfolioStartDate,
-        portfolioEndDate,
-        closingStartDate,
-        closingEndDate,
-        teamStartDate,
-        teamEndDate,
+        dashboardStartDate,
+        dashboardEndDate,
         selectedClient,
         selectedLawyerIds,
+        selectedIndicatorIds,
         selectedStatus,
     ]);
 
@@ -421,14 +414,11 @@ const DashboardPage = () => {
 
         setRecentCasesPage(nextPage);
         fetchDashboardData({
-            portfolioStartDate,
-            portfolioEndDate,
-            closingStartDate,
-            closingEndDate,
-            teamStartDate,
-            teamEndDate,
+            dashboardStartDate,
+            dashboardEndDate,
             selectedClient,
             selectedLawyerIds,
+            selectedIndicatorIds,
             selectedStatus,
             recentCasesPage: nextPage,
             recentCasesPerPage,
@@ -438,14 +428,11 @@ const DashboardPage = () => {
         recentCasesMeta.lastPage,
         recentCasesPage,
         recentCasesPerPage,
-        portfolioStartDate,
-        portfolioEndDate,
-        closingStartDate,
-        closingEndDate,
-        teamStartDate,
-        teamEndDate,
+        dashboardStartDate,
+        dashboardEndDate,
         selectedClient,
         selectedLawyerIds,
+        selectedIndicatorIds,
         selectedStatus,
     ]);
 
@@ -454,18 +441,12 @@ const DashboardPage = () => {
             if (isManager) {
                 Promise.all([
                     loadFilterOptions(),
-                    fetchDashboardData({
-                        recentCasesPage,
-                        recentCasesPerPage,
-                    }),
+                    fetchDashboardData({}),
                 ]);
                 return;
             }
 
-            fetchDashboardData({
-                recentCasesPage,
-                recentCasesPerPage,
-            });
+            fetchDashboardData({});
         }
     }, [token, isManager, loadFilterOptions, fetchDashboardData]);
 
@@ -522,7 +503,7 @@ const DashboardPage = () => {
         total_economy: "Economia gerada",
         total_cases: "Casos Totais",
         active_cases: "Casos Ativos",
-        closed_deals_today: hasClosingDateFilter ? "Acordos Fechados no Período" : "Acordos Fechados Hoje",
+        closed_deals_today: hasDashboardDateFilter ? "Acordos Fechados no Período" : "Acordos Fechados Hoje",
         average_ticket: "Ticket Médio",
         livelo_closed_deals: "Acordos Livelo",
         ourocap_closed_deals: "Acordos Ourocap",
@@ -537,7 +518,7 @@ const DashboardPage = () => {
         const endDate = metricData?.period?.end_date;
 
         if (!startDate && !endDate) {
-            return 'Sem período definido';
+            return 'Todo o histórico';
         }
 
         if (startDate && endDate) {
@@ -716,8 +697,8 @@ const DashboardPage = () => {
                                 <h2 className={styles.filtersTitle}>Filtros do Dashboard</h2>
                                 <p className={styles.filtersSubtitle}>
                                     {isManager
-                                        ? 'Separe a leitura entre carteira em andamento e acordos já fechados, mantendo cliente, responsável e status no mesmo painel.'
-                                        : 'Filtre seus resultados pelos períodos de carteira e fechamento para acompanhar suas métricas no dashboard.'}
+                                        ? 'Use um único período para todos os dashboards e refine por cliente, responsáveis, indicadores e status.'
+                                        : 'Use um único período para acompanhar todos os seus indicadores no dashboard.'}
                                 </p>
                             </div>
                         </div>
@@ -731,10 +712,10 @@ const DashboardPage = () => {
                     <div className={styles.filterGroups}>
                         <section className={styles.filterGroupCard}>
                             <div className={styles.filterGroupHeader}>
-                                <span className={styles.filterGroupEyebrow}>Carteira</span>
-                                <h3 className={styles.filterGroupTitle}>Período da carteira</h3>
+                                <span className={styles.filterGroupEyebrow}>Período</span>
+                                <h3 className={styles.filterGroupTitle}>Período do dashboard</h3>
                                 <p className={styles.filterGroupSubtitle}>
-                                    Afeta totais, status, fluxo de indicação e casos recentes na alçada.
+                                    Afeta a visão geral, responsáveis, indicadores, performance da equipe, acordos fechados e casos recentes.
                                 </p>
                             </div>
 
@@ -742,108 +723,30 @@ const DashboardPage = () => {
                                 <div className={styles.filterField}>
                                     <label className={styles.filterLabel}>
                                         <FaCalendarAlt />
-                                        <span>Data inicial da carteira</span>
+                                        <span>Data inicial</span>
                                     </label>
                                     <input
                                         className={styles.filterControl}
                                         type="date"
-                                        value={portfolioStartDate}
-                                        onChange={(e) => setPortfolioStartDate(e.target.value)}
+                                        value={dashboardStartDate}
+                                        onChange={(e) => setDashboardStartDate(e.target.value)}
                                     />
                                 </div>
 
                                 <div className={styles.filterField}>
                                     <label className={styles.filterLabel}>
                                         <FaCalendarAlt />
-                                        <span>Data final da carteira</span>
+                                        <span>Data final</span>
                                     </label>
                                     <input
                                         className={styles.filterControl}
                                         type="date"
-                                        value={portfolioEndDate}
-                                        onChange={(e) => setPortfolioEndDate(e.target.value)}
+                                        value={dashboardEndDate}
+                                        onChange={(e) => setDashboardEndDate(e.target.value)}
                                     />
                                 </div>
                             </div>
                         </section>
-
-                        <section className={styles.filterGroupCard}>
-                            <div className={styles.filterGroupHeader}>
-                                <span className={styles.filterGroupEyebrow}>Fechamento</span>
-                                <h3 className={styles.filterGroupTitle}>Período de fechamento</h3>
-                                <p className={styles.filterGroupSubtitle}>
-                                    Usa a data real do fechamento do acordo para valores, economia, ticket e visões de acordos fechados.
-                                </p>
-                            </div>
-
-                            <div className={styles.filtersGrid}>
-                                <div className={styles.filterField}>
-                                    <label className={styles.filterLabel}>
-                                        <FaCalendarAlt />
-                                        <span>Data inicial do fechamento</span>
-                                    </label>
-                                    <input
-                                        className={styles.filterControl}
-                                        type="date"
-                                        value={closingStartDate}
-                                        onChange={(e) => setClosingStartDate(e.target.value)}
-                                    />
-                                </div>
-
-                                <div className={styles.filterField}>
-                                    <label className={styles.filterLabel}>
-                                        <FaCalendarAlt />
-                                        <span>Data final do fechamento</span>
-                                    </label>
-                                    <input
-                                        className={styles.filterControl}
-                                        type="date"
-                                        value={closingEndDate}
-                                        onChange={(e) => setClosingEndDate(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </section>
-
-                        {isManager && (
-                            <section className={styles.filterGroupCard}>
-                                <div className={styles.filterGroupHeader}>
-                                    <span className={styles.filterGroupEyebrow}>Performance</span>
-                                    <h3 className={styles.filterGroupTitle}>Período da equipe</h3>
-                                    <p className={styles.filterGroupSubtitle}>
-                                        Controla apenas o ranking de Performance da Equipe. Sem datas, segue o período da carteira.
-                                    </p>
-                                </div>
-
-                                <div className={styles.filtersGrid}>
-                                    <div className={styles.filterField}>
-                                        <label className={styles.filterLabel}>
-                                            <FaCalendarAlt />
-                                            <span>Data inicial da performance</span>
-                                        </label>
-                                        <input
-                                            className={styles.filterControl}
-                                            type="date"
-                                            value={teamStartDate}
-                                            onChange={(e) => setTeamStartDate(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className={styles.filterField}>
-                                        <label className={styles.filterLabel}>
-                                            <FaCalendarAlt />
-                                            <span>Data final da performance</span>
-                                        </label>
-                                        <input
-                                            className={styles.filterControl}
-                                            type="date"
-                                            value={teamEndDate}
-                                            onChange={(e) => setTeamEndDate(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                            </section>
-                        )}
                     </div>
 
                     {isManager && (
@@ -878,6 +781,24 @@ const DashboardPage = () => {
 
                             <div className={styles.filterField}>
                                 <label className={styles.filterLabel}>
+                                    <FaUserTag />
+                                    <span>Indicadores</span>
+                                </label>
+                                <ResponsibleMultiSelect
+                                    selectedValues={selectedIndicatorIds}
+                                    options={indicators}
+                                    onChange={setSelectedIndicatorIds}
+                                    includeUnassigned={false}
+                                    placeholder="Todos os indicadores"
+                                    searchPlaceholder="Buscar indicador"
+                                    emptyMessage="Nenhum indicador encontrado."
+                                    summaryPluralLabel="indicadores"
+                                    ariaLabel="Filtro de indicadores"
+                                />
+                            </div>
+
+                            <div className={styles.filterField}>
+                                <label className={styles.filterLabel}>
                                     <FaFlag />
                                     <span>Status</span>
                                 </label>
@@ -891,6 +812,25 @@ const DashboardPage = () => {
                                         <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div className={styles.filterField}>
+                                <label className={styles.filterLabel}>
+                                    <FaSlidersH />
+                                    <span>Tipo de dashboard</span>
+                                </label>
+                                <div className={`${styles.segmentedControl} ${styles.dashboardViewControl}`} role="tablist" aria-label="Tipo de dashboard">
+                                    {METRIC_VIEW_OPTIONS.map((option) => (
+                                        <button
+                                            key={option.key}
+                                            type="button"
+                                            className={`${styles.segmentedControlButton} ${selectedMetricsView === option.key ? styles.segmentedControlButtonActive : ''}`}
+                                            onClick={() => setSelectedMetricsView(option.key)}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -942,34 +882,6 @@ const DashboardPage = () => {
                     </div>
                 </div>
 
-                <div className={styles.metricExplorerControls}>
-                    <div className={styles.segmentedControl} role="tablist" aria-label="Visões do dashboard">
-                        {METRIC_VIEW_OPTIONS.map((option) => (
-                            <button
-                                key={option.key}
-                                type="button"
-                                className={`${styles.segmentedControlButton} ${selectedMetricsView === option.key ? styles.segmentedControlButtonActive : ''}`}
-                                onClick={() => setSelectedMetricsView(option.key)}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className={styles.segmentedControl} role="tablist" aria-label="Período das métricas">
-                        {METRIC_PERIOD_OPTIONS.map((option) => (
-                            <button
-                                key={option.key}
-                                type="button"
-                                className={`${styles.segmentedControlButton} ${selectedMetricsPeriod === option.key ? styles.segmentedControlButtonActive : ''}`}
-                                onClick={() => setSelectedMetricsPeriod(option.key)}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
                 {renderMetricExplorerContent()}
             </section>
 
@@ -980,7 +892,7 @@ const DashboardPage = () => {
                         <div className={styles.kpiSectionHeader}>
                             <h3 className={styles.kpiSectionTitle}>Visão Geral de Acordos</h3>
                             <p className={styles.kpiSectionSubtitle}>
-                                Casos, status e conversão seguem o período da carteira; métricas de acordo fechado consideram também aguardando minuta e respeitam a data real do fechamento.
+                                Casos, status, acordos e conversão seguem o período único do dashboard.
                             </p>
                         </div>
                         {renderKpiGrid(dashboardData?.kpis, GENERAL_KPI_ORDER)}

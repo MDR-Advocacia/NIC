@@ -403,6 +403,21 @@ select.filterControl {
     box-shadow: var(--accent-shadow);
 }
 
+.dashboardViewControl {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 14px;
+    background: var(--bg-input);
+}
+
+.dashboardViewControl .segmentedControlButton {
+    flex: 1;
+    justify-content: center;
+    min-height: 38px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
 .metricSnapshotGrid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

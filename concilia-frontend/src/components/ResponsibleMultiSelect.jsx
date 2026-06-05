@@ -9,7 +9,12 @@ const ResponsibleMultiSelect = ({
     options = [],
     onChange,
     unassignedValue = '__unassigned__',
+    unassignedLabel = 'Sem responsável',
+    includeUnassigned = true,
     placeholder = 'Todos os responsáveis',
+    searchPlaceholder = 'Buscar responsável',
+    emptyMessage = 'Nenhum responsável encontrado.',
+    summaryPluralLabel = 'responsáveis',
     ariaLabel = 'Filtro de responsáveis',
 }) => {
     const containerRef = useRef(null);
@@ -19,12 +24,12 @@ const ResponsibleMultiSelect = ({
     const selectedSet = useMemo(() => new Set(normalizedSelectedValues), [normalizedSelectedValues]);
 
     const optionItems = useMemo(() => [
-        { value: unassignedValue, label: 'Sem responsável' },
+        ...(includeUnassigned ? [{ value: unassignedValue, label: unassignedLabel }] : []),
         ...options.map((option) => ({
             value: String(option.id),
             label: option.name,
         })),
-    ], [options, unassignedValue]);
+    ], [includeUnassigned, options, unassignedLabel, unassignedValue]);
 
     const labelByValue = useMemo(() => new Map(
         optionItems.map((option) => [option.value, option.label])
@@ -47,7 +52,7 @@ const ResponsibleMultiSelect = ({
             return selectedLabels.join(' + ');
         }
 
-        return `${selectedLabels.length} responsáveis`;
+        return `${selectedLabels.length} ${summaryPluralLabel}`;
     })();
 
     const filteredOptions = optionItems.filter((option) =>
@@ -118,7 +123,7 @@ const ResponsibleMultiSelect = ({
                             type="text"
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
-                            placeholder="Buscar responsável"
+                            placeholder={searchPlaceholder}
                         />
                     </div>
 
@@ -146,7 +151,7 @@ const ResponsibleMultiSelect = ({
                                 </label>
                             ))
                         ) : (
-                            <div className={styles.noResults}>Nenhum responsável encontrado.</div>
+                            <div className={styles.noResults}>{emptyMessage}</div>
                         )}
                     </div>
 

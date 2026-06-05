@@ -19,6 +19,7 @@ class DashboardController extends Controller
     private const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
     private const TEAM_ROLES = ['operador', 'administrador', 'supervisor'];
     private const METRIC_PERIOD_LABELS = [
+        'filtered' => 'Filtro atual',
         'day' => 'Dia',
         'week' => 'Semana',
         'month' => 'Mes',
@@ -76,7 +77,8 @@ class DashboardController extends Controller
         $teamPerformanceDateRange = $this->resolveDateRange(
             $request,
             'team_start_date',
-            'team_end_date'
+            'team_end_date',
+            ['start_date', 'end_date']
         );
         $teamPerformanceEffectiveRange = $this->dateRangeHasBounds($teamPerformanceDateRange)
             ? $teamPerformanceDateRange
@@ -203,10 +205,14 @@ class DashboardController extends Controller
         ];
 
         foreach (array_keys(self::METRIC_PERIOD_LABELS) as $periodKey) {
-            $periodRange = $this->mergeDateRanges(
-                $closingDateRange,
-                $this->resolveMetricPeriodRange($periodKey)
-            );
+            if ($periodKey === 'filtered') {
+                $periodRange = $closingDateRange;
+            } else {
+                $periodRange = $this->mergeDateRanges(
+                    $closingDateRange,
+                    $this->resolveMetricPeriodRange($periodKey)
+                );
+            }
             $periodPayload = $this->buildMetricPeriodPayload($periodKey, $periodRange);
             $responsibleItems = $this->buildResponsibleMetricItems($request, $user, $periodRange);
             $indicatorItems = $this->buildIndicatorMetricItems($request, $user, $periodRange);
@@ -703,6 +709,11 @@ class DashboardController extends Controller
             $query->where($this->qualifyLegalCaseColumn('status'), $request->input('status'));
         }
 
+        $indicatorFilter = $this->resolveIndicatorFilter($request);
+        if (count($indicatorFilter['ids']) > 0) {
+            $query->whereIn($this->qualifyLegalCaseColumn('indicator_user_id'), $indicatorFilter['ids']);
+        }
+
         if ($dateColumn !== null && $dateRange['start'] instanceof Carbon) {
             $query->where($this->qualifyLegalCaseColumn($dateColumn), '>=', $dateRange['start']);
         }
@@ -727,6 +738,11 @@ class DashboardController extends Controller
 
         if ($request->filled('status')) {
             $join->where("{$table}.status", '=', $request->input('status'));
+        }
+
+        $indicatorFilter = $this->resolveIndicatorFilter($request);
+        if (count($indicatorFilter['ids']) > 0) {
+            $join->whereIn("{$table}.indicator_user_id", $indicatorFilter['ids']);
         }
 
         if ($dateRange['start'] instanceof Carbon) {
@@ -976,6 +992,35 @@ class DashboardController extends Controller
             'ids' => $ids,
             'include_unassigned' => $includeUnassigned,
             'has_filter' => $includeUnassigned || count($ids) > 0,
+        ];
+    }
+
+    private function resolveIndicatorFilter(Request $request): array
+    {
+        $rawValues = [];
+
+        if ($request->has('indicator_user_ids')) {
+            $rawValues = Arr::wrap($request->input('indicator_user_ids'));
+        } elseif ($request->has('indicator_user_ids[]')) {
+            $rawValues = Arr::wrap($request->input('indicator_user_ids[]'));
+        } elseif ($request->filled('indicator_user_id')) {
+            $rawValues = [$request->input('indicator_user_id')];
+        }
+
+        $ids = [];
+
+        foreach (Arr::flatten($rawValues) as $rawValue) {
+            foreach (explode(',', (string) $rawValue) as $value) {
+                $normalizedValue = trim($value);
+
+                if ($normalizedValue !== '' && ctype_digit($normalizedValue)) {
+                    $ids[] = (int) $normalizedValue;
+                }
+            }
+        }
+
+        return [
+            'ids' => array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0))),
         ];
     }
 }
