@@ -624,7 +624,7 @@ class LegalCaseController extends Controller
 
         if (!in_array($case->status, $allowedStatuses, true)) {
             return response()->json([
-                'message' => 'Somente casos Contra Indicados ou com Acordo Frustrado podem ser enviados para reanálise.',
+                'message' => 'Somente casos Contraindicados ou com Acordo Frustrado podem ser enviados para reanálise.',
             ], 422);
         }
 
@@ -2425,22 +2425,68 @@ class LegalCaseController extends Controller
             return;
         }
 
-        if (! $request->filled('lawyer_id')) {
+        $responsibleFilter = $this->resolveResponsibleFilter($request);
+
+        if (! $responsibleFilter['has_filter']) {
             return;
         }
 
-        if ($this->requestTargetsUnassignedResponsible($request)) {
-            $query->whereNull('user_id');
-            return;
-        }
+        $query->where(function ($responsibleQuery) use ($responsibleFilter) {
+            if (count($responsibleFilter['ids']) > 0) {
+                $responsibleQuery->whereIn('user_id', $responsibleFilter['ids']);
+            }
 
-        $query->where('user_id', $request->input('lawyer_id'));
+            if ($responsibleFilter['include_unassigned']) {
+                if (count($responsibleFilter['ids']) > 0) {
+                    $responsibleQuery->orWhereNull('user_id');
+                } else {
+                    $responsibleQuery->whereNull('user_id');
+                }
+            }
+        });
     }
 
-    private function requestTargetsUnassignedResponsible(Request $request): bool
+    private function resolveResponsibleFilter(Request $request): array
     {
-        return $request->filled('lawyer_id')
-            && (string) $request->input('lawyer_id') === self::UNASSIGNED_RESPONSIBLE_VALUE;
+        $rawValues = [];
+
+        if ($request->has('lawyer_ids')) {
+            $rawValues = Arr::wrap($request->input('lawyer_ids'));
+        } elseif ($request->has('lawyer_ids[]')) {
+            $rawValues = Arr::wrap($request->input('lawyer_ids[]'));
+        } elseif ($request->filled('lawyer_id')) {
+            $rawValues = [$request->input('lawyer_id')];
+        }
+
+        $ids = [];
+        $includeUnassigned = false;
+
+        foreach (Arr::flatten($rawValues) as $rawValue) {
+            foreach (explode(',', (string) $rawValue) as $value) {
+                $normalizedValue = trim($value);
+
+                if ($normalizedValue === '') {
+                    continue;
+                }
+
+                if ($normalizedValue === self::UNASSIGNED_RESPONSIBLE_VALUE) {
+                    $includeUnassigned = true;
+                    continue;
+                }
+
+                if (ctype_digit($normalizedValue)) {
+                    $ids[] = (int) $normalizedValue;
+                }
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0)));
+
+        return [
+            'ids' => $ids,
+            'include_unassigned' => $includeUnassigned,
+            'has_filter' => $includeUnassigned || count($ids) > 0,
+        ];
     }
 
     private function legalCasesTableHasIndicatorUserId(): bool

@@ -1,7 +1,7 @@
 // src/pages/PipelinePage.jsx
 // ATUALIZADO: Implementação completa de DragOver para suportar colunas vazias
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom'; 
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -58,10 +58,31 @@ const INITIAL_FILTERS = {
     search: '',
     action_object: '',
     client_id: '',
-    lawyer_id: '',
+    lawyer_ids: [],
     indicator_user_id: '',
     priority: '',
     tag: '',
+};
+
+const buildQueryParams = (params = {}) => {
+    const query = new URLSearchParams();
+
+    Object.entries(params).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+            value.forEach((item) => {
+                if (item !== undefined && item !== null && item !== '') {
+                    query.append(`${key}[]`, item);
+                }
+            });
+            return;
+        }
+
+        if (value !== undefined && value !== null && value !== '') {
+            query.append(key, value);
+        }
+    });
+
+    return query;
 };
 
 const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
@@ -70,10 +91,8 @@ const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
     let lastPage = 1;
 
     do {
-        const query = new URLSearchParams({
-            ...Object.fromEntries(
-                Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
-            ),
+        const query = buildQueryParams({
+            ...params,
             page: currentPage,
             per_page: MAX_API_PAGE_SIZE,
         });
@@ -130,14 +149,34 @@ const PipelinePage = () => {
     const searchTerm = filters.search.trim();
     const actionObjectFilter = filters.action_object.trim();
     const clientFilter = filters.client_id || '';
-    const lawyerFilter = filters.lawyer_id || '';
+    const selectedLawyerIds = useMemo(
+        () => (Array.isArray(filters.lawyer_ids) ? filters.lawyer_ids.map(String) : []),
+        [filters.lawyer_ids]
+    );
     const indicatorFilter = canChooseIndicator ? (filters.indicator_user_id || '') : '';
     const priorityFilter = filters.priority || '';
     const tagFilter = filters.tag || '';
     const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
-    const selectedLawyerName = filters.lawyer_id === UNASSIGNED_RESPONSIBLE_VALUE
-        ? 'Sem responsável'
-        : lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const selectedLawyerNames = selectedLawyerIds
+        .map((lawyerId) => {
+            if (lawyerId === UNASSIGNED_RESPONSIBLE_VALUE) {
+                return 'Sem responsável';
+            }
+
+            return lawyers.find((lawyer) => String(lawyer.id) === String(lawyerId))?.name;
+        })
+        .filter(Boolean);
+    const selectedLawyerFilterLabel = (() => {
+        if (selectedLawyerNames.length === 0) {
+            return null;
+        }
+
+        if (selectedLawyerNames.length <= 2) {
+            return selectedLawyerNames.join(' + ');
+        }
+
+        return `${selectedLawyerNames.slice(0, 2).join(' + ')} + ${selectedLawyerNames.length - 2}`;
+    })();
     const selectedIndicatorName = indicators.find((indicator) => String(indicator.id) === String(filters.indicator_user_id))?.name;
     const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
         || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
@@ -150,7 +189,7 @@ const PipelinePage = () => {
         searchTerm ? `Busca: ${searchTerm}` : null,
         actionObjectFilter ? `Causa de pedir: ${actionObjectFilter}` : null,
         selectedClientName ? `Cliente: ${selectedClientName}` : null,
-        selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
+        selectedLawyerFilterLabel ? `Responsáveis: ${selectedLawyerFilterLabel}` : null,
         selectedIndicatorName ? `Indicador: ${selectedIndicatorName}` : null,
         filters.priority ? priorityLabelMap[filters.priority] : null,
         selectedTagName ? `Etiqueta: ${selectedTagName}` : null,
@@ -286,26 +325,27 @@ const PipelinePage = () => {
                 search: debouncedSearch,
                 action_object: debouncedActionObject,
                 client_id: clientFilter,
-                lawyer_id: lawyerFilter,
+                lawyer_ids: selectedLawyerIds,
                 indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
                 tag: tagFilter,
             };
-            const requiresResponsibleFilter = canChooseResponsible;
 
-            const hasValidResponsibleSelected = lawyerFilter === UNASSIGNED_RESPONSIBLE_VALUE
-                || fetchedLawyers.some((lawyer) => String(lawyer.id) === String(lawyerFilter));
+            const validResponsibleValues = selectedLawyerIds.filter((lawyerId) =>
+                lawyerId === UNASSIGNED_RESPONSIBLE_VALUE
+                || fetchedLawyers.some((lawyer) => String(lawyer.id) === String(lawyerId))
+            );
 
-            if (lawyerFilter && !hasValidResponsibleSelected) {
-                delete effectiveFilters.lawyer_id;
+            if (validResponsibleValues.length !== selectedLawyerIds.length) {
+                effectiveFilters.lawyer_ids = validResponsibleValues;
                 setFilters((currentFilters) => {
-                    if (!currentFilters.lawyer_id) {
+                    const currentValues = Array.isArray(currentFilters.lawyer_ids) ? currentFilters.lawyer_ids.map(String) : [];
+
+                    if (currentValues.length === validResponsibleValues.length) {
                         return currentFilters;
                     }
 
-                    const nextFilters = { ...currentFilters };
-                    delete nextFilters.lawyer_id;
-                    return nextFilters;
+                    return { ...currentFilters, lawyer_ids: validResponsibleValues };
                 });
             }
 
@@ -322,21 +362,6 @@ const PipelinePage = () => {
 
                     return { ...currentFilters, indicator_user_id: '' };
                 });
-            }
-
-            if (requiresResponsibleFilter && !effectiveFilters.lawyer_id) {
-                const preferredResponsible =
-                    fetchedLawyers.find((lawyer) => String(lawyer.id) === String(user?.id))
-                    || fetchedLawyers[0];
-
-                if (preferredResponsible) {
-                    effectiveFilters.lawyer_id = String(preferredResponsible.id);
-                    setFilters((currentFilters) =>
-                        currentFilters.lawyer_id
-                            ? currentFilters
-                            : { ...currentFilters, lawyer_id: String(preferredResponsible.id) }
-                    );
-                }
             }
 
             let fetchedCases = await fetchAllPaginatedResults('/cases', token, {
@@ -372,7 +397,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseResponsible, canChooseIndicator, user?.id]);
+    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator]);
 
     useEffect(() => {
         fetchAllData();
@@ -621,6 +646,25 @@ const PipelinePage = () => {
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleToggleResponsibleFilter = (value) => {
+        setFilters((prev) => {
+            const normalizedValue = String(value);
+            const currentValues = Array.isArray(prev.lawyer_ids) ? prev.lawyer_ids.map(String) : [];
+            const currentSet = new Set(currentValues);
+
+            if (currentSet.has(normalizedValue)) {
+                currentSet.delete(normalizedValue);
+            } else {
+                currentSet.add(normalizedValue);
+            }
+
+            return {
+                ...prev,
+                lawyer_ids: Array.from(currentSet),
+            };
+        });
+    };
+
     const handleSelectSavedTagFilter = (tag) => {
         const tagText = tag?.text || tag?.name || '';
         setFilters((prev) => ({
@@ -672,7 +716,7 @@ const PipelinePage = () => {
                 search: searchTerm,
                 action_object: actionObjectFilter,
                 client_id: clientFilter,
-                lawyer_id: lawyerFilter,
+                lawyer_ids: selectedLawyerIds,
                 indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
                 tag: tagFilter,
@@ -822,15 +866,47 @@ const PipelinePage = () => {
                                 <FaUserTie />
                                 <span>Responsável do Caso</span>
                             </label>
-                            <select
-                                className={styles.filterSelect}
-                                value={lawyerFilter}
-                                onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}
+                            <div
+                                className={styles.multiSelectBox}
+                                role="group"
+                                aria-label="Filtro de responsáveis"
                             >
-                                <option value="" disabled>Selecione um responsável</option>
-                                <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
-                                {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
-                            </select>
+                                <button
+                                    type="button"
+                                    className={`${styles.filterQuickButton} ${selectedLawyerIds.length === 0 ? styles.filterQuickButtonActive : ''}`}
+                                    onClick={() => setFilters((prev) => ({ ...prev, lawyer_ids: [] }))}
+                                >
+                                    Todos os responsáveis
+                                </button>
+
+                                <label className={`${styles.multiSelectOption} ${selectedLawyerIds.includes(UNASSIGNED_RESPONSIBLE_VALUE) ? styles.multiSelectOptionActive : ''}`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedLawyerIds.includes(UNASSIGNED_RESPONSIBLE_VALUE)}
+                                        onChange={() => handleToggleResponsibleFilter(UNASSIGNED_RESPONSIBLE_VALUE)}
+                                    />
+                                    <span>Sem responsável</span>
+                                </label>
+
+                                {lawyers.map((lawyer) => {
+                                    const lawyerId = String(lawyer.id);
+                                    const isChecked = selectedLawyerIds.includes(lawyerId);
+
+                                    return (
+                                        <label
+                                            key={lawyer.id}
+                                            className={`${styles.multiSelectOption} ${isChecked ? styles.multiSelectOptionActive : ''}`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={isChecked}
+                                                onChange={() => handleToggleResponsibleFilter(lawyerId)}
+                                            />
+                                            <span>{lawyer.name}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 

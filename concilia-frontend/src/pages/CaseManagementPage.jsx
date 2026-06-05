@@ -50,7 +50,7 @@ const INITIAL_FILTERS = {
     status: '',
     priority: '',
     tag: '',
-    lawyer_id: '',
+    lawyer_ids: [],
     indicator_user_id: '',
 };
 
@@ -248,7 +248,19 @@ const CaseManagementPage = () => {
         setSearchFeedback(null);
         
         try {
-            const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
+            const params = new URLSearchParams();
+            Object.entries(filters).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    value.forEach((item) => {
+                        if (item) params.append(`${key}[]`, item);
+                    });
+                    return;
+                }
+
+                if (value) {
+                    params.append(key, value);
+                }
+            });
             
             // Adiciona paginação
             params.append('page', currentPage);
@@ -324,6 +336,25 @@ const CaseManagementPage = () => {
 
     const handleClearFilters = () => {
         setFilters({ ...INITIAL_FILTERS });
+    };
+
+    const handleToggleResponsibleFilter = (value) => {
+        setFilters((prev) => {
+            const normalizedValue = String(value);
+            const currentValues = Array.isArray(prev.lawyer_ids) ? prev.lawyer_ids.map(String) : [];
+            const currentSet = new Set(currentValues);
+
+            if (currentSet.has(normalizedValue)) {
+                currentSet.delete(normalizedValue);
+            } else {
+                currentSet.add(normalizedValue);
+            }
+
+            return {
+                ...prev,
+                lawyer_ids: Array.from(currentSet),
+            };
+        });
     };
 
     const handleSelectSavedTagFilter = (tag) => {
@@ -578,10 +609,27 @@ const CaseManagementPage = () => {
     const selectedHiddenCount = Math.max((selectedCaseIds?.length || 0) - selectedVisibleCaseIds.length, 0);
     const isAllSelected =
         visibleCaseIds.length > 0 && selectedVisibleCaseIds.length === visibleCaseIds.length;
-    const selectedLawyer = lawyers.find(lawyer => String(lawyer.id) === String(filters.lawyer_id));
-    const selectedLawyerName = filters.lawyer_id === UNASSIGNED_RESPONSIBLE_VALUE
-        ? 'Sem responsável'
-        : selectedLawyer?.name;
+    const selectedLawyerIds = Array.isArray(filters.lawyer_ids) ? filters.lawyer_ids.map(String) : [];
+    const selectedLawyerNames = selectedLawyerIds
+        .map((lawyerId) => {
+            if (lawyerId === UNASSIGNED_RESPONSIBLE_VALUE) {
+                return 'Sem responsável';
+            }
+
+            return lawyers.find((lawyer) => String(lawyer.id) === String(lawyerId))?.name;
+        })
+        .filter(Boolean);
+    const selectedLawyerFilterLabel = (() => {
+        if (selectedLawyerNames.length === 0) {
+            return null;
+        }
+
+        if (selectedLawyerNames.length <= 2) {
+            return selectedLawyerNames.join(' + ');
+        }
+
+        return `${selectedLawyerNames.slice(0, 2).join(' + ')} + ${selectedLawyerNames.length - 2}`;
+    })();
     const selectedIndicator = indicators.find(indicator => String(indicator.id) === String(filters.indicator_user_id));
     const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
         || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
@@ -626,10 +674,10 @@ const CaseManagementPage = () => {
         });
     }
 
-    if (!isIndicator && filters.lawyer_id) {
+    if (!isIndicator && selectedLawyerFilterLabel) {
         activeFilterChips.push({
-            key: 'lawyer_id',
-            label: `Responsável: ${selectedLawyerName || 'Selecionado'}`,
+            key: 'lawyer_ids',
+            label: `Responsáveis: ${selectedLawyerFilterLabel}`,
         });
     }
 
@@ -872,15 +920,47 @@ const CaseManagementPage = () => {
                                     <FaUserTag />
                                     Responsável do caso
                                 </span>
-                                <select className={styles.filterControl} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
-                                    <option value="">Todos os responsáveis</option>
-                                    <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
-                                    {lawyers.map((lawyer) => (
-                                        <option key={lawyer.id} value={lawyer.id}>
-                                            {lawyer.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                <div
+                                    className={styles.multiSelectBox}
+                                    role="group"
+                                    aria-label="Filtro de responsáveis"
+                                >
+                                    <button
+                                        type="button"
+                                        className={`${styles.filterQuickButton} ${selectedLawyerIds.length === 0 ? styles.filterQuickButtonActive : ''}`}
+                                        onClick={() => setFilters((prev) => ({ ...prev, lawyer_ids: [] }))}
+                                    >
+                                        Todos os responsáveis
+                                    </button>
+
+                                    <label className={`${styles.multiSelectOption} ${selectedLawyerIds.includes(UNASSIGNED_RESPONSIBLE_VALUE) ? styles.multiSelectOptionActive : ''}`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedLawyerIds.includes(UNASSIGNED_RESPONSIBLE_VALUE)}
+                                            onChange={() => handleToggleResponsibleFilter(UNASSIGNED_RESPONSIBLE_VALUE)}
+                                        />
+                                        <span>Sem responsável</span>
+                                    </label>
+
+                                    {lawyers.map((lawyer) => {
+                                        const lawyerId = String(lawyer.id);
+                                        const isChecked = selectedLawyerIds.includes(lawyerId);
+
+                                        return (
+                                            <label
+                                                key={lawyer.id}
+                                                className={`${styles.multiSelectOption} ${isChecked ? styles.multiSelectOptionActive : ''}`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => handleToggleResponsibleFilter(lawyerId)}
+                                                />
+                                                <span>{lawyer.name}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
                             </label>
 
                             <label className={styles.filterField}>

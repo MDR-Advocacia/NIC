@@ -254,6 +254,68 @@ class DashboardMetricsTest extends TestCase
             ->assertJsonPath('recent_cases.data.0.case_number', $unassignedCase->case_number);
     }
 
+    public function test_dashboard_team_performance_can_use_own_period_and_multiple_responsibles(): void
+    {
+        $manager = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $firstOperator = User::factory()->create([
+            'name' => 'Responsavel Fora do Periodo',
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        $secondOperator = User::factory()->create([
+            'name' => 'Responsavel No Periodo',
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        $thirdOperator = User::factory()->create([
+            'name' => 'Responsavel Nao Selecionado',
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        $this->createLegalCase($firstOperator, LegalCase::STATUS_CLOSED_DEAL, 'TEAM-OUTSIDE', [
+            'original_value' => 2000,
+            'agreement_value' => 1200,
+            'created_at' => Carbon::parse('2026-02-10 09:00:00'),
+        ]);
+
+        $this->createLegalCase($secondOperator, LegalCase::STATUS_CLOSED_DEAL, 'TEAM-INSIDE', [
+            'original_value' => 3000,
+            'agreement_value' => 1800,
+            'created_at' => Carbon::parse('2026-03-10 09:00:00'),
+        ]);
+
+        $this->createLegalCase($thirdOperator, LegalCase::STATUS_CLOSED_DEAL, 'TEAM-OTHER', [
+            'original_value' => 4000,
+            'agreement_value' => 2500,
+            'created_at' => Carbon::parse('2026-03-12 09:00:00'),
+        ]);
+
+        $response = $this->getJson(
+            '/api/dashboard?team_start_date=2026-03-01&team_end_date=2026-03-31'
+            . '&lawyer_ids[]=' . $firstOperator->id
+            . '&lawyer_ids[]=' . $secondOperator->id
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('kpis.total_cases', 2)
+            ->assertJsonPath('team_performance_period.start_date', '2026-03-01')
+            ->assertJsonPath('team_performance_period.end_date', '2026-03-31')
+            ->assertJsonPath('team_performance.0.name', 'Responsavel No Periodo')
+            ->assertJsonPath('team_performance.0.total_cases', 1)
+            ->assertJsonPath('team_performance.1.name', 'Responsavel Fora do Periodo')
+            ->assertJsonPath('team_performance.1.total_cases', 0);
+    }
+
     public function test_dashboard_recent_cases_follow_recent_alcada_events_with_pagination(): void
     {
         $manager = User::factory()->create([

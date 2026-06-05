@@ -123,8 +123,10 @@ const DashboardPage = () => {
     const [portfolioEndDate, setPortfolioEndDate] = useState('');
     const [closingStartDate, setClosingStartDate] = useState('');
     const [closingEndDate, setClosingEndDate] = useState('');
+    const [teamStartDate, setTeamStartDate] = useState('');
+    const [teamEndDate, setTeamEndDate] = useState('');
     const [selectedClient, setSelectedClient] = useState('');
-    const [selectedLawyer, setSelectedLawyer] = useState('');
+    const [selectedLawyerIds, setSelectedLawyerIds] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState('');
 
     // Modais
@@ -142,7 +144,7 @@ const DashboardPage = () => {
         portfolioEndDate,
         closingStartDate,
         closingEndDate,
-        ...(isManager ? [selectedClient, selectedLawyer, selectedStatus] : []),
+        ...(isManager ? [teamStartDate, teamEndDate, selectedClient, selectedLawyerIds.length > 0 ? 'responsible' : '', selectedStatus] : []),
     ];
 
     const activeFilterCount = activeFilterValues
@@ -179,9 +181,26 @@ const DashboardPage = () => {
     };
 
     const selectedClientName = clients.find((client) => String(client.id) === String(selectedClient))?.name;
-    const selectedLawyerName = selectedLawyer === UNASSIGNED_RESPONSIBLE_VALUE
-        ? 'Sem responsável'
-        : lawyers.find((lawyer) => String(lawyer.id) === String(selectedLawyer))?.name;
+    const selectedLawyerNames = selectedLawyerIds
+        .map((lawyerId) => {
+            if (lawyerId === UNASSIGNED_RESPONSIBLE_VALUE) {
+                return 'Sem responsável';
+            }
+
+            return lawyers.find((lawyer) => String(lawyer.id) === String(lawyerId))?.name;
+        })
+        .filter(Boolean);
+    const selectedLawyerFilterLabel = (() => {
+        if (selectedLawyerNames.length === 0) {
+            return null;
+        }
+
+        if (selectedLawyerNames.length <= 2) {
+            return selectedLawyerNames.join(' + ');
+        }
+
+        return `${selectedLawyerNames.slice(0, 2).join(' + ')} + ${selectedLawyerNames.length - 2}`;
+    })();
     const selectedStatusName = LEGAL_CASE_STATUS_OPTIONS.find((statusOption) => statusOption.value === selectedStatus)?.name;
     const hasClosingDateFilter = Boolean(closingStartDate || closingEndDate);
     const metricsViewTitles = {
@@ -198,14 +217,34 @@ const DashboardPage = () => {
     const activeFilterChips = [
         buildDateRangeChip('Carteira', portfolioStartDate, portfolioEndDate),
         buildDateRangeChip('Fechamento', closingStartDate, closingEndDate),
+        ...(isManager ? [buildDateRangeChip('Performance', teamStartDate, teamEndDate)] : []),
         ...(isManager
             ? [
                 selectedClientName ? `Cliente: ${selectedClientName}` : null,
-                selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
+                selectedLawyerFilterLabel ? `Responsáveis: ${selectedLawyerFilterLabel}` : null,
                 selectedStatusName ? `Status: ${selectedStatusName}` : null,
             ]
             : []),
     ].filter(Boolean);
+
+    const teamPerformanceRangeLabel = buildDateRangeChip('Período', teamStartDate, teamEndDate)
+        || buildDateRangeChip('Período', portfolioStartDate, portfolioEndDate)
+        || 'Período: todo o histórico';
+
+    const handleToggleLawyerFilter = useCallback((value) => {
+        setSelectedLawyerIds((currentValues) => {
+            const normalizedValue = String(value);
+            const currentSet = new Set(currentValues.map(String));
+
+            if (currentSet.has(normalizedValue)) {
+                currentSet.delete(normalizedValue);
+            } else {
+                currentSet.add(normalizedValue);
+            }
+
+            return Array.from(currentSet);
+        });
+    }, []);
 
     const handleOpenDetailModal = (lawyer) => {
         setSelectedLawyerForDetail(lawyer);
@@ -239,8 +278,10 @@ const DashboardPage = () => {
         portfolioEndDate: filterPortfolioEndDate = '',
         closingStartDate: filterClosingStartDate = '',
         closingEndDate: filterClosingEndDate = '',
+        teamStartDate: filterTeamStartDate = '',
+        teamEndDate: filterTeamEndDate = '',
         selectedClient: filterClient = '',
-        selectedLawyer: filterLawyer = '',
+        selectedLawyerIds: filterLawyerIds = [],
         selectedStatus: filterStatus = '',
         recentCasesPage: filterRecentCasesPage = 1,
         recentCasesPerPage: filterRecentCasesPerPage = 20,
@@ -256,10 +297,14 @@ const DashboardPage = () => {
             if (filterPortfolioEndDate) params.append('portfolio_end_date', filterPortfolioEndDate);
             if (filterClosingStartDate) params.append('closing_start_date', filterClosingStartDate);
             if (filterClosingEndDate) params.append('closing_end_date', filterClosingEndDate);
+            if (filterTeamStartDate) params.append('team_start_date', filterTeamStartDate);
+            if (filterTeamEndDate) params.append('team_end_date', filterTeamEndDate);
 
             if (isManager) {
                 if (filterClient) params.append('client_id', filterClient);
-                if (filterLawyer) params.append('lawyer_id', filterLawyer);
+                (Array.isArray(filterLawyerIds) ? filterLawyerIds : []).forEach((lawyerId) => {
+                    if (lawyerId) params.append('lawyer_ids[]', lawyerId);
+                });
             }
 
             if (filterStatus) params.append('status', filterStatus);
@@ -310,8 +355,10 @@ const DashboardPage = () => {
             portfolioEndDate,
             closingStartDate,
             closingEndDate,
+            teamStartDate,
+            teamEndDate,
             selectedClient,
-            selectedLawyer,
+            selectedLawyerIds,
             selectedStatus,
             recentCasesPage: 1,
             recentCasesPerPage,
@@ -322,8 +369,10 @@ const DashboardPage = () => {
         portfolioEndDate,
         closingStartDate,
         closingEndDate,
+        teamStartDate,
+        teamEndDate,
         selectedClient,
-        selectedLawyer,
+        selectedLawyerIds,
         selectedStatus,
         recentCasesPerPage,
     ]);
@@ -333,8 +382,10 @@ const DashboardPage = () => {
         setPortfolioEndDate('');
         setClosingStartDate('');
         setClosingEndDate('');
+        setTeamStartDate('');
+        setTeamEndDate('');
         setSelectedClient('');
-        setSelectedLawyer('');
+        setSelectedLawyerIds([]);
         setSelectedStatus('');
         setRecentCasesPage(1);
         fetchDashboardData({
@@ -355,8 +406,10 @@ const DashboardPage = () => {
             portfolioEndDate,
             closingStartDate,
             closingEndDate,
+            teamStartDate,
+            teamEndDate,
             selectedClient,
-            selectedLawyer,
+            selectedLawyerIds,
             selectedStatus,
             recentCasesPage: 1,
             recentCasesPerPage: nextPerPage,
@@ -368,8 +421,10 @@ const DashboardPage = () => {
         portfolioEndDate,
         closingStartDate,
         closingEndDate,
+        teamStartDate,
+        teamEndDate,
         selectedClient,
-        selectedLawyer,
+        selectedLawyerIds,
         selectedStatus,
     ]);
 
@@ -384,8 +439,10 @@ const DashboardPage = () => {
             portfolioEndDate,
             closingStartDate,
             closingEndDate,
+            teamStartDate,
+            teamEndDate,
             selectedClient,
-            selectedLawyer,
+            selectedLawyerIds,
             selectedStatus,
             recentCasesPage: nextPage,
             recentCasesPerPage,
@@ -399,8 +456,10 @@ const DashboardPage = () => {
         portfolioEndDate,
         closingStartDate,
         closingEndDate,
+        teamStartDate,
+        teamEndDate,
         selectedClient,
-        selectedLawyer,
+        selectedLawyerIds,
         selectedStatus,
     ]);
 
@@ -689,7 +748,7 @@ const DashboardPage = () => {
                                 <span className={styles.filterGroupEyebrow}>Carteira</span>
                                 <h3 className={styles.filterGroupTitle}>Período da carteira</h3>
                                 <p className={styles.filterGroupSubtitle}>
-                                    Afeta totais, status, performance da equipe, fluxo de indicação e casos recentes na alçada.
+                                    Afeta totais, status, fluxo de indicação e casos recentes na alçada.
                                 </p>
                             </div>
 
@@ -759,6 +818,46 @@ const DashboardPage = () => {
                                 </div>
                             </div>
                         </section>
+
+                        {isManager && (
+                            <section className={styles.filterGroupCard}>
+                                <div className={styles.filterGroupHeader}>
+                                    <span className={styles.filterGroupEyebrow}>Performance</span>
+                                    <h3 className={styles.filterGroupTitle}>Período da equipe</h3>
+                                    <p className={styles.filterGroupSubtitle}>
+                                        Controla apenas o ranking de Performance da Equipe. Sem datas, segue o período da carteira.
+                                    </p>
+                                </div>
+
+                                <div className={styles.filtersGrid}>
+                                    <div className={styles.filterField}>
+                                        <label className={styles.filterLabel}>
+                                            <FaCalendarAlt />
+                                            <span>Data inicial da performance</span>
+                                        </label>
+                                        <input
+                                            className={styles.filterControl}
+                                            type="date"
+                                            value={teamStartDate}
+                                            onChange={(e) => setTeamStartDate(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div className={styles.filterField}>
+                                        <label className={styles.filterLabel}>
+                                            <FaCalendarAlt />
+                                            <span>Data final da performance</span>
+                                        </label>
+                                        <input
+                                            className={styles.filterControl}
+                                            type="date"
+                                            value={teamEndDate}
+                                            onChange={(e) => setTeamEndDate(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </section>
+                        )}
                     </div>
 
                     {isManager && (
@@ -781,17 +880,49 @@ const DashboardPage = () => {
                             <div className={styles.filterField}>
                                 <label className={styles.filterLabel}>
                                     <FaUserTie />
-                                    <span>Responsável</span>
+                                    <span>Responsáveis</span>
                                 </label>
-                                <select
-                                    className={styles.filterControl}
-                                    value={selectedLawyer}
-                                    onChange={(e) => setSelectedLawyer(e.target.value)}
+                                <div
+                                    className={styles.multiSelectBox}
+                                    role="group"
+                                    aria-label="Filtro de responsáveis"
                                 >
-                                    <option value="">Todos</option>
-                                    <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
-                                    {lawyers.map((lawyer) => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
-                                </select>
+                                    <button
+                                        type="button"
+                                        className={`${styles.filterQuickButton} ${selectedLawyerIds.length === 0 ? styles.filterQuickButtonActive : ''}`}
+                                        onClick={() => setSelectedLawyerIds([])}
+                                    >
+                                        Todos os responsáveis
+                                    </button>
+
+                                    <label className={`${styles.multiSelectOption} ${selectedLawyerIds.includes(UNASSIGNED_RESPONSIBLE_VALUE) ? styles.multiSelectOptionActive : ''}`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedLawyerIds.includes(UNASSIGNED_RESPONSIBLE_VALUE)}
+                                            onChange={() => handleToggleLawyerFilter(UNASSIGNED_RESPONSIBLE_VALUE)}
+                                        />
+                                        <span>Sem responsável</span>
+                                    </label>
+
+                                    {lawyers.map((lawyer) => {
+                                        const lawyerId = String(lawyer.id);
+                                        const isChecked = selectedLawyerIds.includes(lawyerId);
+
+                                        return (
+                                            <label
+                                                key={lawyer.id}
+                                                className={`${styles.multiSelectOption} ${isChecked ? styles.multiSelectOptionActive : ''}`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => handleToggleLawyerFilter(lawyerId)}
+                                                />
+                                                <span>{lawyer.name}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
                             <div className={styles.filterField}>
@@ -1036,10 +1167,13 @@ const DashboardPage = () => {
                     {isManager && (
                         <section className={styles.teamPerformanceSection}>
                             <div className={styles.teamPerformanceSectionHeader}>
-                                <h3>Performance da Equipe</h3>
-                                <p>
-                                    Destaque dos advogados com melhor score no período filtrado, mantendo o acesso ao ranking completo.
-                                </p>
+                                <div>
+                                    <h3>Performance da Equipe</h3>
+                                    <p>
+                                        Destaque dos advogados com melhor score no período selecionado, mantendo o acesso ao ranking completo.
+                                    </p>
+                                </div>
+                                <span className={styles.teamPerformancePeriodChip}>{teamPerformanceRangeLabel}</span>
                             </div>
 
                             <div className={styles.teamPerformancePanelWrap}>

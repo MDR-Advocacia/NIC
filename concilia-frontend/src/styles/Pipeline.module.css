@@ -64,25 +64,30 @@
     position: fixed;
     top: 0;
     left: 0;
+    box-sizing: border-box;
     width: 100%;
     height: 100%;
+    padding: 1.25rem 1.25rem 1.25rem calc(292px + 1.25rem);
     background-color: var(--bg-overlay);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 1000;
     backdrop-filter: blur(3px);
+    overflow: hidden;
 }
 
 .modalContent {
+    box-sizing: border-box;
     background-color: var(--bg-card);
     color: var(--text-primary);
     padding: 2rem;
     border-radius: 8px;
-    width: 90%;
+    width: min(100%, 800px);
     max-width: 800px;
-    max-height: 90vh;
+    max-height: calc(100vh - 2.5rem);
     overflow-y: auto;
+    overscroll-behavior: contain;
     box-shadow: var(--card-shadow);
     position: relative;
 }
@@ -306,7 +311,7 @@
 
 .modalContent.large {
     max-width: 1100px;
-    width: 95%;
+    width: min(100%, 1100px);
 }
 
 .statusReasonModal {
@@ -691,6 +696,72 @@
   color: var(--text-secondary);
 }
 
+.multiSelectBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 230px;
+  padding: 0.55rem;
+  border: 1px solid var(--border-color-dark);
+  border-radius: 14px;
+  background: var(--bg-input);
+  overflow-y: auto;
+}
+
+.filterQuickButton {
+  width: 100%;
+  min-height: 38px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color-light);
+  border-radius: 10px;
+  background: var(--surface-card-muted);
+  color: var(--text-primary);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.filterQuickButton:hover,
+.filterQuickButtonActive {
+  border-color: var(--accent-primary);
+  background: var(--accent-surface);
+  color: var(--accent-primary);
+}
+
+.multiSelectOption {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 38px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.multiSelectOption:hover,
+.multiSelectOptionActive {
+  border-color: var(--accent-border-soft);
+  background: var(--surface-card-muted);
+}
+
+.multiSelectOption input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.multiSelectOption span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .filterPanelFooter {
   display: flex;
   align-items: center;
@@ -973,6 +1044,16 @@
       (var(--pipeline-visible-card-count) * var(--pipeline-estimated-card-height))
       + var(--pipeline-column-extra-space)
     );
+  }
+}
+
+@media (max-width: 1080px) {
+  .modalOverlay {
+    padding: 1rem;
+  }
+
+  .modalContent {
+    max-height: calc(100vh - 2rem);
   }
 }
 

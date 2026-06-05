@@ -120,10 +120,26 @@ export const isDelayedCaseForExport = (legalCase, referenceDate = new Date()) =>
     return Number.isFinite(daysSinceUpdate) && daysSinceUpdate > 5;
 };
 
-const compactParams = (params = {}) =>
-    Object.fromEntries(
-        Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
-    );
+const buildQueryParams = (params = {}) => {
+    const searchParams = new URLSearchParams();
+
+    Object.entries(params).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+            value.forEach((item) => {
+                if (item !== undefined && item !== null && item !== '') {
+                    searchParams.append(`${key}[]`, item);
+                }
+            });
+            return;
+        }
+
+        if (value !== undefined && value !== null && value !== '') {
+            searchParams.append(key, value);
+        }
+    });
+
+    return searchParams;
+};
 
 export const fetchAllCasesForExport = async (params = {}, token = '') => {
     const items = [];
@@ -131,12 +147,13 @@ export const fetchAllCasesForExport = async (params = {}, token = '') => {
     let lastPage = 1;
 
     do {
-        const response = await apiClient.get('/cases', {
-            params: {
-                ...compactParams(params),
-                page: currentPage,
-                per_page: MAX_EXPORT_PAGE_SIZE,
-            },
+        const queryParams = buildQueryParams({
+            ...params,
+            page: currentPage,
+            per_page: MAX_EXPORT_PAGE_SIZE,
+        });
+
+        const response = await apiClient.get(`/cases?${queryParams.toString()}`, {
             headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
 

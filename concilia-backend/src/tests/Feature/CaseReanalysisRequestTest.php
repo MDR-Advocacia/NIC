@@ -126,7 +126,7 @@ class CaseReanalysisRequestTest extends TestCase
             'reanalysis_reason' => 'Pedido fora do status permitido.',
         ])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Somente casos Contra Indicados ou com Acordo Frustrado podem ser enviados para reanálise.');
+            ->assertJsonPath('message', 'Somente casos Contraindicados ou com Acordo Frustrado podem ser enviados para reanálise.');
 
         $legalCase->refresh();
 

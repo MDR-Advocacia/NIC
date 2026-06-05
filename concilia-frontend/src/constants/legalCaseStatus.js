@@ -1,7 +1,7 @@
 export const LEGAL_CASE_STATUS_DETAILS = {
   initial_analysis: { name: 'Análise Inicial', color: '#4299E1', textColor: '#FFFFFF' },
   indications: { name: 'Indicações', color: '#805AD5', textColor: '#FFFFFF' },
-  contra_indicated: { name: 'Contra Indicado', color: '#64748B', textColor: '#FFFFFF' },
+  contra_indicated: { name: 'Contraindicado', color: '#64748B', textColor: '#FFFFFF' },
   proposal_sent: { name: 'Proposta Enviada', color: '#48BB78', textColor: '#FFFFFF' },
   in_negotiation: { name: 'Em Negociação', color: '#ECC94B', textColor: '#1A202C' },
   awaiting_draft: { name: 'Aguardando Minuta', color: '#ED8936', textColor: '#FFFFFF' },

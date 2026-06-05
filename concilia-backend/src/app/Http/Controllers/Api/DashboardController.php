@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -72,6 +73,14 @@ class DashboardController extends Controller
             'closing_end_date',
             ['start_date', 'end_date']
         );
+        $teamPerformanceDateRange = $this->resolveDateRange(
+            $request,
+            'team_start_date',
+            'team_end_date'
+        );
+        $teamPerformanceEffectiveRange = $this->dateRangeHasBounds($teamPerformanceDateRange)
+            ? $teamPerformanceDateRange
+            : $portfolioDateRange;
         $todayRange = $this->resolveTodayRange();
         $portfolioCasesQuery = $this->newFilteredCaseQuery($request, $user, $portfolioDateRange);
         $closedDealsQuery = $this->newClosedDealsQuery($request, $user, $closingDateRange, 'agreement_closed_at');
@@ -178,7 +187,8 @@ class DashboardController extends Controller
             'agreements_by_state' => $this->buildAgreementsByState($request, $user, $closingDateRange),
             'agreement_macro_distribution' => $this->buildAgreementMacroDistribution($request, $user, $closingDateRange),
             'indicator_leaderboard' => $indicatorLeaderboard,
-            'team_performance' => $this->buildTeamPerformance($request, $user, $portfolioDateRange),
+            'team_performance' => $this->buildTeamPerformance($request, $user, $teamPerformanceEffectiveRange),
+            'team_performance_period' => $this->buildDateRangePayload($teamPerformanceEffectiveRange),
             'view_metrics' => $viewMetrics,
             'recent_cases' => $recentCases,
         ]);
@@ -307,7 +317,9 @@ class DashboardController extends Controller
 
     private function buildTeamPerformance(Request $request, User $user, array $dateRange): array
     {
-        if ($this->requestTargetsUnassignedResponsible($request)) {
+        $responsibleFilter = $this->resolveResponsibleFilter($request);
+
+        if ($responsibleFilter['has_filter'] && count($responsibleFilter['ids']) === 0) {
             return [];
         }
 
@@ -336,8 +348,8 @@ class DashboardController extends Controller
         } else {
             $lawyersQuery->whereIn('users.role', self::TEAM_ROLES);
 
-            if ($request->filled('lawyer_id')) {
-                $lawyersQuery->where('users.id', (int) $request->input('lawyer_id'));
+            if ($responsibleFilter['has_filter']) {
+                $lawyersQuery->whereIn('users.id', $responsibleFilter['ids']);
             }
         }
 
@@ -650,10 +662,26 @@ class DashboardController extends Controller
     ): void {
         if ($user->role === 'operador') {
             $query->where($this->qualifyLegalCaseColumn('user_id'), $user->id);
-        } elseif ($this->requestTargetsUnassignedResponsible($request)) {
-            $query->whereNull($this->qualifyLegalCaseColumn('user_id'));
-        } elseif ($request->filled('lawyer_id')) {
-            $query->where($this->qualifyLegalCaseColumn('user_id'), (int) $request->input('lawyer_id'));
+        } else {
+            $responsibleFilter = $this->resolveResponsibleFilter($request);
+
+            if ($responsibleFilter['has_filter']) {
+                $qualifiedUserId = $this->qualifyLegalCaseColumn('user_id');
+
+                $query->where(function (Builder $responsibleQuery) use ($responsibleFilter, $qualifiedUserId) {
+                    if (count($responsibleFilter['ids']) > 0) {
+                        $responsibleQuery->whereIn($qualifiedUserId, $responsibleFilter['ids']);
+                    }
+
+                    if ($responsibleFilter['include_unassigned']) {
+                        if (count($responsibleFilter['ids']) > 0) {
+                            $responsibleQuery->orWhereNull($qualifiedUserId);
+                        } else {
+                            $responsibleQuery->whereNull($qualifiedUserId);
+                        }
+                    }
+                });
+            }
         }
 
         $this->applySharedCaseFilters($query, $request, $dateRange, $dateColumn);
@@ -855,6 +883,18 @@ class DashboardController extends Controller
         ];
     }
 
+    private function buildDateRangePayload(array $dateRange): array
+    {
+        return [
+            'start_date' => ($dateRange['start'] ?? null) instanceof Carbon
+                ? $dateRange['start']->toDateString()
+                : null,
+            'end_date' => ($dateRange['end'] ?? null) instanceof Carbon
+                ? $dateRange['end']->toDateString()
+                : null,
+        ];
+    }
+
     private function buildMonthKey(int $year, int $month): string
     {
         return sprintf('%04d-%02d', $year, $month);
@@ -896,9 +936,46 @@ class DashboardController extends Controller
         return (new LegalCase())->qualifyColumn($column);
     }
 
-    private function requestTargetsUnassignedResponsible(Request $request): bool
+    private function resolveResponsibleFilter(Request $request): array
     {
-        return $request->filled('lawyer_id')
-            && (string) $request->input('lawyer_id') === self::UNASSIGNED_RESPONSIBLE_VALUE;
+        $rawValues = [];
+
+        if ($request->has('lawyer_ids')) {
+            $rawValues = Arr::wrap($request->input('lawyer_ids'));
+        } elseif ($request->has('lawyer_ids[]')) {
+            $rawValues = Arr::wrap($request->input('lawyer_ids[]'));
+        } elseif ($request->filled('lawyer_id')) {
+            $rawValues = [$request->input('lawyer_id')];
+        }
+
+        $ids = [];
+        $includeUnassigned = false;
+
+        foreach (Arr::flatten($rawValues) as $rawValue) {
+            foreach (explode(',', (string) $rawValue) as $value) {
+                $normalizedValue = trim($value);
+
+                if ($normalizedValue === '') {
+                    continue;
+                }
+
+                if ($normalizedValue === self::UNASSIGNED_RESPONSIBLE_VALUE) {
+                    $includeUnassigned = true;
+                    continue;
+                }
+
+                if (ctype_digit($normalizedValue)) {
+                    $ids[] = (int) $normalizedValue;
+                }
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0)));
+
+        return [
+            'ids' => $ids,
+            'include_unassigned' => $includeUnassigned,
+            'has_filter' => $includeUnassigned || count($ids) > 0,
+        ];
     }
 }
