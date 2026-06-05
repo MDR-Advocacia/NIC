@@ -17,6 +17,7 @@ import TeamPerformanceModal from '../components/TeamPerformanceModal';
 import LawyerDetailModal from '../components/LawyerDetailModal';
 import CasesListModal from '../components/CasesListModal';
 import TopIndicatorsPanel from '../components/TopIndicatorsPanel';
+import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import {
     FaArrowRight,
     FaBriefcase,
@@ -230,21 +231,6 @@ const DashboardPage = () => {
     const teamPerformanceRangeLabel = buildDateRangeChip('Período', teamStartDate, teamEndDate)
         || buildDateRangeChip('Período', portfolioStartDate, portfolioEndDate)
         || 'Período: todo o histórico';
-
-    const handleToggleLawyerFilter = useCallback((value) => {
-        setSelectedLawyerIds((currentValues) => {
-            const normalizedValue = String(value);
-            const currentSet = new Set(currentValues.map(String));
-
-            if (currentSet.has(normalizedValue)) {
-                currentSet.delete(normalizedValue);
-            } else {
-                currentSet.add(normalizedValue);
-            }
-
-            return Array.from(currentSet);
-        });
-    }, []);
 
     const handleOpenDetailModal = (lawyer) => {
         setSelectedLawyerForDetail(lawyer);
@@ -882,47 +868,12 @@ const DashboardPage = () => {
                                     <FaUserTie />
                                     <span>Responsáveis</span>
                                 </label>
-                                <div
-                                    className={styles.multiSelectBox}
-                                    role="group"
-                                    aria-label="Filtro de responsáveis"
-                                >
-                                    <button
-                                        type="button"
-                                        className={`${styles.filterQuickButton} ${selectedLawyerIds.length === 0 ? styles.filterQuickButtonActive : ''}`}
-                                        onClick={() => setSelectedLawyerIds([])}
-                                    >
-                                        Todos os responsáveis
-                                    </button>
-
-                                    <label className={`${styles.multiSelectOption} ${selectedLawyerIds.includes(UNASSIGNED_RESPONSIBLE_VALUE) ? styles.multiSelectOptionActive : ''}`}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedLawyerIds.includes(UNASSIGNED_RESPONSIBLE_VALUE)}
-                                            onChange={() => handleToggleLawyerFilter(UNASSIGNED_RESPONSIBLE_VALUE)}
-                                        />
-                                        <span>Sem responsável</span>
-                                    </label>
-
-                                    {lawyers.map((lawyer) => {
-                                        const lawyerId = String(lawyer.id);
-                                        const isChecked = selectedLawyerIds.includes(lawyerId);
-
-                                        return (
-                                            <label
-                                                key={lawyer.id}
-                                                className={`${styles.multiSelectOption} ${isChecked ? styles.multiSelectOptionActive : ''}`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isChecked}
-                                                    onChange={() => handleToggleLawyerFilter(lawyerId)}
-                                                />
-                                                <span>{lawyer.name}</span>
-                                            </label>
-                                        );
-                                    })}
-                                </div>
+                                <ResponsibleMultiSelect
+                                    selectedValues={selectedLawyerIds}
+                                    options={lawyers}
+                                    onChange={setSelectedLawyerIds}
+                                    unassignedValue={UNASSIGNED_RESPONSIBLE_VALUE}
+                                />
                             </div>
 
                             <div className={styles.filterField}>
