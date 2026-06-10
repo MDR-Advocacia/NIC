@@ -8,6 +8,8 @@ import './index.css';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext.jsx'; // 1. IMPORTAR O NOVO TEMA
+import { ToastProvider } from './context/ToastContext.jsx';
+import ToastContainer from './components/ToastContainer.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
@@ -15,7 +17,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <ThemeProvider>
             <BrowserRouter>
                 <AuthProvider>
-                    <App />
+                    <ToastProvider>
+                        <App />
+                        <ToastContainer />
+                    </ToastProvider>
                 </AuthProvider>
             </BrowserRouter>
         </ThemeProvider>

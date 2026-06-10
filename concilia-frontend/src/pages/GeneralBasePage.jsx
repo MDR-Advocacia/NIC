@@ -11,6 +11,7 @@ import EditCaseModal from '../components/EditCaseModal';
 import styles from '../styles/GeneralBase.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
+import { useToast } from '../context/ToastContext';
 import {
     LEGAL_CASE_STATUS_OPTIONS,
     getLegalCaseStatusDetails,
@@ -42,6 +43,7 @@ const getDisplayValue = (value, fallback = '—') => {
 };
 
 const GeneralBasePage = () => {
+    const toast = useToast();
     const { token, user } = useAuth();
     const isAdmin = user?.role === 'administrador';
 
@@ -189,7 +191,7 @@ const GeneralBasePage = () => {
             setEditingCase(caseData);
         } catch (err) {
             console.error('Erro ao carregar caso para edição na base geral:', err);
-            window.alert('Não foi possível abrir o caso para edição.');
+            toast.error('Não foi possível abrir o caso para edição.');
         } finally {
             setIsCaseModalLoading(false);
         }
@@ -223,7 +225,7 @@ const GeneralBasePage = () => {
             fetchCases();
         } catch (err) {
             console.error('Erro ao excluir caso da base geral:', err);
-            window.alert('Não foi possível excluir o caso selecionado.');
+            toast.error('Não foi possível excluir o caso selecionado.');
         }
     };
 

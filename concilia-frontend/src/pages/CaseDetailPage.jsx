@@ -14,6 +14,7 @@ import AgreementChecklist from '../components/AgreementChecklist';
 import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 import { isIndicatorRole } from '../constants/access';
+import { useToast } from '../context/ToastContext';
 import {
     formatLiveloPoints,
     getSettlementBenefitType,
@@ -28,6 +29,7 @@ const PRIORITY_DETAILS = {
 };
 
 const CaseDetailPage = () => {
+    const toast = useToast();
     const { token, user } = useAuth();
     const { caseId } = useParams();
     const isIndicator = isIndicatorRole(user?.role);
@@ -131,7 +133,7 @@ const CaseDetailPage = () => {
     
     const handleSendMessage = async (content) => {
         if (!content.trim() || !conversation) {
-            alert('Não há uma conversa vinculada.');
+            toast.error('Não há uma conversa vinculada.');
             return;
         }
         setIsSending(true);
@@ -143,7 +145,7 @@ const CaseDetailPage = () => {
             );
             setMessages(currentMessages => [...currentMessages, response.data]);
         } catch (err) {
-            alert('Erro ao enviar mensagem.');
+            toast.error('Erro ao enviar mensagem.');
         } finally {
             setIsSending(false);
         }
@@ -157,7 +159,7 @@ const CaseDetailPage = () => {
         ].some(value => value !== null && value !== undefined && value !== '');
 
         if (!hasAgreementTerms) {
-            alert("Defina uma proposta em dinheiro, Ourocap ou Livelo para gerar a minuta.");
+            toast.warning("Defina uma proposta em dinheiro, Ourocap ou Livelo para gerar a minuta.");
             return;
         }
         setIsGeneratingPdf(true);
@@ -174,7 +176,7 @@ const CaseDetailPage = () => {
             link.click();
             link.parentNode.removeChild(link);
         } catch (error) {
-            alert("Erro ao gerar a minuta.");
+            toast.error("Erro ao gerar a minuta.");
         } finally {
             setIsGeneratingPdf(false);
         }
@@ -281,6 +283,7 @@ const CaseDetailPage = () => {
     const contraIndicatedByName = getLawyerName(legalCase.contra_indicated_by);
     const reanalysisReason = String(legalCase.reanalysis_reason || '').trim();
     const reanalysisRequestedByName = getLawyerName(legalCase.reanalysis_requested_by);
+    const failedDealReason = String(legalCase.failed_deal_reason || '').trim();
 
     return (
         <div className={styles.pageContainer}>
@@ -336,6 +339,16 @@ const CaseDetailPage = () => {
                         <span>
                             Registrado por {contraIndicatedByName} em {formatDate(legalCase.contra_indicated_at)}
                         </span>
+                    </div>
+                </div>
+            )}
+
+            {legalCase.status === 'failed_deal' && failedDealReason && (
+                <div className={styles.contraIndicationNotice}>
+                    <FaExclamationTriangle size={20} />
+                    <div>
+                        <strong>Motivo do acordo frustrado</strong>
+                        <p>{failedDealReason}</p>
                     </div>
                 </div>
             )}

@@ -1,0 +1,273 @@
+.container {
+    margin-top: 6px;
+    padding: 16px 18px;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 50%, #eef2ff 100%);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.titleRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.titleIcon {
+    color: #2563eb;
+    font-size: 0.9rem;
+}
+
+.title {
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #1e293b;
+    letter-spacing: 0.01em;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
+.saveButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid #2563eb;
+    border-radius: 10px;
+    background: #fff;
+    color: #2563eb;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.saveButton:hover:not(:disabled) {
+    background: #2563eb;
+    color: #fff;
+}
+
+.saveButton:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.saveForm {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.saveInput {
+    flex: 1;
+    padding: 9px 14px;
+    border: 1.5px solid #2563eb;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: #0f172a;
+    background: #fff;
+    outline: none;
+    transition: box-shadow 0.2s ease;
+}
+
+.saveInput:focus {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.confirmButton {
+    padding: 9px 18px;
+    border: none;
+    border-radius: 10px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+}
+
+.confirmButton:hover:not(:disabled) {
+    background: #1d4ed8;
+}
+
+.confirmButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cancelButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.cancelButton:hover {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.emptyMessage {
+    margin: 12px 0 0;
+    color: #64748b;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.presetList {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.presetCard {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    max-width: 360px;
+}
+
+.presetCard:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.1);
+}
+
+.presetApplyArea {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    min-width: 0;
+    flex: 1;
+    transition: background 0.15s ease;
+}
+
+.presetApplyArea:hover {
+    background: #f0f7ff;
+}
+
+.presetIcon {
+    color: #2563eb;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.presetInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.presetName {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.presetSummary {
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deleteButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 10px;
+    border: none;
+    border-left: 1px solid #f1f5f9;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 600;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.deleteButton:hover {
+    background: #fef2f2;
+    color: #ef4444;
+}
+
+.deleteConfirm {
+    background: #fef2f2;
+    color: #dc2626;
+    padding: 0 12px;
+}
+
+.deleteConfirm:hover {
+    background: #fee2e2;
+}
+
+@media (max-width: 640px) {
+    .container {
+        padding: 12px 14px;
+    }
+
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .saveForm {
+        flex-wrap: wrap;
+    }
+
+    .saveInput {
+        width: 100%;
+    }
+
+    .presetCard {
+        max-width: 100%;
+        width: 100%;
+    }
+}

@@ -647,14 +647,22 @@ const DashboardPage = () => {
                             <div className={styles.metricLeaderboardContent}>
                                 <div className={styles.metricLeaderboardHeader}>
                                     <h4 className={styles.metricLeaderboardTitle}>{item.name}</h4>
-                                    <span className={styles.metricLeaderboardBadge}>
+                                    <a
+                                        href={`/cases?indicator_user_ids=${item.id}&statuses=closed_deal&statuses=awaiting_draft`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={styles.metricLeaderboardBadge}
+                                        style={{ textDecoration: 'none', cursor: 'pointer' }}
+                                        title={`Ver acordos fechados e aguardando minuta de ${item.name}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
                                         {renderAgreementCountLabel(item.agreements_count || 0)}
-                                    </span>
+                                    </a>
                                 </div>
 
                                 <div className={styles.metricLeaderboardMetrics}>
                                     <div className={styles.metricLeaderboardMetric}>
-                                        <span>{renderAgreementMetricLabel('Acordos fechados')}</span>
+                                        <span>{renderAgreementMetricLabel('Acordos (fechados + minuta)')}</span>
                                         <strong>{item.agreements_count || 0}</strong>
                                     </div>
                                     <div className={styles.metricLeaderboardMetric}>

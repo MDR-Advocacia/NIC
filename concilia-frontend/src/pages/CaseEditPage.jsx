@@ -6,6 +6,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
+import { useToast } from '../context/ToastContext';
 import {
     LIVELO_MIN_POINTS,
     getSettlementBenefitType,
@@ -196,6 +197,7 @@ const SafeChecklist = ({ data = {}, onChange }) => {
 // --- PÁGINA PRINCIPAL ---
 const CaseEditPage = () => {
   const { caseId } = useParams();
+  const toast = useToast();
   const { token } = useAuth();
   const navigate = useNavigate();
 
@@ -313,7 +315,7 @@ const CaseEditPage = () => {
       );
       navigate(`/cases/${caseId}`);
     } catch (err) {
-      alert('Erro ao salvar.');
+      toast.error('Erro ao salvar.');
     } finally {
       setLoading(false);
     }

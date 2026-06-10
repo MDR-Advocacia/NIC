@@ -25,6 +25,7 @@ const EXPORT_COLUMNS = [
     { header: 'Causa de pedir', getValue: (legalCase) => getActionObjectName(legalCase) },
     { header: 'Status', getValue: (legalCase) => getLegalCaseStatusDetails(legalCase?.status).name },
     { header: 'Motivo da contraindicacao', getValue: (legalCase) => legalCase?.contra_indication_reason || '' },
+    { header: 'Motivo do acordo frustrado', getValue: (legalCase) => legalCase?.failed_deal_reason || '' },
     { header: 'Prioridade', getValue: (legalCase) => PRIORITY_LABELS[legalCase?.priority] || legalCase?.priority || '' },
     { header: 'Responsavel principal', getValue: (legalCase) => getResponsibleName(legalCase) },
     { header: 'Indicador', getValue: (legalCase) => getIndicatorName(legalCase) },

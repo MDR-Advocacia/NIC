@@ -16,11 +16,13 @@ import {
 } from '../constants/settlementBenefit';
 import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
 import { normalizeUserRole } from '../constants/access';
+import { useToast } from '../context/ToastContext';
 
 const brazilianStates = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const availableColors = ['#EF4444', '#F97316', '#FBBF24', ' #84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
 
 const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
+  const toast = useToast();
   const { token, user } = useAuth();
   const canManageSavedTags = ['administrador', 'admin'].includes(normalizeUserRole(user?.role));
   
@@ -197,10 +199,10 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
         tags: removeCaseTag(prevState.tags, tagToDelete),
       }));
 
-      window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+      toast.success(response.data?.message || 'Etiqueta excluída com sucesso.');
     } catch (err) {
       console.error("Erro ao excluir etiqueta salva:", err);
-      window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+      toast.error(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
     }
   };
 
@@ -232,7 +234,7 @@ const NewCaseModal = ({ onClose, clients, lawyers, onCaseCreated }) => {
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert('Caso criado com sucesso!');
+      toast.success('Caso criado com sucesso!');
       if (onCaseCreated) {
         onCaseCreated();
       }

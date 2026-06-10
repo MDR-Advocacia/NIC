@@ -26,6 +26,7 @@ import {
 import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
 import { getLegalCaseStatusDetails, LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 import { normalizeUserRole } from '../constants/access';
+import { useToast } from '../context/ToastContext';
 
 // --- Ícones SVG Inline ---
 const IconBriefcase = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#4299e1'}}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
@@ -90,6 +91,7 @@ const HistoryItem = ({ entry }) => {
         reanalysis_reason: 'Motivo da reanálise',
         reanalysis_requested_at: 'Data da solicitação de reanálise',
         reanalysis_requested_by_user_id: 'Responsável pela solicitação de reanálise',
+        failed_deal_reason: 'Motivo do acordo frustrado',
     };
 
     const priorityTranslations = {
@@ -178,6 +180,7 @@ const HistoryItem = ({ entry }) => {
 
 // --- Sub-componente HistoryTab ---
 const HistoryTab = ({ caseId }) => {
+    const toast = useToast();
     const { token } = useAuth();
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -213,7 +216,7 @@ const HistoryTab = ({ caseId }) => {
             setNewHistoryEntry('');
         } catch (error) {
             console.error("Erro ao adicionar histórico:", error);
-            alert('Não foi possível adicionar a anotação.');
+            toast.error('Não foi possível adicionar a anotação.');
         }
     };
 
@@ -379,6 +382,24 @@ const DetailsTab = ({
                             />
                             <span className={styles.inputDescription}>
                                 Este motivo ficará visível no caso enquanto ele estiver contraindicado.
+                            </span>
+                        </div>
+                    )}
+                    {formData.status === 'failed_deal' && (
+                        <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+                            <label className={styles.label}>Motivo do acordo frustrado *</label>
+                            <textarea
+                                className={styles.textarea}
+                                name="failed_deal_reason"
+                                value={formData.failed_deal_reason || ''}
+                                onChange={handleChange}
+                                rows={4}
+                                maxLength={4000}
+                                placeholder="Descreva por que este acordo foi frustrado."
+                                required
+                            />
+                            <span className={styles.inputDescription}>
+                                Este motivo ficará visível no caso enquanto ele estiver como acordo frustrado.
                             </span>
                         </div>
                     )}
@@ -786,6 +807,7 @@ const DetailsTab = ({
 
 // --- COMPONENTE PRINCIPAL ---
 const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) => {
+    const toast = useToast();
     const { token, user } = useAuth();
     const canManageSavedTags = ['administrador', 'admin'].includes(normalizeUserRole(user?.role));
     const [formData, setFormData] = useState({});
@@ -1023,10 +1045,10 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 tags: removeCaseTag(prevState.tags, tagToDelete),
             }));
 
-            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+            toast.success(response.data?.message || 'Etiqueta excluída com sucesso.');
         } catch (err) {
             console.error('Erro ao excluir etiqueta salva:', err);
-            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+            toast.error(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
         }
     };
     const handleSettlementBenefitTypeChange = (e) => {
@@ -1062,9 +1084,16 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 return;
             }
 
+            if (formData.status === 'failed_deal' && !String(formData.failed_deal_reason || '').trim()) {
+                setError('Informe o motivo do acordo frustrado.');
+                setIsSubmitting(false);
+                return;
+            }
+
             const payload = {
                 ...formData,
                 contra_indication_reason: String(formData.contra_indication_reason || '').trim(),
+                failed_deal_reason: String(formData.failed_deal_reason || '').trim(),
                 tags: normalizeCaseTags(formData.tags),
                 action_object: (formData.action_object || '').trim(),
                 original_value: formData.original_value ? parseFloat(formData.original_value) : null,
@@ -1081,7 +1110,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
             };
 
             await apiClient.put(`/cases/${legalCase.id}`, payload, { headers: { Authorization: `Bearer ${token}` } }); 
-            alert('Caso atualizado com sucesso!'); 
+            toast.success('Caso atualizado com sucesso!'); 
             if (onCaseUpdated) { onCaseUpdated(); } 
             onClose(); 
         } catch (err) { 

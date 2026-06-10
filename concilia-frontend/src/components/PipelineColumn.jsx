@@ -5,11 +5,13 @@ import React from 'react';
 import CaseCard from './CaseCard';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext } from '@dnd-kit/sortable';
+import { FaInfoCircle } from 'react-icons/fa';
 import styles from '../styles/Pipeline.module.css';
 
 const PipelineColumn = ({
     id,
     title,
+    titleTooltip,
     cases,
     onCardClick,
     enableDrag = true,
@@ -58,7 +60,13 @@ const PipelineColumn = ({
     return (
         <div ref={enableDrag ? setNodeRef : undefined} className={styles.pipelineColumn} style={columnStyle}>
             <h3 className={styles.pipelineColumnHeader}>
-                {title} ({cases.length})
+                {title}
+                {titleTooltip && (
+                    <span className={styles.columnTooltip} title={titleTooltip}>
+                        <FaInfoCircle />
+                    </span>
+                )}
+                {' '}({cases.length})
             </h3>
 
             {enableDrag ? (

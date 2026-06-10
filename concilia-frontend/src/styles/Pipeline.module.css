@@ -1077,3 +1077,77 @@
     );
   }
 }
+
+/* ======= Pipeline View Selector ======= */
+.headerTitleRow {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.headerTitleRow h1 {
+    margin: 0;
+}
+
+.pipelineViewSelector {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.pipelineViewSelect {
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--surface-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color-light);
+    border-radius: 8px;
+    padding: 0.5rem 2.2rem 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    min-width: 160px;
+}
+
+.pipelineViewSelect:hover {
+    border-color: var(--accent-color);
+}
+
+.pipelineViewSelect:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
+}
+
+.pipelineViewSelect option[disabled] {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.pipelineViewIcon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+/* ======= Column Tooltip (OBF info icon) ======= */
+.columnTooltip {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.35rem;
+    color: var(--text-secondary);
+    cursor: help;
+    font-size: 0.75em;
+    vertical-align: middle;
+    transition: color 0.2s;
+}
+
+.columnTooltip:hover {
+    color: var(--accent-color);
+}

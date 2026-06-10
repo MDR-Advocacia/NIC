@@ -2,13 +2,14 @@
 // ATUALIZADO: Implementação completa de DragOver para suportar colunas vazias
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; 
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'; 
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
 import EditCaseModal from '../components/EditCaseModal';
 import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
 import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
+import FailedDealReasonModal from '../components/FailedDealReasonModal';
 import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import { 
@@ -33,10 +34,12 @@ import {
     FaBolt,
     FaTag,
     FaFileExport,
+    FaInfoCircle,
 } from 'react-icons/fa';
 import {
     LEGAL_CASE_STATUS_DETAILS,
     LEGAL_CASE_STATUS_ORDER,
+    POST_AGREEMENT_STATUS_ORDER,
     UNASSIGNED_RESPONSIBLE_VALUE,
     isTerminalLegalCaseStatus,
 } from '../constants/legalCaseStatus';
@@ -46,6 +49,7 @@ import {
     normalizeUserRole,
 } from '../constants/access';
 import IndicationChecklistModal from '../components/IndicationChecklistModal';
+import { useToast } from '../context/ToastContext';
 import {
     downloadCasesWorkbook,
     fetchAllCasesForExport,
@@ -116,6 +120,7 @@ const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
 };
 
 const PipelinePage = () => {
+    const toast = useToast();
     const { token, user } = useAuth();
     const navigate = useNavigate();
     const isIndicator = isIndicatorRole(user?.role);
@@ -133,6 +138,8 @@ const PipelinePage = () => {
     
     const [editingCase, setEditingCase] = useState(null);
     const [indicationCase, setIndicationCase] = useState(null);
+    const [searchParams] = useSearchParams();
+    const pipelineView = searchParams.get('view') || 'pre';
     const [filters, setFilters] = useState(INITIAL_FILTERS);
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [debouncedActionObject, setDebouncedActionObject] = useState('');
@@ -142,6 +149,10 @@ const PipelinePage = () => {
     const [contraIndicationReason, setContraIndicationReason] = useState('');
     const [contraIndicationError, setContraIndicationError] = useState('');
     const [isSavingContraIndication, setIsSavingContraIndication] = useState(false);
+    const [failedDealPrompt, setFailedDealPrompt] = useState(null);
+    const [failedDealReason, setFailedDealReason] = useState('');
+    const [failedDealError, setFailedDealError] = useState('');
+    const [isSavingFailedDeal, setIsSavingFailedDeal] = useState(false);
     const [reanalysisPrompt, setReanalysisPrompt] = useState(null);
     const [reanalysisReason, setReanalysisReason] = useState('');
     const [reanalysisError, setReanalysisError] = useState('');
@@ -288,9 +299,9 @@ const PipelinePage = () => {
         return () => clearTimeout(timer);
     }, [actionObjectFilter]);
 
-    const groupCasesByStatus = useCallback((cases) => {
-        const initialGroups = LEGAL_CASE_STATUS_ORDER.reduce((acc, statusKey) => {
-            acc[statusKey] = LEGAL_CASE_STATUS_DETAILS[statusKey].name;
+    const groupCasesByStatus = useCallback((cases, statusOrder = LEGAL_CASE_STATUS_ORDER) => {
+        const initialGroups = statusOrder.reduce((acc, statusKey) => {
+            acc[statusKey] = LEGAL_CASE_STATUS_DETAILS[statusKey]?.name || statusKey;
             return acc;
         }, {});
         const grouped = Object.keys(initialGroups).reduce((acc, key) => ({ ...acc, [key]: [] }), {});
@@ -299,8 +310,6 @@ const PipelinePage = () => {
             .forEach(currentCase => {
             if (grouped[currentCase.status]) {
                 grouped[currentCase.status].push(currentCase);
-            } else {
-                grouped['initial_analysis'].push(currentCase);
             }
         });
         return { grouped, titles: initialGroups };
@@ -365,11 +374,18 @@ const PipelinePage = () => {
                 });
             }
 
-            let fetchedCases = await fetchAllPaginatedResults('/cases', token, {
+            const fetchParams = {
                 ...effectiveFilters,
                 sort_by: 'updated_at',
                 sort_order: 'desc',
-            });
+            };
+
+            // Filter by statuses based on pipeline view
+            if (pipelineView === 'post') {
+                fetchParams.statuses = POST_AGREEMENT_STATUS_ORDER;
+            }
+
+            let fetchedCases = await fetchAllPaginatedResults('/cases', token, fetchParams);
 
             // Filtro de Atraso
             if (showDelayedOnly) {
@@ -386,7 +402,9 @@ const PipelinePage = () => {
                 });
             }
 
-            const groupedCases = groupCasesByStatus(fetchedCases);
+            const groupedCases = pipelineView === 'post'
+                ? groupCasesByStatus(fetchedCases, POST_AGREEMENT_STATUS_ORDER)
+                : groupCasesByStatus(fetchedCases, LEGAL_CASE_STATUS_ORDER);
             setPipelineData(groupedCases);
             setClients(clientsResponse.data);
             setLawyers(fetchedLawyers);
@@ -398,7 +416,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator]);
+    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator, pipelineView]);
 
     useEffect(() => {
         fetchAllData();
@@ -579,6 +597,44 @@ const PipelinePage = () => {
         }
     };
 
+    const handleCancelFailedDeal = () => {
+        setFailedDealPrompt(null);
+        setFailedDealReason('');
+        setFailedDealError('');
+        setIsSavingFailedDeal(false);
+        fetchAllData();
+    };
+
+    const handleConfirmFailedDeal = async (event) => {
+        event.preventDefault();
+
+        const normalizedReason = failedDealReason.trim();
+        if (!normalizedReason) {
+            setFailedDealError('Informe o motivo do acordo frustrado.');
+            return;
+        }
+
+        if (!failedDealPrompt?.legalCase) return;
+
+        setIsSavingFailedDeal(true);
+        setFailedDealError('');
+
+        try {
+            await persistCaseStatusChange(
+                failedDealPrompt.legalCase,
+                failedDealPrompt.targetStatus,
+                { failed_deal_reason: normalizedReason }
+            );
+            setFailedDealPrompt(null);
+            setFailedDealReason('');
+        } catch (err) {
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setFailedDealError(firstBackendError || err.response?.data?.message || 'Não foi possível salvar o motivo.');
+        } finally {
+            setIsSavingFailedDeal(false);
+        }
+    };
+
     const handleDragEnd = (event) => {
         const { active, over } = event;
 
@@ -620,6 +676,16 @@ const PipelinePage = () => {
                 });
                 setContraIndicationReason(movedCase.contra_indication_reason || '');
                 setContraIndicationError('');
+                return;
+            }
+
+            if (overContainer === 'failed_deal') {
+                setFailedDealPrompt({
+                    legalCase: movedCase,
+                    targetStatus: overContainer,
+                });
+                setFailedDealReason(movedCase.failed_deal_reason || '');
+                setFailedDealError('');
                 return;
             }
 
@@ -678,11 +744,11 @@ const PipelinePage = () => {
                 ...prev,
                 tag: prev.tag === (tagToDelete.text || tagToDelete.name) ? '' : prev.tag,
             }));
-            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+            toast.success(response.data?.message || 'Etiqueta excluída com sucesso.');
             fetchAllData();
         } catch (err) {
             console.error('Erro ao excluir etiqueta salva:', err);
-            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+            toast.error(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
         }
     };
 
@@ -718,7 +784,7 @@ const PipelinePage = () => {
             });
         } catch (err) {
             console.error('Erro ao exportar pipeline:', err);
-            window.alert('Não foi possível exportar a planilha do pipeline.');
+            toast.error('Não foi possível exportar a planilha do pipeline.');
         } finally {
             setIsExporting(false);
         }
@@ -729,6 +795,10 @@ const PipelinePage = () => {
         setShowDelayedOnly(false);
     };
 
+    const postAgreementTooltips = {
+        pending_obf: 'Obrigação de Fazer',
+    };
+
     const boardContent = (
         <div className={styles.boardShell}>
             <div className={styles.boardGrid}>
@@ -737,12 +807,13 @@ const PipelinePage = () => {
                         key={statusKey}
                         id={statusKey}
                         title={statusTitle}
+                        titleTooltip={postAgreementTooltips[statusKey]}
                         cases={pipelineData.grouped[statusKey] || []}
                         onCardClick={handleOpenCase}
-                        enableDrag={!isIndicator}
-                        canIndicateCase={isIndicator}
+                        enableDrag={pipelineView === 'pre' && !isIndicator}
+                        canIndicateCase={pipelineView === 'pre' && isIndicator}
                         onIndicateCase={handleOpenIndicationModal}
-                        canRequestReanalysis={isIndicator}
+                        canRequestReanalysis={pipelineView === 'pre' && isIndicator}
                         onRequestReanalysis={handleOpenReanalysisModal}
                     />
                 ))}
@@ -756,7 +827,7 @@ const PipelinePage = () => {
     return (
         <div className={styles.pageContainer}>
             <div className={styles.header}>
-                <h1>{isIndicator ? 'Indicações e Acompanhamento' : 'Pipeline de Acordos'}</h1>
+                <h1>{isIndicator ? 'Indicações e Acompanhamento' : pipelineView === 'post' ? 'Pipeline Pós-Acordo' : 'Pipeline de Acordos'}</h1>
                 <div className={styles.headerActions}>
                     <button
                         type="button"
@@ -1002,6 +1073,18 @@ const PipelinePage = () => {
                     isSubmitting={isSavingContraIndication}
                     onCancel={handleCancelContraIndication}
                     onConfirm={handleConfirmContraIndication}
+                />
+            )}
+
+            {failedDealPrompt && (
+                <FailedDealReasonModal
+                    caseNumber={failedDealPrompt.legalCase?.case_number}
+                    reason={failedDealReason}
+                    onReasonChange={setFailedDealReason}
+                    error={failedDealError}
+                    isSubmitting={isSavingFailedDeal}
+                    onCancel={handleCancelFailedDeal}
+                    onConfirm={handleConfirmFailedDeal}
                 />
             )}
 

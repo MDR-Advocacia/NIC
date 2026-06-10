@@ -1,20 +1,22 @@
 // src/pages/CaseManagementPage.jsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { 
     FaPlus, FaSearch, FaEye, FaEdit, FaTrash, 
     FaCheckSquare, FaTrashAlt, FaTimes, 
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
-    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag, FaFileExport
+    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag, FaFileExport, FaCalendarAlt
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
 import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
 import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
+import FailedDealReasonModal from '../components/FailedDealReasonModal';
 import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
+import SmartFilterPresets from '../components/SmartFilterPresets';
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -27,6 +29,7 @@ import {
 import { canAccessCaseCreation, isIndicatorRole, normalizeUserRole } from '../constants/access';
 import { formatLiveloPoints } from '../constants/settlementBenefit';
 import { downloadCasesWorkbook, fetchAllCasesForExport } from '../utils/caseExport';
+import { useToast } from '../context/ToastContext';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -44,15 +47,18 @@ const PRIORITY_OPTIONS = Object.entries(PRIORITY_DETAILS).map(([value, details])
 const MULTI_CASE_NUMBER_MIN_DIGITS = 15;
 const CASE_NUMBER_TOKEN_PATTERN = /^[0-9./-]+$/;
 const CONTRA_INDICATED_STATUS = 'contra_indicated';
+const FAILED_DEAL_STATUS = 'failed_deal';
 const REANALYSIS_STATUSES = [CONTRA_INDICATED_STATUS, 'failed_deal'];
 const INITIAL_FILTERS = {
     search: '',
     action_object: '',
-    status: '',
+    statuses: [],
     priority: '',
     tag: '',
     lawyer_ids: [],
-    indicator_user_id: '',
+    indicator_user_ids: [],
+    date_from: '',
+    date_to: '',
 };
 
 const extractMultipleCaseNumberTerms = (value) => {
@@ -161,12 +167,14 @@ const renderSettlementTerms = (legalCase, formatCurrency) => {
 
 const CaseManagementPage = () => {
     // Adicionado 'user' para verificar a role
+    const toast = useToast();
     const { token, user } = useAuth();
     const normalizedUserRole = normalizeUserRole(user?.role);
     const isIndicator = isIndicatorRole(user?.role);
     const canUseBatchActions = !isIndicator;
     const canDeleteCases = ['administrador', 'admin'].includes(normalizedUserRole);
     const canManageSavedTags = ['administrador', 'admin'].includes(normalizedUserRole);
+    const [searchParams, setSearchParams] = useSearchParams();
     
     const [cases, setCases] = useState([]);
     const [lawyers, setLawyers] = useState([]);
@@ -204,31 +212,55 @@ const CaseManagementPage = () => {
     const [batchContraIndicationPrompt, setBatchContraIndicationPrompt] = useState(false);
     const [batchContraIndicationReason, setBatchContraIndicationReason] = useState('');
     const [batchContraIndicationError, setBatchContraIndicationError] = useState('');
+    const [batchFailedDealPrompt, setBatchFailedDealPrompt] = useState(false);
+    const [batchFailedDealReason, setBatchFailedDealReason] = useState('');
+    const [batchFailedDealError, setBatchFailedDealError] = useState('');
 
-    const [filters, setFilters] = useState(INITIAL_FILTERS);
+    const [filters, setFilters] = useState(() => {
+        const initial = { ...INITIAL_FILTERS };
+
+        // Lê filtros da URL (ex: /cases?indicator_user_ids=5&status=closed_deal)
+        const urlStatuses = searchParams.getAll('statuses');
+        const urlStatusSingle = searchParams.get('status');
+        const urlSearch = searchParams.get('search');
+        const urlActionObject = searchParams.get('action_object');
+        const urlPriority = searchParams.get('priority');
+        const urlTag = searchParams.get('tag');
+        const urlDateFrom = searchParams.get('date_from');
+        const urlDateTo = searchParams.get('date_to');
+        const urlIndicatorIds = searchParams.getAll('indicator_user_ids');
+        const urlLawyerIds = searchParams.getAll('lawyer_ids');
+
+        if (urlStatuses.length > 0) initial.statuses = urlStatuses;
+        else if (urlStatusSingle) initial.statuses = [urlStatusSingle];
+        if (urlSearch) initial.search = urlSearch;
+        if (urlActionObject) initial.action_object = urlActionObject;
+        if (urlPriority) initial.priority = urlPriority;
+        if (urlTag) initial.tag = urlTag;
+        if (urlDateFrom) initial.date_from = urlDateFrom;
+        if (urlDateTo) initial.date_to = urlDateTo;
+        if (urlIndicatorIds.length > 0) initial.indicator_user_ids = urlIndicatorIds;
+        if (urlLawyerIds.length > 0) initial.lawyer_ids = urlLawyerIds;
+
+        return initial;
+    });
 
     // Carrega dados de apoio
     useEffect(() => {
         const fetchDropdownData = async () => {
             if (!token) return;
             try {
-                const requests = [
+                const responses = await Promise.all([
+                    apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/users/indicators', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
-                ];
+                ]);
 
-                if (!isIndicator) {
-                    requests.unshift(
-                        apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
-                        apiClient.get('/users/indicators', { headers: { Authorization: `Bearer ${token}` } })
-                    );
-                }
-
-                const responses = await Promise.all(requests);
-                const usersResponse = isIndicator ? null : responses[0];
-                const indicatorsResponse = isIndicator ? null : responses[1];
-                const clientsResponse = isIndicator ? responses[0] : responses[2];
-                const caseTagsResponse = isIndicator ? responses[1] : responses[3];
+                const usersResponse = responses[0];
+                const indicatorsResponse = responses[1];
+                const clientsResponse = responses[2];
+                const caseTagsResponse = responses[3];
 
                 setLawyers(Array.isArray(usersResponse?.data) ? usersResponse.data : []);
                 setIndicators(Array.isArray(indicatorsResponse?.data) ? indicatorsResponse.data : []);
@@ -239,7 +271,7 @@ const CaseManagementPage = () => {
             }
         };
         fetchDropdownData();
-    }, [token, isIndicator]);
+    }, [token]);
 
     // Carrega Casos
     const fetchCases = useCallback(async () => {
@@ -370,11 +402,11 @@ const CaseManagementPage = () => {
                 ...prev,
                 tag: prev.tag === (tagToDelete.text || tagToDelete.name) ? '' : prev.tag,
             }));
-            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+            toast.success(response.data?.message || 'Etiqueta excluída com sucesso.');
             fetchCases();
         } catch (err) {
             console.error('Erro ao excluir etiqueta salva:', err);
-            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+            toast.error(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
         }
     };
 
@@ -398,7 +430,7 @@ const CaseManagementPage = () => {
             });
         } catch (err) {
             console.error('Erro ao exportar casos:', err);
-            window.alert('Não foi possível exportar a planilha de casos.');
+            toast.error('Não foi possível exportar a planilha de casos.');
         } finally {
             setIsExporting(false);
         }
@@ -439,6 +471,16 @@ const CaseManagementPage = () => {
             return;
         }
 
+        const isFailedDealStatus = action === 'update_status' && value === FAILED_DEAL_STATUS;
+        const normalizedFailedDealReason = String(options.failedDealReason || '').trim();
+
+        if (isFailedDealStatus && !normalizedFailedDealReason) {
+            setBatchFailedDealPrompt(true);
+            setBatchFailedDealReason('');
+            setBatchFailedDealError('');
+            return;
+        }
+
         const confirmMessage = action === 'delete'
             ? `Tem certeza que deseja excluir ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?\n\nEssa ação não pode ser desfeita e removerá os casos definitivamente.`
             : `Aplicar alteração em ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?`;
@@ -457,14 +499,21 @@ const CaseManagementPage = () => {
                 payload.contra_indication_reason = normalizedContraReason;
             }
 
+            if (isFailedDealStatus) {
+                payload.failed_deal_reason = normalizedFailedDealReason;
+            }
+
             await apiClient.post('/cases/batch-update', payload, { headers: { Authorization: `Bearer ${token}` } });
 
-            alert('Ação em lote concluída!');
+            toast.success('Ação em lote concluída!');
             setSelectedCaseIds([]);
             setBatchActionType(null);
             setBatchContraIndicationPrompt(false);
             setBatchContraIndicationReason('');
             setBatchContraIndicationError('');
+            setBatchFailedDealPrompt(false);
+            setBatchFailedDealReason('');
+            setBatchFailedDealError('');
             fetchCases(); 
         } catch (err) {
             console.error(err);
@@ -473,7 +522,7 @@ const CaseManagementPage = () => {
             if (isContraIndicationStatus) {
                 setBatchContraIndicationError(message);
             } else {
-                alert(message);
+                toast.info(message);
             }
         } finally {
             setIsBatchProcessing(false);
@@ -502,6 +551,28 @@ const CaseManagementPage = () => {
         });
     };
 
+    const handleCancelBatchFailedDeal = () => {
+        setBatchFailedDealPrompt(false);
+        setBatchFailedDealReason('');
+        setBatchFailedDealError('');
+        setBatchActionType(null);
+    };
+
+    const handleConfirmBatchFailedDeal = (event) => {
+        event.preventDefault();
+
+        const normalizedReason = batchFailedDealReason.trim();
+        if (!normalizedReason) {
+            setBatchFailedDealError('Informe o motivo do acordo frustrado.');
+            return;
+        }
+
+        executeBatchUpdate('update_status', FAILED_DEAL_STATUS, {
+            failedDealReason: normalizedReason,
+            skipConfirm: true,
+        });
+    };
+
     const handleDeleteCase = async (legalCase) => {
         const caseLabel = legalCase?.case_number || `#${legalCase?.id}`;
         const confirmMessage = `Tem certeza que deseja excluir o processo ${caseLabel}?\n\nEssa ação não pode ser desfeita.`;
@@ -512,7 +583,7 @@ const CaseManagementPage = () => {
                 setCases(prev => prev.filter(c => c.id !== legalCase.id));
                 setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => id !== legalCase.id));
             } catch (err) {
-                alert(err?.response?.data?.message || 'Erro ao excluir.');
+                toast.error(err?.response?.data?.message || 'Erro ao excluir.');
             }
         }
     };
@@ -612,7 +683,15 @@ const CaseManagementPage = () => {
 
         return `${selectedLawyerNames.slice(0, 2).join(' + ')} + ${selectedLawyerNames.length - 2}`;
     })();
-    const selectedIndicator = indicators.find(indicator => String(indicator.id) === String(filters.indicator_user_id));
+    const selectedIndicatorIds = Array.isArray(filters.indicator_user_ids) ? filters.indicator_user_ids.map(String) : [];
+    const selectedIndicatorNames = selectedIndicatorIds
+        .map((indicatorId) => indicators.find((ind) => String(ind.id) === String(indicatorId))?.name)
+        .filter(Boolean);
+    const selectedIndicatorFilterLabel = (() => {
+        if (selectedIndicatorNames.length === 0) return null;
+        if (selectedIndicatorNames.length <= 2) return selectedIndicatorNames.join(' + ');
+        return `${selectedIndicatorNames.slice(0, 2).join(' + ')} + ${selectedIndicatorNames.length - 2}`;
+    })();
     const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
         || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
     const activeFilterChips = [];
@@ -635,10 +714,19 @@ const CaseManagementPage = () => {
         });
     }
 
-    if (filters.status) {
+    const selectedStatusValues = Array.isArray(filters.statuses) ? filters.statuses : [];
+    const selectedStatusNames = selectedStatusValues
+        .map((s) => getLegalCaseStatusDetails(s).name)
+        .filter(Boolean);
+    const selectedStatusFilterLabel = (() => {
+        if (selectedStatusNames.length === 0) return null;
+        if (selectedStatusNames.length <= 2) return selectedStatusNames.join(' + ');
+        return `${selectedStatusNames.slice(0, 2).join(' + ')} + ${selectedStatusNames.length - 2}`;
+    })();
+    if (selectedStatusFilterLabel) {
         activeFilterChips.push({
-            key: 'status',
-            label: `Status: ${getLegalCaseStatusDetails(filters.status).name}`,
+            key: 'statuses',
+            label: `Status: ${selectedStatusFilterLabel}`,
         });
     }
 
@@ -656,17 +744,35 @@ const CaseManagementPage = () => {
         });
     }
 
-    if (!isIndicator && selectedLawyerFilterLabel) {
+    if (selectedLawyerFilterLabel) {
         activeFilterChips.push({
             key: 'lawyer_ids',
             label: `Responsáveis: ${selectedLawyerFilterLabel}`,
         });
     }
 
-    if (!isIndicator && filters.indicator_user_id) {
+    if (selectedIndicatorFilterLabel) {
         activeFilterChips.push({
-            key: 'indicator_user_id',
-            label: `Indicador: ${selectedIndicator?.name || 'Selecionado'}`,
+            key: 'indicator_user_ids',
+            label: `Indicadores: ${selectedIndicatorFilterLabel}`,
+        });
+    }
+
+    if (filters.date_from || filters.date_to) {
+        const formatDateBR = (d) => d ? d.split('-').reverse().join('/') : '';
+        const fromLabel = formatDateBR(filters.date_from);
+        const toLabel = formatDateBR(filters.date_to);
+        let dateLabel = 'Período: ';
+        if (fromLabel && toLabel) {
+            dateLabel += `${fromLabel} a ${toLabel}`;
+        } else if (fromLabel) {
+            dateLabel += `a partir de ${fromLabel}`;
+        } else {
+            dateLabel += `até ${toLabel}`;
+        }
+        activeFilterChips.push({
+            key: 'date_range',
+            label: dateLabel,
         });
     }
 
@@ -855,14 +961,17 @@ const CaseManagementPage = () => {
                             <FaCheckSquare />
                             Status
                         </span>
-                        <select className={styles.filterControl} name="status" value={filters.status} onChange={handleFilterChange}>
-                            <option value="">Todos os status</option>
-                            {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
-                                <option key={statusOption.value} value={statusOption.value}>
-                                    {statusOption.name}
-                                </option>
-                            ))}
-                        </select>
+                        <ResponsibleMultiSelect
+                            selectedValues={selectedStatusValues}
+                            options={LEGAL_CASE_STATUS_OPTIONS.map((s) => ({ id: s.value, name: s.name }))}
+                            onChange={(values) => setFilters((prev) => ({ ...prev, statuses: values }))}
+                            includeUnassigned={false}
+                            placeholder="Todos os status"
+                            searchPlaceholder="Buscar status"
+                            emptyMessage="Nenhum status encontrado."
+                            summaryPluralLabel="status"
+                            ariaLabel="Filtro de status"
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -895,37 +1004,64 @@ const CaseManagementPage = () => {
                         </select>
                     </label>
 
-                    {!isIndicator && (
-                        <>
-                            <label className={styles.filterField}>
-                                <span className={styles.filterLabel}>
-                                    <FaUserTag />
-                                    Responsável do caso
-                                </span>
-                                <ResponsibleMultiSelect
-                                    selectedValues={selectedLawyerIds}
-                                    options={lawyers}
-                                    onChange={(values) => setFilters((prev) => ({ ...prev, lawyer_ids: values }))}
-                                    unassignedValue={UNASSIGNED_RESPONSIBLE_VALUE}
-                                />
-                            </label>
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaUserTag />
+                            Responsável do caso
+                        </span>
+                        <ResponsibleMultiSelect
+                            selectedValues={selectedLawyerIds}
+                            options={lawyers}
+                            onChange={(values) => setFilters((prev) => ({ ...prev, lawyer_ids: values }))}
+                            unassignedValue={UNASSIGNED_RESPONSIBLE_VALUE}
+                        />
+                    </label>
 
-                            <label className={styles.filterField}>
-                                <span className={styles.filterLabel}>
-                                    <FaUserTag />
-                                    Indicador
-                                </span>
-                                <select className={styles.filterControl} name="indicator_user_id" value={filters.indicator_user_id} onChange={handleFilterChange}>
-                                    <option value="">Todos os indicadores</option>
-                                    {indicators.map((indicator) => (
-                                        <option key={indicator.id} value={indicator.id}>
-                                            {indicator.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                        </>
-                    )}
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaUserTag />
+                            Indicador
+                        </span>
+                        <ResponsibleMultiSelect
+                            selectedValues={selectedIndicatorIds}
+                            options={indicators}
+                            onChange={(values) => setFilters((prev) => ({ ...prev, indicator_user_ids: values }))}
+                            includeUnassigned={false}
+                            placeholder="Todos os indicadores"
+                            searchPlaceholder="Buscar indicador"
+                            emptyMessage="Nenhum indicador encontrado."
+                            summaryPluralLabel="indicadores"
+                            ariaLabel="Filtro de indicadores"
+                        />
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaCalendarAlt />
+                            Data inicial
+                        </span>
+                        <input
+                            type="date"
+                            className={styles.filterControl}
+                            name="date_from"
+                            value={filters.date_from}
+                            onChange={handleFilterChange}
+                        />
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaCalendarAlt />
+                            Data final
+                        </span>
+                        <input
+                            type="date"
+                            className={styles.filterControl}
+                            name="date_to"
+                            value={filters.date_to}
+                            onChange={handleFilterChange}
+                        />
+                    </label>
                 </div>
 
                 <SavedCaseTagsPanel
@@ -939,6 +1075,16 @@ const CaseManagementPage = () => {
                     selectionMode="filter"
                     compact
                     emptyMessage="Nenhuma etiqueta salva cadastrada até o momento."
+                />
+
+                <SmartFilterPresets
+                    userId={user?.id}
+                    currentFilters={filters}
+                    initialFilters={INITIAL_FILTERS}
+                    onApplyPreset={(preset) => setFilters(preset)}
+                    lawyers={lawyers}
+                    indicators={indicators}
+                    statusOptions={LEGAL_CASE_STATUS_OPTIONS}
                 />
 
                 <div className={styles.filtersFooter}>
@@ -1059,6 +1205,15 @@ const CaseManagementPage = () => {
                                                             style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                                                         >
                                                             Motivo: {legalCase.contra_indication_reason}
+                                                        </div>
+                                                    )}
+                                                    {legalCase.status === FAILED_DEAL_STATUS && legalCase.failed_deal_reason && (
+                                                        <div
+                                                            className={styles.subText}
+                                                            title={legalCase.failed_deal_reason}
+                                                            style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                        >
+                                                            Motivo: {legalCase.failed_deal_reason}
                                                         </div>
                                                     )}
                                                     {legalCase.reanalysis_reason && (
@@ -1261,6 +1416,18 @@ const CaseManagementPage = () => {
                     isSubmitting={isBatchProcessing}
                     onCancel={handleCancelBatchContraIndication}
                     onConfirm={handleConfirmBatchContraIndication}
+                />
+            )}
+
+            {batchFailedDealPrompt && (
+                <FailedDealReasonModal
+                    selectedCount={selectedCaseIds.length}
+                    reason={batchFailedDealReason}
+                    onReasonChange={setBatchFailedDealReason}
+                    error={batchFailedDealError}
+                    isSubmitting={isBatchProcessing}
+                    onCancel={handleCancelBatchFailedDeal}
+                    onConfirm={handleConfirmBatchFailedDeal}
                 />
             )}
 

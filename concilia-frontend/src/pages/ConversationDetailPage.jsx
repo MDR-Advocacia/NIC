@@ -3,10 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api';
 import ChatPreview from '../components/ChatPreview';
 import styles from '../styles/ConversationDetailPage.module.css';
+import { useToast } from '../context/ToastContext';
 
 const ConversationDetailPage = () => {
     const { conversationId } = useParams();
     const navigate = useNavigate();
+    const toast = useToast();
     const [conversation, setConversation] = useState(null);
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ const ConversationDetailPage = () => {
             setMessages(prevMessages => [...prevMessages, response.data]);
         } catch (error) {
             console.error("Erro ao enviar mensagem:", error);
-            alert('Não foi possível enviar a mensagem.');
+            toast.error('Não foi possível enviar a mensagem.');
         } finally {
             setIsSending(false);
         }
