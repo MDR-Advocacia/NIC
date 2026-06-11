@@ -7,10 +7,11 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
 import EditCaseModal from '../components/EditCaseModal';
-import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
+import TagMultiSelect from '../components/TagMultiSelect';
 import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
 import FailedDealReasonModal from '../components/FailedDealReasonModal';
 import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
+import AgreementFieldsModal from '../components/AgreementFieldsModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import { 
     DndContext, 
@@ -31,6 +32,8 @@ import {
     FaUserTag,
     FaSignal,
     FaEraser,
+    FaEye,
+    FaEyeSlash,
     FaBolt,
     FaTag,
     FaFileExport,
@@ -66,7 +69,7 @@ const INITIAL_FILTERS = {
     lawyer_ids: [],
     indicator_user_id: '',
     priority: '',
-    tag: '',
+    tags: [],
 };
 
 const buildQueryParams = (params = {}) => {
@@ -157,6 +160,11 @@ const PipelinePage = () => {
     const [reanalysisReason, setReanalysisReason] = useState('');
     const [reanalysisError, setReanalysisError] = useState('');
     const [isSavingReanalysis, setIsSavingReanalysis] = useState(false);
+    const [agreementPrompt, setAgreementPrompt] = useState(null);
+    const [agreementValue, setAgreementValue] = useState('');
+    const [agreementClosedAt, setAgreementClosedAt] = useState('');
+    const [agreementError, setAgreementError] = useState('');
+    const [isSavingAgreement, setIsSavingAgreement] = useState(false);
 
     const searchTerm = filters.search.trim();
     const actionObjectFilter = filters.action_object.trim();
@@ -167,7 +175,7 @@ const PipelinePage = () => {
     );
     const indicatorFilter = canChooseIndicator ? (filters.indicator_user_id || '') : '';
     const priorityFilter = filters.priority || '';
-    const tagFilter = filters.tag || '';
+    const tagFilters = Array.isArray(filters.tags) ? filters.tags : [];
     const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
     const selectedLawyerNames = selectedLawyerIds
         .map((lawyerId) => {
@@ -190,13 +198,19 @@ const PipelinePage = () => {
         return `${selectedLawyerNames.slice(0, 2).join(' + ')} + ${selectedLawyerNames.length - 2}`;
     })();
     const selectedIndicatorName = indicators.find((indicator) => String(indicator.id) === String(filters.indicator_user_id))?.name;
-    const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
-        || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
+    const selectedTagLabel = (() => {
+        if (tagFilters.length === 0) return null;
+        if (tagFilters.length === 1) return `Etiqueta: ${tagFilters[0]}`;
+        if (tagFilters.length === 2) return `Etiquetas: ${tagFilters.join(' + ')}`;
+        return `Etiquetas: ${tagFilters.length} selecionadas`;
+    })();
     const priorityLabelMap = {
         baixa: 'Prioridade baixa',
         media: 'Prioridade média',
         alta: 'Prioridade alta',
     };
+    const [showFilterChips, setShowFilterChips] = useState(false);
+
     const activeFilterChips = [
         searchTerm ? `Busca: ${searchTerm}` : null,
         actionObjectFilter ? `Causa de pedir: ${actionObjectFilter}` : null,
@@ -204,7 +218,7 @@ const PipelinePage = () => {
         selectedLawyerFilterLabel ? `Responsáveis: ${selectedLawyerFilterLabel}` : null,
         selectedIndicatorName ? `Indicador: ${selectedIndicatorName}` : null,
         filters.priority ? priorityLabelMap[filters.priority] : null,
-        selectedTagName ? `Etiqueta: ${selectedTagName}` : null,
+        selectedTagLabel,
         showDelayedOnly ? 'Apenas atrasados (+5 dias)' : null,
     ].filter(Boolean);
     const activeFilterCount = activeFilterChips.length;
@@ -338,7 +352,7 @@ const PipelinePage = () => {
                 lawyer_ids: selectedLawyerIds,
                 indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
-                tag: tagFilter,
+                tags: tagFilters,
             };
 
             const validResponsibleValues = selectedLawyerIds.filter((lawyerId) =>
@@ -416,7 +430,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator, pipelineView]);
+    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, tagFilters, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator, pipelineView]);
 
     useEffect(() => {
         fetchAllData();
@@ -635,6 +649,51 @@ const PipelinePage = () => {
         }
     };
 
+
+    const handleCancelAgreement = () => {
+        setAgreementPrompt(null);
+        setAgreementValue('');
+        setAgreementClosedAt('');
+        setAgreementError('');
+        setIsSavingAgreement(false);
+        fetchAllData();
+    };
+
+    const handleConfirmAgreement = async (event) => {
+        event.preventDefault();
+
+        const numericValue = parseFloat(agreementValue);
+        if (!numericValue || numericValue <= 0) {
+            setAgreementError('Informe um valor de acordo válido.');
+            return;
+        }
+        if (!agreementClosedAt) {
+            setAgreementError('Informe a data do acordo.');
+            return;
+        }
+
+        if (!agreementPrompt?.legalCase) return;
+
+        setIsSavingAgreement(true);
+        setAgreementError('');
+
+        try {
+            await persistCaseStatusChange(
+                agreementPrompt.legalCase,
+                agreementPrompt.targetStatus,
+                { agreement_value: numericValue, agreement_closed_at: agreementClosedAt }
+            );
+            setAgreementPrompt(null);
+            setAgreementValue('');
+            setAgreementClosedAt('');
+        } catch (err) {
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setAgreementError(firstBackendError || err.response?.data?.message || 'Não foi possível salvar os dados do acordo.');
+        } finally {
+            setIsSavingAgreement(false);
+        }
+    };
+
     const handleDragEnd = (event) => {
         const { active, over } = event;
 
@@ -689,6 +748,17 @@ const PipelinePage = () => {
                 return;
             }
 
+            if (overContainer === 'closed_deal' || overContainer === 'closed_in_hearing') {
+                setAgreementPrompt({
+                    legalCase: movedCase,
+                    targetStatus: overContainer,
+                });
+                setAgreementValue(movedCase.agreement_value || '');
+                setAgreementClosedAt(movedCase.agreement_closed_at ? movedCase.agreement_closed_at.slice(0, 10) : '');
+                setAgreementError('');
+                return;
+            }
+
             persistCaseStatusChange(movedCase, overContainer).catch(() => {});
         } 
         else {
@@ -713,12 +783,8 @@ const PipelinePage = () => {
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSelectSavedTagFilter = (tag) => {
-        const tagText = tag?.text || tag?.name || '';
-        setFilters((prev) => ({
-            ...prev,
-            tag: prev.tag === tagText ? '' : tagText,
-        }));
+    const handleTagFilterChange = (newTags) => {
+        setFilters((prev) => ({ ...prev, tags: newTags }));
     };
 
     const handleDeleteSavedTag = async (tagToDelete) => {
@@ -740,9 +806,10 @@ const PipelinePage = () => {
             });
 
             setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+            const deletedText = (tagToDelete.text || tagToDelete.name || '').toLocaleLowerCase('pt-BR');
             setFilters((prev) => ({
                 ...prev,
-                tag: prev.tag === (tagToDelete.text || tagToDelete.name) ? '' : prev.tag,
+                tags: (prev.tags || []).filter((t) => (typeof t === 'string' ? t : '').toLocaleLowerCase('pt-BR') !== deletedText),
             }));
             toast.success(response.data?.message || 'Etiqueta excluída com sucesso.');
             fetchAllData();
@@ -767,7 +834,7 @@ const PipelinePage = () => {
                 lawyer_ids: selectedLawyerIds,
                 indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
-                tag: tagFilter,
+                tags: tagFilters,
                 sort_by: 'updated_at',
                 sort_order: 'desc',
             };
@@ -969,51 +1036,41 @@ const PipelinePage = () => {
                     <div className={styles.filterField}>
                         <label className={styles.filterFieldLabel}>
                             <FaTag />
-                            <span>Etiqueta</span>
+                            <span>Etiquetas</span>
                         </label>
-                        <select
-                            className={styles.filterSelect}
-                            value={tagFilter}
-                            onChange={(e) => handleFilterChange('tag', e.target.value)}
-                        >
-                            <option value="">Todas</option>
-                            {savedTags.map((tag) => (
-                                <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
-                                    {tag.text || tag.name}
-                                </option>
-                            ))}
-                        </select>
+                        <TagMultiSelect
+                            tags={savedTags}
+                            selectedValues={filters.tags}
+                            onChange={handleTagFilterChange}
+                            onDelete={handleDeleteSavedTag}
+                            canDelete={canManageSavedTags}
+                        />
                     </div>
                 </div>
 
-                <SavedCaseTagsPanel
-                    tags={savedTags}
-                    title="Etiquetas salvas"
-                    subtitle="Use as etiquetas como atalho visual de filtro. A exclusão do catálogo fica disponível só para administradores."
-                    onSelectTag={handleSelectSavedTagFilter}
-                    onDeleteTag={handleDeleteSavedTag}
-                    canDelete={canManageSavedTags}
-                    selectedValue={filters.tag}
-                    selectionMode="filter"
-                    compact
-                    emptyMessage="Nenhuma etiqueta salva cadastrada até o momento."
-                />
-
                 <div className={styles.filterPanelFooter}>
-                    <div className={styles.filterSummary}>
-                        {activeFilterChips.length > 0 ? (
-                            activeFilterChips.map((chip) => (
-                                <span
-                                    key={chip}
-                                    className={`${styles.filterChip} ${chip.includes('Atrasados') || chip.includes('atrasados') ? styles.filterChipAlert : ''}`}
-                                >
-                                    {chip}
-                                </span>
-                            ))
-                        ) : (
-                            <span className={styles.filterHint}>
-                                Sem filtros ativos. O pipeline está exibindo a visão completa disponível para o seu perfil.
-                            </span>
+                    <div className={styles.filterFooterLeft}>
+                        {activeFilterCount > 0 && (
+                            <button
+                                type="button"
+                                className={styles.chipsSpoilerToggle}
+                                onClick={() => setShowFilterChips((v) => !v)}
+                            >
+                                {showFilterChips ? <FaEyeSlash /> : <FaEye />}
+                                {showFilterChips ? 'Ocultar filtros ativos' : `Ver filtros ativos (${activeFilterCount})`}
+                            </button>
+                        )}
+                        {showFilterChips && activeFilterCount > 0 && (
+                            <div className={styles.filterSummary}>
+                                {activeFilterChips.map((chip) => (
+                                    <span
+                                        key={chip}
+                                        className={`${styles.filterChip} ${chip.includes('Atrasados') || chip.includes('atrasados') ? styles.filterChipAlert : ''}`}
+                                    >
+                                        {chip}
+                                    </span>
+                                ))}
+                            </div>
                         )}
                     </div>
 
@@ -1097,6 +1154,20 @@ const PipelinePage = () => {
                     isSubmitting={isSavingReanalysis}
                     onCancel={handleCancelReanalysis}
                     onConfirm={handleConfirmReanalysis}
+                />
+            )}
+
+            {agreementPrompt && (
+                <AgreementFieldsModal
+                    caseNumber={agreementPrompt.legalCase?.case_number}
+                    agreementValue={agreementValue}
+                    onValueChange={setAgreementValue}
+                    agreementClosedAt={agreementClosedAt}
+                    onDateChange={setAgreementClosedAt}
+                    error={agreementError}
+                    isSubmitting={isSavingAgreement}
+                    onCancel={handleCancelAgreement}
+                    onConfirm={handleConfirmAgreement}
                 />
             )}
 

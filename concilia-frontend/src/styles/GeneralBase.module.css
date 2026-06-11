@@ -210,6 +210,36 @@
     gap: 1rem;
     flex-wrap: wrap;
 }
+.filtersFooterLeft {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.chipsSpoilerToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border-color-dark);
+    border-radius: 999px;
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.chipsSpoilerToggle:hover {
+    background: var(--accent-surface);
+    color: var(--accent-primary);
+}
+
+
 
 .filtersSummary {
     display: flex;
@@ -241,31 +271,27 @@
 .clearFiltersButton {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.55rem;
-    min-height: 46px;
-    padding: 0 1.05rem;
-    border: 1px solid var(--border-color-dark);
-    border-radius: 14px;
-    background: var(--surface-card-elevated);
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    font-weight: 700;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 8px;
+    background: var(--card-bg, #fff);
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+    transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+    white-space: nowrap;
 }
 
 .clearFiltersButton:hover:not(:disabled) {
-    background: var(--surface-card-muted);
-    border-color: var(--border-color-dark);
-    color: var(--text-primary);
-    transform: translateY(-1px);
+    border-color: var(--accent-primary, #6366f1);
+    color: var(--text-primary, #374151);
 }
 
 .clearFiltersButton:disabled {
-    opacity: 0.55;
+    opacity: 0.45;
     cursor: not-allowed;
-    transform: none;
 }
 
 .tableContainer {

@@ -7,6 +7,8 @@ export const LEGAL_CASE_STATUS_DETAILS = {
   awaiting_draft: { name: 'Aguardando Minuta', color: '#ED8936', textColor: '#FFFFFF' },
   closed_deal: { name: 'Acordo Fechado', color: '#38B2AC', textColor: '#FFFFFF' },
   failed_deal: { name: 'Acordo Frustrado', color: '#E53E3E', textColor: '#FFFFFF' },
+  // Pós-acordo - Audiência
+  closed_in_hearing: { name: 'Fechado em Audiência', color: '#2B6CB0', textColor: '#FFFFFF' },
   // Pós-acordo
   pending_payment: { name: 'Pendência de Pagamento', color: '#D69E2E', textColor: '#FFFFFF' },
   pending_obf: { name: 'Pendência de OBF', color: '#DD6B20', textColor: '#FFFFFF' },
@@ -34,6 +36,7 @@ export const LEGAL_CASE_STATUS_ORDER = [
 
 // Pipeline Pós-Acordo
 export const POST_AGREEMENT_STATUS_ORDER = [
+  'closed_in_hearing',
   'pending_payment',
   'pending_obf',
   'pending_livelo_ourocap',

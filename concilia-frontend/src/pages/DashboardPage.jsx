@@ -29,11 +29,13 @@ import {
     FaFlag,
     FaSearch,
     FaEraser,
+    FaInfoCircle,
 } from 'react-icons/fa';
 import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
-import { LEGAL_CASE_STATUS_OPTIONS, UNASSIGNED_RESPONSIBLE_VALUE } from '../constants/legalCaseStatus';
+import { LEGAL_CASE_STATUS_OPTIONS, UNASSIGNED_RESPONSIBLE_VALUE, POST_AGREEMENT_STATUS_ORDER } from '../constants/legalCaseStatus';
 import { AGREEMENT_COUNT_INFO_TEXT } from '../constants/dashboardMetrics';
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 const GENERAL_KPI_ORDER = [
     'total_cases',
@@ -108,7 +110,10 @@ const DashboardPage = () => {
         to: 0,
     });
     const [recentCasesPage, setRecentCasesPage] = useState(1);
+    const [processStageView, setProcessStageView] = useState('pre');
     const [recentCasesPerPage, setRecentCasesPerPage] = useState(20);
+    const [lbPage, setLbPage] = useState(1);
+    const [lbPerPage, setLbPerPage] = useState(10);
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
     const [indicators, setIndicators] = useState([]);
@@ -310,7 +315,7 @@ const DashboardPage = () => {
             });
 
             setDashboardData(response.data);
-            const recentCasesResponse = response.data.recent_cases;
+            const recentCasesResponse = response.data.recent_cases_global || response.data.recent_cases;
 
             if (Array.isArray(recentCasesResponse)) {
                 setCases(recentCasesResponse);
@@ -623,57 +628,128 @@ const DashboardPage = () => {
             );
         }
 
+        const isIndicatorView = selectedMetricsView === 'by_indicator';
+
         return (
             <div className={styles.metricExplorerBody}>
                 <div className={styles.metricSummaryPills}>
                     <span className={styles.metricSummaryPill}>
                         {selectedMetricSummary.participants_count || 0} {participantLabel}
                     </span>
+                    {isIndicatorView && (
+                        <span className={styles.metricSummaryPill}>
+                            {selectedMetricSummary.total_indicated || 0} indicados
+                        </span>
+                    )}
                     <span className={styles.metricSummaryPill}>
                         {renderAgreementCountLabel(selectedMetricSummary.agreements_count || 0)}
                     </span>
-                    <span className={styles.metricSummaryPill}>
-                        {selectedMetricSummary.converted_indications_count || 0} indicações convertidas
-                    </span>
                 </div>
 
-                <div className={styles.metricLeaderboardGrid}>
-                    {selectedMetricItems.map((item, index) => (
-                        <article
-                            key={`${selectedMetricsView}-${item.id}-${item.name}`}
-                            className={styles.metricLeaderboardCard}
-                        >
-                            <div className={styles.metricLeaderboardRank}>{index + 1}</div>
-                            <div className={styles.metricLeaderboardContent}>
-                                <div className={styles.metricLeaderboardHeader}>
-                                    <h4 className={styles.metricLeaderboardTitle}>{item.name}</h4>
-                                    <a
-                                        href={`/cases?indicator_user_ids=${item.id}&statuses=closed_deal&statuses=awaiting_draft`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={styles.metricLeaderboardBadge}
-                                        style={{ textDecoration: 'none', cursor: 'pointer' }}
-                                        title={`Ver acordos fechados e aguardando minuta de ${item.name}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        {renderAgreementCountLabel(item.agreements_count || 0)}
-                                    </a>
-                                </div>
+                {(() => {
+                    const totalItems = selectedMetricItems.length;
+                    const totalPages = Math.ceil(totalItems / lbPerPage);
+                    const safePage = Math.min(lbPage, totalPages || 1);
+                    const startIdx = (safePage - 1) * lbPerPage;
+                    const pageItems = selectedMetricItems.slice(startIdx, startIdx + lbPerPage);
 
-                                <div className={styles.metricLeaderboardMetrics}>
-                                    <div className={styles.metricLeaderboardMetric}>
-                                        <span>{renderAgreementMetricLabel('Acordos (fechados + minuta)')}</span>
-                                        <strong>{item.agreements_count || 0}</strong>
+                    return (
+                        <>
+                            <div className={styles.leaderboardTableWrap}>
+                                <table className={styles.leaderboardTable}>
+                                    <thead>
+                                        <tr>
+                                            <th className={styles.lbColRank}>#</th>
+                                            <th className={styles.lbColName}>Nome</th>
+                                            {isIndicatorView && <th className={styles.lbColNum}>Indicados</th>}
+                                            <th className={styles.lbColNum}>Acordos</th>
+                                            {isIndicatorView && <th className={styles.lbColNum}>Contraindicados</th>}
+                                            {isIndicatorView && <th className={styles.lbColNum}>Frustrado</th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {pageItems.map((item, idx) => {
+                                            const globalIndex = startIdx + idx;
+                                            return (
+                                                <tr key={`${selectedMetricsView}-${item.id}-${item.name}`}>
+                                                    <td className={styles.lbCellRank}>
+                                                        <span className={styles.lbRankBadge}>{globalIndex + 1}</span>
+                                                    </td>
+                                                    <td className={styles.lbCellName}>
+                                                        <span className={styles.lbNameText}>{item.name}</span>
+                                                    </td>
+                                                    {isIndicatorView && (
+                                                        <td className={styles.lbCellNum}>{item.total_indicated || 0}</td>
+                                                    )}
+                                                    <td className={styles.lbCellNum}>
+                                                        <a
+                                                            href={`/cases?indicator_user_ids=${item.id}&statuses=closed_deal&statuses=awaiting_draft`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className={styles.lbAgreementLink}
+                                                            title={`Ver acordos de ${item.name}`}
+                                                        >
+                                                            {item.agreements_count || 0}
+                                                        </a>
+                                                    </td>
+                                                    {isIndicatorView && (
+                                                        <td className={styles.lbCellNum} style={{ color: item.contra_indicated_count > 0 ? 'var(--danger-text, #dc2626)' : undefined, fontWeight: item.contra_indicated_count > 0 ? 600 : undefined }}>
+                                                            {item.contra_indicated_count || 0}
+                                                        </td>
+                                                    )}
+                                                    {isIndicatorView && (
+                                                        <td className={styles.lbCellNum} style={{ color: item.failed_deal_count > 0 ? 'var(--danger-text, #dc2626)' : undefined, fontWeight: item.failed_deal_count > 0 ? 600 : undefined }}>
+                                                            {item.failed_deal_count || 0}
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className={styles.lbPagination}>
+                                <div className={styles.lbPagInfo}>
+                                    Mostrando {startIdx + 1}–{Math.min(startIdx + lbPerPage, totalItems)} de {totalItems}
+                                </div>
+                                <div className={styles.lbPagControls}>
+                                    <div className={styles.lbPerPageSelect}>
+                                        <span>Por página:</span>
+                                        {[10, 25, 50].map((n) => (
+                                            <button
+                                                key={n}
+                                                className={`${styles.lbPerPageBtn} ${lbPerPage === n ? styles.lbPerPageBtnActive : ''}`}
+                                                onClick={() => { setLbPerPage(n); setLbPage(1); }}
+                                            >
+                                                {n}
+                                            </button>
+                                        ))}
                                     </div>
-                                    <div className={styles.metricLeaderboardMetric}>
-                                        <span>Indicações convertidas</span>
-                                        <strong>{item.converted_indications_count || 0}</strong>
-                                    </div>
+                                    {totalPages > 1 && (
+                                        <div className={styles.lbPageNav}>
+                                            <button
+                                                className={styles.lbPageBtn}
+                                                disabled={safePage <= 1}
+                                                onClick={() => setLbPage((p) => Math.max(1, p - 1))}
+                                            >
+                                                <FaChevronLeft />
+                                            </button>
+                                            <span className={styles.lbPageLabel}>{safePage} / {totalPages}</span>
+                                            <button
+                                                className={styles.lbPageBtn}
+                                                disabled={safePage >= totalPages}
+                                                onClick={() => setLbPage((p) => Math.min(totalPages, p + 1))}
+                                            >
+                                                <FaChevronRight />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </article>
-                    ))}
-                </div>
+                        </>
+                    );
+                })()}
             </div>
         );
     };
@@ -899,9 +975,9 @@ const DashboardPage = () => {
                     <section className={styles.kpiSection}>
                         <div className={styles.kpiSectionHeader}>
                             <h3 className={styles.kpiSectionTitle}>Visão Geral de Acordos</h3>
-                            <p className={styles.kpiSectionSubtitle}>
-                                Casos, status, acordos e conversão seguem o período único do dashboard.
-                            </p>
+                            <span className={styles.unfilteredInfo} title="Casos, status, acordos e conversão seguem o período único do dashboard.">
+                                <FaInfoCircle />
+                            </span>
                         </div>
                         {renderKpiGrid(dashboardData?.kpis, GENERAL_KPI_ORDER)}
                     </section>
@@ -962,15 +1038,7 @@ const DashboardPage = () => {
                         </div>
                     </div>
 
-                    <div className={styles.statusDistribution}>
-                        <h3>Distribuição por Etapa do Processo</h3>
-                        {dashboardData && dashboardData.status_distribution ? (
-                            <ProcessStageChart
-                                data={dashboardData.status_distribution}
-                                onStageClick={handleChartClick}
-                            />
-                        ) : <p>Não há dados de distribuição para exibir.</p>}
-                    </div>
+                    {/* Distribuição por Etapa movida para fora do bloco filtrado */}
 
                     <section className={styles.analyticsSection}>
                         <div className={styles.analyticsSectionHeader}>
@@ -1056,6 +1124,49 @@ const DashboardPage = () => {
                             </div>
                         </section>
                     )}
+                </div>
+
+            </div>
+
+            {/* === SEÇÕES SEM FILTRO DE PERÍODO === */}
+            <div className={styles.unfilteredSections}>
+                    <div className={styles.statusDistribution}>
+                        <div className={styles.unfilteredSectionHeader}>
+                            <h3>Distribuição por Etapa do Processo</h3>
+                            <div className={styles.stageToggle}>
+                                <button
+                                    type="button"
+                                    className={`${styles.stageToggleBtn} ${processStageView === 'pre' ? styles.stageToggleBtnActive : ''}`}
+                                    onClick={() => setProcessStageView('pre')}
+                                >
+                                    Pré-Acordo
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`${styles.stageToggleBtn} ${processStageView === 'post' ? styles.stageToggleBtnActive : ''}`}
+                                    onClick={() => setProcessStageView('post')}
+                                >
+                                    Pós-Acordo
+                                </button>
+                            </div>
+                            <span className={styles.unfilteredInfo} title="Esta seção exibe o estado atual de todos os casos, sem ser afetada pelo filtro de período.">
+                                <FaInfoCircle />
+                            </span>
+                        </div>
+                        {processStageView === 'pre' && dashboardData && (dashboardData.status_distribution_global || dashboardData.status_distribution) ? (
+                            <ProcessStageChart
+                                data={dashboardData.status_distribution_global || dashboardData.status_distribution}
+                                onStageClick={handleChartClick}
+                            />
+                        ) : null}
+                        {processStageView === 'post' && dashboardData && dashboardData.status_distribution_global_post ? (
+                            <ProcessStageChart
+                                data={dashboardData.status_distribution_global_post}
+                                statusOrder={POST_AGREEMENT_STATUS_ORDER}
+                                onStageClick={handleChartClick}
+                            />
+                        ) : processStageView === 'post' ? <p>Não há dados de pós-acordo para exibir.</p> : null}
+                    </div>
 
                     <div className={styles.recentCases}>
                         <div className={styles.recentCasesHeader}>
@@ -1067,7 +1178,9 @@ const DashboardPage = () => {
                                     A lista considera os casos que entraram na alçada ou tiveram o valor da alçada atualizado mais recentemente.
                                 </p>
                             </div>
-
+                            <span className={styles.unfilteredInfo} title="Esta seção exibe os casos mais recentes, sem ser afetada pelo filtro de período.">
+                                <FaInfoCircle />
+                            </span>
                             <div className={styles.recentCasesHeaderActions}>
                                 <div className={styles.recentCasesPageSize}>
                                     <button
@@ -1140,8 +1253,6 @@ const DashboardPage = () => {
                             </div>
                         </div>
                     </div>
-                </div>
-
             </div>
 
             <TeamPerformanceModal

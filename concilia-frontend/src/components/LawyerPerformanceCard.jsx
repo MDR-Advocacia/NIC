@@ -1,21 +1,23 @@
-// src/components/LawyerPerformanceCard.jsx
 import React from 'react';
 import styles from '../styles/LawyerPerformanceCard.module.css';
 import { FaTrophy } from 'react-icons/fa';
 import MetricInfoHint from './MetricInfoHint';
 import { AGREEMENT_COUNT_INFO_TEXT } from '../constants/dashboardMetrics';
 
-// Adicione a nova prop 'onViewDetails'
+const SCORE_INFO_TEXT = 'Score = (Acordos Fechados × 10) + (Economia Gerada ÷ 1.000). Quanto maior a economia e o número de acordos, maior o score.';
+
 const LawyerPerformanceCard = ({ lawyer, rank, onViewDetails }) => {
-    
+
     const handleViewDetailsClick = (e) => {
-        e.preventDefault(); // Impede o link de navegar
-        onViewDetails(lawyer); // Chama a função do componente pai com os dados do advogado
+        e.preventDefault();
+        onViewDetails(lawyer);
     };
+
+    const workedCases = lawyer.worked_cases || 0;
+    const deals = lawyer.performance?.deals || 0;
 
     return (
         <div className={styles.card}>
-            {/* ... o restante do componente permanece igual ... */}
             <div className={styles.header}>
                 <div className={styles.lawyerInfo}>
                     <span className={styles.ranking}>{rank}º</span>
@@ -25,7 +27,10 @@ const LawyerPerformanceCard = ({ lawyer, rank, onViewDetails }) => {
                     </div>
                 </div>
                 <div className={styles.score}>
-                    <div className={styles.scoreValue}>Score: {lawyer.score}</div>
+                    <div className={styles.scoreValue}>
+                        Score: {lawyer.score}
+                        <MetricInfoHint text={SCORE_INFO_TEXT} />
+                    </div>
                     <div className={styles.scoreRank}>Ranking: {lawyer.ranking}º lugar</div>
                 </div>
             </div>
@@ -46,7 +51,11 @@ const LawyerPerformanceCard = ({ lawyer, rank, onViewDetails }) => {
                             <span>Acordos:</span>
                             <MetricInfoHint text={AGREEMENT_COUNT_INFO_TEXT} />
                         </span>
-                        <span>{lawyer.performance.deals}</span>
+                        <span>{deals}</span>
+                    </div>
+                    <div className={styles.metric}>
+                        <span>Processos Tratados:</span>
+                        <span className={styles.valueBlue}>{workedCases}</span>
                     </div>
                 </div>
 
@@ -56,7 +65,7 @@ const LawyerPerformanceCard = ({ lawyer, rank, onViewDetails }) => {
                         <span>Utilizados:</span>
                         <span>{lawyer.products.used}</span>
                     </div>
-                     <div className={styles.metric}>
+                    <div className={styles.metric}>
                         <span>Valor Proposto:</span>
                         <span className={styles.valueGreen}>{lawyer.products.value}</span>
                     </div>
@@ -66,9 +75,8 @@ const LawyerPerformanceCard = ({ lawyer, rank, onViewDetails }) => {
                     </div>
                 </div>
             </div>
-            
+
             <div className={styles.footer}>
-                {/* Adicione o onClick ao link */}
                 <a href="#" onClick={handleViewDetailsClick} className={styles.detailsLink}>Ver Detalhes Completos →</a>
             </div>
         </div>

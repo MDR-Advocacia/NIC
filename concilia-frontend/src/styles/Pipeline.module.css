@@ -36,27 +36,26 @@
 .exportButton {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    min-height: 46px;
-    padding: 0 1.15rem;
-    border: 1px solid var(--accent-primary);
-    border-radius: 6px;
-    background: var(--surface-card-elevated);
-    color: var(--accent-primary);
-    font-weight: 700;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 8px;
+    background: var(--card-bg, #fff);
+    color: var(--text-color, #374151);
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: transform 0.2s, background-color 0.2s, color 0.2s, border-color 0.2s;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
 }
 
 .exportButton:hover:not(:disabled) {
-    background: var(--accent-primary);
-    color: #fff;
-    transform: translateY(-2px);
+    border-color: var(--accent-primary, #6366f1);
+    color: var(--accent-primary, #6366f1);
 }
 
 .exportButton:disabled {
-    opacity: 0.65;
+    opacity: 0.45;
     cursor: wait;
 }
 
@@ -705,6 +704,36 @@
   padding-top: 0.35rem;
   border-top: 1px solid var(--border-color-light);
 }
+.filterFooterLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.chipsSpoilerToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border-color-dark);
+  border-radius: 999px;
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.chipsSpoilerToggle:hover {
+  background: var(--accent-surface);
+  color: var(--accent-primary);
+}
+
+
 
 .filterSummary {
   display: flex;
@@ -771,31 +800,32 @@
 .delayedFilterButton {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    min-height: 46px;
-    padding: 0 1rem;
-    border-radius: 14px;
-    border: 1px solid var(--danger-soft-strong);
-    background-color: var(--danger-soft);
-    color: var(--danger-text);
-    font-weight: 700;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--danger-soft-strong, #fca5a5);
+    background: var(--card-bg, #fff);
+    color: var(--danger-text, #dc2626);
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease-out;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
 }
 
 .delayedFilterButton.active {
-    background: linear-gradient(135deg, var(--danger-primary), var(--danger-primary-hover));
-    border-color: transparent;
-    color: var(--danger-contrast);
-    box-shadow: 0 16px 28px var(--danger-soft-strong);
+    background: var(--danger-primary, #ef4444);
+    border-color: var(--danger-primary, #ef4444);
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
 }
 
 .delayedFilterButton:hover {
-    transform: translateY(-1px);
-    background-color: var(--danger-soft);
+    border-color: var(--danger-primary, #ef4444);
 }
 .delayedFilterButton.active:hover {
-    background: linear-gradient(135deg, var(--danger-primary), var(--danger-primary-hover));
+    background: var(--danger-primary-hover, #dc2626);
+    border-color: var(--danger-primary-hover, #dc2626);
 }
 
 .indicatorInfoBanner {
@@ -813,26 +843,26 @@
 .clearFilterButton {
     display: inline-flex;
     align-items: center;
-    gap: 0.55rem;
-    min-height: 46px;
-    padding: 0 1rem;
-    border-radius: 14px;
-    border: 1px solid var(--border-color-dark);
-    background: transparent;
-    color: var(--text-secondary);
-    font-weight: 700;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #d1d5db);
+    background: var(--card-bg, #fff);
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease-out;
+    transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+    white-space: nowrap;
 }
 
 .clearFilterButton:hover:not(:disabled) {
-    border-color: var(--accent-primary);
-    color: var(--accent-primary);
-    transform: translateY(-1px);
+    border-color: var(--accent-primary, #6366f1);
+    color: var(--text-primary, #374151);
 }
 
 .clearFilterButton:disabled {
-    opacity: 0.55;
+    opacity: 0.45;
     cursor: not-allowed;
 }
 /* --- FIM DO NOVO ESTILO --- */

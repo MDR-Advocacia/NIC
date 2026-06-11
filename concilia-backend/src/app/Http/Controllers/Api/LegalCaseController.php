@@ -609,6 +609,68 @@ class LegalCaseController extends Controller
         return response()->json($case->fresh($this->caseRelationshipLoads()));
     }
 
+
+    public function formalizeAgreement(Request $request, LegalCase $case): JsonResponse
+    {
+        $user = Auth::user();
+
+        if (!in_array($user?->role, ['indicador', 'administrador', 'supervisor'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $validatedData = $request->validate([
+            'formalized_by_name'  => 'required|string|max:255',
+            'formalized_by_indicator_id' => 'nullable|integer|exists:users,id',
+            'hearing_date'        => 'required|date',
+            'agreement_value'     => 'required|numeric|min:0',
+            'has_obligation'      => 'required|boolean',
+            'obligation_description' => 'nullable|required_if:has_obligation,true|string|max:4000',
+        ]);
+
+        $oldStatus = $case->status;
+
+        $case->update([
+            'status'                  => LegalCase::STATUS_CLOSED_DEAL,
+            'formalized_by_name'      => $validatedData['formalized_by_name'],
+            'hearing_date'            => $validatedData['hearing_date'],
+            'agreement_value'         => $validatedData['agreement_value'],
+            'agreement_closed_at'     => $validatedData['hearing_date'],
+            'has_obligation'          => $validatedData['has_obligation'],
+            'obligation_description'  => $validatedData['obligation_description'] ?? null,
+            'indicator_user_id'       => $validatedData['formalized_by_indicator_id'] ?? $user->id,
+            'formalized_by_user_id'   => $user->id,
+            'formalized_at'           => now(),
+        ]);
+
+        $case->histories()->create([
+            'user_id'     => Auth::id(),
+            'event_type'  => 'update',
+            'description' => 'Acordo formalizado pelo indicador apos audiencia.',
+            'old_values'  => ['status' => $oldStatus],
+            'new_values'  => [
+                'status'             => LegalCase::STATUS_CLOSED_DEAL,
+                'formalized_by_name' => $validatedData['formalized_by_name'],
+                'hearing_date'       => $validatedData['hearing_date'],
+                'agreement_value'    => $validatedData['agreement_value'],
+                'has_obligation'     => $validatedData['has_obligation'],
+            ],
+        ]);
+
+        try {
+            AuditLog::create([
+                'user_id'    => auth()->id(),
+                'user_name'  => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action'     => 'Formalizacao de Acordo',
+                'details'    => "Formalizou acordo do caso #{$case->case_number} - Valor: R$ " . number_format($validatedData['agreement_value'], 2, ',', '.') . " - Indicador: {$validatedData['formalized_by_name']}",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Erro AuditLog formalize: " . $e->getMessage());
+        }
+
+        return response()->json($case->fresh($this->caseRelationshipLoads()));
+    }
+
     public function requestReanalysis(Request $request, LegalCase $case): JsonResponse
     {
         $user = Auth::user();

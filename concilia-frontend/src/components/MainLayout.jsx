@@ -139,13 +139,12 @@ const MainLayout = () => {
                                         </NavLink>
                                     </li>
                                     <li className={styles.submenuListItem}>
-                                        <span
-                                            className={`${styles.navLink} ${styles.submenuLink} ${styles.submenuDisabled}`}
-                                            title="Em breve"
+                                        <NavLink
+                                            to="/archives"
+                                            className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}
                                         >
                                             <FaArchive /> <span>Arquivados</span>
-                                            <span className={styles.comingSoonBadge}>em breve</span>
-                                        </span>
+                                        </NavLink>
                                     </li>
                                 </ul>
                             )}

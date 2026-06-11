@@ -106,7 +106,13 @@ class LegalCase extends Model
         'agreement_probability',
         'pcond_probability', 
         'agreement_checklist_data',
-        'start_date'
+        'start_date',
+        'hearing_date',
+        'formalized_by_name',
+        'has_obligation',
+        'obligation_description',
+        'formalized_by_user_id',
+        'formalized_at'
     ];
 
     protected $casts = [
@@ -118,6 +124,9 @@ class LegalCase extends Model
         'status_started_at' => 'datetime',
         'contra_indicated_at' => 'datetime',
         'reanalysis_requested_at' => 'datetime',
+        'hearing_date' => 'date',
+        'has_obligation' => 'boolean',
+        'formalized_at' => 'datetime',
     ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool

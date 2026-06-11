@@ -71,6 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cases/batch-update', [LegalCaseController::class, 'batchUpdate']);
     Route::post('/cases/{case}/indicate', [LegalCaseController::class, 'indicate']);
     Route::post('/cases/{case}/request-reanalysis', [LegalCaseController::class, 'requestReanalysis']);
+    Route::post('/cases/{case}/formalize-agreement', [LegalCaseController::class, 'formalizeAgreement']);
     Route::get('/cases/{id}/agreement', [LegalCaseController::class, 'generateAgreement']);
     Route::apiResource('cases', LegalCaseController::class);
 

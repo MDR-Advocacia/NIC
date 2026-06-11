@@ -1,116 +1,114 @@
-/* src/styles/TeamPerformanceModal.module.css */
-/* REATORADO PARA USAR VARIÁVEIS CSS (LIGHT/DARK) */
-
 .modalOverlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: var(--bg-overlay); /* MUDADO */
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 1000;
-    backdrop-filter: blur(3px); /* ADICIONADO */
+    padding: 1rem;
+    backdrop-filter: blur(3px);
 }
 
 .modalContent {
-    background-color: var(--bg-card); /* MUDADO */
-    color: var(--text-primary); /* MUDADO */
-    padding: 1.5rem 2rem;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 1200px;
-    height: 90vh;
+    background-color: var(--bg-card, #ffffff);
+    color: var(--text-primary);
+    padding: 2rem;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 900px;
+    max-height: 88vh;
     display: flex;
     flex-direction: column;
-    box-shadow: var(--card-shadow); /* MUDADO */
-}
-
-.modalHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--border-color-light); /* MUDADO */
-    padding-bottom: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.modalHeader h2 {
-    margin: 0;
-    color: var(--text-primary); /* ADICIONADO */
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    position: relative;
 }
 
 .closeButton {
-    background: none;
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: transparent;
     border: none;
-    color: var(--text-secondary); /* MUDADO */
-    font-size: 1.5rem;
+    color: var(--text-secondary, #94a3b8);
+    font-size: 1.3rem;
     cursor: pointer;
-    transition: color 0.2s, transform 0.2s; /* ADICIONADO */
+    padding: 4px;
+    line-height: 1;
+    transition: all 0.2s ease;
+    z-index: 10;
+    border-radius: 50%;
 }
 
 .closeButton:hover {
-    color: var(--text-primary); /* ADICIONADO */
-    transform: rotate(90deg); /* ADICIONADO */
+    background-color: var(--bg-hover, #f1f5f9);
+    color: var(--text-primary);
+    transform: rotate(90deg);
+}
+
+.modalContent h2 {
+    margin: 0 0 1.25rem 0;
+    padding-right: 2rem;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex-shrink: 0;
+}
+
+.lawyersList {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 .filters {
     display: flex;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
 }
 
 .searchInput {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background-color: var(--bg-input); /* MUDADO */
+    background-color: var(--bg-input, #f8fafc);
     padding: 0.5rem 1rem;
     border-radius: 6px;
-    border: 1px solid var(--border-color-dark); /* MUDADO */
+    border: 1px solid var(--border-color, #e2e8f0);
     flex-grow: 1;
 }
 
 .searchInput svg {
-    color: var(--text-secondary); /* ADICIONADO */
+    color: var(--text-secondary);
 }
 
 .searchInput input {
     background: none;
     border: none;
-    color: var(--text-primary); /* MUDADO */
+    color: var(--text-primary);
     width: 100%;
 }
 
 .filterSelect {
     padding: 0.6rem;
     border-radius: 5px;
-    border: 1px solid var(--border-color-dark); /* MUDADO */
-    background-color: var(--bg-input); /* MUDADO */
-    color: var(--text-primary); /* MUDADO */
+    border: 1px solid var(--border-color, #e2e8f0);
+    background-color: var(--bg-input, #f8fafc);
+    color: var(--text-primary);
 }
 
-.compareButton {
-    background-color: var(--accent-primary); /* MUDADO */
-    color: var(--text-on-accent); /* MUDADO */
-    padding: 0.6rem 1.2rem;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s, transform 0.2s ease-out; /* ADICIONADO */
-}
+@media (max-width: 640px) {
+    .modalContent {
+        padding: 1.25rem;
+    }
 
-.compareButton:hover {
-    transform: translateY(-2px); /* ADICIONADO */
-    background-color: var(--accent-primary-hover); /* ADICIONADO */
-}
-
-.modalBody {
-    flex-grow: 1;
-    overflow-y: auto;
-    padding-right: 1rem; /* Espaço para scrollbar */
+    .modalContent h2 {
+        font-size: 1.1rem;
+    }
 }

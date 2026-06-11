@@ -15,6 +15,7 @@ import IndicationChecklistSummary from '../components/IndicationChecklistSummary
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 import { isIndicatorRole } from '../constants/access';
 import { useToast } from '../context/ToastContext';
+import FormalizeAgreementModal from '../components/FormalizeAgreementModal';
 import {
     formatLiveloPoints,
     getSettlementBenefitType,
@@ -45,6 +46,8 @@ const CaseDetailPage = () => {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     
     const [isAbusiveLawyer, setIsAbusiveLawyer] = useState(false);
+    const [showFormalizeModal, setShowFormalizeModal] = useState(false);
+    const [isFormalizing, setIsFormalizing] = useState(false);
 
     useEffect(() => {
         const fetchAllData = async () => {
@@ -182,6 +185,28 @@ const CaseDetailPage = () => {
         }
     };
 
+
+    const handleFormalizeAgreement = async (formData) => {
+        setIsFormalizing(true);
+        try {
+            const response = await apiClient.post(
+                `/cases/${caseId}/formalize-agreement`,
+                formData,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            let updatedCase = response.data;
+            if (updatedCase && updatedCase.data && !updatedCase.id) updatedCase = updatedCase.data;
+            setLegalCase(updatedCase);
+            setShowFormalizeModal(false);
+            toast.success('Acordo formalizado com sucesso!');
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Erro ao formalizar o acordo.';
+            toast.error(msg);
+        } finally {
+            setIsFormalizing(false);
+        }
+    };
+
     if (loading) return <p style={{padding:'20px'}}>Carregando detalhes do processo...</p>;
     
     if (error) return (
@@ -197,6 +222,14 @@ const CaseDetailPage = () => {
             <Link to="/pipeline" style={{display:'inline-block', marginTop:'15px', color:'#3182ce'}}>
                 {isIndicator ? 'Voltar para Indicações' : 'Voltar para a Lista'}
             </Link>
+            {showFormalizeModal && (
+                <FormalizeAgreementModal
+                    caseNumber={legalCase.case_number}
+                    onCancel={() => setShowFormalizeModal(false)}
+                    onConfirm={handleFormalizeAgreement}
+                    isSubmitting={isFormalizing}
+                />
+            )}
         </div>
     );
 
@@ -312,6 +345,19 @@ const CaseDetailPage = () => {
                         <span className={styles.tag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>
                         <span className={styles.tag} style={{ backgroundColor: currentPriority.color, color: currentPriority.textColor }}>{currentPriority.name}</span>
                     </div>
+                    {isIndicator && legalCase.status !== 'closed_deal' && (
+                        <button
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                padding: '10px 20px', border: 'none', borderRadius: '8px',
+                                background: '#059669', color: '#fff', fontSize: '0.9rem',
+                                fontWeight: 600, cursor: 'pointer'
+                            }}
+                            onClick={() => setShowFormalizeModal(true)}
+                        >
+                            <FaHandshake /> Formalizar Acordo
+                        </button>
+                    )}
                     <button className={styles.pdfButton} onClick={handleGenerateAgreement} disabled={isGeneratingPdf || !hasAgreementTerms}>
                         {isGeneratingPdf ? <ImSpinner2 className={styles.spinner} /> : <FaFilePdf />}
                         {isGeneratingPdf ? 'Gerando...' : 'Gerar Minuta'}
@@ -501,6 +547,14 @@ const CaseDetailPage = () => {
                     </div>
                 </div>
             </div>
+            {showFormalizeModal && (
+                <FormalizeAgreementModal
+                    caseNumber={legalCase.case_number}
+                    onCancel={() => setShowFormalizeModal(false)}
+                    onConfirm={handleFormalizeAgreement}
+                    isSubmitting={isFormalizing}
+                />
+            )}
         </div>
     );
 };

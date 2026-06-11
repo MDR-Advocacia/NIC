@@ -344,6 +344,14 @@ class DashboardController extends Controller
                 "COALESCE(SUM(CASE WHEN {$this->agreementMetricStatusCaseSql('legal_cases.status')} THEN COALESCE(legal_cases.original_value, 0) - COALESCE(legal_cases.agreement_value, 0) ELSE 0 END), 0) as economy",
                 LegalCase::AGREEMENT_METRIC_STATUSES
             )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN " . $this->agreementMetricStatusCaseSql('legal_cases.status') . " AND COALESCE(legal_cases.livelo_points, 0) > 0 THEN 1 ELSE 0 END), 0) as livelo_deals",
+                LegalCase::AGREEMENT_METRIC_STATUSES
+            )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN " . $this->agreementMetricStatusCaseSql('legal_cases.status') . " AND COALESCE(legal_cases.ourocap_value, 0) > 0 THEN 1 ELSE 0 END), 0) as ourocap_deals",
+                LegalCase::AGREEMENT_METRIC_STATUSES
+            )
             ->leftJoin('legal_cases', function (JoinClause $join) use ($request, $dateRange) {
                 $join->on('legal_cases.user_id', '=', 'users.id');
                 $this->applySharedCaseJoinFilters($join, $request, $dateRange, 'legal_cases', 'created_at');
@@ -385,6 +393,8 @@ class DashboardController extends Controller
                     'products_count' => $productsCount,
                     'products_proposed_value' => $productsValue,
                     'products_economy' => $productsEconomy,
+                    'livelo_deals' => (int) ($lawyer->livelo_deals ?? 0),
+                    'ourocap_deals' => (int) ($lawyer->ourocap_deals ?? 0),
                 ];
             })
             ->sortByDesc('score')

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    FaSearch, FaEye, FaDatabase, FaEdit, FaPlus, FaTrash,
+    FaSearch, FaEye, FaEyeSlash, FaDatabase, FaEdit, FaPlus, FaTrash,
     FaChevronLeft, FaChevronRight,
     FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaUserTie
 } from 'react-icons/fa';
@@ -257,6 +257,8 @@ const GeneralBasePage = () => {
     const selectedLawyerName = filters.lawyer_id === UNASSIGNED_RESPONSIBLE_VALUE
         ? 'Sem responsável'
         : lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const [showFilterChips, setShowFilterChips] = useState(false);
+
     const activeFilterChips = [];
 
     if (filters.search.trim()) {
@@ -398,17 +400,25 @@ const GeneralBasePage = () => {
                 </div>
 
                 <div className={styles.filtersFooter}>
-                    <div className={styles.filtersSummary}>
-                        {activeFilterCount > 0 ? (
-                            activeFilterChips.map((chip) => (
-                                <span key={chip} className={styles.filterChip}>
-                                    {chip}
-                                </span>
-                            ))
-                        ) : (
-                            <span className={styles.filtersHint}>
-                                A listagem mostra a configuração padrão da base geral no momento.
-                            </span>
+                    <div className={styles.filtersFooterLeft}>
+                        {activeFilterCount > 0 && (
+                            <button
+                                type="button"
+                                className={styles.chipsSpoilerToggle}
+                                onClick={() => setShowFilterChips((v) => !v)}
+                            >
+                                {showFilterChips ? <FaEyeSlash /> : <FaEye />}
+                                {showFilterChips ? 'Ocultar filtros ativos' : `Ver filtros ativos (${activeFilterCount})`}
+                            </button>
+                        )}
+                        {showFilterChips && activeFilterCount > 0 && (
+                            <div className={styles.filtersSummary}>
+                                {activeFilterChips.map((chip) => (
+                                    <span key={chip} className={styles.filterChip}>
+                                        {chip}
+                                    </span>
+                                ))}
+                            </div>
                         )}
                     </div>
 

@@ -7,16 +7,18 @@ import {
     FaCheckSquare, FaTrashAlt, FaTimes, 
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
-    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag, FaFileExport, FaCalendarAlt
+    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag, FaFileExport, FaCalendarAlt, FaFilter,
+    FaChevronDown, FaEyeSlash, FaArchive
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
-import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
+import TagMultiSelect from '../components/TagMultiSelect';
 import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
 import FailedDealReasonModal from '../components/FailedDealReasonModal';
 import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import SmartFilterPresets from '../components/SmartFilterPresets';
+import ConfirmModal from '../components/ConfirmModal';
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -54,7 +56,7 @@ const INITIAL_FILTERS = {
     action_object: '',
     statuses: [],
     priority: '',
-    tag: '',
+    tags: [],
     lawyer_ids: [],
     indicator_user_ids: [],
     date_from: '',
@@ -176,6 +178,7 @@ const CaseManagementPage = () => {
     const canManageSavedTags = ['administrador', 'admin'].includes(normalizedUserRole);
     const [searchParams, setSearchParams] = useSearchParams();
     
+    const [showFilterChips, setShowFilterChips] = useState(false);
     const [cases, setCases] = useState([]);
     const [lawyers, setLawyers] = useState([]);
     const [indicators, setIndicators] = useState([]);
@@ -215,6 +218,7 @@ const CaseManagementPage = () => {
     const [batchFailedDealPrompt, setBatchFailedDealPrompt] = useState(false);
     const [batchFailedDealReason, setBatchFailedDealReason] = useState('');
     const [batchFailedDealError, setBatchFailedDealError] = useState('');
+    const [archiveConfirm, setArchiveConfirm] = useState({ open: false, caseIds: [] });
 
     const [filters, setFilters] = useState(() => {
         const initial = { ...INITIAL_FILTERS };
@@ -225,7 +229,8 @@ const CaseManagementPage = () => {
         const urlSearch = searchParams.get('search');
         const urlActionObject = searchParams.get('action_object');
         const urlPriority = searchParams.get('priority');
-        const urlTag = searchParams.get('tag');
+        const urlTags = searchParams.getAll('tags');
+        const urlTagSingle = searchParams.get('tag');
         const urlDateFrom = searchParams.get('date_from');
         const urlDateTo = searchParams.get('date_to');
         const urlIndicatorIds = searchParams.getAll('indicator_user_ids');
@@ -236,7 +241,8 @@ const CaseManagementPage = () => {
         if (urlSearch) initial.search = urlSearch;
         if (urlActionObject) initial.action_object = urlActionObject;
         if (urlPriority) initial.priority = urlPriority;
-        if (urlTag) initial.tag = urlTag;
+        if (urlTags.length > 0) initial.tags = urlTags;
+        else if (urlTagSingle) initial.tags = [urlTagSingle];
         if (urlDateFrom) initial.date_from = urlDateFrom;
         if (urlDateTo) initial.date_to = urlDateTo;
         if (urlIndicatorIds.length > 0) initial.indicator_user_ids = urlIndicatorIds;
@@ -333,8 +339,9 @@ const CaseManagementPage = () => {
         setCurrentPage(1);
     }, [filters]);
 
+    // Fetch com debounce
     useEffect(() => {
-        const timer = setTimeout(() => { fetchCases(); }, 500);
+        const timer = setTimeout(() => { fetchCases(); }, 400);
         return () => clearTimeout(timer);
     }, [fetchCases]);
 
@@ -371,12 +378,13 @@ const CaseManagementPage = () => {
         setFilters({ ...INITIAL_FILTERS });
     };
 
-    const handleSelectSavedTagFilter = (tag) => {
-        const tagText = tag?.text || tag?.name || '';
-        setFilters((prev) => ({
-            ...prev,
-            tag: prev.tag === tagText ? '' : tagText,
-        }));
+    const handleApplyFilters = () => {
+        setCurrentPage(1);
+        fetchCases();
+    };
+
+    const handleTagFilterChange = (newTags) => {
+        setFilters((prev) => ({ ...prev, tags: newTags }));
     };
 
     const handleDeleteSavedTag = async (tagToDelete) => {
@@ -398,9 +406,10 @@ const CaseManagementPage = () => {
             });
 
             setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+            const deletedText = (tagToDelete.text || tagToDelete.name || '').toLocaleLowerCase('pt-BR');
             setFilters((prev) => ({
                 ...prev,
-                tag: prev.tag === (tagToDelete.text || tagToDelete.name) ? '' : prev.tag,
+                tags: (prev.tags || []).filter((t) => (typeof t === 'string' ? t : '').toLocaleLowerCase('pt-BR') !== deletedText),
             }));
             toast.success(response.data?.message || 'Etiqueta excluída com sucesso.');
             fetchCases();
@@ -573,6 +582,27 @@ const CaseManagementPage = () => {
         });
     };
 
+    const handleArchiveCases = (caseIds) => {
+        if (!caseIds.length) return;
+        setArchiveConfirm({ open: true, caseIds });
+    };
+
+    const confirmArchive = async () => {
+        const caseIds = archiveConfirm.caseIds;
+        setArchiveConfirm({ open: false, caseIds: [] });
+        try {
+            await apiClient.post('/archives/archive', {
+                case_ids: caseIds,
+                reason: 'Arquivamento via gestão de casos',
+            });
+            toast.success(`${caseIds.length} caso(s) arquivado(s)!`);
+            setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => !caseIds.includes(id)));
+            fetchCases();
+        } catch (err) {
+            toast.error('Erro ao arquivar.');
+        }
+    };
+
     const handleDeleteCase = async (legalCase) => {
         const caseLabel = legalCase?.case_number || `#${legalCase?.id}`;
         const confirmMessage = `Tem certeza que deseja excluir o processo ${caseLabel}?\n\nEssa ação não pode ser desfeita.`;
@@ -692,18 +722,23 @@ const CaseManagementPage = () => {
         if (selectedIndicatorNames.length <= 2) return selectedIndicatorNames.join(' + ');
         return `${selectedIndicatorNames.slice(0, 2).join(' + ')} + ${selectedIndicatorNames.length - 2}`;
     })();
-    const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
-        || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
+    const tagFilters = Array.isArray(filters.tags) ? filters.tags : [];
+    const selectedTagLabel = (() => {
+        if (tagFilters.length === 0) return null;
+        if (tagFilters.length === 1) return `Etiqueta: ${tagFilters[0]}`;
+        if (tagFilters.length === 2) return `Etiquetas: ${tagFilters.join(' + ')}`;
+        return `Etiquetas: ${tagFilters.length} selecionadas`;
+    })();
     const activeFilterChips = [];
-    const pastedCaseNumberTerms = extractMultipleCaseNumberTerms(filters.search);
-    const trimmedActionObject = filters.action_object.trim();
+    const pastedCaseNumberTerms = extractMultipleCaseNumberTerms(filters.search || '');
+    const trimmedActionObject = (filters.action_object || '').trim();
 
-    if (filters.search.trim()) {
+    if ((filters.search || '').trim()) {
         activeFilterChips.push({
             key: 'search',
             label: pastedCaseNumberTerms.length > 1
                 ? `Busca: ${formatProcessCount(pastedCaseNumberTerms.length)}`
-                : `Busca: ${filters.search.trim()}`,
+                : `Busca: ${(filters.search || '').trim()}`,
         });
     }
 
@@ -737,10 +772,10 @@ const CaseManagementPage = () => {
         });
     }
 
-    if (filters.tag) {
+    if (selectedTagLabel) {
         activeFilterChips.push({
-            key: 'tag',
-            label: `Etiqueta: ${selectedTagName || filters.tag}`,
+            key: 'tags',
+            label: selectedTagLabel,
         });
     }
 
@@ -777,7 +812,7 @@ const CaseManagementPage = () => {
     }
 
     const activeFilterCount = activeFilterChips.length;
-    const trimmedSearch = filters.search.trim();
+    const trimmedSearch = (filters.search || '').trim();
     const emptyStateContent = (() => {
         if (cases.length > 0) {
             return null;
@@ -932,7 +967,7 @@ const CaseManagementPage = () => {
                             placeholder="Cole um ou vários processos, cliente ou palavra-chave"
                             className={styles.filterControl}
                             name="search"
-                            value={filters.search}
+                            value={filters.search || ''}
                             onChange={handleFilterChange}
                             title="Voce pode colar varios numeros de processo separados por espaco ou quebra de linha."
                         />
@@ -951,7 +986,7 @@ const CaseManagementPage = () => {
                             placeholder="Digite a causa de pedir"
                             className={styles.filterControl}
                             name="action_object"
-                            value={filters.action_object}
+                            value={filters.action_object || ''}
                             onChange={handleFilterChange}
                         />
                     </label>
@@ -979,7 +1014,7 @@ const CaseManagementPage = () => {
                             <FaExclamationCircle />
                             Prioridade
                         </span>
-                        <select className={styles.filterControl} name="priority" value={filters.priority} onChange={handleFilterChange}>
+                        <select className={styles.filterControl} name="priority" value={filters.priority || ''} onChange={handleFilterChange}>
                             <option value="">Todas as prioridades</option>
                             {PRIORITY_OPTIONS.map((priorityOption) => (
                                 <option key={priorityOption.value} value={priorityOption.value}>
@@ -992,16 +1027,15 @@ const CaseManagementPage = () => {
                     <label className={styles.filterField}>
                         <span className={styles.filterLabel}>
                             <FaTag />
-                            Etiqueta
+                            Etiquetas
                         </span>
-                        <select className={styles.filterControl} name="tag" value={filters.tag} onChange={handleFilterChange}>
-                            <option value="">Todas as etiquetas</option>
-                            {savedTags.map((tag) => (
-                                <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
-                                    {tag.text || tag.name}
-                                </option>
-                            ))}
-                        </select>
+                        <TagMultiSelect
+                            tags={savedTags}
+                            selectedValues={filters.tags}
+                            onChange={handleTagFilterChange}
+                            onDelete={handleDeleteSavedTag}
+                            canDelete={canManageSavedTags}
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -1044,7 +1078,7 @@ const CaseManagementPage = () => {
                             type="date"
                             className={styles.filterControl}
                             name="date_from"
-                            value={filters.date_from}
+                            value={filters.date_from || ''}
                             onChange={handleFilterChange}
                         />
                     </label>
@@ -1058,59 +1092,66 @@ const CaseManagementPage = () => {
                             type="date"
                             className={styles.filterControl}
                             name="date_to"
-                            value={filters.date_to}
+                            value={filters.date_to || ''}
                             onChange={handleFilterChange}
                         />
                     </label>
                 </div>
 
-                <SavedCaseTagsPanel
-                    tags={savedTags}
-                    title="Etiquetas salvas"
-                    subtitle="Clique para aplicar rapidamente no filtro. Administradores podem excluir etiquetas do catálogo por aqui."
-                    onSelectTag={handleSelectSavedTagFilter}
-                    onDeleteTag={handleDeleteSavedTag}
-                    canDelete={canManageSavedTags}
-                    selectedValue={filters.tag}
-                    selectionMode="filter"
-                    compact
-                    emptyMessage="Nenhuma etiqueta salva cadastrada até o momento."
-                />
 
-                <SmartFilterPresets
-                    userId={user?.id}
-                    currentFilters={filters}
-                    initialFilters={INITIAL_FILTERS}
-                    onApplyPreset={(preset) => setFilters(preset)}
-                    lawyers={lawyers}
-                    indicators={indicators}
-                    statusOptions={LEGAL_CASE_STATUS_OPTIONS}
-                />
 
                 <div className={styles.filtersFooter}>
-                    <div className={styles.filtersSummary}>
-                        {activeFilterCount > 0 ? (
-                            activeFilterChips.map((chip) => (
-                                <span key={chip.key} className={styles.filterChip}>
-                                    {chip.label}
-                                </span>
-                            ))
-                        ) : (
-                            <span className={styles.filtersHint}>
-                                Sem filtros adicionais no momento. A lista mostra todos os casos da fila atual.
-                            </span>
+                    <div className={styles.filtersFooterLeft}>
+                        {activeFilterCount > 0 && (
+                            <button
+                                type="button"
+                                className={styles.chipsSpoilerToggle}
+                                onClick={() => setShowFilterChips((v) => !v)}
+                            >
+                                {showFilterChips ? <FaEyeSlash /> : <FaEye />}
+                                {showFilterChips ? 'Ocultar filtros ativos' : `Ver filtros ativos (${activeFilterCount})`}
+                            </button>
+                        )}
+                        {showFilterChips && activeFilterCount > 0 && (
+                            <div className={styles.filtersSummary}>
+                                {activeFilterChips.map((chip) => (
+                                    <span key={chip.key} className={styles.filterChip}>
+                                        {chip.label}
+                                    </span>
+                                ))}
+                            </div>
                         )}
                     </div>
 
-                    <button
-                        type="button"
-                        className={styles.clearFiltersButton}
-                        onClick={handleClearFilters}
-                        disabled={activeFilterCount === 0}
-                    >
-                        <FaEraser />
-                        Limpar filtros
-                    </button>
+                    <div className={styles.filtersActions}>
+                        <SmartFilterPresets
+                            userId={user?.id}
+                            userRole={user?.role}
+                            currentFilters={filters}
+                            initialFilters={INITIAL_FILTERS}
+                            onApplyPreset={(preset) => setFilters(preset)}
+                            lawyers={lawyers}
+                            indicators={indicators}
+                            statusOptions={LEGAL_CASE_STATUS_OPTIONS}
+                        />
+                        <button
+                            type="button"
+                            className={styles.applyFiltersButton}
+                            onClick={handleApplyFilters}
+                        >
+                            <FaFilter />
+                            Aplicar filtros
+                        </button>
+                        <button
+                            type="button"
+                            className={styles.clearFiltersButton}
+                            onClick={handleClearFilters}
+                            disabled={activeFilterCount === 0}
+                        >
+                            <FaEraser />
+                            Limpar filtros
+                        </button>
+                    </div>
                 </div>
             </section>
             
@@ -1264,6 +1305,11 @@ const CaseManagementPage = () => {
                                                                 <FaTrash />
                                                             </span>
                                                         )}
+                                                        {!isIndicator && (
+                                                            <span className={styles.actionIcon} title="Arquivar" onClick={() => handleArchiveCases([legalCase.id])}>
+                                                                <FaArchive />
+                                                            </span>
+                                                        )}
 
                                                     </div>
                                                 </td>
@@ -1320,6 +1366,17 @@ const CaseManagementPage = () => {
                 )}
             </section>
 
+            <ConfirmModal
+                open={archiveConfirm.open}
+                icon={<FaArchive />}
+                title="Arquivar processos"
+                message={`Deseja arquivar ${archiveConfirm.caseIds.length} caso(s)? Eles serão removidos do pipeline e da gestão de casos, mas poderão ser desarquivados depois.`}
+                confirmLabel="Arquivar"
+                confirmColor="#64748b"
+                onConfirm={confirmArchive}
+                onCancel={() => setArchiveConfirm({ open: false, caseIds: [] })}
+            />
+
             {/* --- BARRA FLUTUANTE DE AÇÕES EM LOTE --- */}
             {canUseBatchActions && Array.isArray(selectedCaseIds) && selectedCaseIds.length > 0 && (
                 <div className={styles.batchActionBar}>
@@ -1344,6 +1401,13 @@ const CaseManagementPage = () => {
                                     <FaUserTag /> Transferir
                                 </button>
                                 
+                                <button
+                                    className={`${styles.batchBtn} ${styles.btnSecondary}`}
+                                    onClick={() => handleArchiveCases(selectedCaseIds)}
+                                    disabled={isBatchProcessing}
+                                >
+                                    <FaArchive /> Arquivar
+                                </button>
                                 {/* SÓ MOSTRA SE FOR ADMIN */}
                                 {canDeleteCases && (
                                     <button

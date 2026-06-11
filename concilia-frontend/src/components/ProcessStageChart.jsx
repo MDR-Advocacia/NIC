@@ -8,14 +8,14 @@ import {
     getLegalCaseStatusDetails,
 } from '../constants/legalCaseStatus';
 
-const ProcessStageChart = ({ data, onStageClick }) => {
+const ProcessStageChart = ({ data, onStageClick, statusOrder = LEGAL_CASE_STATUS_ORDER }) => {
     if (!data || Object.keys(data).length === 0) {
         return <p>Não há dados de distribuição para exibir.</p>;
     }
 
     const totalCases = Object.values(data).reduce((sum, value) => sum + value, 0);
 
-    const chartData = LEGAL_CASE_STATUS_ORDER.map((statusKey) => {
+    const chartData = statusOrder.map((statusKey) => {
         const count = data?.[statusKey] || 0;
         const statusInfo = getLegalCaseStatusDetails(statusKey);
 
