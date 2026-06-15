@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import styles from '../styles/MainLayout.module.css';
@@ -16,7 +16,7 @@ import {
 import {
     FaTachometerAlt, FaInbox, FaStream, FaSuitcase,
     FaFileUpload, FaUsers, FaSignOutAlt, FaHandshake,
-    FaSun, FaMoon, FaShieldAlt, FaDatabase, FaChevronDown, FaCog
+    FaSun, FaMoon, FaShieldAlt, FaDatabase, FaChevronDown, FaCog, FaArchive
 } from 'react-icons/fa';
 
 const MainLayout = () => {
@@ -36,11 +36,22 @@ const MainLayout = () => {
     const isConfigSectionActive = configRoutes.some((route) => location.pathname.startsWith(route));
     const [isConfigOpen, setIsConfigOpen] = useState(isConfigSectionActive);
 
+    const isPipelineRoute = location.pathname.startsWith('/pipeline');
+    const [searchParams] = useSearchParams();
+    const currentPipelineView = searchParams.get('view') || 'pre';
+    const [isPipelineOpen, setIsPipelineOpen] = useState(isPipelineRoute);
+
     useEffect(() => {
         if (isConfigSectionActive) {
             setIsConfigOpen(true);
         }
     }, [isConfigSectionActive]);
+
+    useEffect(() => {
+        if (isPipelineRoute) {
+            setIsPipelineOpen(true);
+        }
+    }, [isPipelineRoute]);
 
     const hasConfigSection = Boolean(user);
 
@@ -92,10 +103,51 @@ const MainLayout = () => {
                                 </NavLink>
                             </li>
                         )}
-                        <li className={styles.navItem}>
-                            <NavLink to="/pipeline" className={getNavLinkClass}>
-                                <FaStream /> <span>{pipelineLabel}</span>
-                            </NavLink>
+                        <li className={`${styles.navItem} ${styles.submenuItem}`}>
+                            <button
+                                type="button"
+                                className={[
+                                    styles.navLink,
+                                    styles.submenuToggle,
+                                    isPipelineRoute ? styles.navLinkActive : '',
+                                ].filter(Boolean).join(' ')}
+                                onClick={() => setIsPipelineOpen((c) => !c)}
+                                aria-expanded={isPipelineOpen}
+                            >
+                                <span className={styles.submenuLabel}>
+                                    <FaStream /> <span>{pipelineLabel}</span>
+                                </span>
+                                <FaChevronDown className={`${styles.submenuChevron} ${isPipelineOpen ? styles.submenuChevronOpen : ''}`} />
+                            </button>
+
+                            {isPipelineOpen && (
+                                <ul className={styles.submenuList}>
+                                    <li className={styles.submenuListItem}>
+                                        <NavLink
+                                            to="/pipeline?view=pre"
+                                            className={() => `${styles.navLink} ${styles.submenuLink} ${isPipelineRoute && currentPipelineView === 'pre' ? styles.navLinkActive : ''}`}
+                                        >
+                                            <FaHandshake /> <span>Pré-Acordo</span>
+                                        </NavLink>
+                                    </li>
+                                    <li className={styles.submenuListItem}>
+                                        <NavLink
+                                            to="/pipeline?view=post"
+                                            className={() => `${styles.navLink} ${styles.submenuLink} ${isPipelineRoute && currentPipelineView === 'post' ? styles.navLinkActive : ''}`}
+                                        >
+                                            <FaStream /> <span>Pós-Acordo</span>
+                                        </NavLink>
+                                    </li>
+                                    <li className={styles.submenuListItem}>
+                                        <NavLink
+                                            to="/archives"
+                                            className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}
+                                        >
+                                            <FaArchive /> <span>Arquivados</span>
+                                        </NavLink>
+                                    </li>
+                                </ul>
+                            )}
                         </li>
                         {hasConfigSection && (
                             <li className={`${styles.navItem} ${styles.submenuItem}`}>

@@ -3,8 +3,10 @@ import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Modal.module.css';
 import { FaSearch, FaExclamationTriangle, FaCheck } from 'react-icons/fa';
+import { useToast } from '../context/ToastContext';
 
 const OpposingLawyerListModal = ({ onClose, onSelect }) => {
+    const toast = useToast();
     const { token } = useAuth();
     const [lawyers, setLawyers] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -47,7 +49,7 @@ const OpposingLawyerListModal = ({ onClose, onSelect }) => {
             );
         } catch (error) {
             console.error("Erro ao atualizar status:", error);
-            alert("Erro ao salvar alteração. Revertendo...");
+            toast.error("Erro ao salvar alteração. Revertendo...");
             // Reverte em caso de erro
             setLawyers(prev => prev.map(l => l.id === lawyer.id ? { ...l, is_abusive: !newStatus } : l));
         }

@@ -7,13 +7,15 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import styles from '../styles/CaseDetail.module.css';
 import DetailKpiCard from '../components/DetailKpiCard';
-import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, FaMapMarkerAlt, FaGavel, FaUserTie } from 'react-icons/fa'; 
+import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, FaMapMarkerAlt, FaGavel, FaUserTie, FaRedo } from 'react-icons/fa';
 import { ImSpinner2 } from 'react-icons/im';
 import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
 import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 import { isIndicatorRole } from '../constants/access';
+import { useToast } from '../context/ToastContext';
+import FormalizeAgreementModal from '../components/FormalizeAgreementModal';
 import {
     formatLiveloPoints,
     getSettlementBenefitType,
@@ -28,6 +30,7 @@ const PRIORITY_DETAILS = {
 };
 
 const CaseDetailPage = () => {
+    const toast = useToast();
     const { token, user } = useAuth();
     const { caseId } = useParams();
     const isIndicator = isIndicatorRole(user?.role);
@@ -43,6 +46,8 @@ const CaseDetailPage = () => {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     
     const [isAbusiveLawyer, setIsAbusiveLawyer] = useState(false);
+    const [showFormalizeModal, setShowFormalizeModal] = useState(false);
+    const [isFormalizing, setIsFormalizing] = useState(false);
 
     useEffect(() => {
         const fetchAllData = async () => {
@@ -131,7 +136,7 @@ const CaseDetailPage = () => {
     
     const handleSendMessage = async (content) => {
         if (!content.trim() || !conversation) {
-            alert('Não há uma conversa vinculada.');
+            toast.error('Não há uma conversa vinculada.');
             return;
         }
         setIsSending(true);
@@ -143,7 +148,7 @@ const CaseDetailPage = () => {
             );
             setMessages(currentMessages => [...currentMessages, response.data]);
         } catch (err) {
-            alert('Erro ao enviar mensagem.');
+            toast.error('Erro ao enviar mensagem.');
         } finally {
             setIsSending(false);
         }
@@ -157,7 +162,7 @@ const CaseDetailPage = () => {
         ].some(value => value !== null && value !== undefined && value !== '');
 
         if (!hasAgreementTerms) {
-            alert("Defina uma proposta em dinheiro, Ourocap ou Livelo para gerar a minuta.");
+            toast.warning("Defina uma proposta em dinheiro, Ourocap ou Livelo para gerar a minuta.");
             return;
         }
         setIsGeneratingPdf(true);
@@ -174,9 +179,31 @@ const CaseDetailPage = () => {
             link.click();
             link.parentNode.removeChild(link);
         } catch (error) {
-            alert("Erro ao gerar a minuta.");
+            toast.error("Erro ao gerar a minuta.");
         } finally {
             setIsGeneratingPdf(false);
+        }
+    };
+
+
+    const handleFormalizeAgreement = async (formData) => {
+        setIsFormalizing(true);
+        try {
+            const response = await apiClient.post(
+                `/cases/${caseId}/formalize-agreement`,
+                formData,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            let updatedCase = response.data;
+            if (updatedCase && updatedCase.data && !updatedCase.id) updatedCase = updatedCase.data;
+            setLegalCase(updatedCase);
+            setShowFormalizeModal(false);
+            toast.success('Acordo formalizado com sucesso!');
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Erro ao formalizar o acordo.';
+            toast.error(msg);
+        } finally {
+            setIsFormalizing(false);
         }
     };
 
@@ -195,6 +222,14 @@ const CaseDetailPage = () => {
             <Link to="/pipeline" style={{display:'inline-block', marginTop:'15px', color:'#3182ce'}}>
                 {isIndicator ? 'Voltar para Indicações' : 'Voltar para a Lista'}
             </Link>
+            {showFormalizeModal && (
+                <FormalizeAgreementModal
+                    caseNumber={legalCase.case_number}
+                    onCancel={() => setShowFormalizeModal(false)}
+                    onConfirm={handleFormalizeAgreement}
+                    isSubmitting={isFormalizing}
+                />
+            )}
         </div>
     );
 
@@ -277,6 +312,11 @@ const CaseDetailPage = () => {
     // Segurança no Status/Prioridade (evita erro se vier nulo da importação)
     const currentStatus = getLegalCaseStatusDetails(legalCase.status);
     const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority || 'Normal', color: '#CBD5E0', textColor: '#1A202C' };
+    const contraIndicationReason = String(legalCase.contra_indication_reason || '').trim();
+    const contraIndicatedByName = getLawyerName(legalCase.contra_indicated_by);
+    const reanalysisReason = String(legalCase.reanalysis_reason || '').trim();
+    const reanalysisRequestedByName = getLawyerName(legalCase.reanalysis_requested_by);
+    const failedDealReason = String(legalCase.failed_deal_reason || '').trim();
 
     return (
         <div className={styles.pageContainer}>
@@ -305,6 +345,19 @@ const CaseDetailPage = () => {
                         <span className={styles.tag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>
                         <span className={styles.tag} style={{ backgroundColor: currentPriority.color, color: currentPriority.textColor }}>{currentPriority.name}</span>
                     </div>
+                    {isIndicator && legalCase.status !== 'closed_deal' && (
+                        <button
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                padding: '10px 20px', border: 'none', borderRadius: '8px',
+                                background: '#059669', color: '#fff', fontSize: '0.9rem',
+                                fontWeight: 600, cursor: 'pointer'
+                            }}
+                            onClick={() => setShowFormalizeModal(true)}
+                        >
+                            <FaHandshake /> Formalizar Acordo
+                        </button>
+                    )}
                     <button className={styles.pdfButton} onClick={handleGenerateAgreement} disabled={isGeneratingPdf || !hasAgreementTerms}>
                         {isGeneratingPdf ? <ImSpinner2 className={styles.spinner} /> : <FaFilePdf />}
                         {isGeneratingPdf ? 'Gerando...' : 'Gerar Minuta'}
@@ -319,6 +372,42 @@ const CaseDetailPage = () => {
                     <div>
                         <strong>Atenção: Litigante Abusivo Identificado</strong>
                         <p style={{margin:0, fontSize: '0.9rem'}}>O advogado adverso deste caso está marcado como litigante abusivo/habitual. Redobre a atenção na negociação.</p>
+                    </div>
+                </div>
+            )}
+
+            {legalCase.status === 'contra_indicated' && contraIndicationReason && (
+                <div className={styles.contraIndicationNotice}>
+                    <FaExclamationTriangle size={20} />
+                    <div>
+                        <strong>Motivo da contraindicação</strong>
+                        <p>{contraIndicationReason}</p>
+                        <span>
+                            Registrado por {contraIndicatedByName} em {formatDate(legalCase.contra_indicated_at)}
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {legalCase.status === 'failed_deal' && failedDealReason && (
+                <div className={styles.contraIndicationNotice}>
+                    <FaExclamationTriangle size={20} />
+                    <div>
+                        <strong>Motivo do acordo frustrado</strong>
+                        <p>{failedDealReason}</p>
+                    </div>
+                </div>
+            )}
+
+            {reanalysisReason && (
+                <div className={styles.contraIndicationNotice}>
+                    <FaRedo size={20} />
+                    <div>
+                        <strong>Motivo da reanálise</strong>
+                        <p>{reanalysisReason}</p>
+                        <span>
+                            Solicitado por {reanalysisRequestedByName} em {formatDate(legalCase.reanalysis_requested_at)}
+                        </span>
                     </div>
                 </div>
             )}
@@ -352,6 +441,9 @@ const CaseDetailPage = () => {
                             <div className={styles.infoItem}><label>Banco</label><p>{legalCase.client?.name || 'Não vinculado'}</p></div>
                             <div className={styles.infoItem}><label>Responsavel pelo Caso</label><p>{getResponsibleName(legalCase)}</p></div>
                             <div className={styles.infoItem}><label>Indicador</label><p>{getIndicatorName(legalCase)}</p></div>
+                            {legalCase.status === 'contra_indicated' && (
+                                <div className={styles.infoItem}><label>Contraindicado por</label><p>{contraIndicatedByName}</p></div>
+                            )}
                             {/* Usa helper formatDate */}
                             <div className={styles.infoItem}><label>Distribuição</label><p>{formatDate(legalCase.start_date)}</p></div>
                             <div className={styles.infoItem}><label>Juizado Especial?</label><p>{legalCase.special_court || 'Não'}</p></div>
@@ -455,6 +547,14 @@ const CaseDetailPage = () => {
                     </div>
                 </div>
             </div>
+            {showFormalizeModal && (
+                <FormalizeAgreementModal
+                    caseNumber={legalCase.case_number}
+                    onCancel={() => setShowFormalizeModal(false)}
+                    onConfirm={handleFormalizeAgreement}
+                    isSubmitting={isFormalizing}
+                />
+            )}
         </div>
     );
 };

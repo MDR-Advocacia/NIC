@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\OpposingLawyerController;
 use App\Http\Controllers\Api\PlaintiffController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\Api\ArchiveController;
+use App\Http\Controllers\Api\FilterPresetController;
 
 Route::post('/webhooks/chatwoot', [WebhookController::class, 'receive']);
 Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail']);
@@ -84,4 +86,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/plaintiffs', [PlaintiffController::class, 'store']);
     Route::get('/defendants', [DefendantController::class, 'index']);
     Route::post('/defendants', [DefendantController::class, 'store']);
+
+    // Archive routes
+    Route::get('/archives', [ArchiveController::class, 'index']);
+    Route::post('/archives', [ArchiveController::class, 'archive']);
+    Route::post('/archives/unarchive', [ArchiveController::class, 'unarchive']);
+    Route::get('/archives/preview', [ArchiveController::class, 'archivablePreview']);
+    Route::post('/archives/compare-upload', [ArchiveController::class, 'compareUpload']);
+
+    // Filter Preset routes
+    Route::get('/filter-presets', [FilterPresetController::class, 'index']);
+    Route::post('/filter-presets', [FilterPresetController::class, 'store']);
+    Route::delete('/filter-presets/{filterPreset}', [FilterPresetController::class, 'destroy']);
+    Route::post('/filter-presets/{filterPreset}/toggle-favorite', [FilterPresetController::class, 'toggleFavorite']);
+    Route::post('/filter-presets/{filterPreset}/toggle-global', [FilterPresetController::class, 'toggleGlobal']);
 });

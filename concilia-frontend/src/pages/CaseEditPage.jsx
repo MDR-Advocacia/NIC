@@ -6,6 +6,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import { LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
+import { useToast } from '../context/ToastContext';
+import { FaArchive } from 'react-icons/fa';
+import ConfirmModal from '../components/ConfirmModal';
 import {
     LIVELO_MIN_POINTS,
     getSettlementBenefitType,
@@ -196,9 +199,11 @@ const SafeChecklist = ({ data = {}, onChange }) => {
 // --- PÁGINA PRINCIPAL ---
 const CaseEditPage = () => {
   const { caseId } = useParams();
+  const toast = useToast();
   const { token } = useAuth();
   const navigate = useNavigate();
 
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
   const [formData, setFormData] = useState({
       // Estado inicial seguro
       case_number: '',
@@ -313,7 +318,7 @@ const CaseEditPage = () => {
       );
       navigate(`/cases/${caseId}`);
     } catch (err) {
-      alert('Erro ao salvar.');
+      toast.error('Erro ao salvar.');
     } finally {
       setLoading(false);
     }
@@ -321,6 +326,21 @@ const CaseEditPage = () => {
 
   if (loading) return <div style={{ padding: '20px', color: 'var(--text-primary)' }}>Carregando dados...</div>;
   if (error) return <div style={{ padding: '20px', color: '#dc2626' }}>{error}</div>;
+
+
+  const handleArchive = async () => {
+    setArchiveConfirm(false);
+    try {
+      await apiClient.post('/archives/archive', {
+        case_ids: [parseInt(caseId)],
+        reason: 'Arquivado via edição',
+      });
+      toast.success('Caso arquivado com sucesso!');
+      navigate('/archives');
+    } catch (err) {
+      toast.error('Erro ao arquivar o caso.');
+    }
+  };
 
   return (
     <div style={pageShellStyle}>
@@ -462,8 +482,42 @@ const CaseEditPage = () => {
           >
             Cancelar
           </button>
+
+          <button
+            type="button"
+            onClick={() => setArchiveConfirm(true)}
+            style={{
+              minHeight: '48px',
+              padding: '0 20px',
+              background: 'var(--surface-panel-muted)',
+              color: '#64748b',
+              border: '1px solid var(--border-color-light)',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.88rem',
+              fontWeight: 500,
+              marginLeft: 'auto',
+            }}
+            title="Arquivar este caso"
+          >
+            <FaArchive /> Arquivar
+          </button>
         </div>
       </form>
+
+      <ConfirmModal
+        open={archiveConfirm}
+        icon={<FaArchive />}
+        title="Arquivar este caso"
+        message="Este caso será removido do pipeline e da gestão de casos. Você poderá desarquivá-lo depois na seção de Arquivados."
+        confirmLabel="Arquivar"
+        confirmColor="#64748b"
+        onConfirm={handleArchive}
+        onCancel={() => setArchiveConfirm(false)}
+      />
     </div>
   );
 };

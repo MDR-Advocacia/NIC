@@ -15,6 +15,9 @@
 }
 
 .newCaseButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: var(--accent-gradient);
     color: var(--text-on-accent);
     padding: 0.75rem 1.5rem;
@@ -30,29 +33,60 @@
     transform: translateY(-2px);
 }
 
+.exportButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 8px;
+    background: var(--card-bg, #fff);
+    color: var(--text-color, #374151);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+}
+
+.exportButton:hover:not(:disabled) {
+    border-color: var(--accent-primary, #6366f1);
+    color: var(--accent-primary, #6366f1);
+}
+
+.exportButton:disabled {
+    opacity: 0.45;
+    cursor: wait;
+}
+
 .modalOverlay {
     position: fixed;
     top: 0;
     left: 0;
+    box-sizing: border-box;
     width: 100%;
     height: 100%;
+    padding: 1.25rem 1.25rem 1.25rem calc(292px + 1.25rem);
     background-color: var(--bg-overlay);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 1000;
     backdrop-filter: blur(3px);
+    overflow: hidden;
 }
 
 .modalContent {
+    box-sizing: border-box;
     background-color: var(--bg-card);
     color: var(--text-primary);
     padding: 2rem;
     border-radius: 8px;
-    width: 90%;
+    width: min(100%, 800px);
     max-width: 800px;
-    max-height: 90vh;
+    max-height: calc(100vh - 2.5rem);
     overflow-y: auto;
+    overscroll-behavior: contain;
     box-shadow: var(--card-shadow);
     position: relative;
 }
@@ -276,7 +310,37 @@
 
 .modalContent.large {
     max-width: 1100px;
-    width: 95%;
+    width: min(100%, 1100px);
+}
+
+.statusReasonModal {
+    max-width: 560px;
+}
+
+.statusReasonHeader {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding-right: 2.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.statusReasonIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: var(--danger-soft);
+    color: var(--danger-primary);
+    flex: 0 0 auto;
+}
+
+.statusReasonSubtitle {
+    margin: 0.45rem 0 0;
+    color: var(--text-secondary);
+    line-height: 1.45;
 }
 
 .modalHeader {
@@ -288,8 +352,60 @@
     border-bottom: 1px solid var(--border-color-light);
 }
 
+.modalHeaderInfo {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    padding-right: 3rem;
+}
+
 .modalTitle {
     margin-bottom: 0;
+}
+
+.statusSinceCard {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 250px;
+    max-width: 330px;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--accent-border-soft);
+    border-radius: 8px;
+    background: var(--surface-panel-accent);
+    color: var(--text-primary);
+    box-shadow: var(--card-shadow);
+}
+
+.statusSinceLabel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.statusSinceCard strong {
+    color: var(--text-primary);
+    font-size: 0.98rem;
+    line-height: 1.25;
+}
+
+.statusSinceCard small,
+.statusSinceCard em {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.statusSinceCard em {
+    color: var(--warning-text);
+    font-style: normal;
+    font-weight: 700;
 }
 
 .tabNav {
@@ -588,6 +704,36 @@
   padding-top: 0.35rem;
   border-top: 1px solid var(--border-color-light);
 }
+.filterFooterLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.chipsSpoilerToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border-color-dark);
+  border-radius: 999px;
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.chipsSpoilerToggle:hover {
+  background: var(--accent-surface);
+  color: var(--accent-primary);
+}
+
+
 
 .filterSummary {
   display: flex;
@@ -633,6 +779,7 @@
 .headerActions {
     display: flex;
     gap: 1rem;
+    flex-wrap: wrap;
 }
 
 .aggressorButton {
@@ -653,31 +800,32 @@
 .delayedFilterButton {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    min-height: 46px;
-    padding: 0 1rem;
-    border-radius: 14px;
-    border: 1px solid var(--danger-soft-strong);
-    background-color: var(--danger-soft);
-    color: var(--danger-text);
-    font-weight: 700;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--danger-soft-strong, #fca5a5);
+    background: var(--card-bg, #fff);
+    color: var(--danger-text, #dc2626);
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease-out;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
 }
 
 .delayedFilterButton.active {
-    background: linear-gradient(135deg, var(--danger-primary), var(--danger-primary-hover));
-    border-color: transparent;
-    color: var(--danger-contrast);
-    box-shadow: 0 16px 28px var(--danger-soft-strong);
+    background: var(--danger-primary, #ef4444);
+    border-color: var(--danger-primary, #ef4444);
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
 }
 
 .delayedFilterButton:hover {
-    transform: translateY(-1px);
-    background-color: var(--danger-soft);
+    border-color: var(--danger-primary, #ef4444);
 }
 .delayedFilterButton.active:hover {
-    background: linear-gradient(135deg, var(--danger-primary), var(--danger-primary-hover));
+    background: var(--danger-primary-hover, #dc2626);
+    border-color: var(--danger-primary-hover, #dc2626);
 }
 
 .indicatorInfoBanner {
@@ -695,26 +843,26 @@
 .clearFilterButton {
     display: inline-flex;
     align-items: center;
-    gap: 0.55rem;
-    min-height: 46px;
-    padding: 0 1rem;
-    border-radius: 14px;
-    border: 1px solid var(--border-color-dark);
-    background: transparent;
-    color: var(--text-secondary);
-    font-weight: 700;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #d1d5db);
+    background: var(--card-bg, #fff);
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease-out;
+    transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+    white-space: nowrap;
 }
 
 .clearFilterButton:hover:not(:disabled) {
-    border-color: var(--accent-primary);
-    color: var(--accent-primary);
-    transform: translateY(-1px);
+    border-color: var(--accent-primary, #6366f1);
+    color: var(--text-primary, #374151);
 }
 
 .clearFilterButton:disabled {
-    opacity: 0.55;
+    opacity: 0.45;
     cursor: not-allowed;
 }
 /* --- FIM DO NOVO ESTILO --- */
@@ -863,6 +1011,16 @@
   }
 }
 
+@media (max-width: 1080px) {
+  .modalOverlay {
+    padding: 1rem;
+  }
+
+  .modalContent {
+    max-height: calc(100vh - 2rem);
+  }
+}
+
 @media (max-width: 768px) {
   .header {
     flex-direction: column;
@@ -872,6 +1030,7 @@
 
   .headerActions {
     width: 100%;
+    flex-direction: column;
   }
 
   .newCaseButton {
@@ -879,8 +1038,23 @@
     text-align: center;
   }
 
+  .exportButton {
+    width: 100%;
+  }
+
   .filterBar {
     gap: 1rem;
+  }
+
+  .modalHeaderInfo {
+    flex-direction: column;
+    padding-right: 2.5rem;
+  }
+
+  .statusSinceCard {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
   }
 
   .filterPanel {
@@ -932,4 +1106,78 @@
       + 150px
     );
   }
+}
+
+/* ======= Pipeline View Selector ======= */
+.headerTitleRow {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.headerTitleRow h1 {
+    margin: 0;
+}
+
+.pipelineViewSelector {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.pipelineViewSelect {
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--surface-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color-light);
+    border-radius: 8px;
+    padding: 0.5rem 2.2rem 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    min-width: 160px;
+}
+
+.pipelineViewSelect:hover {
+    border-color: var(--accent-color);
+}
+
+.pipelineViewSelect:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
+}
+
+.pipelineViewSelect option[disabled] {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.pipelineViewIcon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+/* ======= Column Tooltip (OBF info icon) ======= */
+.columnTooltip {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.35rem;
+    color: var(--text-secondary);
+    cursor: help;
+    font-size: 0.75em;
+    vertical-align: middle;
+    transition: color 0.2s;
+}
+
+.columnTooltip:hover {
+    color: var(--accent-color);
 }

@@ -79,3 +79,6 @@ concilia-backend/.env
 .claude/
 
 outputs/
+
+.codex-spreadsheet-work/
+.codex-logs/

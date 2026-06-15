@@ -43,7 +43,7 @@
     border: 1px solid var(--border-color-light);
     background: var(--surface-panel-accent);
     box-shadow: var(--card-shadow);
-    overflow: hidden;
+    overflow: visible;
 }
 
 .filtersHeader {
@@ -403,6 +403,21 @@ select.filterControl {
     box-shadow: var(--accent-shadow);
 }
 
+.dashboardViewControl {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 14px;
+    background: var(--bg-input);
+}
+
+.dashboardViewControl .segmentedControlButton {
+    flex: 1;
+    justify-content: center;
+    min-height: 38px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
 .metricSnapshotGrid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -538,6 +553,218 @@ select.filterControl {
     color: var(--text-primary);
     font-size: 1.15rem;
     line-height: 1;
+}
+
+
+
+/* ── Leaderboard Pagination ── */
+.lbPagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0.25rem 0;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.lbPagInfo {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.lbPagControls {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.lbPerPageSelect {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.lbPerPageBtn {
+    padding: 0.3rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.lbPerPageBtn:hover {
+    background: var(--surface-panel-muted);
+    border-color: var(--border-color-dark);
+}
+
+.lbPerPageBtnActive {
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+    border-color: transparent;
+    font-weight: 700;
+}
+
+.lbPerPageBtnActive:hover {
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+    opacity: 0.9;
+}
+
+.lbPageNav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.lbPageBtn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+}
+
+.lbPageBtn:hover:not(:disabled) {
+    background: var(--surface-panel-muted);
+    border-color: var(--border-color-dark);
+}
+
+.lbPageBtn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.lbPageLabel {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    min-width: 50px;
+    text-align: center;
+}
+
+/* ── Leaderboard Table ── */
+.leaderboardTableWrap {
+    overflow-x: auto;
+    border-radius: 16px;
+    border: 1px solid var(--border-color-light);
+    background: var(--bg-card);
+    box-shadow: var(--card-shadow);
+}
+
+.leaderboardTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.leaderboardTable thead {
+    background: var(--surface-panel-muted);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.leaderboardTable th {
+    padding: 0.65rem 0.75rem;
+    font-weight: 600;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: left;
+    border-bottom: 2px solid var(--border-color-light);
+    white-space: nowrap;
+}
+
+.leaderboardTable td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border-color-light);
+    vertical-align: middle;
+}
+
+.leaderboardTable tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.leaderboardTable tbody tr:hover {
+    background: var(--surface-panel-muted);
+}
+
+.lbColRank {
+    width: 52px;
+    text-align: center !important;
+}
+
+.lbColName {
+    min-width: 180px;
+}
+
+.lbColNum {
+    width: 105px;
+    text-align: center !important;
+}
+
+.lbCellRank {
+    text-align: center;
+}
+
+.lbRankBadge {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.lbCellName {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.lbNameText {
+    display: block;
+    line-height: 1.35;
+}
+
+.lbCellNum {
+    text-align: center;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.lbAgreementLink {
+    color: var(--accent-pill-text);
+    font-weight: 700;
+    text-decoration: none;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    background: var(--accent-pill-bg);
+    border: 1px solid var(--accent-border-soft);
+    font-size: 0.82rem;
+    transition: opacity 0.15s;
+}
+
+.lbAgreementLink:hover {
+    opacity: 0.8;
 }
 
 .metricExplorerEmpty {
@@ -890,8 +1117,10 @@ select.filterControl {
 
 .teamPerformanceSectionHeader {
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 0.35rem;
+    flex-wrap: wrap;
     padding-top: 0.25rem;
     border-top: 1px solid var(--border-color-light);
 }
@@ -906,6 +1135,18 @@ select.filterControl {
     color: var(--text-secondary);
     font-size: 0.92rem;
     line-height: 1.6;
+}
+
+.teamPerformancePeriodChip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--accent-border-soft);
+    background: var(--accent-surface);
+    color: var(--accent-pill-text);
+    font-size: 0.82rem;
+    font-weight: 700;
 }
 
 .teamPerformancePanelWrap {
@@ -1203,4 +1444,109 @@ select.filterControl {
     .kpiGrid {
         grid-template-columns: 1fr;
     }
+}
+
+
+/* === Unfiltered sections (no period filter) === */
+.unfilteredSections {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.unfilteredSections > .statusDistribution,
+.unfilteredSections > .recentCases {
+    background: var(--surface-card);
+    border: 1px solid var(--border-color-light);
+    border-radius: 16px;
+    padding: 1.75rem;
+    box-shadow: var(--card-shadow);
+}
+
+.unfilteredSections > .statusDistribution h3,
+.unfilteredSections > .recentCases h3 {
+    margin: 0;
+}
+
+.unfilteredSectionHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.unfilteredBadge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--surface-card-sunken);
+    color: var(--text-secondary);
+    padding: 0.25rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color-light);
+    white-space: nowrap;
+}
+
+
+/* === Stage toggle (Pré/Pós-Acordo) === */
+.stageToggle {
+    display: inline-flex;
+    border: 1px solid var(--border-color-light);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.stageToggleBtn {
+    padding: 0.35rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.stageToggleBtn:hover {
+    background: var(--surface-card-sunken);
+    color: var(--text-primary);
+}
+
+.stageToggleBtnActive {
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+}
+
+.stageToggleBtnActive:hover {
+    opacity: 0.9;
+    color: var(--text-on-accent);
+}
+
+/* === Info icon for unfiltered sections === */
+.unfilteredInfo {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    cursor: help;
+    opacity: 0.6;
+    transition: opacity 0.2s, color 0.2s;
+    flex-shrink: 0;
+}
+
+.unfilteredInfo:hover {
+    opacity: 1;
+    color: var(--accent-color);
 }

@@ -2,18 +2,9 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
-import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle } from 'react-icons/fa';
+import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import { normalizeCaseTags } from '../constants/caseTags';
 import { isTerminalLegalCaseStatus } from '../constants/legalCaseStatus';
-
-const getBadgeInitials = (value, maxLetters = 3) =>
-  String(value ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((chunk) => chunk.charAt(0).toUpperCase())
-    .join('')
-    .slice(0, maxLetters);
 
 const getDisplayValue = (value, fallback = 'Nao informado') => {
   if (value === null || value === undefined) return fallback;
@@ -65,6 +56,8 @@ const CaseCardBody = ({
   listeners = {},
   canIndicate = false,
   onIndicate,
+  canRequestReanalysis = false,
+  onRequestReanalysis,
 }) => {
   const lastUpdate = new Date(legalCase.updated_at);
   const today = new Date();
@@ -75,6 +68,8 @@ const CaseCardBody = ({
   const alcadaValue = parseFloat(legalCase.original_value);
   const indicatorName = getIndicatorName(legalCase);
   const caseTags = normalizeCaseTags(legalCase.tags);
+  const contraIndicationReason = String(legalCase.contra_indication_reason || '').trim();
+  const reanalysisReason = String(legalCase.reanalysis_reason || '').trim();
 
   let economyPercentage = null;
   const originalValue = parseFloat(legalCase.original_value);
@@ -141,6 +136,20 @@ const CaseCardBody = ({
             <div className={styles.infoRow}><FaUser /><span>Indicador: {indicatorName}</span></div>
           )}
 
+          {legalCase.status === 'contra_indicated' && contraIndicationReason && (
+            <div className={styles.contraReason} title={contraIndicationReason}>
+              <FaExclamationTriangle />
+              <span>Motivo: {contraIndicationReason}</span>
+            </div>
+          )}
+
+          {reanalysisReason && (
+            <div className={`${styles.contraReason} ${styles.reanalysisReason}`} title={reanalysisReason}>
+              <FaRedo />
+              <span>Reanálise: {reanalysisReason}</span>
+            </div>
+          )}
+
           <div className={`${styles.infoRow} ${isDelayed ? styles.textDelayed : ''}`}>
             <FaClock />
             <span>
@@ -161,6 +170,21 @@ const CaseCardBody = ({
               className={styles.indicateButton}
             >
               Indicar Caso para acordo
+            </button>
+          )}
+
+          {canRequestReanalysis && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                if (onRequestReanalysis) {
+                  onRequestReanalysis(legalCase);
+                }
+              }}
+              className={`${styles.indicateButton} ${styles.reanalysisButton}`}
+            >
+              Solicitar reanálise
             </button>
           )}
         </div>

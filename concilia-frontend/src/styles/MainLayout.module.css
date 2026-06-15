@@ -193,6 +193,25 @@
     font-size: 0.9rem;
 }
 
+.submenuDisabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.comingSoonBadge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--sidebar-link-hover-bg);
+    color: var(--sidebar-text-secondary);
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
 .navLinkActive {
     background: var(--accent-gradient);
     border-color: var(--accent-border-soft);

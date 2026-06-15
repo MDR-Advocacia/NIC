@@ -4,8 +4,10 @@ import apiClient from '../api';
 import styles from '../styles/AggressorLawyersModal.module.css';
 import { FaTimes, FaSearch, FaPlus, FaBook, FaEdit, FaTrash } from 'react-icons/fa';
 import AddEditAggressorModal from './AddEditAggressorModal';
+import { useToast } from '../context/ToastContext';
 
 const AggressorLawyersModal = ({ isOpen, onClose }) => {
+    const toast = useToast();
     const { token } = useAuth();
     const [aggressors, setAggressors] = useState([]);
     const [clients, setClients] = useState([]);
@@ -62,7 +64,7 @@ const AggressorLawyersModal = ({ isOpen, onClose }) => {
             });
             fetchData();
         } catch (err) {
-            alert('Não foi possível excluir o advogado.');
+            toast.error('Não foi possível excluir o advogado.');
             console.error(err);
         }
     };

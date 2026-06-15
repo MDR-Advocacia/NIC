@@ -1,0 +1,110 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
+    display: grid;
+    place-items: center;
+    z-index: 9999;
+    animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal {
+    position: relative;
+    background: var(--bg-card, #fff);
+    border-radius: 16px;
+    padding: 2rem 2rem 1.5rem;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    text-align: center;
+    animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.closeBtn {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0.3rem;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+
+.closeBtn:hover {
+    background: var(--surface-panel-muted);
+}
+
+.icon {
+    font-size: 2.2rem;
+    margin-bottom: 0.6rem;
+    color: var(--text-secondary);
+}
+
+.title {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.message {
+    margin: 0 0 1.5rem;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+}
+
+.actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+
+.cancelBtn {
+    padding: 0.6rem 1.25rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-color, #d1d5db);
+    background: var(--bg-card, #fff);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+    min-width: 100px;
+}
+
+.cancelBtn:hover {
+    background: var(--surface-panel-muted);
+}
+
+.confirmBtn {
+    padding: 0.6rem 1.25rem;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent-gradient, linear-gradient(135deg, #3b82f6, #2563eb));
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    min-width: 100px;
+}
+
+.confirmBtn:hover {
+    opacity: 0.88;
+}
