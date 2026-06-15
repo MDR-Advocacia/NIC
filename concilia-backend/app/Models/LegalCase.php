@@ -34,24 +34,15 @@ class LegalCase extends Model
     public const STATUS_AWAITING_DRAFT = 'awaiting_draft';
     public const STATUS_CLOSED_DEAL = 'closed_deal';
     public const STATUS_FAILED_DEAL = 'failed_deal';
+    public const STATUS_CLOSED_IN_HEARING = 'closed_in_hearing';
     public const STATUS_PENDING_PAYMENT = 'pending_payment';
     public const STATUS_PENDING_OBF = 'pending_obf';
     public const STATUS_PENDING_LIVELO_OUROCAP = 'pending_livelo_ourocap';
     public const STATUS_DEAL_COMPLETED = 'deal_completed';
-    public const STATUS_CLOSED_IN_HEARING = 'closed_in_hearing';
-
-    public const POST_AGREEMENT_STATUSES = [
-        self::STATUS_CLOSED_IN_HEARING,
-        self::STATUS_PENDING_PAYMENT,
-        self::STATUS_PENDING_OBF,
-        self::STATUS_PENDING_LIVELO_OUROCAP,
-        self::STATUS_DEAL_COMPLETED,
-    ];
 
     public const AGREEMENT_METRIC_STATUSES = [
         self::STATUS_AWAITING_DRAFT,
         self::STATUS_CLOSED_DEAL,
-        self::STATUS_CLOSED_IN_HEARING,
     ];
 
     public const STATUSES = [
@@ -63,11 +54,6 @@ class LegalCase extends Model
         self::STATUS_AWAITING_DRAFT,
         self::STATUS_CLOSED_DEAL,
         self::STATUS_FAILED_DEAL,
-        self::STATUS_CLOSED_IN_HEARING,
-        self::STATUS_PENDING_PAYMENT,
-        self::STATUS_PENDING_OBF,
-        self::STATUS_PENDING_LIVELO_OUROCAP,
-        self::STATUS_DEAL_COMPLETED,
     ];
 
     public const TERMINAL_STATUSES = [
@@ -100,9 +86,15 @@ class LegalCase extends Model
         'status',
         'status_started_at',
         'contra_indication_reason',
+        'contra_indication_reason_id',
         'contra_indicated_at',
         'contra_indicated_by_user_id',
+        'failed_deal_reason',
+        'failed_deal_reason_id',
+        'failed_deal_at',
+        'failed_deal_by_user_id',
         'reanalysis_reason',
+        'reanalysis_reason_id',
         'reanalysis_requested_at',
         'reanalysis_requested_by_user_id',
         'priority',
@@ -131,10 +123,7 @@ class LegalCase extends Model
         'has_obligation',
         'obligation_description',
         'formalized_by_user_id',
-        'formalized_at',
-        'archived_at',
-        'archived_by_user_id',
-        'archive_reason',
+        'formalized_at'
     ];
 
     protected $casts = [
@@ -149,10 +138,6 @@ class LegalCase extends Model
         'hearing_date' => 'date',
         'has_obligation' => 'boolean',
         'formalized_at' => 'datetime',
-        'archived_at' => 'datetime',
-        'archived_at',
-        'archived_by_user_id',
-        'archive_reason',
     ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool
@@ -200,11 +185,6 @@ class LegalCase extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function responsible()
-    {
-        return $this->belongsTo(User::class, 'user_id');
-    }
-
     public function indicator()
     {
         return $this->belongsTo(User::class, 'indicator_user_id');
@@ -213,6 +193,11 @@ class LegalCase extends Model
     public function contraIndicatedBy()
     {
         return $this->belongsTo(User::class, 'contra_indicated_by_user_id');
+    }
+
+    public function reanalysisReasonRef()
+    {
+        return $this->belongsTo(ReanalysisReason::class, 'reanalysis_reason_id');
     }
 
     public function reanalysisRequestedBy()
@@ -239,5 +224,20 @@ class LegalCase extends Model
     public function defendantRel()
     {
         return $this->belongsTo(Defendant::class, 'defendant_id');
+    }
+
+    public function contraIndicationReasonRef()
+    {
+        return $this->belongsTo(ContraIndicationReason::class, 'contra_indication_reason_id');
+    }
+
+    public function failedDealReasonRef()
+    {
+        return $this->belongsTo(FailedDealReason::class, 'failed_deal_reason_id');
+    }
+
+    public function failedDealBy()
+    {
+        return $this->belongsTo(User::class, 'failed_deal_by_user_id');
     }
 }

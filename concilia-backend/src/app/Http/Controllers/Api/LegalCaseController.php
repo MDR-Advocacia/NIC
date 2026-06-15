@@ -230,6 +230,9 @@ class LegalCaseController extends Controller
             'description' => 'nullable|string',
             'status' => 'required|string',
             'contra_indication_reason' => 'nullable|string|max:4000',
+            'contra_indication_reason_id' => 'nullable|exists:contra_indication_reasons,id',
+            'failed_deal_reason' => 'nullable|string|max:4000',
+            'failed_deal_reason_id' => 'nullable|exists:failed_deal_reasons,id',
             'priority' => 'required|string',
             'original_value' => 'required|numeric',
             'agreement_value' => 'nullable|numeric',
@@ -256,6 +259,7 @@ class LegalCaseController extends Controller
         ]);
 
         $validatedData = $this->applyContraIndicationPayload($validatedData);
+        $validatedData = $this->applyFailedDealPayload($validatedData);
 
         $case = LegalCase::create($validatedData);
         $this->syncCaseTagCatalog($validatedData['tags'] ?? []);
@@ -337,6 +341,9 @@ class LegalCaseController extends Controller
             'description' => 'nullable|string',
             'status' => 'sometimes|required|string',
             'contra_indication_reason' => 'nullable|string|max:4000',
+            'contra_indication_reason_id' => 'nullable|exists:contra_indication_reasons,id',
+            'failed_deal_reason' => 'nullable|string|max:4000',
+            'failed_deal_reason_id' => 'nullable|exists:failed_deal_reasons,id',
             'priority' => 'sometimes|required|string',
             'original_value' => 'sometimes|required|numeric',
             'agreement_value' => 'nullable|numeric',
@@ -363,6 +370,7 @@ class LegalCaseController extends Controller
         ]);
 
         $validatedData = $this->applyContraIndicationPayload($validatedData, $case);
+        $validatedData = $this->applyFailedDealPayload($validatedData, $case);
 
         $originalData = $case->getOriginal();
         $case->update($validatedData);
@@ -630,7 +638,7 @@ class LegalCaseController extends Controller
         $oldStatus = $case->status;
 
         $case->update([
-            'status'                  => LegalCase::STATUS_CLOSED_DEAL,
+            'status'                  => LegalCase::STATUS_CLOSED_IN_HEARING,
             'formalized_by_name'      => $validatedData['formalized_by_name'],
             'hearing_date'            => $validatedData['hearing_date'],
             'agreement_value'         => $validatedData['agreement_value'],
@@ -648,7 +656,7 @@ class LegalCaseController extends Controller
             'description' => 'Acordo formalizado pelo indicador apos audiencia.',
             'old_values'  => ['status' => $oldStatus],
             'new_values'  => [
-                'status'             => LegalCase::STATUS_CLOSED_DEAL,
+                'status'             => LegalCase::STATUS_CLOSED_IN_HEARING,
                 'formalized_by_name' => $validatedData['formalized_by_name'],
                 'hearing_date'       => $validatedData['hearing_date'],
                 'agreement_value'    => $validatedData['agreement_value'],
@@ -691,6 +699,7 @@ class LegalCaseController extends Controller
         }
 
         $validatedData = $request->validate([
+            'reanalysis_reason_id' => 'nullable|integer|exists:reanalysis_reasons,id',
             'reanalysis_reason' => 'required|string|max:4000',
         ]);
         $reanalysisReason = trim((string) $validatedData['reanalysis_reason']);
@@ -711,9 +720,11 @@ class LegalCaseController extends Controller
         $caseUpdatePayload = [
             'status' => LegalCase::STATUS_INITIAL_ANALYSIS,
             'contra_indication_reason' => null,
+            'contra_indication_reason_id' => null,
             'contra_indicated_at' => null,
             'contra_indicated_by_user_id' => null,
             'reanalysis_reason' => $reanalysisReason,
+            'reanalysis_reason_id' => $validatedData['reanalysis_reason_id'] ?? null,
             'reanalysis_requested_at' => $requestedAt,
             'reanalysis_requested_by_user_id' => $user->id,
         ];
@@ -1332,6 +1343,9 @@ class LegalCaseController extends Controller
             'action' => 'required|string|in:update_status,update_priority,transfer_user,add_tag,update_opposing_lawyer,delete',
             'value' => 'nullable', 
             'contra_indication_reason' => 'nullable|string|max:4000',
+            'contra_indication_reason_id' => 'nullable|exists:contra_indication_reasons,id',
+            'failed_deal_reason' => 'nullable|string|max:4000',
+            'failed_deal_reason_id' => 'nullable|exists:failed_deal_reasons,id',
         ]);
 
         $caseIds = $validated['case_ids'];
@@ -1339,6 +1353,9 @@ class LegalCaseController extends Controller
         $value = $validated['value'] ?? null;
         $currentUser = Auth::user();
         $contraIndicationReason = trim((string) ($validated['contra_indication_reason'] ?? ''));
+        $contraIndicationReasonId = $validated['contra_indication_reason_id'] ?? null;
+        $failedDealReason = trim((string) ($validated['failed_deal_reason'] ?? ''));
+        $failedDealReasonId = $validated['failed_deal_reason_id'] ?? null;
 
         if ($action === 'delete' && !in_array($currentUser?->role, ['administrador', 'admin'], true)) {
             return response()->json(['message' => 'Apenas administradores podem excluir processos em lote.'], 403);
@@ -1359,10 +1376,22 @@ class LegalCaseController extends Controller
         if (
             $action === 'update_status'
             && $value === LegalCase::STATUS_CONTRA_INDICATED
+            && empty($contraIndicationReasonId)
             && $contraIndicationReason === ''
         ) {
             throw ValidationException::withMessages([
-                'contra_indication_reason' => 'Informe o motivo da contraindicação.',
+                'contra_indication_reason_id' => 'Selecione o motivo da contraindicação.',
+            ]);
+        }
+
+        if (
+            $action === 'update_status'
+            && $value === LegalCase::STATUS_FAILED_DEAL
+            && empty($failedDealReasonId)
+            && $failedDealReason === ''
+        ) {
+            throw ValidationException::withMessages([
+                'failed_deal_reason_id' => 'Selecione o motivo do acordo frustrado.',
             ]);
         }
 
@@ -1382,8 +1411,13 @@ class LegalCaseController extends Controller
                             'case_number',
                             'status',
                             'contra_indication_reason',
+                            'contra_indication_reason_id',
                             'contra_indicated_at',
                             'contra_indicated_by_user_id',
+                            'failed_deal_reason',
+                            'failed_deal_reason_id',
+                            'failed_deal_at',
+                            'failed_deal_by_user_id',
                         ]);
 
                     $changedCaseIds = $casesToUpdate->pluck('id')->all();
@@ -1397,26 +1431,49 @@ class LegalCaseController extends Controller
                         ];
 
                         if ($value === LegalCase::STATUS_CONTRA_INDICATED) {
-                            $statusUpdatePayload['contra_indication_reason'] = $contraIndicationReason;
+                            $statusUpdatePayload['contra_indication_reason'] = $contraIndicationReason !== '' ? $contraIndicationReason : null;
+                            $statusUpdatePayload['contra_indication_reason_id'] = $contraIndicationReasonId;
                             $statusUpdatePayload['contra_indicated_at'] = $statusStartedAt;
                             $statusUpdatePayload['contra_indicated_by_user_id'] = Auth::id();
                         } else {
                             $statusUpdatePayload['contra_indication_reason'] = null;
+                            $statusUpdatePayload['contra_indication_reason_id'] = null;
                             $statusUpdatePayload['contra_indicated_at'] = null;
                             $statusUpdatePayload['contra_indicated_by_user_id'] = null;
                         }
 
+                        if ($value === LegalCase::STATUS_FAILED_DEAL) {
+                            $statusUpdatePayload['failed_deal_reason'] = $failedDealReason !== '' ? $failedDealReason : null;
+                            $statusUpdatePayload['failed_deal_reason_id'] = $failedDealReasonId;
+                            $statusUpdatePayload['failed_deal_at'] = $statusStartedAt;
+                            $statusUpdatePayload['failed_deal_by_user_id'] = Auth::id();
+                        } else {
+                            $statusUpdatePayload['failed_deal_reason'] = null;
+                            $statusUpdatePayload['failed_deal_reason_id'] = null;
+                            $statusUpdatePayload['failed_deal_at'] = null;
+                            $statusUpdatePayload['failed_deal_by_user_id'] = null;
+                        }
+
                         LegalCase::whereIn('id', $changedCaseIds)->update($statusUpdatePayload);
 
-                        $historyRows = $casesToUpdate->map(function (LegalCase $caseToUpdate) use ($value, $statusStartedAt, $contraIndicationReason) {
+                        $historyRows = $casesToUpdate->map(function (LegalCase $caseToUpdate) use ($value, $statusStartedAt, $contraIndicationReason, $contraIndicationReasonId, $failedDealReason, $failedDealReasonId) {
                             $oldValues = ['status' => $caseToUpdate->status];
                             $newValues = ['status' => $value];
 
                             if ($value === LegalCase::STATUS_CONTRA_INDICATED) {
                                 $newValues['contra_indication_reason'] = $contraIndicationReason;
+                                $newValues['contra_indication_reason_id'] = $contraIndicationReasonId;
                             } elseif ($caseToUpdate->status === LegalCase::STATUS_CONTRA_INDICATED) {
                                 $oldValues['contra_indication_reason'] = $caseToUpdate->contra_indication_reason;
                                 $newValues['contra_indication_reason'] = null;
+                            }
+
+                            if ($value === LegalCase::STATUS_FAILED_DEAL) {
+                                $newValues['failed_deal_reason'] = $failedDealReason;
+                                $newValues['failed_deal_reason_id'] = $failedDealReasonId;
+                            } elseif ($caseToUpdate->status === LegalCase::STATUS_FAILED_DEAL) {
+                                $oldValues['failed_deal_reason'] = $caseToUpdate->failed_deal_reason;
+                                $newValues['failed_deal_reason'] = null;
                             }
 
                             return [
@@ -2577,15 +2634,17 @@ class LegalCaseController extends Controller
         $targetStatus = $data['status'] ?? $currentStatus;
 
         if ($targetStatus === LegalCase::STATUS_CONTRA_INDICATED) {
-            $reason = trim((string) ($data['contra_indication_reason'] ?? $case?->contra_indication_reason ?? ''));
+            $reasonId = $data['contra_indication_reason_id'] ?? $case?->contra_indication_reason_id ?? null;
+            $reasonText = trim((string) ($data['contra_indication_reason'] ?? $case?->contra_indication_reason ?? ''));
 
-            if ($reason === '') {
+            if (empty($reasonId) && $reasonText === '') {
                 throw ValidationException::withMessages([
-                    'contra_indication_reason' => 'Informe o motivo da contraindicação.',
+                    'contra_indication_reason_id' => 'Selecione o motivo da contraindicação.',
                 ]);
             }
 
-            $data['contra_indication_reason'] = $reason;
+            $data['contra_indication_reason_id'] = $reasonId;
+            $data['contra_indication_reason'] = $reasonText !== '' ? $reasonText : null;
 
             if ($currentStatus !== LegalCase::STATUS_CONTRA_INDICATED || empty($case?->contra_indicated_at)) {
                 $data['contra_indicated_at'] = now();
@@ -2600,6 +2659,7 @@ class LegalCaseController extends Controller
             && (array_key_exists('status', $data) || array_key_exists('contra_indication_reason', $data))
         ) {
             $data['contra_indication_reason'] = null;
+            $data['contra_indication_reason_id'] = null;
         }
 
         if (
@@ -2608,6 +2668,51 @@ class LegalCaseController extends Controller
         ) {
             $data['contra_indicated_at'] = null;
             $data['contra_indicated_by_user_id'] = null;
+        }
+
+        return $data;
+    }
+
+    private function applyFailedDealPayload(array $data, ?LegalCase $case = null): array
+    {
+        $currentStatus = $case?->status;
+        $targetStatus = $data['status'] ?? $currentStatus;
+
+        if ($targetStatus === LegalCase::STATUS_FAILED_DEAL) {
+            $reasonId = $data['failed_deal_reason_id'] ?? $case?->failed_deal_reason_id ?? null;
+            $reasonText = trim((string) ($data['failed_deal_reason'] ?? $case?->failed_deal_reason ?? ''));
+
+            if (empty($reasonId) && $reasonText === '') {
+                throw ValidationException::withMessages([
+                    'failed_deal_reason_id' => 'Selecione o motivo do acordo frustrado.',
+                ]);
+            }
+
+            $data['failed_deal_reason_id'] = $reasonId;
+            $data['failed_deal_reason'] = $reasonText !== '' ? $reasonText : null;
+
+            if ($currentStatus !== LegalCase::STATUS_FAILED_DEAL || empty($case?->failed_deal_at)) {
+                $data['failed_deal_at'] = now();
+                $data['failed_deal_by_user_id'] = Auth::id();
+            }
+
+            return $data;
+        }
+
+        if (
+            $targetStatus !== LegalCase::STATUS_FAILED_DEAL
+            && (array_key_exists('status', $data) || array_key_exists('failed_deal_reason', $data))
+        ) {
+            $data['failed_deal_reason'] = null;
+            $data['failed_deal_reason_id'] = null;
+        }
+
+        if (
+            array_key_exists('status', $data)
+            && $targetStatus !== LegalCase::STATUS_FAILED_DEAL
+        ) {
+            $data['failed_deal_at'] = null;
+            $data['failed_deal_by_user_id'] = null;
         }
 
         return $data;
@@ -2623,6 +2728,10 @@ class LegalCaseController extends Controller
             'defendantRel',
             'actionObject',
             'contraIndicatedBy',
+            'contraIndicationReasonRef',
+            'failedDealReasonRef',
+            'failedDealBy',
+            'reanalysisReasonRef',
             'reanalysisRequestedBy',
         ];
 

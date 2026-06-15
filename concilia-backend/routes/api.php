@@ -5,6 +5,9 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\ActionObjectController;
 use App\Http\Controllers\Api\AggressorLawyerController;
+use App\Http\Controllers\Api\ContraIndicationReasonController;
+use App\Http\Controllers\Api\FailedDealReasonController;
+use App\Http\Controllers\Api\ReanalysisReasonController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CaseHistoryController;
@@ -12,8 +15,6 @@ use App\Http\Controllers\Api\CaseTagController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
-use App\Http\Controllers\Api\FilterPresetController;
-use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\DefendantController;
 use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\LegalCaseController;
@@ -59,12 +60,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/case-tags', [CaseTagController::class, 'index']);
     Route::delete('/case-tags/{caseTag}', [CaseTagController::class, 'destroy']);
-
-    Route::get('/filter-presets', [FilterPresetController::class, 'index']);
-    Route::post('/filter-presets', [FilterPresetController::class, 'store']);
-    Route::delete('/filter-presets/{filterPreset}', [FilterPresetController::class, 'destroy']);
-    Route::patch('/filter-presets/{filterPreset}/favorite', [FilterPresetController::class, 'toggleFavorite']);
-    Route::patch('/filter-presets/{filterPreset}/global', [FilterPresetController::class, 'toggleGlobal']);
     Route::get('/users/operators', [UserController::class, 'operators']);
     Route::get('/users/indicators', [UserController::class, 'indicators']);
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);
@@ -89,15 +84,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('aggressor-lawyers', AggressorLawyerController::class);
     Route::apiResource('opposing-lawyers', OpposingLawyerController::class);
     Route::apiResource('action-objects', ActionObjectController::class)->only(['index', 'store', 'update']);
+    Route::apiResource('contra-indication-reasons', ContraIndicationReasonController::class)->only(['index', 'store', 'update']);
+    Route::apiResource('failed-deal-reasons', FailedDealReasonController::class)->only(['index', 'store', 'update']);
+    Route::apiResource('reanalysis-reasons', ReanalysisReasonController::class)->only(['index', 'store', 'update']);
 
     Route::get('/plaintiffs', [PlaintiffController::class, 'index']);
     Route::post('/plaintiffs', [PlaintiffController::class, 'store']);
     Route::get('/defendants', [DefendantController::class, 'index']);
     Route::post('/defendants', [DefendantController::class, 'store']);
-
-    Route::get("/archives", [ArchiveController::class, "index"]);
-    Route::post("/archives/archive", [ArchiveController::class, "archive"]);
-    Route::post("/archives/unarchive", [ArchiveController::class, "unarchive"]);
-    Route::get("/archives/archivable-preview", [ArchiveController::class, "archivablePreview"]);
-    Route::post("/archives/compare-upload", [ArchiveController::class, "compareUpload"]);
 });

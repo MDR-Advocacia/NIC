@@ -203,12 +203,13 @@ class DashboardController extends Controller
                 LegalCase::STATUS_FAILED_DEAL => (int) ($globalStatusCounts[LegalCase::STATUS_FAILED_DEAL] ?? 0),
             ],
             'status_distribution_global_post' => [
+                LegalCase::STATUS_CLOSED_IN_HEARING => (int) ($globalStatusCounts[LegalCase::STATUS_CLOSED_IN_HEARING] ?? 0),
                 LegalCase::STATUS_PENDING_PAYMENT => (int) ($globalStatusCounts[LegalCase::STATUS_PENDING_PAYMENT] ?? 0),
                 LegalCase::STATUS_PENDING_OBF => (int) ($globalStatusCounts[LegalCase::STATUS_PENDING_OBF] ?? 0),
                 LegalCase::STATUS_PENDING_LIVELO_OUROCAP => (int) ($globalStatusCounts[LegalCase::STATUS_PENDING_LIVELO_OUROCAP] ?? 0),
                 LegalCase::STATUS_DEAL_COMPLETED => (int) ($globalStatusCounts[LegalCase::STATUS_DEAL_COMPLETED] ?? 0),
             ],
-            'monthly_evolution' => $this->buildMonthlyEvolution($request, $user, $portfolioDateRange, $closingDateRange),
+            'monthly_evolution' => $this->buildMonthlyEvolution($request, $user, $noDateRange, $noDateRange),
             'agreements_by_state' => $this->buildAgreementsByState($request, $user, $closingDateRange),
             'agreement_macro_distribution' => $this->buildAgreementMacroDistribution($request, $user, $closingDateRange),
             'indicator_leaderboard' => $indicatorLeaderboard,
@@ -319,11 +320,11 @@ class DashboardController extends Controller
             ->join('users as indicators', 'indicators.id', '=', 'legal_cases.indicator_user_id')
             ->whereNotNull('legal_cases.indicator_user_id');
 
-        if (!empty($dateRange['from'])) {
-            $query->where('legal_cases.created_at', '>=', $dateRange['from']);
+        if (($dateRange['start'] ?? null) instanceof Carbon) {
+            $query->where('legal_cases.created_at', '>=', $dateRange['start']);
         }
-        if (!empty($dateRange['to'])) {
-            $query->where('legal_cases.created_at', '<=', $dateRange['to']);
+        if (($dateRange['end'] ?? null) instanceof Carbon) {
+            $query->where('legal_cases.created_at', '<=', $dateRange['end']);
         }
 
         $responsibleFilter = $this->resolveResponsibleFilter($request);

@@ -82,3 +82,6 @@ outputs/
 
 .codex-spreadsheet-work/
 .codex-logs/
+
+_deploy_tmp/
+test_cases.php

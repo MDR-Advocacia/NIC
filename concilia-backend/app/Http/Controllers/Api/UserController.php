@@ -1,0 +1,361 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Models\AuditLog;
+use App\Notifications\TemporaryPasswordNotification;
+use App\Notifications\UserInvitationNotification;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB; // Adicionado para transações em lote
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Password as PasswordFacade;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
+class UserController extends Controller
+{
+    use AuthorizesRequests;
+
+    private function randomCharacter(string $characters): string
+    {
+        return $characters[random_int(0, strlen($characters) - 1)];
+    }
+
+    private function shufflePassword(string $password): string
+    {
+        $characters = str_split($password);
+
+        for ($index = count($characters) - 1; $index > 0; $index--) {
+            $swapIndex = random_int(0, $index);
+            [$characters[$index], $characters[$swapIndex]] = [$characters[$swapIndex], $characters[$index]];
+        }
+
+        return implode('', $characters);
+    }
+
+    private function generateTemporaryPassword(int $length = 12): string
+    {
+        $sets = [
+            'ABCDEFGHJKLMNPQRSTUVWXYZ',
+            'abcdefghijkmnopqrstuvwxyz',
+            '23456789',
+            '@#$%&*+-?',
+        ];
+
+        $password = '';
+
+        foreach ($sets as $set) {
+            $password .= $this->randomCharacter($set);
+        }
+
+        $availableCharacters = implode('', $sets);
+
+        while (strlen($password) < $length) {
+            $password .= $this->randomCharacter($availableCharacters);
+        }
+
+        return $this->shufflePassword($password);
+    }
+
+    public function index(Request $request)
+    {
+        // 1. Policy permite a entrada (agora inclui operador)
+        $this->authorize('viewAny', User::class);
+
+        $query = User::with('department');
+        $currentUser = auth()->user();
+
+        // 2. FILTRO DE SEGURANÇA:
+        // Se for operador, forçamos a query a retornar APENAS ele mesmo.
+        if (in_array($currentUser->role, ['operador', 'indicador'], true)) {
+            $query->where('id', $currentUser->id);
+        }
+
+        // Filtros normais (search, status, etc)
+        if ($request->has('search') && $request->input('search') != '') {
+            $searchTerm = $request->input('search');
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('name', 'like', "%{$searchTerm}%")
+                  ->orWhere('email', 'like', "%{$searchTerm}%");
+            });
+        }
+        if ($request->has('status') && $request->input('status') != '') {
+            $query->where('status', $request->input('status'));
+        }
+        if ($request->has('role') && $request->input('role') != '') {
+            $query->where('role', $request->input('role'));
+        }
+        if ($request->has('department_id') && $request->input('department_id') != '') {
+            $query->where('department_id', $request->input('department_id'));
+        }
+        if ($request->has('area') && $request->input('area') != '') {
+            $query->where('area', $request->input('area'));
+        }
+
+        // --- ALTERAÇÃO DA TASK #22 ---
+        // Alterado de get() para paginate(15)
+        // O Laravel estrutura automaticamente o JSON com 'data', 'current_page', etc.
+        return response()->json($query->paginate(15));
+    }
+
+    public function operators(Request $request): JsonResponse
+    {
+        $currentUser = auth()->user();
+        $currentRole = strtolower(trim((string) $currentUser?->role));
+
+        if (!$currentUser || !in_array($currentRole, ['administrador', 'admin', 'supervisor', 'indicador', 'operador'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $operatorsQuery = User::query()
+            ->where('role', 'operador')
+            ->where('status', 'ativo')
+            ->orderBy('name');
+
+        if ($currentRole === 'operador') {
+            $operatorsQuery->where('id', $currentUser->id);
+        }
+
+        $operators = $operatorsQuery->get(['id', 'name', 'email', 'role', 'status']);
+
+        return response()->json($operators);
+    }
+
+    public function indicators(Request $request): JsonResponse
+    {
+        $currentUser = auth()->user();
+        $currentRole = strtolower(trim((string) $currentUser?->role));
+
+        if (!$currentUser || !in_array($currentRole, ['administrador', 'admin', 'supervisor', 'indicador', 'operador'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $indicatorsQuery = User::query()
+            ->where('role', 'indicador')
+            ->where('status', 'ativo')
+            ->orderBy('name');
+
+
+        $indicators = $indicatorsQuery->get(['id', 'name', 'email', 'role', 'status']);
+
+        return response()->json($indicators);
+    }
+
+    public function store(Request $request)
+    {
+        $this->authorize('create', User::class);
+
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'nullable|string|min:8',
+            'role' => 'required|string|in:administrador,supervisor,operador,indicador',
+            'department_id' => 'required|exists:departments,id',
+            'phone' => 'nullable|string',
+            'status' => 'required|string|in:ativo,inativo',
+            'area'   => 'nullable|string',
+        ]);
+
+        // A senha inicial e interna: o usuario cria a propria senha pelo email de primeiro acesso.
+        $validatedData['password'] = Hash::make(Str::random(64));
+        $validatedData['must_change_password'] = false;
+        $validatedData['email_verified_at'] = null;
+
+        $user = User::create($validatedData);
+        $token = PasswordFacade::broker()->createToken($user);
+        $user->notify(new UserInvitationNotification($token));
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Criação de Usuário',
+                'details' => "Criou o usuário: {$user->name}",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("ERRO AO SALVAR LOG (Criação): " . $e->getMessage());
+        }
+
+        return response()->json([
+            'user' => $user,
+            'message' => 'Usuario criado com sucesso. Enviamos um e-mail para confirmar o acesso e criar a senha.',
+            'invitation_email_sent' => true,
+        ], 201);
+    }
+
+    public function update(Request $request, User $user)
+    {
+        $this->authorize('update', $user);
+
+        $validatedData = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'email' => ['sometimes', 'required', 'email', Rule::unique('users')->ignore($user->id)],
+            'password' => 'nullable|string|min:8',
+            'role' => 'sometimes|required|string|in:administrador,supervisor,operador,indicador',
+            'department_id' => 'sometimes|required|exists:departments,id',
+            'phone' => 'nullable|string',
+            'status' => 'sometimes|required|string|in:ativo,inativo',
+            'area'   => 'nullable|string',
+        ]);
+
+        if (isset($validatedData['password']) && !empty($validatedData['password'])) {
+            $validatedData['password'] = Hash::make($validatedData['password']);
+        } else {
+            unset($validatedData['password']);
+        }
+
+        $user->update($validatedData);
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Edição de Usuário',
+                'details' => "Editou o usuário: {$user->name} ({$user->email})",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("ERRO AO SALVAR LOG (Edição): " . $e->getMessage());
+        }
+
+        return response()->json($user);
+    }
+
+    public function resetPassword(Request $request, User $user): JsonResponse
+    {
+        $this->authorize('resetPassword', $user);
+
+        $temporaryPassword = $this->generateTemporaryPassword();
+
+        $user->forceFill([
+            'password' => Hash::make($temporaryPassword),
+            'must_change_password' => true,
+            'remember_token' => null,
+        ])->save();
+
+        $user->tokens()->delete();
+        $user->notify(new TemporaryPasswordNotification($temporaryPassword));
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Reset de Senha de Usuário',
+                'details' => "Resetou a senha do usuário: {$user->name} ({$user->email})",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error("ERRO AO SALVAR LOG (Reset de Senha): " . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => 'Senha temporaria gerada e enviada para o e-mail do usuario. Ele precisara altera-la no proximo login.',
+            'temporary_password_email_sent' => true,
+        ]);
+    }
+
+    public function destroy(User $user)
+    {
+        $this->authorize('delete', $user);
+
+        $deletedInfo = "{$user->name} ({$user->email})"; 
+        $user->delete();
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Exclusão de Usuário',
+                'details' => "Excluiu o usuário: {$deletedInfo}",
+                'ip_address' => request()->ip(), // Ajustado para helper global pois $request não é injetado aqui diretamente
+            ]);
+        } catch (\Exception $e) {
+            Log::error("ERRO AO SALVAR LOG (Exclusão): " . $e->getMessage());
+        }
+
+        return response()->json(null, 204);
+    }
+
+    /**
+     * Atualização em Lote de Usuários
+     * Permite alterar status, cargo, área ou excluir múltiplos usuários.
+     */
+    public function batchUpdate(Request $request)
+    {
+        // Requer permissão de admin ou similar (ajuste conforme suas Policies)
+        $this->authorize('create', User::class); 
+
+        $validated = $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id',
+            'action' => 'required|string|in:update_status,update_role,update_area,delete',
+            'value' => 'nullable', // Pode ser string (cargo, area, status)
+        ]);
+
+        $userIds = $validated['user_ids'];
+        $action = $validated['action'];
+        $value = $validated['value'];
+
+        // Proteção: Não permitir que o usuário altere seu próprio status/role ou se exclua em lote
+        if (in_array(auth()->id(), $userIds)) {
+             // Remove o ID do próprio usuário da lista se a ação for destrutiva ou de bloqueio
+             if (in_array($action, ['delete', 'update_status'])) {
+                 return response()->json(['message' => 'Segurança: Você não pode alterar seu próprio status ou excluir sua conta via ação em lote.'], 403);
+             }
+        }
+
+        DB::beginTransaction();
+        try {
+            $query = User::whereIn('id', $userIds);
+            $count = $query->count();
+            $logDetails = "";
+
+            switch ($action) {
+                case 'update_status':
+                    // Espera 'ativo' ou 'inativo'
+                    $query->update(['status' => $value]);
+                    $logDetails = "Alterou status de {$count} usuários para '{$value}'";
+                    break;
+
+                case 'update_role':
+                    // Espera 'administrador', 'supervisor', etc.
+                    $query->update(['role' => $value]);
+                    $logDetails = "Alterou cargo de {$count} usuários para '{$value}'";
+                    break;
+                
+                case 'update_area':
+                    $query->update(['area' => $value]);
+                    $logDetails = "Alterou área de {$count} usuários para '{$value}'";
+                    break;
+
+                case 'delete':
+                    $query->delete();
+                    $logDetails = "Excluiu {$count} usuários em lote";
+                    break;
+            }
+
+            // Registrar no AuditLog usando o padrão existente no controller
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Ação em Lote (Usuários)',
+                'details' => $logDetails . " (IDs afetados: " . implode(', ', $userIds) . ")",
+                'ip_address' => $request->ip(),
+            ]);
+
+            DB::commit();
+            return response()->json(['message' => 'Ação em lote realizada com sucesso.', 'affected_count' => $count]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("ERRO BATCH UPDATE: " . $e->getMessage());
+            return response()->json(['message' => 'Erro ao processar atualização em lote: ' . $e->getMessage()], 500);
+        }
+    }
+}

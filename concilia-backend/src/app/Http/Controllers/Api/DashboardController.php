@@ -153,6 +153,13 @@ class DashboardController extends Controller
             ? ($agreementsViaIndication / $indicationsReceived) * 100
             : 0;
         $indicatorLeaderboard = $this->buildIndicatorLeaderboard($request, $user, $portfolioDateRange);
+
+        // Global queries (unaffected by date filter)
+        $noDateRange = ['start' => null, 'end' => null];
+        $globalStatusCounts = $this->newFilteredCaseQuery($request, $user, $noDateRange, null)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
         $recentCases = $this->buildRecentCases($request, $user, $portfolioDateRange);
         $viewMetrics = $this->buildViewMetrics($request, $user, $closingDateRange);
 
@@ -185,7 +192,24 @@ class DashboardController extends Controller
                 LegalCase::STATUS_CLOSED_DEAL => (int) ($statusCounts[LegalCase::STATUS_CLOSED_DEAL] ?? 0),
                 LegalCase::STATUS_FAILED_DEAL => (int) ($statusCounts[LegalCase::STATUS_FAILED_DEAL] ?? 0),
             ],
-            'monthly_evolution' => $this->buildMonthlyEvolution($request, $user, $portfolioDateRange, $closingDateRange),
+            'status_distribution_global' => [
+                LegalCase::STATUS_INITIAL_ANALYSIS => (int) ($globalStatusCounts[LegalCase::STATUS_INITIAL_ANALYSIS] ?? 0),
+                LegalCase::STATUS_INDICATIONS => (int) ($globalStatusCounts[LegalCase::STATUS_INDICATIONS] ?? 0),
+                LegalCase::STATUS_CONTRA_INDICATED => (int) ($globalStatusCounts[LegalCase::STATUS_CONTRA_INDICATED] ?? 0),
+                LegalCase::STATUS_PROPOSAL_SENT => (int) ($globalStatusCounts[LegalCase::STATUS_PROPOSAL_SENT] ?? 0),
+                LegalCase::STATUS_IN_NEGOTIATION => (int) ($globalStatusCounts[LegalCase::STATUS_IN_NEGOTIATION] ?? 0),
+                LegalCase::STATUS_AWAITING_DRAFT => (int) ($globalStatusCounts[LegalCase::STATUS_AWAITING_DRAFT] ?? 0),
+                LegalCase::STATUS_CLOSED_DEAL => (int) ($globalStatusCounts[LegalCase::STATUS_CLOSED_DEAL] ?? 0),
+                LegalCase::STATUS_FAILED_DEAL => (int) ($globalStatusCounts[LegalCase::STATUS_FAILED_DEAL] ?? 0),
+            ],
+            'status_distribution_global_post' => [
+                LegalCase::STATUS_CLOSED_IN_HEARING => (int) ($globalStatusCounts[LegalCase::STATUS_CLOSED_IN_HEARING] ?? 0),
+                LegalCase::STATUS_PENDING_PAYMENT => (int) ($globalStatusCounts[LegalCase::STATUS_PENDING_PAYMENT] ?? 0),
+                LegalCase::STATUS_PENDING_OBF => (int) ($globalStatusCounts[LegalCase::STATUS_PENDING_OBF] ?? 0),
+                LegalCase::STATUS_PENDING_LIVELO_OUROCAP => (int) ($globalStatusCounts[LegalCase::STATUS_PENDING_LIVELO_OUROCAP] ?? 0),
+                LegalCase::STATUS_DEAL_COMPLETED => (int) ($globalStatusCounts[LegalCase::STATUS_DEAL_COMPLETED] ?? 0),
+            ],
+            'monthly_evolution' => $this->buildMonthlyEvolution($request, $user, $noDateRange, $noDateRange),
             'agreements_by_state' => $this->buildAgreementsByState($request, $user, $closingDateRange),
             'agreement_macro_distribution' => $this->buildAgreementMacroDistribution($request, $user, $closingDateRange),
             'indicator_leaderboard' => $indicatorLeaderboard,
@@ -193,6 +217,7 @@ class DashboardController extends Controller
             'team_performance_period' => $this->buildDateRangePayload($teamPerformanceEffectiveRange),
             'view_metrics' => $viewMetrics,
             'recent_cases' => $recentCases,
+            'recent_cases_global' => $this->buildRecentCases($request, $user, $noDateRange),
         ]);
     }
 
@@ -288,24 +313,61 @@ class DashboardController extends Controller
 
     private function buildIndicatorMetricItems(Request $request, User $user, array $dateRange): array
     {
-        return $this->newClosedDealsQuery($request, $user, $dateRange, 'agreement_closed_at')
-            ->leftJoin('users as indicators', 'indicators.id', '=', 'legal_cases.indicator_user_id')
-            ->whereNotNull('legal_cases.indicator_user_id')
+        $agreementStatuses = LegalCase::AGREEMENT_METRIC_STATUSES;
+        $statusPlaceholders = implode(',', array_fill(0, count($agreementStatuses), '?'));
+
+        $query = LegalCase::query()
+            ->join('users as indicators', 'indicators.id', '=', 'legal_cases.indicator_user_id')
+            ->whereNotNull('legal_cases.indicator_user_id');
+
+        if (($dateRange['start'] ?? null) instanceof Carbon) {
+            $query->where('legal_cases.created_at', '>=', $dateRange['start']);
+        }
+        if (($dateRange['end'] ?? null) instanceof Carbon) {
+            $query->where('legal_cases.created_at', '<=', $dateRange['end']);
+        }
+
+        $responsibleFilter = $this->resolveResponsibleFilter($request);
+        if (!empty($responsibleFilter['ids'])) {
+            $query->whereIn('legal_cases.lawyer_id', $responsibleFilter['ids']);
+        }
+
+        $indicatorFilter = $this->resolveIndicatorFilter($request);
+        if (count($indicatorFilter['ids']) > 0) {
+            $query->whereIn('legal_cases.indicator_user_id', $indicatorFilter['ids']);
+        }
+
+        return $query
             ->selectRaw('legal_cases.indicator_user_id as entity_id')
             ->selectRaw("COALESCE(indicators.name, 'Indicador indisponivel') as entity_name")
-            ->selectRaw('COUNT(*) as agreements_count')
+            ->selectRaw('COUNT(*) as total_indicated')
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN legal_cases.status IN ({$statusPlaceholders}) THEN 1 ELSE 0 END), 0) as agreements_count",
+                $agreementStatuses
+            )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as contra_indicated_count",
+                [LegalCase::STATUS_CONTRA_INDICATED]
+            )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as failed_deal_count",
+                [LegalCase::STATUS_FAILED_DEAL]
+            )
             ->selectRaw(
                 "COALESCE(SUM(CASE WHEN JSON_EXTRACT(legal_cases.agreement_checklist_data, '$.indication_checklist') IS NOT NULL THEN 1 ELSE 0 END), 0) as converted_indications_count"
             )
             ->groupBy('legal_cases.indicator_user_id', 'indicators.name')
             ->orderByDesc('agreements_count')
-            ->orderByDesc('converted_indications_count')
+            ->orderByDesc('total_indicated')
             ->orderBy('entity_name')
             ->get()
             ->map(fn ($row) => [
                 'id' => (int) ($row->entity_id ?? 0),
                 'name' => $row->entity_name,
+                'total_indicated' => (int) ($row->total_indicated ?? 0),
                 'agreements_count' => (int) ($row->agreements_count ?? 0),
+                'contra_indicated_count' => (int) ($row->contra_indicated_count ?? 0),
+                'failed_deal_count' => (int) ($row->failed_deal_count ?? 0),
                 'converted_indications_count' => (int) ($row->converted_indications_count ?? 0),
             ])
             ->values()
@@ -316,6 +378,7 @@ class DashboardController extends Controller
     {
         return [
             'participants_count' => count($items),
+            'total_indicated' => array_sum(array_map(fn (array $item) => (int) ($item['total_indicated'] ?? 0), $items)),
             'agreements_count' => array_sum(array_map(fn (array $item) => (int) ($item['agreements_count'] ?? 0), $items)),
             'converted_indications_count' => array_sum(array_map(fn (array $item) => (int) ($item['converted_indications_count'] ?? 0), $items)),
         ];

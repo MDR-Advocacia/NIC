@@ -34,6 +34,11 @@ class LegalCase extends Model
     public const STATUS_AWAITING_DRAFT = 'awaiting_draft';
     public const STATUS_CLOSED_DEAL = 'closed_deal';
     public const STATUS_FAILED_DEAL = 'failed_deal';
+    public const STATUS_CLOSED_IN_HEARING = 'closed_in_hearing';
+    public const STATUS_PENDING_PAYMENT = 'pending_payment';
+    public const STATUS_PENDING_OBF = 'pending_obf';
+    public const STATUS_PENDING_LIVELO_OUROCAP = 'pending_livelo_ourocap';
+    public const STATUS_DEAL_COMPLETED = 'deal_completed';
 
     public const AGREEMENT_METRIC_STATUSES = [
         self::STATUS_AWAITING_DRAFT,
@@ -81,9 +86,15 @@ class LegalCase extends Model
         'status',
         'status_started_at',
         'contra_indication_reason',
+        'contra_indication_reason_id',
         'contra_indicated_at',
         'contra_indicated_by_user_id',
+        'failed_deal_reason',
+        'failed_deal_reason_id',
+        'failed_deal_at',
+        'failed_deal_by_user_id',
         'reanalysis_reason',
+        'reanalysis_reason_id',
         'reanalysis_requested_at',
         'reanalysis_requested_by_user_id',
         'priority',
@@ -184,6 +195,11 @@ class LegalCase extends Model
         return $this->belongsTo(User::class, 'contra_indicated_by_user_id');
     }
 
+    public function reanalysisReasonRef()
+    {
+        return $this->belongsTo(ReanalysisReason::class, 'reanalysis_reason_id');
+    }
+
     public function reanalysisRequestedBy()
     {
         return $this->belongsTo(User::class, 'reanalysis_requested_by_user_id');
@@ -208,5 +224,20 @@ class LegalCase extends Model
     public function defendantRel()
     {
         return $this->belongsTo(Defendant::class, 'defendant_id');
+    }
+
+    public function contraIndicationReasonRef()
+    {
+        return $this->belongsTo(ContraIndicationReason::class, 'contra_indication_reason_id');
+    }
+
+    public function failedDealReasonRef()
+    {
+        return $this->belongsTo(FailedDealReason::class, 'failed_deal_reason_id');
+    }
+
+    public function failedDealBy()
+    {
+        return $this->belongsTo(User::class, 'failed_deal_by_user_id');
     }
 }
