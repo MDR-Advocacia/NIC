@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import AddDepartmentModal from '../components/AddDepartmentModal';
+import { useToast } from '../context/ToastContext';
 
 const AREAS_LIST = ["Recuperação de Crédito", "Contencioso Passivo", "Atendente"];
 
@@ -34,6 +35,7 @@ const RoleTag = ({ role }) => {
 };
 
 const UserManagementPage = () => {
+    const toast = useToast();
     const { token, user: loggedInUser } = useAuth();
     const canManage = ['administrador', 'supervisor'].includes(loggedInUser?.role);
     const canResetPasswords = ['administrador', 'admin'].includes(loggedInUser?.role);
@@ -191,13 +193,13 @@ const UserManagementPage = () => {
                 value: value
             }, { headers: { Authorization: `Bearer ${token}` } });
 
-            alert('Ação em lote realizada com sucesso!');
+            toast.success('Ação em lote realizada com sucesso!');
             fetchData(pagination.current_page); // Recarrega dados
             setSelectedUsers([]); // Limpa seleção
             setShowBatchRoleSelect(false);
         } catch (error) {
             console.error(error);
-            alert('Erro ao processar ação em lote. Verifique se tem permissão.');
+            toast.error('Erro ao processar ação em lote. Verifique se tem permissão.');
         } finally {
             setIsBatchProcessing(false);
         }
@@ -242,9 +244,9 @@ const UserManagementPage = () => {
             }
             setIsUserFormModalOpen(false);
             fetchData(pagination.current_page);
-            alert(isEditing ? 'Atualizado!' : 'Usuario criado. O convite para criar a senha foi enviado por e-mail.');
+            toast.success(isEditing ? 'Atualizado!' : 'Usuario criado. O convite para criar a senha foi enviado por e-mail.');
         } catch {
-            alert('Erro ao salvar.');
+            toast.error('Erro ao salvar.');
         }
     };
 
@@ -254,7 +256,7 @@ const UserManagementPage = () => {
                 await apiClient.delete(`/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
                 fetchData(pagination.current_page);
             } catch {
-                alert("Erro ao excluir.");
+                toast.error("Erro ao excluir.");
             }
         }
     };

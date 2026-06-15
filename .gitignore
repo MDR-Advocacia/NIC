@@ -79,3 +79,9 @@ concilia-backend/.env
 .claude/
 
 outputs/
+
+.codex-spreadsheet-work/
+.codex-logs/
+
+_deploy_tmp/
+test_cases.php

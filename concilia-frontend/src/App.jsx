@@ -22,6 +22,7 @@ import ForceChangePassword from './pages/ForceChangePassword';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import GeneralBasePage from './pages/GeneralBasePage';
+import ArchivePage from './pages/ArchivePage';
 import {
   USER_ROLES,
   getDefaultRouteForRole,
@@ -154,6 +155,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR]}>
               <GeneralBasePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="archives"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR]}>
+              <ArchivePage />
             </ProtectedRoute>
           }
         />

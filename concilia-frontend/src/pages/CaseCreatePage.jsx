@@ -22,6 +22,7 @@ import {
 } from '../constants/settlementBenefit';
 import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
 import { normalizeUserRole } from '../constants/access';
+import { useToast } from '../context/ToastContext';
 
 // --- Ícones SVG Inline ---
 const IconArrowLeft = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
@@ -40,6 +41,7 @@ const BRAZILIAN_STATES = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 
 const availableColors = ['#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899'];
 
 const CaseCreatePage = () => {
+    const toast = useToast();
     const { token, user } = useAuth();
     const navigate = useNavigate();
     const canManageSavedTags = ['administrador', 'admin'].includes(normalizeUserRole(user?.role));
@@ -389,10 +391,10 @@ const CaseCreatePage = () => {
                 tags: removeCaseTag(prevState.tags, tagToDelete),
             }));
 
-            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+            toast.success(response.data?.message || 'Etiqueta excluída com sucesso.');
         } catch (err) {
             console.error('Erro ao excluir etiqueta salva:', err);
-            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+            toast.error(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
         }
     };
 

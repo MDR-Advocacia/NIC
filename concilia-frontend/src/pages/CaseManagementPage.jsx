@@ -1,17 +1,24 @@
 // src/pages/CaseManagementPage.jsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { 
     FaPlus, FaSearch, FaEye, FaEdit, FaTrash, 
     FaCheckSquare, FaTrashAlt, FaTimes, 
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
-    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag
+    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag, FaFileExport, FaCalendarAlt, FaFilter,
+    FaChevronDown, FaEyeSlash, FaArchive
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
-import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
+import TagMultiSelect from '../components/TagMultiSelect';
+import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
+import FailedDealReasonModal from '../components/FailedDealReasonModal';
+import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
+import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
+import SmartFilterPresets from '../components/SmartFilterPresets';
+import ConfirmModal from '../components/ConfirmModal';
 import styles from '../styles/CaseManagement.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -23,6 +30,8 @@ import {
 } from '../constants/legalCaseStatus';
 import { canAccessCaseCreation, isIndicatorRole, normalizeUserRole } from '../constants/access';
 import { formatLiveloPoints } from '../constants/settlementBenefit';
+import { downloadCasesWorkbook, fetchAllCasesForExport } from '../utils/caseExport';
+import { useToast } from '../context/ToastContext';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -39,14 +48,19 @@ const PRIORITY_OPTIONS = Object.entries(PRIORITY_DETAILS).map(([value, details])
 
 const MULTI_CASE_NUMBER_MIN_DIGITS = 15;
 const CASE_NUMBER_TOKEN_PATTERN = /^[0-9./-]+$/;
+const CONTRA_INDICATED_STATUS = 'contra_indicated';
+const FAILED_DEAL_STATUS = 'failed_deal';
+const REANALYSIS_STATUSES = [CONTRA_INDICATED_STATUS, 'failed_deal'];
 const INITIAL_FILTERS = {
     search: '',
     action_object: '',
-    status: '',
+    statuses: [],
     priority: '',
-    tag: '',
-    lawyer_id: '',
-    indicator_user_id: '',
+    tags: [],
+    lawyer_ids: [],
+    indicator_user_ids: [],
+    date_from: '',
+    date_to: '',
 };
 
 const extractMultipleCaseNumberTerms = (value) => {
@@ -155,13 +169,16 @@ const renderSettlementTerms = (legalCase, formatCurrency) => {
 
 const CaseManagementPage = () => {
     // Adicionado 'user' para verificar a role
+    const toast = useToast();
     const { token, user } = useAuth();
     const normalizedUserRole = normalizeUserRole(user?.role);
     const isIndicator = isIndicatorRole(user?.role);
     const canUseBatchActions = !isIndicator;
     const canDeleteCases = ['administrador', 'admin'].includes(normalizedUserRole);
     const canManageSavedTags = ['administrador', 'admin'].includes(normalizedUserRole);
+    const [searchParams, setSearchParams] = useSearchParams();
     
+    const [showFilterChips, setShowFilterChips] = useState(false);
     const [cases, setCases] = useState([]);
     const [lawyers, setLawyers] = useState([]);
     const [indicators, setIndicators] = useState([]);
@@ -172,6 +189,11 @@ const CaseManagementPage = () => {
     const [searchFeedback, setSearchFeedback] = useState(null);
     const [editingCase, setEditingCase] = useState(null);
     const [indicationCase, setIndicationCase] = useState(null);
+    const [reanalysisPrompt, setReanalysisPrompt] = useState(null);
+    const [reanalysisReason, setReanalysisReason] = useState('');
+    const [reanalysisError, setReanalysisError] = useState('');
+    const [isSavingReanalysis, setIsSavingReanalysis] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     // --- PAGINAÇÃO (ESTADOS) ---
     const [currentPage, setCurrentPage] = useState(1);
@@ -190,31 +212,61 @@ const CaseManagementPage = () => {
     const [selectedCaseIds, setSelectedCaseIds] = useState([]);
     const [batchActionType, setBatchActionType] = useState(null); 
     const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+    const [batchContraIndicationPrompt, setBatchContraIndicationPrompt] = useState(false);
+    const [batchContraIndicationReason, setBatchContraIndicationReason] = useState('');
+    const [batchContraIndicationError, setBatchContraIndicationError] = useState('');
+    const [batchFailedDealPrompt, setBatchFailedDealPrompt] = useState(false);
+    const [batchFailedDealReason, setBatchFailedDealReason] = useState('');
+    const [batchFailedDealError, setBatchFailedDealError] = useState('');
+    const [archiveConfirm, setArchiveConfirm] = useState({ open: false, caseIds: [] });
 
-    const [filters, setFilters] = useState(INITIAL_FILTERS);
+    const [filters, setFilters] = useState(() => {
+        const initial = { ...INITIAL_FILTERS };
+
+        // Lê filtros da URL (ex: /cases?indicator_user_ids=5&status=closed_deal)
+        const urlStatuses = searchParams.getAll('statuses');
+        const urlStatusSingle = searchParams.get('status');
+        const urlSearch = searchParams.get('search');
+        const urlActionObject = searchParams.get('action_object');
+        const urlPriority = searchParams.get('priority');
+        const urlTags = searchParams.getAll('tags');
+        const urlTagSingle = searchParams.get('tag');
+        const urlDateFrom = searchParams.get('date_from');
+        const urlDateTo = searchParams.get('date_to');
+        const urlIndicatorIds = searchParams.getAll('indicator_user_ids');
+        const urlLawyerIds = searchParams.getAll('lawyer_ids');
+
+        if (urlStatuses.length > 0) initial.statuses = urlStatuses;
+        else if (urlStatusSingle) initial.statuses = [urlStatusSingle];
+        if (urlSearch) initial.search = urlSearch;
+        if (urlActionObject) initial.action_object = urlActionObject;
+        if (urlPriority) initial.priority = urlPriority;
+        if (urlTags.length > 0) initial.tags = urlTags;
+        else if (urlTagSingle) initial.tags = [urlTagSingle];
+        if (urlDateFrom) initial.date_from = urlDateFrom;
+        if (urlDateTo) initial.date_to = urlDateTo;
+        if (urlIndicatorIds.length > 0) initial.indicator_user_ids = urlIndicatorIds;
+        if (urlLawyerIds.length > 0) initial.lawyer_ids = urlLawyerIds;
+
+        return initial;
+    });
 
     // Carrega dados de apoio
     useEffect(() => {
         const fetchDropdownData = async () => {
             if (!token) return;
             try {
-                const requests = [
+                const responses = await Promise.all([
+                    apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
+                    apiClient.get('/users/indicators', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
                     apiClient.get('/case-tags', { headers: { Authorization: `Bearer ${token}` } }),
-                ];
+                ]);
 
-                if (!isIndicator) {
-                    requests.unshift(
-                        apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
-                        apiClient.get('/users/indicators', { headers: { Authorization: `Bearer ${token}` } })
-                    );
-                }
-
-                const responses = await Promise.all(requests);
-                const usersResponse = isIndicator ? null : responses[0];
-                const indicatorsResponse = isIndicator ? null : responses[1];
-                const clientsResponse = isIndicator ? responses[0] : responses[2];
-                const caseTagsResponse = isIndicator ? responses[1] : responses[3];
+                const usersResponse = responses[0];
+                const indicatorsResponse = responses[1];
+                const clientsResponse = responses[2];
+                const caseTagsResponse = responses[3];
 
                 setLawyers(Array.isArray(usersResponse?.data) ? usersResponse.data : []);
                 setIndicators(Array.isArray(indicatorsResponse?.data) ? indicatorsResponse.data : []);
@@ -225,7 +277,7 @@ const CaseManagementPage = () => {
             }
         };
         fetchDropdownData();
-    }, [token, isIndicator]);
+    }, [token]);
 
     // Carrega Casos
     const fetchCases = useCallback(async () => {
@@ -235,7 +287,19 @@ const CaseManagementPage = () => {
         setSearchFeedback(null);
         
         try {
-            const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
+            const params = new URLSearchParams();
+            Object.entries(filters).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    value.forEach((item) => {
+                        if (item) params.append(`${key}[]`, item);
+                    });
+                    return;
+                }
+
+                if (value) {
+                    params.append(key, value);
+                }
+            });
             
             // Adiciona paginação
             params.append('page', currentPage);
@@ -275,8 +339,9 @@ const CaseManagementPage = () => {
         setCurrentPage(1);
     }, [filters]);
 
+    // Fetch com debounce
     useEffect(() => {
-        const timer = setTimeout(() => { fetchCases(); }, 500);
+        const timer = setTimeout(() => { fetchCases(); }, 400);
         return () => clearTimeout(timer);
     }, [fetchCases]);
 
@@ -313,12 +378,13 @@ const CaseManagementPage = () => {
         setFilters({ ...INITIAL_FILTERS });
     };
 
-    const handleSelectSavedTagFilter = (tag) => {
-        const tagText = tag?.text || tag?.name || '';
-        setFilters((prev) => ({
-            ...prev,
-            tag: prev.tag === tagText ? '' : tagText,
-        }));
+    const handleApplyFilters = () => {
+        setCurrentPage(1);
+        fetchCases();
+    };
+
+    const handleTagFilterChange = (newTags) => {
+        setFilters((prev) => ({ ...prev, tags: newTags }));
     };
 
     const handleDeleteSavedTag = async (tagToDelete) => {
@@ -340,15 +406,42 @@ const CaseManagementPage = () => {
             });
 
             setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+            const deletedText = (tagToDelete.text || tagToDelete.name || '').toLocaleLowerCase('pt-BR');
             setFilters((prev) => ({
                 ...prev,
-                tag: prev.tag === (tagToDelete.text || tagToDelete.name) ? '' : prev.tag,
+                tags: (prev.tags || []).filter((t) => (typeof t === 'string' ? t : '').toLocaleLowerCase('pt-BR') !== deletedText),
             }));
-            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+            toast.success(response.data?.message || 'Etiqueta excluída com sucesso.');
             fetchCases();
         } catch (err) {
             console.error('Erro ao excluir etiqueta salva:', err);
-            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+            toast.error(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+        }
+    };
+
+    const handleExportCases = async () => {
+        if (!token || isExporting) {
+            return;
+        }
+
+        setIsExporting(true);
+
+        try {
+            const exportedCases = await fetchAllCasesForExport({
+                ...filters,
+                sort_by: sortConfig.key,
+                sort_order: sortConfig.direction,
+            }, token);
+
+            downloadCasesWorkbook(exportedCases, {
+                filePrefix: 'gestao-casos',
+                sheetName: 'Gestao de Casos',
+            });
+        } catch (err) {
+            console.error('Erro ao exportar casos:', err);
+            toast.error('Não foi possível exportar a planilha de casos.');
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -373,33 +466,140 @@ const CaseManagementPage = () => {
         });
     };
 
-    const executeBatchUpdate = async (action, value) => {
+    const executeBatchUpdate = async (action, value, options = {}) => {
         const isUnassignTransfer = action === 'transfer_user' && value === UNASSIGNED_RESPONSIBLE_VALUE;
         if ((!value || value === '') && action !== 'delete' && !isUnassignTransfer) return;
+
+        const isContraIndicationStatus = action === 'update_status' && value === CONTRA_INDICATED_STATUS;
+        const normalizedContraReason = String(options.contraIndicationReason || '').trim();
+
+        if (isContraIndicationStatus && !normalizedContraReason) {
+            setBatchContraIndicationPrompt(true);
+            setBatchContraIndicationReason('');
+            setBatchContraIndicationError('');
+            return;
+        }
+
+        const isFailedDealStatus = action === 'update_status' && value === FAILED_DEAL_STATUS;
+        const normalizedFailedDealReason = String(options.failedDealReason || '').trim();
+
+        if (isFailedDealStatus && !normalizedFailedDealReason) {
+            setBatchFailedDealPrompt(true);
+            setBatchFailedDealReason('');
+            setBatchFailedDealError('');
+            return;
+        }
 
         const confirmMessage = action === 'delete'
             ? `Tem certeza que deseja excluir ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?\n\nEssa ação não pode ser desfeita e removerá os casos definitivamente.`
             : `Aplicar alteração em ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?`;
 
-        if (!window.confirm(confirmMessage)) return;
+        if (!options.skipConfirm && !window.confirm(confirmMessage)) return;
 
         setIsBatchProcessing(true);
         try {
-            await apiClient.post('/cases/batch-update', {
+            const payload = {
                 case_ids: selectedCaseIds,
                 action: action,
-                value: value
-            }, { headers: { Authorization: `Bearer ${token}` } });
+                value: value,
+            };
 
-            alert('Ação em lote concluída!');
+            if (isContraIndicationStatus) {
+                payload.contra_indication_reason = normalizedContraReason;
+            }
+
+            if (isFailedDealStatus) {
+                payload.failed_deal_reason = normalizedFailedDealReason;
+            }
+
+            await apiClient.post('/cases/batch-update', payload, { headers: { Authorization: `Bearer ${token}` } });
+
+            toast.success('Ação em lote concluída!');
             setSelectedCaseIds([]);
             setBatchActionType(null);
+            setBatchContraIndicationPrompt(false);
+            setBatchContraIndicationReason('');
+            setBatchContraIndicationError('');
+            setBatchFailedDealPrompt(false);
+            setBatchFailedDealReason('');
+            setBatchFailedDealError('');
             fetchCases(); 
         } catch (err) {
             console.error(err);
-            alert(err?.response?.data?.message || 'Erro ao processar lote.');
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            const message = firstBackendError || err?.response?.data?.message || 'Erro ao processar lote.';
+            if (isContraIndicationStatus) {
+                setBatchContraIndicationError(message);
+            } else {
+                toast.info(message);
+            }
         } finally {
             setIsBatchProcessing(false);
+        }
+    };
+
+    const handleCancelBatchContraIndication = () => {
+        setBatchContraIndicationPrompt(false);
+        setBatchContraIndicationReason('');
+        setBatchContraIndicationError('');
+        setBatchActionType(null);
+    };
+
+    const handleConfirmBatchContraIndication = (event) => {
+        event.preventDefault();
+
+        const normalizedReason = batchContraIndicationReason.trim();
+        if (!normalizedReason) {
+            setBatchContraIndicationError('Informe o motivo da contraindicação.');
+            return;
+        }
+
+        executeBatchUpdate('update_status', CONTRA_INDICATED_STATUS, {
+            contraIndicationReason: normalizedReason,
+            skipConfirm: true,
+        });
+    };
+
+    const handleCancelBatchFailedDeal = () => {
+        setBatchFailedDealPrompt(false);
+        setBatchFailedDealReason('');
+        setBatchFailedDealError('');
+        setBatchActionType(null);
+    };
+
+    const handleConfirmBatchFailedDeal = (event) => {
+        event.preventDefault();
+
+        const normalizedReason = batchFailedDealReason.trim();
+        if (!normalizedReason) {
+            setBatchFailedDealError('Informe o motivo do acordo frustrado.');
+            return;
+        }
+
+        executeBatchUpdate('update_status', FAILED_DEAL_STATUS, {
+            failedDealReason: normalizedReason,
+            skipConfirm: true,
+        });
+    };
+
+    const handleArchiveCases = (caseIds) => {
+        if (!caseIds.length) return;
+        setArchiveConfirm({ open: true, caseIds });
+    };
+
+    const confirmArchive = async () => {
+        const caseIds = archiveConfirm.caseIds;
+        setArchiveConfirm({ open: false, caseIds: [] });
+        try {
+            await apiClient.post('/archives/archive', {
+                case_ids: caseIds,
+                reason: 'Arquivamento via gestão de casos',
+            });
+            toast.success(`${caseIds.length} caso(s) arquivado(s)!`);
+            setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => !caseIds.includes(id)));
+            fetchCases();
+        } catch (err) {
+            toast.error('Erro ao arquivar.');
         }
     };
 
@@ -413,7 +613,7 @@ const CaseManagementPage = () => {
                 setCases(prev => prev.filter(c => c.id !== legalCase.id));
                 setSelectedCaseIds(prev => (Array.isArray(prev) ? prev : []).filter(id => id !== legalCase.id));
             } catch (err) {
-                alert(err?.response?.data?.message || 'Erro ao excluir.');
+                toast.error(err?.response?.data?.message || 'Erro ao excluir.');
             }
         }
     };
@@ -421,6 +621,55 @@ const CaseManagementPage = () => {
     const handleCaseIndicated = () => {
         setIndicationCase(null);
         fetchCases();
+    };
+
+    const handleOpenReanalysisModal = (legalCase) => {
+        if (!legalCase?.id || !REANALYSIS_STATUSES.includes(legalCase.status)) {
+            return;
+        }
+
+        setReanalysisPrompt(legalCase);
+        setReanalysisReason('');
+        setReanalysisError('');
+    };
+
+    const handleCancelReanalysis = () => {
+        setReanalysisPrompt(null);
+        setReanalysisReason('');
+        setReanalysisError('');
+        setIsSavingReanalysis(false);
+    };
+
+    const handleConfirmReanalysis = async (event) => {
+        event.preventDefault();
+
+        const normalizedReason = reanalysisReason.trim();
+        if (!normalizedReason) {
+            setReanalysisError('Informe o motivo da reanálise.');
+            return;
+        }
+
+        if (!reanalysisPrompt?.id) return;
+
+        setIsSavingReanalysis(true);
+        setReanalysisError('');
+
+        try {
+            await apiClient.post(
+                `/cases/${reanalysisPrompt.id}/request-reanalysis`,
+                { reanalysis_reason: normalizedReason },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setReanalysisPrompt(null);
+            setReanalysisReason('');
+            fetchCases();
+        } catch (err) {
+            console.error('Erro ao solicitar reanálise:', err);
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setReanalysisError(firstBackendError || err.response?.data?.message || 'Não foi possível solicitar a reanálise.');
+        } finally {
+            setIsSavingReanalysis(false);
+        }
     };
 
     const formatValue = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -443,23 +692,53 @@ const CaseManagementPage = () => {
     const selectedHiddenCount = Math.max((selectedCaseIds?.length || 0) - selectedVisibleCaseIds.length, 0);
     const isAllSelected =
         visibleCaseIds.length > 0 && selectedVisibleCaseIds.length === visibleCaseIds.length;
-    const selectedLawyer = lawyers.find(lawyer => String(lawyer.id) === String(filters.lawyer_id));
-    const selectedLawyerName = filters.lawyer_id === UNASSIGNED_RESPONSIBLE_VALUE
-        ? 'Sem responsável'
-        : selectedLawyer?.name;
-    const selectedIndicator = indicators.find(indicator => String(indicator.id) === String(filters.indicator_user_id));
-    const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
-        || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
-    const activeFilterChips = [];
-    const pastedCaseNumberTerms = extractMultipleCaseNumberTerms(filters.search);
-    const trimmedActionObject = filters.action_object.trim();
+    const selectedLawyerIds = Array.isArray(filters.lawyer_ids) ? filters.lawyer_ids.map(String) : [];
+    const selectedLawyerNames = selectedLawyerIds
+        .map((lawyerId) => {
+            if (lawyerId === UNASSIGNED_RESPONSIBLE_VALUE) {
+                return 'Sem responsável';
+            }
 
-    if (filters.search.trim()) {
+            return lawyers.find((lawyer) => String(lawyer.id) === String(lawyerId))?.name;
+        })
+        .filter(Boolean);
+    const selectedLawyerFilterLabel = (() => {
+        if (selectedLawyerNames.length === 0) {
+            return null;
+        }
+
+        if (selectedLawyerNames.length <= 2) {
+            return selectedLawyerNames.join(' + ');
+        }
+
+        return `${selectedLawyerNames.slice(0, 2).join(' + ')} + ${selectedLawyerNames.length - 2}`;
+    })();
+    const selectedIndicatorIds = Array.isArray(filters.indicator_user_ids) ? filters.indicator_user_ids.map(String) : [];
+    const selectedIndicatorNames = selectedIndicatorIds
+        .map((indicatorId) => indicators.find((ind) => String(ind.id) === String(indicatorId))?.name)
+        .filter(Boolean);
+    const selectedIndicatorFilterLabel = (() => {
+        if (selectedIndicatorNames.length === 0) return null;
+        if (selectedIndicatorNames.length <= 2) return selectedIndicatorNames.join(' + ');
+        return `${selectedIndicatorNames.slice(0, 2).join(' + ')} + ${selectedIndicatorNames.length - 2}`;
+    })();
+    const tagFilters = Array.isArray(filters.tags) ? filters.tags : [];
+    const selectedTagLabel = (() => {
+        if (tagFilters.length === 0) return null;
+        if (tagFilters.length === 1) return `Etiqueta: ${tagFilters[0]}`;
+        if (tagFilters.length === 2) return `Etiquetas: ${tagFilters.join(' + ')}`;
+        return `Etiquetas: ${tagFilters.length} selecionadas`;
+    })();
+    const activeFilterChips = [];
+    const pastedCaseNumberTerms = extractMultipleCaseNumberTerms(filters.search || '');
+    const trimmedActionObject = (filters.action_object || '').trim();
+
+    if ((filters.search || '').trim()) {
         activeFilterChips.push({
             key: 'search',
             label: pastedCaseNumberTerms.length > 1
                 ? `Busca: ${formatProcessCount(pastedCaseNumberTerms.length)}`
-                : `Busca: ${filters.search.trim()}`,
+                : `Busca: ${(filters.search || '').trim()}`,
         });
     }
 
@@ -470,10 +749,19 @@ const CaseManagementPage = () => {
         });
     }
 
-    if (filters.status) {
+    const selectedStatusValues = Array.isArray(filters.statuses) ? filters.statuses : [];
+    const selectedStatusNames = selectedStatusValues
+        .map((s) => getLegalCaseStatusDetails(s).name)
+        .filter(Boolean);
+    const selectedStatusFilterLabel = (() => {
+        if (selectedStatusNames.length === 0) return null;
+        if (selectedStatusNames.length <= 2) return selectedStatusNames.join(' + ');
+        return `${selectedStatusNames.slice(0, 2).join(' + ')} + ${selectedStatusNames.length - 2}`;
+    })();
+    if (selectedStatusFilterLabel) {
         activeFilterChips.push({
-            key: 'status',
-            label: `Status: ${getLegalCaseStatusDetails(filters.status).name}`,
+            key: 'statuses',
+            label: `Status: ${selectedStatusFilterLabel}`,
         });
     }
 
@@ -484,29 +772,47 @@ const CaseManagementPage = () => {
         });
     }
 
-    if (filters.tag) {
+    if (selectedTagLabel) {
         activeFilterChips.push({
-            key: 'tag',
-            label: `Etiqueta: ${selectedTagName || filters.tag}`,
+            key: 'tags',
+            label: selectedTagLabel,
         });
     }
 
-    if (!isIndicator && filters.lawyer_id) {
+    if (selectedLawyerFilterLabel) {
         activeFilterChips.push({
-            key: 'lawyer_id',
-            label: `Responsável: ${selectedLawyerName || 'Selecionado'}`,
+            key: 'lawyer_ids',
+            label: `Responsáveis: ${selectedLawyerFilterLabel}`,
         });
     }
 
-    if (!isIndicator && filters.indicator_user_id) {
+    if (selectedIndicatorFilterLabel) {
         activeFilterChips.push({
-            key: 'indicator_user_id',
-            label: `Indicador: ${selectedIndicator?.name || 'Selecionado'}`,
+            key: 'indicator_user_ids',
+            label: `Indicadores: ${selectedIndicatorFilterLabel}`,
+        });
+    }
+
+    if (filters.date_from || filters.date_to) {
+        const formatDateBR = (d) => d ? d.split('-').reverse().join('/') : '';
+        const fromLabel = formatDateBR(filters.date_from);
+        const toLabel = formatDateBR(filters.date_to);
+        let dateLabel = 'Período: ';
+        if (fromLabel && toLabel) {
+            dateLabel += `${fromLabel} a ${toLabel}`;
+        } else if (fromLabel) {
+            dateLabel += `a partir de ${fromLabel}`;
+        } else {
+            dateLabel += `até ${toLabel}`;
+        }
+        activeFilterChips.push({
+            key: 'date_range',
+            label: dateLabel,
         });
     }
 
     const activeFilterCount = activeFilterChips.length;
-    const trimmedSearch = filters.search.trim();
+    const trimmedSearch = (filters.search || '').trim();
     const emptyStateContent = (() => {
         if (cases.length > 0) {
             return null;
@@ -586,8 +892,8 @@ const CaseManagementPage = () => {
 
         if (isIndicator) {
             return {
-                title: 'Nenhum caso disponível para indicação no momento.',
-                description: 'Quando houver processos em Análise Inicial aptos para a sua fila, eles aparecerão aqui.',
+                title: 'Nenhum caso disponível no momento.',
+                description: 'Quando houver processos no pipeline disponíveis para o seu perfil, eles aparecerão aqui.',
             };
         }
 
@@ -602,6 +908,15 @@ const CaseManagementPage = () => {
             <header className={styles.header}>
                 <div><h1>Gestão de Casos</h1><p>Gerencie todos os casos direcionados para o escritório</p></div>
                 <div className={styles.headerActions}>
+                    <button
+                        type="button"
+                        className={styles.exportButton}
+                        onClick={handleExportCases}
+                        disabled={isExporting}
+                    >
+                        <FaFileExport />
+                        {isExporting ? 'Exportando...' : 'Exportar Excel'}
+                    </button>
                     {canAccessCaseCreation(user?.role) && (
                         <Link to="/cases/create" className={styles.newCaseButton}><FaPlus /> Novo Caso</Link>
                     )}
@@ -611,9 +926,9 @@ const CaseManagementPage = () => {
             {isIndicator && (
                 <section className={styles.indicatorNotice}>
                     <div className={styles.indicatorNoticeLabel}>Fluxo de indicação</div>
-                    <div className={styles.indicatorNoticeTitle}>Fila pronta para triagem inicial</div>
+                    <div className={styles.indicatorNoticeTitle}>Visão completa do pipeline</div>
                     <p className={styles.indicatorNoticeText}>
-                        Esta fila mostra os casos em Análise Inicial disponíveis para indicação de acordo.
+                        Esta fila mostra os casos do pipeline para acompanhamento. A indicação continua disponível apenas em Análise Inicial.
                     </p>
                 </section>
             )}
@@ -652,7 +967,7 @@ const CaseManagementPage = () => {
                             placeholder="Cole um ou vários processos, cliente ou palavra-chave"
                             className={styles.filterControl}
                             name="search"
-                            value={filters.search}
+                            value={filters.search || ''}
                             onChange={handleFilterChange}
                             title="Voce pode colar varios numeros de processo separados por espaco ou quebra de linha."
                         />
@@ -671,7 +986,7 @@ const CaseManagementPage = () => {
                             placeholder="Digite a causa de pedir"
                             className={styles.filterControl}
                             name="action_object"
-                            value={filters.action_object}
+                            value={filters.action_object || ''}
                             onChange={handleFilterChange}
                         />
                     </label>
@@ -681,14 +996,17 @@ const CaseManagementPage = () => {
                             <FaCheckSquare />
                             Status
                         </span>
-                        <select className={styles.filterControl} name="status" value={filters.status} onChange={handleFilterChange}>
-                            <option value="">Todos os status</option>
-                            {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
-                                <option key={statusOption.value} value={statusOption.value}>
-                                    {statusOption.name}
-                                </option>
-                            ))}
-                        </select>
+                        <ResponsibleMultiSelect
+                            selectedValues={selectedStatusValues}
+                            options={LEGAL_CASE_STATUS_OPTIONS.map((s) => ({ id: s.value, name: s.name }))}
+                            onChange={(values) => setFilters((prev) => ({ ...prev, statuses: values }))}
+                            includeUnassigned={false}
+                            placeholder="Todos os status"
+                            searchPlaceholder="Buscar status"
+                            emptyMessage="Nenhum status encontrado."
+                            summaryPluralLabel="status"
+                            ariaLabel="Filtro de status"
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -696,7 +1014,7 @@ const CaseManagementPage = () => {
                             <FaExclamationCircle />
                             Prioridade
                         </span>
-                        <select className={styles.filterControl} name="priority" value={filters.priority} onChange={handleFilterChange}>
+                        <select className={styles.filterControl} name="priority" value={filters.priority || ''} onChange={handleFilterChange}>
                             <option value="">Todas as prioridades</option>
                             {PRIORITY_OPTIONS.map((priorityOption) => (
                                 <option key={priorityOption.value} value={priorityOption.value}>
@@ -709,91 +1027,131 @@ const CaseManagementPage = () => {
                     <label className={styles.filterField}>
                         <span className={styles.filterLabel}>
                             <FaTag />
-                            Etiqueta
+                            Etiquetas
                         </span>
-                        <select className={styles.filterControl} name="tag" value={filters.tag} onChange={handleFilterChange}>
-                            <option value="">Todas as etiquetas</option>
-                            {savedTags.map((tag) => (
-                                <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
-                                    {tag.text || tag.name}
-                                </option>
-                            ))}
-                        </select>
+                        <TagMultiSelect
+                            tags={savedTags}
+                            selectedValues={filters.tags}
+                            onChange={handleTagFilterChange}
+                            onDelete={handleDeleteSavedTag}
+                            canDelete={canManageSavedTags}
+                        />
                     </label>
 
-                    {!isIndicator && (
-                        <>
-                            <label className={styles.filterField}>
-                                <span className={styles.filterLabel}>
-                                    <FaUserTag />
-                                    Responsável do caso
-                                </span>
-                                <select className={styles.filterControl} name="lawyer_id" value={filters.lawyer_id} onChange={handleFilterChange}>
-                                    <option value="">Todos os responsáveis</option>
-                                    <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
-                                    {lawyers.map((lawyer) => (
-                                        <option key={lawyer.id} value={lawyer.id}>
-                                            {lawyer.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaUserTag />
+                            Responsável do caso
+                        </span>
+                        <ResponsibleMultiSelect
+                            selectedValues={selectedLawyerIds}
+                            options={lawyers}
+                            onChange={(values) => setFilters((prev) => ({ ...prev, lawyer_ids: values }))}
+                            unassignedValue={UNASSIGNED_RESPONSIBLE_VALUE}
+                        />
+                    </label>
 
-                            <label className={styles.filterField}>
-                                <span className={styles.filterLabel}>
-                                    <FaUserTag />
-                                    Indicador
-                                </span>
-                                <select className={styles.filterControl} name="indicator_user_id" value={filters.indicator_user_id} onChange={handleFilterChange}>
-                                    <option value="">Todos os indicadores</option>
-                                    {indicators.map((indicator) => (
-                                        <option key={indicator.id} value={indicator.id}>
-                                            {indicator.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                        </>
-                    )}
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaUserTag />
+                            Indicador
+                        </span>
+                        <ResponsibleMultiSelect
+                            selectedValues={selectedIndicatorIds}
+                            options={indicators}
+                            onChange={(values) => setFilters((prev) => ({ ...prev, indicator_user_ids: values }))}
+                            includeUnassigned={false}
+                            placeholder="Todos os indicadores"
+                            searchPlaceholder="Buscar indicador"
+                            emptyMessage="Nenhum indicador encontrado."
+                            summaryPluralLabel="indicadores"
+                            ariaLabel="Filtro de indicadores"
+                        />
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaCalendarAlt />
+                            Data inicial
+                        </span>
+                        <input
+                            type="date"
+                            className={styles.filterControl}
+                            name="date_from"
+                            value={filters.date_from || ''}
+                            onChange={handleFilterChange}
+                        />
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaCalendarAlt />
+                            Data final
+                        </span>
+                        <input
+                            type="date"
+                            className={styles.filterControl}
+                            name="date_to"
+                            value={filters.date_to || ''}
+                            onChange={handleFilterChange}
+                        />
+                    </label>
                 </div>
 
-                <SavedCaseTagsPanel
-                    tags={savedTags}
-                    title="Etiquetas salvas"
-                    subtitle="Clique para aplicar rapidamente no filtro. Administradores podem excluir etiquetas do catálogo por aqui."
-                    onSelectTag={handleSelectSavedTagFilter}
-                    onDeleteTag={handleDeleteSavedTag}
-                    canDelete={canManageSavedTags}
-                    selectedValue={filters.tag}
-                    selectionMode="filter"
-                    compact
-                    emptyMessage="Nenhuma etiqueta salva cadastrada até o momento."
-                />
+
 
                 <div className={styles.filtersFooter}>
-                    <div className={styles.filtersSummary}>
-                        {activeFilterCount > 0 ? (
-                            activeFilterChips.map((chip) => (
-                                <span key={chip.key} className={styles.filterChip}>
-                                    {chip.label}
-                                </span>
-                            ))
-                        ) : (
-                            <span className={styles.filtersHint}>
-                                Sem filtros adicionais no momento. A lista mostra todos os casos da fila atual.
-                            </span>
+                    <div className={styles.filtersFooterLeft}>
+                        {activeFilterCount > 0 && (
+                            <button
+                                type="button"
+                                className={styles.chipsSpoilerToggle}
+                                onClick={() => setShowFilterChips((v) => !v)}
+                            >
+                                {showFilterChips ? <FaEyeSlash /> : <FaEye />}
+                                {showFilterChips ? 'Ocultar filtros ativos' : `Ver filtros ativos (${activeFilterCount})`}
+                            </button>
+                        )}
+                        {showFilterChips && activeFilterCount > 0 && (
+                            <div className={styles.filtersSummary}>
+                                {activeFilterChips.map((chip) => (
+                                    <span key={chip.key} className={styles.filterChip}>
+                                        {chip.label}
+                                    </span>
+                                ))}
+                            </div>
                         )}
                     </div>
 
-                    <button
-                        type="button"
-                        className={styles.clearFiltersButton}
-                        onClick={handleClearFilters}
-                        disabled={activeFilterCount === 0}
-                    >
-                        <FaEraser />
-                        Limpar filtros
-                    </button>
+                    <div className={styles.filtersActions}>
+                        <SmartFilterPresets
+                            userId={user?.id}
+                            userRole={user?.role}
+                            currentFilters={filters}
+                            initialFilters={INITIAL_FILTERS}
+                            onApplyPreset={(preset) => setFilters(preset)}
+                            lawyers={lawyers}
+                            indicators={indicators}
+                            statusOptions={LEGAL_CASE_STATUS_OPTIONS}
+                        />
+                        <button
+                            type="button"
+                            className={styles.applyFiltersButton}
+                            onClick={handleApplyFilters}
+                        >
+                            <FaFilter />
+                            Aplicar filtros
+                        </button>
+                        <button
+                            type="button"
+                            className={styles.clearFiltersButton}
+                            onClick={handleClearFilters}
+                            disabled={activeFilterCount === 0}
+                        >
+                            <FaEraser />
+                            Limpar filtros
+                        </button>
+                    </div>
                 </div>
             </section>
             
@@ -881,6 +1239,33 @@ const CaseManagementPage = () => {
                                                 </td>
                                                 <td>
                                                     <div style={{marginBottom:'4px'}}><StatusTag status={legalCase.status} /></div>
+                                                    {legalCase.status === CONTRA_INDICATED_STATUS && legalCase.contra_indication_reason && (
+                                                        <div
+                                                            className={styles.subText}
+                                                            title={legalCase.contra_indication_reason}
+                                                            style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                        >
+                                                            Motivo: {legalCase.contra_indication_reason}
+                                                        </div>
+                                                    )}
+                                                    {legalCase.status === FAILED_DEAL_STATUS && legalCase.failed_deal_reason && (
+                                                        <div
+                                                            className={styles.subText}
+                                                            title={legalCase.failed_deal_reason}
+                                                            style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                        >
+                                                            Motivo: {legalCase.failed_deal_reason}
+                                                        </div>
+                                                    )}
+                                                    {legalCase.reanalysis_reason && (
+                                                        <div
+                                                            className={styles.subText}
+                                                            title={legalCase.reanalysis_reason}
+                                                            style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                        >
+                                                            Reanálise: {legalCase.reanalysis_reason}
+                                                        </div>
+                                                    )}
                                                     <PriorityTag priority={legalCase.priority} />
                                                 </td>
                                                 <td>
@@ -890,7 +1275,7 @@ const CaseManagementPage = () => {
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                         <Link to={`/cases/${legalCase.id}`} className={styles.actionIcon}><FaEye /></Link>
                                                         {!isIndicator && (
                                                             <span className={styles.actionIcon} onClick={() => setEditingCase(legalCase)}><FaEdit /></span>
@@ -904,11 +1289,25 @@ const CaseManagementPage = () => {
                                                                 Indicar caso para acordo
                                                             </button>
                                                         )}
+                                                        {isIndicator && REANALYSIS_STATUSES.includes(legalCase.status) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenReanalysisModal(legalCase)}
+                                                                className={`${styles.indicateButton} ${styles.reanalysisButton}`}
+                                                            >
+                                                                Solicitar reanálise
+                                                            </button>
+                                                        )}
                                                         
                                                         {/* SÓ MOSTRA SE FOR ADMIN */}
                                                         {canDeleteCases && !isIndicator && (
                                                             <span className={styles.actionIcon} onClick={() => handleDeleteCase(legalCase)}>
                                                                 <FaTrash />
+                                                            </span>
+                                                        )}
+                                                        {!isIndicator && (
+                                                            <span className={styles.actionIcon} title="Arquivar" onClick={() => handleArchiveCases([legalCase.id])}>
+                                                                <FaArchive />
                                                             </span>
                                                         )}
 
@@ -967,6 +1366,17 @@ const CaseManagementPage = () => {
                 )}
             </section>
 
+            <ConfirmModal
+                open={archiveConfirm.open}
+                icon={<FaArchive />}
+                title="Arquivar processos"
+                message={`Deseja arquivar ${archiveConfirm.caseIds.length} caso(s)? Eles serão removidos do pipeline e da gestão de casos, mas poderão ser desarquivados depois.`}
+                confirmLabel="Arquivar"
+                confirmColor="#64748b"
+                onConfirm={confirmArchive}
+                onCancel={() => setArchiveConfirm({ open: false, caseIds: [] })}
+            />
+
             {/* --- BARRA FLUTUANTE DE AÇÕES EM LOTE --- */}
             {canUseBatchActions && Array.isArray(selectedCaseIds) && selectedCaseIds.length > 0 && (
                 <div className={styles.batchActionBar}>
@@ -991,6 +1401,13 @@ const CaseManagementPage = () => {
                                     <FaUserTag /> Transferir
                                 </button>
                                 
+                                <button
+                                    className={`${styles.batchBtn} ${styles.btnSecondary}`}
+                                    onClick={() => handleArchiveCases(selectedCaseIds)}
+                                    disabled={isBatchProcessing}
+                                >
+                                    <FaArchive /> Arquivar
+                                </button>
                                 {/* SÓ MOSTRA SE FOR ADMIN */}
                                 {canDeleteCases && (
                                     <button
@@ -1053,6 +1470,42 @@ const CaseManagementPage = () => {
                 onClose={() => setIndicationCase(null)}
                 onSuccess={handleCaseIndicated}
             />
+
+            {batchContraIndicationPrompt && (
+                <ContraIndicationReasonModal
+                    selectedCount={selectedCaseIds.length}
+                    reason={batchContraIndicationReason}
+                    onReasonChange={setBatchContraIndicationReason}
+                    error={batchContraIndicationError}
+                    isSubmitting={isBatchProcessing}
+                    onCancel={handleCancelBatchContraIndication}
+                    onConfirm={handleConfirmBatchContraIndication}
+                />
+            )}
+
+            {batchFailedDealPrompt && (
+                <FailedDealReasonModal
+                    selectedCount={selectedCaseIds.length}
+                    reason={batchFailedDealReason}
+                    onReasonChange={setBatchFailedDealReason}
+                    error={batchFailedDealError}
+                    isSubmitting={isBatchProcessing}
+                    onCancel={handleCancelBatchFailedDeal}
+                    onConfirm={handleConfirmBatchFailedDeal}
+                />
+            )}
+
+            {reanalysisPrompt && (
+                <ReanalysisReasonModal
+                    caseNumber={reanalysisPrompt.case_number}
+                    reason={reanalysisReason}
+                    onReasonChange={setReanalysisReason}
+                    error={reanalysisError}
+                    isSubmitting={isSavingReanalysis}
+                    onCancel={handleCancelReanalysis}
+                    onConfirm={handleConfirmReanalysis}
+                />
+            )}
 
             {editingCase && (
                 <EditCaseModal 

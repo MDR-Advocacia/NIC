@@ -87,6 +87,54 @@ class CaseSearchTest extends TestCase
         $this->assertNotSame($assignedCase->case_number, $unassignedCase->case_number);
     }
 
+    public function test_cases_filter_accepts_multiple_responsibles(): void
+    {
+        $viewer = User::factory()->create([
+            'role' => 'administrador',
+            'status' => 'ativo',
+        ]);
+
+        $firstOperator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        $secondOperator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        $thirdOperator = User::factory()->create([
+            'role' => 'operador',
+            'status' => 'ativo',
+        ]);
+
+        Sanctum::actingAs($viewer);
+
+        $firstCase = $this->createLegalCase('MULTI-RESP-ONE', [
+            'user_id' => $firstOperator->id,
+        ]);
+        $secondCase = $this->createLegalCase('MULTI-RESP-TWO', [
+            'user_id' => $secondOperator->id,
+        ]);
+        $this->createLegalCase('MULTI-RESP-THREE', [
+            'user_id' => $thirdOperator->id,
+        ]);
+
+        $response = $this->getJson(
+            '/api/cases?lawyer_ids[]=' . $firstOperator->id
+            . '&lawyer_ids[]=' . $secondOperator->id
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('total', 2);
+
+        $this->assertEqualsCanonicalizing(
+            [$firstCase->case_number, $secondCase->case_number],
+            array_column($response->json('data') ?? [], 'case_number')
+        );
+    }
+
     private function createLegalCase(string $caseNumber, array $overrides = []): LegalCase
     {
         $client = Client::firstOrCreate([

@@ -162,6 +162,37 @@
     color: var(--text-primary); 
 }
 
+.contraReason {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    background: var(--danger-soft);
+    border: 1px solid var(--danger-soft-strong);
+    color: var(--danger-text);
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+.contraReason svg {
+    flex: 0 0 auto;
+    margin-top: 0.1rem;
+}
+
+.contraReason span {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.reanalysisReason {
+    background: var(--accent-pill-bg);
+    border-color: var(--accent-border-soft);
+    color: var(--accent-pill-text);
+}
+
 .valueRow {
     display: flex;
     align-items: baseline;
@@ -218,4 +249,15 @@
 .indicateButton:hover {
     transform: translateY(-1px);
     box-shadow: var(--accent-shadow-hover);
+}
+
+.reanalysisButton {
+    background: var(--surface-card-elevated);
+    color: var(--accent-primary);
+    border: 1px solid var(--accent-primary);
+    box-shadow: none;
+}
+
+.reanalysisButton:hover {
+    box-shadow: var(--card-shadow);
 }

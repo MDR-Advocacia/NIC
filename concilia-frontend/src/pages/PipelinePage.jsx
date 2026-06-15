@@ -1,13 +1,18 @@
 // src/pages/PipelinePage.jsx
 // ATUALIZADO: Implementação completa de DragOver para suportar colunas vazias
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; 
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'; 
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
 import EditCaseModal from '../components/EditCaseModal';
-import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
+import TagMultiSelect from '../components/TagMultiSelect';
+import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
+import FailedDealReasonModal from '../components/FailedDealReasonModal';
+import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
+import AgreementFieldsModal from '../components/AgreementFieldsModal';
+import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import { 
     DndContext, 
     PointerSensor, 
@@ -27,12 +32,17 @@ import {
     FaUserTag,
     FaSignal,
     FaEraser,
+    FaEye,
+    FaEyeSlash,
     FaBolt,
     FaTag,
+    FaFileExport,
+    FaInfoCircle,
 } from 'react-icons/fa';
 import {
     LEGAL_CASE_STATUS_DETAILS,
     LEGAL_CASE_STATUS_ORDER,
+    POST_AGREEMENT_STATUS_ORDER,
     UNASSIGNED_RESPONSIBLE_VALUE,
     isTerminalLegalCaseStatus,
 } from '../constants/legalCaseStatus';
@@ -42,16 +52,45 @@ import {
     normalizeUserRole,
 } from '../constants/access';
 import IndicationChecklistModal from '../components/IndicationChecklistModal';
+import { useToast } from '../context/ToastContext';
+import {
+    downloadCasesWorkbook,
+    fetchAllCasesForExport,
+    isDelayedCaseForExport,
+    sortCasesByUpdatedAtDesc,
+} from '../utils/caseExport';
 
 const MAX_API_PAGE_SIZE = 200;
+const REANALYSIS_STATUSES = ['contra_indicated', 'failed_deal'];
 const INITIAL_FILTERS = {
     search: '',
     action_object: '',
     client_id: '',
-    lawyer_id: '',
+    lawyer_ids: [],
     indicator_user_id: '',
     priority: '',
-    tag: '',
+    tags: [],
+};
+
+const buildQueryParams = (params = {}) => {
+    const query = new URLSearchParams();
+
+    Object.entries(params).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+            value.forEach((item) => {
+                if (item !== undefined && item !== null && item !== '') {
+                    query.append(`${key}[]`, item);
+                }
+            });
+            return;
+        }
+
+        if (value !== undefined && value !== null && value !== '') {
+            query.append(key, value);
+        }
+    });
+
+    return query;
 };
 
 const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
@@ -60,10 +99,8 @@ const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
     let lastPage = 1;
 
     do {
-        const query = new URLSearchParams({
-            ...Object.fromEntries(
-                Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
-            ),
+        const query = buildQueryParams({
+            ...params,
             page: currentPage,
             per_page: MAX_API_PAGE_SIZE,
         });
@@ -86,6 +123,7 @@ const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
 };
 
 const PipelinePage = () => {
+    const toast = useToast();
     const { token, user } = useAuth();
     const navigate = useNavigate();
     const isIndicator = isIndicatorRole(user?.role);
@@ -103,39 +141,84 @@ const PipelinePage = () => {
     
     const [editingCase, setEditingCase] = useState(null);
     const [indicationCase, setIndicationCase] = useState(null);
+    const [searchParams] = useSearchParams();
+    const pipelineView = searchParams.get('view') || 'pre';
     const [filters, setFilters] = useState(INITIAL_FILTERS);
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [debouncedActionObject, setDebouncedActionObject] = useState('');
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
-    const [activeId, setActiveId] = useState(null); // Rastreia item sendo arrastado
+    const [isExporting, setIsExporting] = useState(false);
+    const [contraIndicationPrompt, setContraIndicationPrompt] = useState(null);
+    const [contraIndicationReason, setContraIndicationReason] = useState('');
+    const [contraIndicationError, setContraIndicationError] = useState('');
+    const [isSavingContraIndication, setIsSavingContraIndication] = useState(false);
+    const [failedDealPrompt, setFailedDealPrompt] = useState(null);
+    const [failedDealReason, setFailedDealReason] = useState('');
+    const [failedDealError, setFailedDealError] = useState('');
+    const [isSavingFailedDeal, setIsSavingFailedDeal] = useState(false);
+    const [reanalysisPrompt, setReanalysisPrompt] = useState(null);
+    const [reanalysisReason, setReanalysisReason] = useState('');
+    const [reanalysisError, setReanalysisError] = useState('');
+    const [isSavingReanalysis, setIsSavingReanalysis] = useState(false);
+    const [agreementPrompt, setAgreementPrompt] = useState(null);
+    const [agreementValue, setAgreementValue] = useState('');
+    const [agreementClosedAt, setAgreementClosedAt] = useState('');
+    const [agreementError, setAgreementError] = useState('');
+    const [isSavingAgreement, setIsSavingAgreement] = useState(false);
 
     const searchTerm = filters.search.trim();
     const actionObjectFilter = filters.action_object.trim();
     const clientFilter = filters.client_id || '';
-    const lawyerFilter = filters.lawyer_id || '';
+    const selectedLawyerIds = useMemo(
+        () => (Array.isArray(filters.lawyer_ids) ? filters.lawyer_ids.map(String) : []),
+        [filters.lawyer_ids]
+    );
     const indicatorFilter = canChooseIndicator ? (filters.indicator_user_id || '') : '';
     const priorityFilter = filters.priority || '';
-    const tagFilter = filters.tag || '';
+    const tagFilters = Array.isArray(filters.tags) ? filters.tags : [];
     const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
-    const selectedLawyerName = filters.lawyer_id === UNASSIGNED_RESPONSIBLE_VALUE
-        ? 'Sem responsável'
-        : lawyers.find((lawyer) => String(lawyer.id) === String(filters.lawyer_id))?.name;
+    const selectedLawyerNames = selectedLawyerIds
+        .map((lawyerId) => {
+            if (lawyerId === UNASSIGNED_RESPONSIBLE_VALUE) {
+                return 'Sem responsável';
+            }
+
+            return lawyers.find((lawyer) => String(lawyer.id) === String(lawyerId))?.name;
+        })
+        .filter(Boolean);
+    const selectedLawyerFilterLabel = (() => {
+        if (selectedLawyerNames.length === 0) {
+            return null;
+        }
+
+        if (selectedLawyerNames.length <= 2) {
+            return selectedLawyerNames.join(' + ');
+        }
+
+        return `${selectedLawyerNames.slice(0, 2).join(' + ')} + ${selectedLawyerNames.length - 2}`;
+    })();
     const selectedIndicatorName = indicators.find((indicator) => String(indicator.id) === String(filters.indicator_user_id))?.name;
-    const selectedTagName = savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.text
-        || savedTags.find((tag) => String(tag.id) === String(filters.tag) || (tag.text || tag.name) === filters.tag)?.name;
+    const selectedTagLabel = (() => {
+        if (tagFilters.length === 0) return null;
+        if (tagFilters.length === 1) return `Etiqueta: ${tagFilters[0]}`;
+        if (tagFilters.length === 2) return `Etiquetas: ${tagFilters.join(' + ')}`;
+        return `Etiquetas: ${tagFilters.length} selecionadas`;
+    })();
     const priorityLabelMap = {
         baixa: 'Prioridade baixa',
         media: 'Prioridade média',
         alta: 'Prioridade alta',
     };
+    const [showFilterChips, setShowFilterChips] = useState(false);
+
     const activeFilterChips = [
         searchTerm ? `Busca: ${searchTerm}` : null,
         actionObjectFilter ? `Causa de pedir: ${actionObjectFilter}` : null,
         selectedClientName ? `Cliente: ${selectedClientName}` : null,
-        selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
+        selectedLawyerFilterLabel ? `Responsáveis: ${selectedLawyerFilterLabel}` : null,
         selectedIndicatorName ? `Indicador: ${selectedIndicatorName}` : null,
         filters.priority ? priorityLabelMap[filters.priority] : null,
-        selectedTagName ? `Etiqueta: ${selectedTagName}` : null,
+        selectedTagLabel,
         showDelayedOnly ? 'Apenas atrasados (+5 dias)' : null,
     ].filter(Boolean);
     const activeFilterCount = activeFilterChips.length;
@@ -165,6 +248,55 @@ const PipelinePage = () => {
         fetchAllData();
     };
 
+    const handleOpenReanalysisModal = (caseToReanalyze) => {
+        if (!caseToReanalyze?.id || !REANALYSIS_STATUSES.includes(caseToReanalyze.status)) {
+            return;
+        }
+
+        setReanalysisPrompt(caseToReanalyze);
+        setReanalysisReason('');
+        setReanalysisError('');
+    };
+
+    const handleCancelReanalysis = () => {
+        setReanalysisPrompt(null);
+        setReanalysisReason('');
+        setReanalysisError('');
+        setIsSavingReanalysis(false);
+    };
+
+    const handleConfirmReanalysis = async (event) => {
+        event.preventDefault();
+
+        const normalizedReason = reanalysisReason.trim();
+        if (!normalizedReason) {
+            setReanalysisError('Informe o motivo da reanálise.');
+            return;
+        }
+
+        if (!reanalysisPrompt?.id) return;
+
+        setIsSavingReanalysis(true);
+        setReanalysisError('');
+
+        try {
+            await apiClient.post(
+                `/cases/${reanalysisPrompt.id}/request-reanalysis`,
+                { reanalysis_reason: normalizedReason },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setReanalysisPrompt(null);
+            setReanalysisReason('');
+            fetchAllData();
+        } catch (err) {
+            console.error('Erro ao solicitar reanálise:', err);
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setReanalysisError(firstBackendError || err.response?.data?.message || 'Não foi possível solicitar a reanálise.');
+        } finally {
+            setIsSavingReanalysis(false);
+        }
+    };
+
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedSearch(searchTerm);
@@ -181,9 +313,9 @@ const PipelinePage = () => {
         return () => clearTimeout(timer);
     }, [actionObjectFilter]);
 
-    const groupCasesByStatus = useCallback((cases) => {
-        const initialGroups = LEGAL_CASE_STATUS_ORDER.reduce((acc, statusKey) => {
-            acc[statusKey] = LEGAL_CASE_STATUS_DETAILS[statusKey].name;
+    const groupCasesByStatus = useCallback((cases, statusOrder = LEGAL_CASE_STATUS_ORDER) => {
+        const initialGroups = statusOrder.reduce((acc, statusKey) => {
+            acc[statusKey] = LEGAL_CASE_STATUS_DETAILS[statusKey]?.name || statusKey;
             return acc;
         }, {});
         const grouped = Object.keys(initialGroups).reduce((acc, key) => ({ ...acc, [key]: [] }), {});
@@ -192,8 +324,6 @@ const PipelinePage = () => {
             .forEach(currentCase => {
             if (grouped[currentCase.status]) {
                 grouped[currentCase.status].push(currentCase);
-            } else {
-                grouped['initial_analysis'].push(currentCase);
             }
         });
         return { grouped, titles: initialGroups };
@@ -219,26 +349,27 @@ const PipelinePage = () => {
                 search: debouncedSearch,
                 action_object: debouncedActionObject,
                 client_id: clientFilter,
-                lawyer_id: lawyerFilter,
+                lawyer_ids: selectedLawyerIds,
                 indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
-                tag: tagFilter,
+                tags: tagFilters,
             };
-            const requiresResponsibleFilter = canChooseResponsible;
 
-            const hasValidResponsibleSelected = lawyerFilter === UNASSIGNED_RESPONSIBLE_VALUE
-                || fetchedLawyers.some((lawyer) => String(lawyer.id) === String(lawyerFilter));
+            const validResponsibleValues = selectedLawyerIds.filter((lawyerId) =>
+                lawyerId === UNASSIGNED_RESPONSIBLE_VALUE
+                || fetchedLawyers.some((lawyer) => String(lawyer.id) === String(lawyerId))
+            );
 
-            if (lawyerFilter && !hasValidResponsibleSelected) {
-                delete effectiveFilters.lawyer_id;
+            if (validResponsibleValues.length !== selectedLawyerIds.length) {
+                effectiveFilters.lawyer_ids = validResponsibleValues;
                 setFilters((currentFilters) => {
-                    if (!currentFilters.lawyer_id) {
+                    const currentValues = Array.isArray(currentFilters.lawyer_ids) ? currentFilters.lawyer_ids.map(String) : [];
+
+                    if (currentValues.length === validResponsibleValues.length) {
                         return currentFilters;
                     }
 
-                    const nextFilters = { ...currentFilters };
-                    delete nextFilters.lawyer_id;
-                    return nextFilters;
+                    return { ...currentFilters, lawyer_ids: validResponsibleValues };
                 });
             }
 
@@ -257,52 +388,18 @@ const PipelinePage = () => {
                 });
             }
 
-            if (requiresResponsibleFilter && !effectiveFilters.lawyer_id) {
-                const preferredResponsible =
-                    fetchedLawyers.find((lawyer) => String(lawyer.id) === String(user?.id))
-                    || fetchedLawyers[0];
+            const fetchParams = {
+                ...effectiveFilters,
+                sort_by: 'updated_at',
+                sort_order: 'desc',
+            };
 
-                if (preferredResponsible) {
-                    effectiveFilters.lawyer_id = String(preferredResponsible.id);
-                    setFilters((currentFilters) =>
-                        currentFilters.lawyer_id
-                            ? currentFilters
-                            : { ...currentFilters, lawyer_id: String(preferredResponsible.id) }
-                    );
-                }
+            // Filter by statuses based on pipeline view
+            if (pipelineView === 'post') {
+                fetchParams.statuses = POST_AGREEMENT_STATUS_ORDER;
             }
 
-            let fetchedCases = [];
-
-            if (isIndicator) {
-                const [availableCases, indicatedCases] = await Promise.all([
-                    fetchAllPaginatedResults('/cases', token, {
-                        ...effectiveFilters,
-                        sort_by: 'updated_at',
-                        sort_order: 'desc',
-                    }),
-                    fetchAllPaginatedResults('/cases', token, {
-                        ...effectiveFilters,
-                        indicator_user_id: String(user?.id || ''),
-                        sort_by: 'updated_at',
-                        sort_order: 'desc',
-                    }),
-                ]);
-
-                const mergedCases = new Map();
-
-                [...availableCases, ...indicatedCases].forEach((legalCase) => {
-                    mergedCases.set(String(legalCase.id), legalCase);
-                });
-
-                fetchedCases = Array.from(mergedCases.values());
-            } else {
-                fetchedCases = await fetchAllPaginatedResults('/cases', token, {
-                    ...effectiveFilters,
-                    sort_by: 'updated_at',
-                    sort_order: 'desc',
-                });
-            }
+            let fetchedCases = await fetchAllPaginatedResults('/cases', token, fetchParams);
 
             // Filtro de Atraso
             if (showDelayedOnly) {
@@ -319,7 +416,9 @@ const PipelinePage = () => {
                 });
             }
 
-            const groupedCases = groupCasesByStatus(fetchedCases);
+            const groupedCases = pipelineView === 'post'
+                ? groupCasesByStatus(fetchedCases, POST_AGREEMENT_STATUS_ORDER)
+                : groupCasesByStatus(fetchedCases, LEGAL_CASE_STATUS_ORDER);
             setPipelineData(groupedCases);
             setClients(clientsResponse.data);
             setLawyers(fetchedLawyers);
@@ -331,7 +430,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, lawyerFilter, indicatorFilter, priorityFilter, tagFilter, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseResponsible, canChooseIndicator, isIndicator, user?.id]);
+    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, tagFilters, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator, pipelineView]);
 
     useEffect(() => {
         fetchAllData();
@@ -353,10 +452,6 @@ const PipelinePage = () => {
         return Object.keys(pipelineData.grouped).find((key) => 
             pipelineData.grouped[key].find((item) => String(item.id) === String(id))
         );
-    };
-
-    const handleDragStart = (event) => {
-        setActiveId(event.active.id);
     };
 
     const handleDragOver = (event) => {
@@ -409,12 +504,201 @@ const PipelinePage = () => {
         });
     };
 
+    const buildStatusUpdatePayload = (movedCase, targetStatus, extraPayload = {}) => {
+        const updatedCasePayload = {
+            ...movedCase,
+            status: targetStatus,
+            client_id: movedCase.client?.id || movedCase.client_id,
+            lawyer_id: movedCase.lawyer?.id || movedCase.lawyer_id,
+            plaintiff_id: movedCase.plaintiff?.id || movedCase.plaintiff_id,
+            defendant_id: movedCase.defendant?.id || movedCase.defendant_id,
+            opposing_lawyer_id: movedCase.opposing_lawyer?.id || movedCase.opposing_lawyer_id,
+            ...extraPayload,
+        };
+
+        delete updatedCasePayload.client;
+        delete updatedCasePayload.lawyer;
+        delete updatedCasePayload.indicator;
+        delete updatedCasePayload.contra_indicated_by;
+        delete updatedCasePayload.reanalysis_requested_by;
+        delete updatedCasePayload.plaintiff;
+        delete updatedCasePayload.defendant;
+        delete updatedCasePayload.opposing_lawyer;
+
+        return updatedCasePayload;
+    };
+
+    const updateCaseStatusLocally = (caseId, targetStatus, extraFields = {}) => {
+        setPipelineData((prev) => {
+            if (!prev?.grouped) return prev;
+
+            const newGrouped = { ...prev.grouped };
+            const listContainer = Object.keys(newGrouped).find((key) =>
+                newGrouped[key].some((item) => String(item.id) === String(caseId))
+            );
+
+            if (!listContainer) return prev;
+
+            const items = [...newGrouped[listContainer]];
+            const itemIndex = items.findIndex((item) => String(item.id) === String(caseId));
+
+            if (itemIndex === -1) return prev;
+
+            items[itemIndex] = {
+                ...items[itemIndex],
+                ...extraFields,
+                status: targetStatus,
+            };
+            newGrouped[listContainer] = items;
+
+            return { ...prev, grouped: newGrouped };
+        });
+    };
+
+    const persistCaseStatusChange = async (movedCase, targetStatus, extraPayload = {}) => {
+        console.log(`Movendo card ${movedCase.id}: ${movedCase.status} -> ${targetStatus}`);
+
+        const updatedCasePayload = buildStatusUpdatePayload(movedCase, targetStatus, extraPayload);
+        updateCaseStatusLocally(movedCase.id, targetStatus, extraPayload);
+
+        try {
+            await apiClient.put(`/cases/${movedCase.id}`, updatedCasePayload, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            console.log('Status salvo com sucesso no backend.');
+        } catch (err) {
+            console.error('Erro ao atualizar status:', err);
+            fetchAllData();
+            throw err;
+        }
+    };
+
+    const handleCancelContraIndication = () => {
+        setContraIndicationPrompt(null);
+        setContraIndicationReason('');
+        setContraIndicationError('');
+        setIsSavingContraIndication(false);
+        fetchAllData();
+    };
+
+    const handleConfirmContraIndication = async (event) => {
+        event.preventDefault();
+
+        const normalizedReason = contraIndicationReason.trim();
+        if (!normalizedReason) {
+            setContraIndicationError('Informe o motivo da contraindicação.');
+            return;
+        }
+
+        if (!contraIndicationPrompt?.legalCase) return;
+
+        setIsSavingContraIndication(true);
+        setContraIndicationError('');
+
+        try {
+            await persistCaseStatusChange(
+                contraIndicationPrompt.legalCase,
+                contraIndicationPrompt.targetStatus,
+                { contra_indication_reason: normalizedReason }
+            );
+            setContraIndicationPrompt(null);
+            setContraIndicationReason('');
+        } catch (err) {
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setContraIndicationError(firstBackendError || err.response?.data?.message || 'Não foi possível salvar a contraindicação.');
+        } finally {
+            setIsSavingContraIndication(false);
+        }
+    };
+
+    const handleCancelFailedDeal = () => {
+        setFailedDealPrompt(null);
+        setFailedDealReason('');
+        setFailedDealError('');
+        setIsSavingFailedDeal(false);
+        fetchAllData();
+    };
+
+    const handleConfirmFailedDeal = async (event) => {
+        event.preventDefault();
+
+        const normalizedReason = failedDealReason.trim();
+        if (!normalizedReason) {
+            setFailedDealError('Informe o motivo do acordo frustrado.');
+            return;
+        }
+
+        if (!failedDealPrompt?.legalCase) return;
+
+        setIsSavingFailedDeal(true);
+        setFailedDealError('');
+
+        try {
+            await persistCaseStatusChange(
+                failedDealPrompt.legalCase,
+                failedDealPrompt.targetStatus,
+                { failed_deal_reason: normalizedReason }
+            );
+            setFailedDealPrompt(null);
+            setFailedDealReason('');
+        } catch (err) {
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setFailedDealError(firstBackendError || err.response?.data?.message || 'Não foi possível salvar o motivo.');
+        } finally {
+            setIsSavingFailedDeal(false);
+        }
+    };
+
+
+    const handleCancelAgreement = () => {
+        setAgreementPrompt(null);
+        setAgreementValue('');
+        setAgreementClosedAt('');
+        setAgreementError('');
+        setIsSavingAgreement(false);
+        fetchAllData();
+    };
+
+    const handleConfirmAgreement = async (event) => {
+        event.preventDefault();
+
+        const numericValue = parseFloat(agreementValue);
+        if (!numericValue || numericValue <= 0) {
+            setAgreementError('Informe um valor de acordo válido.');
+            return;
+        }
+        if (!agreementClosedAt) {
+            setAgreementError('Informe a data do acordo.');
+            return;
+        }
+
+        if (!agreementPrompt?.legalCase) return;
+
+        setIsSavingAgreement(true);
+        setAgreementError('');
+
+        try {
+            await persistCaseStatusChange(
+                agreementPrompt.legalCase,
+                agreementPrompt.targetStatus,
+                { agreement_value: numericValue, agreement_closed_at: agreementClosedAt }
+            );
+            setAgreementPrompt(null);
+            setAgreementValue('');
+            setAgreementClosedAt('');
+        } catch (err) {
+            const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
+            setAgreementError(firstBackendError || err.response?.data?.message || 'Não foi possível salvar os dados do acordo.');
+        } finally {
+            setIsSavingAgreement(false);
+        }
+    };
+
     const handleDragEnd = (event) => {
         const { active, over } = event;
 
         // 1. Se soltou fora de qualquer lugar válido, cancela
         if (!over) {
-            setActiveId(null);
             return;
         }
 
@@ -426,7 +710,6 @@ const PipelinePage = () => {
         const currentContainerOfItem = findContainer(active.id);
 
         if (!overContainer || !currentContainerOfItem) {
-            setActiveId(null);
             return;
         }
 
@@ -436,7 +719,6 @@ const PipelinePage = () => {
         );
 
         if (!movedCase) {
-            setActiveId(null);
             return;
         }
 
@@ -446,66 +728,38 @@ const PipelinePage = () => {
         const isStatusChange = movedCase.status !== overContainer;
 
         if (isStatusChange) {
-            // Confirmação ao mover para Contra Indicado
             if (overContainer === 'contra_indicated') {
-                if (!window.confirm('Tem certeza que deseja marcar este caso como Contraindicado?')) {
-                    setActiveId(null);
-                    fetchAllData(); // Reverte animação visual
-                    return;
-                }
+                setContraIndicationPrompt({
+                    legalCase: movedCase,
+                    targetStatus: overContainer,
+                });
+                setContraIndicationReason(movedCase.contra_indication_reason || '');
+                setContraIndicationError('');
+                return;
             }
 
-            console.log(`🔄 Movendo card ${movedCase.id}: ${movedCase.status} -> ${overContainer}`);
+            if (overContainer === 'failed_deal') {
+                setFailedDealPrompt({
+                    legalCase: movedCase,
+                    targetStatus: overContainer,
+                });
+                setFailedDealReason(movedCase.failed_deal_reason || '');
+                setFailedDealError('');
+                return;
+            }
 
-            // Prepara o objeto para enviar ao Backend
-            const updatedCasePayload = { 
-                ...movedCase, 
-                status: overContainer, // Força o novo status
-                // Garante que os IDs relacionados sejam mantidos
-                client_id: movedCase.client?.id || movedCase.client_id,
-                lawyer_id: movedCase.lawyer?.id || movedCase.lawyer_id,
-                plaintiff_id: movedCase.plaintiff?.id || movedCase.plaintiff_id,
-                defendant_id: movedCase.defendant?.id || movedCase.defendant_id,
-                opposing_lawyer_id: movedCase.opposing_lawyer?.id || movedCase.opposing_lawyer_id
-            };
+            if (overContainer === 'closed_deal' || overContainer === 'closed_in_hearing') {
+                setAgreementPrompt({
+                    legalCase: movedCase,
+                    targetStatus: overContainer,
+                });
+                setAgreementValue(movedCase.agreement_value || '');
+                setAgreementClosedAt(movedCase.agreement_closed_at ? movedCase.agreement_closed_at.slice(0, 10) : '');
+                setAgreementError('');
+                return;
+            }
 
-            // Remove objetos aninhados para não quebrar a API (se o backend esperar apenas IDs)
-            delete updatedCasePayload.client;
-            delete updatedCasePayload.lawyer;
-            delete updatedCasePayload.plaintiff;
-            delete updatedCasePayload.defendant;
-            delete updatedCasePayload.opposing_lawyer;
-
-            // 4. Atualiza o State Local para persistir a mudança visualmente
-            setPipelineData((prev) => {
-                const newGrouped = { ...prev.grouped };
-                const listContainer = findContainer(active.id); 
-                
-                if (listContainer && newGrouped[listContainer]) {
-                    const items = [...newGrouped[listContainer]];
-                    const itemIndex = items.findIndex(c => String(c.id) === String(active.id));
-                    
-                    if (itemIndex !== -1) {
-                        // Atualiza a propriedade 'status' dentro do objeto para bater com a nova coluna
-                        items[itemIndex] = { ...items[itemIndex], status: overContainer };
-                        newGrouped[listContainer] = items;
-                    }
-                }
-                return { ...prev, grouped: newGrouped };
-            });
-
-            // 5. CHAMA A API PARA SALVAR
-            apiClient.put(`/cases/${movedCase.id}`, updatedCasePayload, {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-            .then(() => {
-                console.log("✅ Salvo com sucesso no Backend!");
-            })
-            .catch(err => {
-                console.error("❌ Erro ao atualizar status:", err);
-                // Se der erro, recarrega os dados para desfazer a mudança visual enganosa
-                fetchAllData(); 
-            });
+            persistCaseStatusChange(movedCase, overContainer).catch(() => {});
         } 
         else {
             // Lógica de Reordenação na MESMA coluna (apenas visual, ou salva posição se tiver endpoint)
@@ -523,19 +777,14 @@ const PipelinePage = () => {
             }
         }
 
-        setActiveId(null);
     };
 
     const handleFilterChange = (name, value) => {
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSelectSavedTagFilter = (tag) => {
-        const tagText = tag?.text || tag?.name || '';
-        setFilters((prev) => ({
-            ...prev,
-            tag: prev.tag === tagText ? '' : tagText,
-        }));
+    const handleTagFilterChange = (newTags) => {
+        setFilters((prev) => ({ ...prev, tags: newTags }));
     };
 
     const handleDeleteSavedTag = async (tagToDelete) => {
@@ -557,21 +806,64 @@ const PipelinePage = () => {
             });
 
             setSavedTags((currentTags) => currentTags.filter((tag) => tag.id !== tagToDelete.id));
+            const deletedText = (tagToDelete.text || tagToDelete.name || '').toLocaleLowerCase('pt-BR');
             setFilters((prev) => ({
                 ...prev,
-                tag: prev.tag === (tagToDelete.text || tagToDelete.name) ? '' : prev.tag,
+                tags: (prev.tags || []).filter((t) => (typeof t === 'string' ? t : '').toLocaleLowerCase('pt-BR') !== deletedText),
             }));
-            window.alert(response.data?.message || 'Etiqueta excluída com sucesso.');
+            toast.success(response.data?.message || 'Etiqueta excluída com sucesso.');
             fetchAllData();
         } catch (err) {
             console.error('Erro ao excluir etiqueta salva:', err);
-            window.alert(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+            toast.error(err.response?.data?.message || 'Não foi possível excluir a etiqueta.');
+        }
+    };
+
+    const handleExportPipelineCases = async () => {
+        if (!token || isExporting) {
+            return;
+        }
+
+        setIsExporting(true);
+
+        try {
+            const exportFilters = {
+                search: searchTerm,
+                action_object: actionObjectFilter,
+                client_id: clientFilter,
+                lawyer_ids: selectedLawyerIds,
+                indicator_user_id: indicatorFilter,
+                priority: priorityFilter,
+                tags: tagFilters,
+                sort_by: 'updated_at',
+                sort_order: 'desc',
+            };
+
+            const exportedCases = await fetchAllCasesForExport(exportFilters, token);
+
+            const visibleExportCases = showDelayedOnly
+                ? exportedCases.filter((legalCase) => isDelayedCaseForExport(legalCase))
+                : exportedCases;
+
+            downloadCasesWorkbook(sortCasesByUpdatedAtDesc(visibleExportCases), {
+                filePrefix: 'pipeline-casos',
+                sheetName: 'Pipeline',
+            });
+        } catch (err) {
+            console.error('Erro ao exportar pipeline:', err);
+            toast.error('Não foi possível exportar a planilha do pipeline.');
+        } finally {
+            setIsExporting(false);
         }
     };
 
     const handleClearFilters = () => {
         setFilters({ ...INITIAL_FILTERS });
         setShowDelayedOnly(false);
+    };
+
+    const postAgreementTooltips = {
+        pending_obf: 'Obrigação de Fazer',
     };
 
     const boardContent = (
@@ -582,11 +874,14 @@ const PipelinePage = () => {
                         key={statusKey}
                         id={statusKey}
                         title={statusTitle}
+                        titleTooltip={postAgreementTooltips[statusKey]}
                         cases={pipelineData.grouped[statusKey] || []}
                         onCardClick={handleOpenCase}
-                        enableDrag={!isIndicator}
-                        canIndicateCase={isIndicator}
+                        enableDrag={pipelineView === 'pre' && !isIndicator}
+                        canIndicateCase={pipelineView === 'pre' && isIndicator}
                         onIndicateCase={handleOpenIndicationModal}
+                        canRequestReanalysis={pipelineView === 'pre' && isIndicator}
+                        onRequestReanalysis={handleOpenReanalysisModal}
                     />
                 ))}
             </div>
@@ -599,8 +894,17 @@ const PipelinePage = () => {
     return (
         <div className={styles.pageContainer}>
             <div className={styles.header}>
-                <h1>{isIndicator ? 'Indicações e Acompanhamento' : 'Pipeline de Acordos'}</h1>
+                <h1>{isIndicator ? 'Indicações e Acompanhamento' : pipelineView === 'post' ? 'Pipeline Pós-Acordo' : 'Pipeline de Acordos'}</h1>
                 <div className={styles.headerActions}>
+                    <button
+                        type="button"
+                        className={styles.exportButton}
+                        onClick={handleExportPipelineCases}
+                        disabled={isExporting}
+                    >
+                        <FaFileExport />
+                        {isExporting ? 'Exportando...' : 'Exportar Excel'}
+                    </button>
                     {canAccessCaseCreation(user?.role) && (
                         <Link to="/cases/create" className={styles.newCaseButton}>
                             + Novo Caso
@@ -619,7 +923,7 @@ const PipelinePage = () => {
                             <h2 className={styles.filterPanelTitle}>{isIndicator ? 'Filtros das Indicações' : 'Filtros do Pipeline'}</h2>
                             <p className={styles.filterPanelSubtitle}>
                                 {isIndicator
-                                    ? 'Os casos em Análise Inicial continuam disponíveis para indicação, e os processos já indicados por você seguem visíveis nas demais fases apenas para acompanhamento.'
+                                    ? 'Visualize todos os cards do pipeline e indique somente os casos que ainda estão em Análise Inicial.'
                                     : 'Refine os cards por caso, causa de pedir, cliente, responsável, indicador, prioridade e destaque rapidamente os casos parados.'}
                             </p>
                         </div>
@@ -682,15 +986,12 @@ const PipelinePage = () => {
                                 <FaUserTie />
                                 <span>Responsável do Caso</span>
                             </label>
-                            <select
-                                className={styles.filterSelect}
-                                value={lawyerFilter}
-                                onChange={(e) => handleFilterChange('lawyer_id', e.target.value)}
-                            >
-                                <option value="" disabled>Selecione um responsável</option>
-                                <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
-                                {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
-                            </select>
+                            <ResponsibleMultiSelect
+                                selectedValues={selectedLawyerIds}
+                                options={lawyers}
+                                onChange={(values) => setFilters((prev) => ({ ...prev, lawyer_ids: values }))}
+                                unassignedValue={UNASSIGNED_RESPONSIBLE_VALUE}
+                            />
                         </div>
                     )}
 
@@ -735,51 +1036,41 @@ const PipelinePage = () => {
                     <div className={styles.filterField}>
                         <label className={styles.filterFieldLabel}>
                             <FaTag />
-                            <span>Etiqueta</span>
+                            <span>Etiquetas</span>
                         </label>
-                        <select
-                            className={styles.filterSelect}
-                            value={tagFilter}
-                            onChange={(e) => handleFilterChange('tag', e.target.value)}
-                        >
-                            <option value="">Todas</option>
-                            {savedTags.map((tag) => (
-                                <option key={tag.id || `${tag.text || tag.name}-${tag.color}`} value={tag.text || tag.name}>
-                                    {tag.text || tag.name}
-                                </option>
-                            ))}
-                        </select>
+                        <TagMultiSelect
+                            tags={savedTags}
+                            selectedValues={filters.tags}
+                            onChange={handleTagFilterChange}
+                            onDelete={handleDeleteSavedTag}
+                            canDelete={canManageSavedTags}
+                        />
                     </div>
                 </div>
 
-                <SavedCaseTagsPanel
-                    tags={savedTags}
-                    title="Etiquetas salvas"
-                    subtitle="Use as etiquetas como atalho visual de filtro. A exclusão do catálogo fica disponível só para administradores."
-                    onSelectTag={handleSelectSavedTagFilter}
-                    onDeleteTag={handleDeleteSavedTag}
-                    canDelete={canManageSavedTags}
-                    selectedValue={filters.tag}
-                    selectionMode="filter"
-                    compact
-                    emptyMessage="Nenhuma etiqueta salva cadastrada até o momento."
-                />
-
                 <div className={styles.filterPanelFooter}>
-                    <div className={styles.filterSummary}>
-                        {activeFilterChips.length > 0 ? (
-                            activeFilterChips.map((chip) => (
-                                <span
-                                    key={chip}
-                                    className={`${styles.filterChip} ${chip.includes('Atrasados') || chip.includes('atrasados') ? styles.filterChipAlert : ''}`}
-                                >
-                                    {chip}
-                                </span>
-                            ))
-                        ) : (
-                            <span className={styles.filterHint}>
-                                Sem filtros ativos. O pipeline está exibindo a visão completa disponível para o seu perfil.
-                            </span>
+                    <div className={styles.filterFooterLeft}>
+                        {activeFilterCount > 0 && (
+                            <button
+                                type="button"
+                                className={styles.chipsSpoilerToggle}
+                                onClick={() => setShowFilterChips((v) => !v)}
+                            >
+                                {showFilterChips ? <FaEyeSlash /> : <FaEye />}
+                                {showFilterChips ? 'Ocultar filtros ativos' : `Ver filtros ativos (${activeFilterCount})`}
+                            </button>
+                        )}
+                        {showFilterChips && activeFilterCount > 0 && (
+                            <div className={styles.filterSummary}>
+                                {activeFilterChips.map((chip) => (
+                                    <span
+                                        key={chip}
+                                        className={`${styles.filterChip} ${chip.includes('Atrasados') || chip.includes('atrasados') ? styles.filterChipAlert : ''}`}
+                                    >
+                                        {chip}
+                                    </span>
+                                ))}
+                            </div>
                         )}
                     </div>
 
@@ -808,7 +1099,7 @@ const PipelinePage = () => {
 
             {isIndicator && (
                 <div className={styles.indicatorInfoBanner}>
-                    Você pode indicar casos na coluna de Análise Inicial. Depois da indicação, o acompanhamento das próximas fases continua disponível aqui em modo somente leitura.
+                    Todos os cards do pipeline ficam visíveis para acompanhamento. A indicação continua disponível apenas nos casos em Análise Inicial.
                 </div>
             )}
 
@@ -830,13 +1121,62 @@ const PipelinePage = () => {
                 onSuccess={handleCaseIndicated}
             />
 
+            {contraIndicationPrompt && (
+                <ContraIndicationReasonModal
+                    caseNumber={contraIndicationPrompt.legalCase?.case_number}
+                    reason={contraIndicationReason}
+                    onReasonChange={setContraIndicationReason}
+                    error={contraIndicationError}
+                    isSubmitting={isSavingContraIndication}
+                    onCancel={handleCancelContraIndication}
+                    onConfirm={handleConfirmContraIndication}
+                />
+            )}
+
+            {failedDealPrompt && (
+                <FailedDealReasonModal
+                    caseNumber={failedDealPrompt.legalCase?.case_number}
+                    reason={failedDealReason}
+                    onReasonChange={setFailedDealReason}
+                    error={failedDealError}
+                    isSubmitting={isSavingFailedDeal}
+                    onCancel={handleCancelFailedDeal}
+                    onConfirm={handleConfirmFailedDeal}
+                />
+            )}
+
+            {reanalysisPrompt && (
+                <ReanalysisReasonModal
+                    caseNumber={reanalysisPrompt.case_number}
+                    reason={reanalysisReason}
+                    onReasonChange={setReanalysisReason}
+                    error={reanalysisError}
+                    isSubmitting={isSavingReanalysis}
+                    onCancel={handleCancelReanalysis}
+                    onConfirm={handleConfirmReanalysis}
+                />
+            )}
+
+            {agreementPrompt && (
+                <AgreementFieldsModal
+                    caseNumber={agreementPrompt.legalCase?.case_number}
+                    agreementValue={agreementValue}
+                    onValueChange={setAgreementValue}
+                    agreementClosedAt={agreementClosedAt}
+                    onDateChange={setAgreementClosedAt}
+                    error={agreementError}
+                    isSubmitting={isSavingAgreement}
+                    onCancel={handleCancelAgreement}
+                    onConfirm={handleConfirmAgreement}
+                />
+            )}
+
             {isIndicator ? (
                 boardContent
             ) : (
-                <DndContext 
-                    sensors={sensors} 
+                <DndContext
+                    sensors={sensors}
                     collisionDetection={closestCorners}
-                    onDragStart={handleDragStart}
                     onDragOver={handleDragOver}
                     onDragEnd={handleDragEnd}
                 >

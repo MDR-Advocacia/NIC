@@ -17,6 +17,7 @@ import TeamPerformanceModal from '../components/TeamPerformanceModal';
 import LawyerDetailModal from '../components/LawyerDetailModal';
 import CasesListModal from '../components/CasesListModal';
 import TopIndicatorsPanel from '../components/TopIndicatorsPanel';
+import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import {
     FaArrowRight,
     FaBriefcase,
@@ -24,14 +25,17 @@ import {
     FaCalendarAlt,
     FaBuilding,
     FaUserTie,
+    FaUserTag,
     FaFlag,
     FaSearch,
     FaEraser,
+    FaInfoCircle,
 } from 'react-icons/fa';
 import styles from '../styles/Dashboard.module.css';
 import { Link } from 'react-router-dom';
-import { LEGAL_CASE_STATUS_OPTIONS, UNASSIGNED_RESPONSIBLE_VALUE } from '../constants/legalCaseStatus';
+import { LEGAL_CASE_STATUS_OPTIONS, UNASSIGNED_RESPONSIBLE_VALUE, POST_AGREEMENT_STATUS_ORDER } from '../constants/legalCaseStatus';
 import { AGREEMENT_COUNT_INFO_TEXT } from '../constants/dashboardMetrics';
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 const GENERAL_KPI_ORDER = [
     'total_cases',
@@ -52,15 +56,9 @@ const INDICATION_KPI_ORDER = [
 ];
 
 const METRIC_VIEW_OPTIONS = [
-    { key: 'general', label: 'Visão geral' },
-    { key: 'by_responsible', label: 'Por Responsável' },
-    { key: 'by_indicator', label: 'Por Indicador' },
-];
-
-const METRIC_PERIOD_OPTIONS = [
-    { key: 'day', label: 'Dia' },
-    { key: 'week', label: 'Semana' },
-    { key: 'month', label: 'Mês' },
+    { key: 'general', label: 'Geral' },
+    { key: 'by_responsible', label: 'Responsáveis' },
+    { key: 'by_indicator', label: 'Indicadores' },
 ];
 
 const GENERAL_PERIOD_METRIC_CARDS = [
@@ -112,19 +110,22 @@ const DashboardPage = () => {
         to: 0,
     });
     const [recentCasesPage, setRecentCasesPage] = useState(1);
+    const [processStageView, setProcessStageView] = useState('pre');
     const [recentCasesPerPage, setRecentCasesPerPage] = useState(20);
+    const [lbPage, setLbPage] = useState(1);
+    const [lbPerPage, setLbPerPage] = useState(10);
     const [clients, setClients] = useState([]);
     const [lawyers, setLawyers] = useState([]);
+    const [indicators, setIndicators] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     // Filtros
-    const [portfolioStartDate, setPortfolioStartDate] = useState('');
-    const [portfolioEndDate, setPortfolioEndDate] = useState('');
-    const [closingStartDate, setClosingStartDate] = useState('');
-    const [closingEndDate, setClosingEndDate] = useState('');
+    const [dashboardStartDate, setDashboardStartDate] = useState('');
+    const [dashboardEndDate, setDashboardEndDate] = useState('');
     const [selectedClient, setSelectedClient] = useState('');
-    const [selectedLawyer, setSelectedLawyer] = useState('');
+    const [selectedLawyerIds, setSelectedLawyerIds] = useState([]);
+    const [selectedIndicatorIds, setSelectedIndicatorIds] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState('');
 
     // Modais
@@ -135,14 +136,17 @@ const DashboardPage = () => {
     const [modalStatusKey, setModalStatusKey] = useState(null);
     const [modalStatusName, setModalStatusName] = useState('');
     const [selectedMetricsView, setSelectedMetricsView] = useState('general');
-    const [selectedMetricsPeriod, setSelectedMetricsPeriod] = useState('day');
+    const selectedMetricsPeriod = 'filtered';
 
     const activeFilterValues = [
-        portfolioStartDate,
-        portfolioEndDate,
-        closingStartDate,
-        closingEndDate,
-        ...(isManager ? [selectedClient, selectedLawyer, selectedStatus] : []),
+        dashboardStartDate,
+        dashboardEndDate,
+        ...(isManager ? [
+            selectedClient,
+            selectedLawyerIds.length > 0 ? 'responsible' : '',
+            selectedIndicatorIds.length > 0 ? 'indicator' : '',
+            selectedStatus,
+        ] : []),
     ];
 
     const activeFilterCount = activeFilterValues
@@ -179,11 +183,42 @@ const DashboardPage = () => {
     };
 
     const selectedClientName = clients.find((client) => String(client.id) === String(selectedClient))?.name;
-    const selectedLawyerName = selectedLawyer === UNASSIGNED_RESPONSIBLE_VALUE
-        ? 'Sem responsável'
-        : lawyers.find((lawyer) => String(lawyer.id) === String(selectedLawyer))?.name;
+    const selectedLawyerNames = selectedLawyerIds
+        .map((lawyerId) => {
+            if (lawyerId === UNASSIGNED_RESPONSIBLE_VALUE) {
+                return 'Sem responsável';
+            }
+
+            return lawyers.find((lawyer) => String(lawyer.id) === String(lawyerId))?.name;
+        })
+        .filter(Boolean);
+    const selectedLawyerFilterLabel = (() => {
+        if (selectedLawyerNames.length === 0) {
+            return null;
+        }
+
+        if (selectedLawyerNames.length <= 2) {
+            return selectedLawyerNames.join(' + ');
+        }
+
+        return `${selectedLawyerNames.slice(0, 2).join(' + ')} + ${selectedLawyerNames.length - 2}`;
+    })();
+    const selectedIndicatorNames = selectedIndicatorIds
+        .map((indicatorId) => indicators.find((indicator) => String(indicator.id) === String(indicatorId))?.name)
+        .filter(Boolean);
+    const selectedIndicatorFilterLabel = (() => {
+        if (selectedIndicatorNames.length === 0) {
+            return null;
+        }
+
+        if (selectedIndicatorNames.length <= 2) {
+            return selectedIndicatorNames.join(' + ');
+        }
+
+        return `${selectedIndicatorNames.slice(0, 2).join(' + ')} + ${selectedIndicatorNames.length - 2}`;
+    })();
     const selectedStatusName = LEGAL_CASE_STATUS_OPTIONS.find((statusOption) => statusOption.value === selectedStatus)?.name;
-    const hasClosingDateFilter = Boolean(closingStartDate || closingEndDate);
+    const hasDashboardDateFilter = Boolean(dashboardStartDate || dashboardEndDate);
     const metricsViewTitles = {
         general: 'Leitura rápida do período',
         by_responsible: 'Desempenho por responsável',
@@ -196,16 +231,19 @@ const DashboardPage = () => {
     };
 
     const activeFilterChips = [
-        buildDateRangeChip('Carteira', portfolioStartDate, portfolioEndDate),
-        buildDateRangeChip('Fechamento', closingStartDate, closingEndDate),
+        buildDateRangeChip('Período', dashboardStartDate, dashboardEndDate),
         ...(isManager
             ? [
                 selectedClientName ? `Cliente: ${selectedClientName}` : null,
-                selectedLawyerName ? `Responsável: ${selectedLawyerName}` : null,
+                selectedLawyerFilterLabel ? `Responsáveis: ${selectedLawyerFilterLabel}` : null,
+                selectedIndicatorFilterLabel ? `Indicadores: ${selectedIndicatorFilterLabel}` : null,
                 selectedStatusName ? `Status: ${selectedStatusName}` : null,
             ]
             : []),
     ].filter(Boolean);
+
+    const teamPerformanceRangeLabel = buildDateRangeChip('Período', dashboardStartDate, dashboardEndDate)
+        || 'Período: todo o histórico';
 
     const handleOpenDetailModal = (lawyer) => {
         setSelectedLawyerForDetail(lawyer);
@@ -216,31 +254,34 @@ const DashboardPage = () => {
         if (!token || !isManager) {
             setClients([]);
             setLawyers([]);
+            setIndicators([]);
             return;
         }
 
         try {
-            const [clientsResponse, lawyersResponse] = await Promise.all([
+            const [clientsResponse, lawyersResponse, indicatorsResponse] = await Promise.all([
                 apiClient.get('/clients', { headers: { Authorization: `Bearer ${token}` } }),
                 apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } }),
+                apiClient.get('/users/indicators', { headers: { Authorization: `Bearer ${token}` } }),
             ]);
 
             setClients(clientsResponse.data);
             setLawyers(Array.isArray(lawyersResponse.data) ? lawyersResponse.data : []);
+            setIndicators(Array.isArray(indicatorsResponse.data) ? indicatorsResponse.data : []);
         } catch (err) {
             console.error('Erro ao carregar opções de filtro:', err);
             setClients([]);
             setLawyers([]);
+            setIndicators([]);
         }
     }, [token, isManager]);
 
     const fetchDashboardData = useCallback(async ({
-        portfolioStartDate: filterPortfolioStartDate = '',
-        portfolioEndDate: filterPortfolioEndDate = '',
-        closingStartDate: filterClosingStartDate = '',
-        closingEndDate: filterClosingEndDate = '',
+        dashboardStartDate: filterDashboardStartDate = '',
+        dashboardEndDate: filterDashboardEndDate = '',
         selectedClient: filterClient = '',
-        selectedLawyer: filterLawyer = '',
+        selectedLawyerIds: filterLawyerIds = [],
+        selectedIndicatorIds: filterIndicatorIds = [],
         selectedStatus: filterStatus = '',
         recentCasesPage: filterRecentCasesPage = 1,
         recentCasesPerPage: filterRecentCasesPerPage = 20,
@@ -252,14 +293,17 @@ const DashboardPage = () => {
 
         try {
             const params = new URLSearchParams();
-            if (filterPortfolioStartDate) params.append('portfolio_start_date', filterPortfolioStartDate);
-            if (filterPortfolioEndDate) params.append('portfolio_end_date', filterPortfolioEndDate);
-            if (filterClosingStartDate) params.append('closing_start_date', filterClosingStartDate);
-            if (filterClosingEndDate) params.append('closing_end_date', filterClosingEndDate);
+            if (filterDashboardStartDate) params.append('start_date', filterDashboardStartDate);
+            if (filterDashboardEndDate) params.append('end_date', filterDashboardEndDate);
 
             if (isManager) {
                 if (filterClient) params.append('client_id', filterClient);
-                if (filterLawyer) params.append('lawyer_id', filterLawyer);
+                (Array.isArray(filterLawyerIds) ? filterLawyerIds : []).forEach((lawyerId) => {
+                    if (lawyerId) params.append('lawyer_ids[]', lawyerId);
+                });
+                (Array.isArray(filterIndicatorIds) ? filterIndicatorIds : []).forEach((indicatorId) => {
+                    if (indicatorId) params.append('indicator_user_ids[]', indicatorId);
+                });
             }
 
             if (filterStatus) params.append('status', filterStatus);
@@ -271,7 +315,7 @@ const DashboardPage = () => {
             });
 
             setDashboardData(response.data);
-            const recentCasesResponse = response.data.recent_cases;
+            const recentCasesResponse = response.data.recent_cases_global || response.data.recent_cases;
 
             if (Array.isArray(recentCasesResponse)) {
                 setCases(recentCasesResponse);
@@ -306,35 +350,32 @@ const DashboardPage = () => {
     const handleApplyFilters = useCallback(() => {
         setRecentCasesPage(1);
         fetchDashboardData({
-            portfolioStartDate,
-            portfolioEndDate,
-            closingStartDate,
-            closingEndDate,
+            dashboardStartDate,
+            dashboardEndDate,
             selectedClient,
-            selectedLawyer,
+            selectedLawyerIds,
+            selectedIndicatorIds,
             selectedStatus,
             recentCasesPage: 1,
             recentCasesPerPage,
         });
     }, [
         fetchDashboardData,
-        portfolioStartDate,
-        portfolioEndDate,
-        closingStartDate,
-        closingEndDate,
+        dashboardStartDate,
+        dashboardEndDate,
         selectedClient,
-        selectedLawyer,
+        selectedLawyerIds,
+        selectedIndicatorIds,
         selectedStatus,
         recentCasesPerPage,
     ]);
 
     const handleResetFilters = useCallback(() => {
-        setPortfolioStartDate('');
-        setPortfolioEndDate('');
-        setClosingStartDate('');
-        setClosingEndDate('');
+        setDashboardStartDate('');
+        setDashboardEndDate('');
         setSelectedClient('');
-        setSelectedLawyer('');
+        setSelectedLawyerIds([]);
+        setSelectedIndicatorIds([]);
         setSelectedStatus('');
         setRecentCasesPage(1);
         fetchDashboardData({
@@ -351,12 +392,11 @@ const DashboardPage = () => {
         setRecentCasesPerPage(nextPerPage);
         setRecentCasesPage(1);
         fetchDashboardData({
-            portfolioStartDate,
-            portfolioEndDate,
-            closingStartDate,
-            closingEndDate,
+            dashboardStartDate,
+            dashboardEndDate,
             selectedClient,
-            selectedLawyer,
+            selectedLawyerIds,
+            selectedIndicatorIds,
             selectedStatus,
             recentCasesPage: 1,
             recentCasesPerPage: nextPerPage,
@@ -364,12 +404,11 @@ const DashboardPage = () => {
     }, [
         fetchDashboardData,
         recentCasesPerPage,
-        portfolioStartDate,
-        portfolioEndDate,
-        closingStartDate,
-        closingEndDate,
+        dashboardStartDate,
+        dashboardEndDate,
         selectedClient,
-        selectedLawyer,
+        selectedLawyerIds,
+        selectedIndicatorIds,
         selectedStatus,
     ]);
 
@@ -380,12 +419,11 @@ const DashboardPage = () => {
 
         setRecentCasesPage(nextPage);
         fetchDashboardData({
-            portfolioStartDate,
-            portfolioEndDate,
-            closingStartDate,
-            closingEndDate,
+            dashboardStartDate,
+            dashboardEndDate,
             selectedClient,
-            selectedLawyer,
+            selectedLawyerIds,
+            selectedIndicatorIds,
             selectedStatus,
             recentCasesPage: nextPage,
             recentCasesPerPage,
@@ -395,12 +433,11 @@ const DashboardPage = () => {
         recentCasesMeta.lastPage,
         recentCasesPage,
         recentCasesPerPage,
-        portfolioStartDate,
-        portfolioEndDate,
-        closingStartDate,
-        closingEndDate,
+        dashboardStartDate,
+        dashboardEndDate,
         selectedClient,
-        selectedLawyer,
+        selectedLawyerIds,
+        selectedIndicatorIds,
         selectedStatus,
     ]);
 
@@ -409,18 +446,12 @@ const DashboardPage = () => {
             if (isManager) {
                 Promise.all([
                     loadFilterOptions(),
-                    fetchDashboardData({
-                        recentCasesPage,
-                        recentCasesPerPage,
-                    }),
+                    fetchDashboardData({}),
                 ]);
                 return;
             }
 
-            fetchDashboardData({
-                recentCasesPage,
-                recentCasesPerPage,
-            });
+            fetchDashboardData({});
         }
     }, [token, isManager, loadFilterOptions, fetchDashboardData]);
 
@@ -477,7 +508,7 @@ const DashboardPage = () => {
         total_economy: "Economia gerada",
         total_cases: "Casos Totais",
         active_cases: "Casos Ativos",
-        closed_deals_today: hasClosingDateFilter ? "Acordos Fechados no Período" : "Acordos Fechados Hoje",
+        closed_deals_today: hasDashboardDateFilter ? "Acordos Fechados no Período" : "Acordos Fechados Hoje",
         average_ticket: "Ticket Médio",
         livelo_closed_deals: "Acordos Livelo",
         ourocap_closed_deals: "Acordos Ourocap",
@@ -492,7 +523,7 @@ const DashboardPage = () => {
         const endDate = metricData?.period?.end_date;
 
         if (!startDate && !endDate) {
-            return 'Sem período definido';
+            return 'Todo o histórico';
         }
 
         if (startDate && endDate) {
@@ -597,49 +628,128 @@ const DashboardPage = () => {
             );
         }
 
+        const isIndicatorView = selectedMetricsView === 'by_indicator';
+
         return (
             <div className={styles.metricExplorerBody}>
                 <div className={styles.metricSummaryPills}>
                     <span className={styles.metricSummaryPill}>
                         {selectedMetricSummary.participants_count || 0} {participantLabel}
                     </span>
+                    {isIndicatorView && (
+                        <span className={styles.metricSummaryPill}>
+                            {selectedMetricSummary.total_indicated || 0} indicados
+                        </span>
+                    )}
                     <span className={styles.metricSummaryPill}>
                         {renderAgreementCountLabel(selectedMetricSummary.agreements_count || 0)}
                     </span>
-                    <span className={styles.metricSummaryPill}>
-                        {selectedMetricSummary.converted_indications_count || 0} indicações convertidas
-                    </span>
                 </div>
 
-                <div className={styles.metricLeaderboardGrid}>
-                    {selectedMetricItems.map((item, index) => (
-                        <article
-                            key={`${selectedMetricsView}-${item.id}-${item.name}`}
-                            className={styles.metricLeaderboardCard}
-                        >
-                            <div className={styles.metricLeaderboardRank}>{index + 1}</div>
-                            <div className={styles.metricLeaderboardContent}>
-                                <div className={styles.metricLeaderboardHeader}>
-                                    <h4 className={styles.metricLeaderboardTitle}>{item.name}</h4>
-                                    <span className={styles.metricLeaderboardBadge}>
-                                        {renderAgreementCountLabel(item.agreements_count || 0)}
-                                    </span>
-                                </div>
+                {(() => {
+                    const totalItems = selectedMetricItems.length;
+                    const totalPages = Math.ceil(totalItems / lbPerPage);
+                    const safePage = Math.min(lbPage, totalPages || 1);
+                    const startIdx = (safePage - 1) * lbPerPage;
+                    const pageItems = selectedMetricItems.slice(startIdx, startIdx + lbPerPage);
 
-                                <div className={styles.metricLeaderboardMetrics}>
-                                    <div className={styles.metricLeaderboardMetric}>
-                                        <span>{renderAgreementMetricLabel('Acordos fechados')}</span>
-                                        <strong>{item.agreements_count || 0}</strong>
+                    return (
+                        <>
+                            <div className={styles.leaderboardTableWrap}>
+                                <table className={styles.leaderboardTable}>
+                                    <thead>
+                                        <tr>
+                                            <th className={styles.lbColRank}>#</th>
+                                            <th className={styles.lbColName}>Nome</th>
+                                            {isIndicatorView && <th className={styles.lbColNum}>Indicados</th>}
+                                            <th className={styles.lbColNum}>Acordos</th>
+                                            {isIndicatorView && <th className={styles.lbColNum}>Contraindicados</th>}
+                                            {isIndicatorView && <th className={styles.lbColNum}>Frustrado</th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {pageItems.map((item, idx) => {
+                                            const globalIndex = startIdx + idx;
+                                            return (
+                                                <tr key={`${selectedMetricsView}-${item.id}-${item.name}`}>
+                                                    <td className={styles.lbCellRank}>
+                                                        <span className={styles.lbRankBadge}>{globalIndex + 1}</span>
+                                                    </td>
+                                                    <td className={styles.lbCellName}>
+                                                        <span className={styles.lbNameText}>{item.name}</span>
+                                                    </td>
+                                                    {isIndicatorView && (
+                                                        <td className={styles.lbCellNum}>{item.total_indicated || 0}</td>
+                                                    )}
+                                                    <td className={styles.lbCellNum}>
+                                                        <a
+                                                            href={`/cases?indicator_user_ids=${item.id}&statuses=closed_deal&statuses=awaiting_draft`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className={styles.lbAgreementLink}
+                                                            title={`Ver acordos de ${item.name}`}
+                                                        >
+                                                            {item.agreements_count || 0}
+                                                        </a>
+                                                    </td>
+                                                    {isIndicatorView && (
+                                                        <td className={styles.lbCellNum} style={{ color: item.contra_indicated_count > 0 ? 'var(--danger-text, #dc2626)' : undefined, fontWeight: item.contra_indicated_count > 0 ? 600 : undefined }}>
+                                                            {item.contra_indicated_count || 0}
+                                                        </td>
+                                                    )}
+                                                    {isIndicatorView && (
+                                                        <td className={styles.lbCellNum} style={{ color: item.failed_deal_count > 0 ? 'var(--danger-text, #dc2626)' : undefined, fontWeight: item.failed_deal_count > 0 ? 600 : undefined }}>
+                                                            {item.failed_deal_count || 0}
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className={styles.lbPagination}>
+                                <div className={styles.lbPagInfo}>
+                                    Mostrando {startIdx + 1}–{Math.min(startIdx + lbPerPage, totalItems)} de {totalItems}
+                                </div>
+                                <div className={styles.lbPagControls}>
+                                    <div className={styles.lbPerPageSelect}>
+                                        <span>Por página:</span>
+                                        {[10, 25, 50].map((n) => (
+                                            <button
+                                                key={n}
+                                                className={`${styles.lbPerPageBtn} ${lbPerPage === n ? styles.lbPerPageBtnActive : ''}`}
+                                                onClick={() => { setLbPerPage(n); setLbPage(1); }}
+                                            >
+                                                {n}
+                                            </button>
+                                        ))}
                                     </div>
-                                    <div className={styles.metricLeaderboardMetric}>
-                                        <span>Indicações convertidas</span>
-                                        <strong>{item.converted_indications_count || 0}</strong>
-                                    </div>
+                                    {totalPages > 1 && (
+                                        <div className={styles.lbPageNav}>
+                                            <button
+                                                className={styles.lbPageBtn}
+                                                disabled={safePage <= 1}
+                                                onClick={() => setLbPage((p) => Math.max(1, p - 1))}
+                                            >
+                                                <FaChevronLeft />
+                                            </button>
+                                            <span className={styles.lbPageLabel}>{safePage} / {totalPages}</span>
+                                            <button
+                                                className={styles.lbPageBtn}
+                                                disabled={safePage >= totalPages}
+                                                onClick={() => setLbPage((p) => Math.min(totalPages, p + 1))}
+                                            >
+                                                <FaChevronRight />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </article>
-                    ))}
-                </div>
+                        </>
+                    );
+                })()}
             </div>
         );
     };
@@ -671,8 +781,8 @@ const DashboardPage = () => {
                                 <h2 className={styles.filtersTitle}>Filtros do Dashboard</h2>
                                 <p className={styles.filtersSubtitle}>
                                     {isManager
-                                        ? 'Separe a leitura entre carteira em andamento e acordos já fechados, mantendo cliente, responsável e status no mesmo painel.'
-                                        : 'Filtre seus resultados pelos períodos de carteira e fechamento para acompanhar suas métricas no dashboard.'}
+                                        ? 'Use um único período para todos os dashboards e refine por cliente, responsáveis, indicadores e status.'
+                                        : 'Use um único período para acompanhar todos os seus indicadores no dashboard.'}
                                 </p>
                             </div>
                         </div>
@@ -686,10 +796,10 @@ const DashboardPage = () => {
                     <div className={styles.filterGroups}>
                         <section className={styles.filterGroupCard}>
                             <div className={styles.filterGroupHeader}>
-                                <span className={styles.filterGroupEyebrow}>Carteira</span>
-                                <h3 className={styles.filterGroupTitle}>Período da carteira</h3>
+                                <span className={styles.filterGroupEyebrow}>Período</span>
+                                <h3 className={styles.filterGroupTitle}>Período do dashboard</h3>
                                 <p className={styles.filterGroupSubtitle}>
-                                    Afeta totais, status, performance da equipe, fluxo de indicação e casos recentes na alçada.
+                                    Afeta a visão geral, responsáveis, indicadores, performance da equipe, acordos fechados e casos recentes.
                                 </p>
                             </div>
 
@@ -697,64 +807,26 @@ const DashboardPage = () => {
                                 <div className={styles.filterField}>
                                     <label className={styles.filterLabel}>
                                         <FaCalendarAlt />
-                                        <span>Data inicial da carteira</span>
+                                        <span>Data inicial</span>
                                     </label>
                                     <input
                                         className={styles.filterControl}
                                         type="date"
-                                        value={portfolioStartDate}
-                                        onChange={(e) => setPortfolioStartDate(e.target.value)}
+                                        value={dashboardStartDate}
+                                        onChange={(e) => setDashboardStartDate(e.target.value)}
                                     />
                                 </div>
 
                                 <div className={styles.filterField}>
                                     <label className={styles.filterLabel}>
                                         <FaCalendarAlt />
-                                        <span>Data final da carteira</span>
+                                        <span>Data final</span>
                                     </label>
                                     <input
                                         className={styles.filterControl}
                                         type="date"
-                                        value={portfolioEndDate}
-                                        onChange={(e) => setPortfolioEndDate(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </section>
-
-                        <section className={styles.filterGroupCard}>
-                            <div className={styles.filterGroupHeader}>
-                                <span className={styles.filterGroupEyebrow}>Fechamento</span>
-                                <h3 className={styles.filterGroupTitle}>Período de fechamento</h3>
-                                <p className={styles.filterGroupSubtitle}>
-                                    Usa a data real do fechamento do acordo para valores, economia, ticket e visões de acordos fechados.
-                                </p>
-                            </div>
-
-                            <div className={styles.filtersGrid}>
-                                <div className={styles.filterField}>
-                                    <label className={styles.filterLabel}>
-                                        <FaCalendarAlt />
-                                        <span>Data inicial do fechamento</span>
-                                    </label>
-                                    <input
-                                        className={styles.filterControl}
-                                        type="date"
-                                        value={closingStartDate}
-                                        onChange={(e) => setClosingStartDate(e.target.value)}
-                                    />
-                                </div>
-
-                                <div className={styles.filterField}>
-                                    <label className={styles.filterLabel}>
-                                        <FaCalendarAlt />
-                                        <span>Data final do fechamento</span>
-                                    </label>
-                                    <input
-                                        className={styles.filterControl}
-                                        type="date"
-                                        value={closingEndDate}
-                                        onChange={(e) => setClosingEndDate(e.target.value)}
+                                        value={dashboardEndDate}
+                                        onChange={(e) => setDashboardEndDate(e.target.value)}
                                     />
                                 </div>
                             </div>
@@ -781,17 +853,32 @@ const DashboardPage = () => {
                             <div className={styles.filterField}>
                                 <label className={styles.filterLabel}>
                                     <FaUserTie />
-                                    <span>Responsável</span>
+                                    <span>Responsáveis</span>
                                 </label>
-                                <select
-                                    className={styles.filterControl}
-                                    value={selectedLawyer}
-                                    onChange={(e) => setSelectedLawyer(e.target.value)}
-                                >
-                                    <option value="">Todos</option>
-                                    <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
-                                    {lawyers.map((lawyer) => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
-                                </select>
+                                <ResponsibleMultiSelect
+                                    selectedValues={selectedLawyerIds}
+                                    options={lawyers}
+                                    onChange={setSelectedLawyerIds}
+                                    unassignedValue={UNASSIGNED_RESPONSIBLE_VALUE}
+                                />
+                            </div>
+
+                            <div className={styles.filterField}>
+                                <label className={styles.filterLabel}>
+                                    <FaUserTag />
+                                    <span>Indicadores</span>
+                                </label>
+                                <ResponsibleMultiSelect
+                                    selectedValues={selectedIndicatorIds}
+                                    options={indicators}
+                                    onChange={setSelectedIndicatorIds}
+                                    includeUnassigned={false}
+                                    placeholder="Todos os indicadores"
+                                    searchPlaceholder="Buscar indicador"
+                                    emptyMessage="Nenhum indicador encontrado."
+                                    summaryPluralLabel="indicadores"
+                                    ariaLabel="Filtro de indicadores"
+                                />
                             </div>
 
                             <div className={styles.filterField}>
@@ -809,6 +896,25 @@ const DashboardPage = () => {
                                         <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div className={styles.filterField}>
+                                <label className={styles.filterLabel}>
+                                    <FaSlidersH />
+                                    <span>Tipo de dashboard</span>
+                                </label>
+                                <div className={`${styles.segmentedControl} ${styles.dashboardViewControl}`} role="tablist" aria-label="Tipo de dashboard">
+                                    {METRIC_VIEW_OPTIONS.map((option) => (
+                                        <button
+                                            key={option.key}
+                                            type="button"
+                                            className={`${styles.segmentedControlButton} ${selectedMetricsView === option.key ? styles.segmentedControlButtonActive : ''}`}
+                                            onClick={() => setSelectedMetricsView(option.key)}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -860,34 +966,6 @@ const DashboardPage = () => {
                     </div>
                 </div>
 
-                <div className={styles.metricExplorerControls}>
-                    <div className={styles.segmentedControl} role="tablist" aria-label="Visões do dashboard">
-                        {METRIC_VIEW_OPTIONS.map((option) => (
-                            <button
-                                key={option.key}
-                                type="button"
-                                className={`${styles.segmentedControlButton} ${selectedMetricsView === option.key ? styles.segmentedControlButtonActive : ''}`}
-                                onClick={() => setSelectedMetricsView(option.key)}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className={styles.segmentedControl} role="tablist" aria-label="Período das métricas">
-                        {METRIC_PERIOD_OPTIONS.map((option) => (
-                            <button
-                                key={option.key}
-                                type="button"
-                                className={`${styles.segmentedControlButton} ${selectedMetricsPeriod === option.key ? styles.segmentedControlButtonActive : ''}`}
-                                onClick={() => setSelectedMetricsPeriod(option.key)}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
                 {renderMetricExplorerContent()}
             </section>
 
@@ -897,9 +975,9 @@ const DashboardPage = () => {
                     <section className={styles.kpiSection}>
                         <div className={styles.kpiSectionHeader}>
                             <h3 className={styles.kpiSectionTitle}>Visão Geral de Acordos</h3>
-                            <p className={styles.kpiSectionSubtitle}>
-                                Casos, status e conversão seguem o período da carteira; métricas de acordo fechado consideram também aguardando minuta e respeitam a data real do fechamento.
-                            </p>
+                            <span className={styles.unfilteredInfo} title="Casos, status, acordos e conversão seguem o período único do dashboard.">
+                                <FaInfoCircle />
+                            </span>
                         </div>
                         {renderKpiGrid(dashboardData?.kpis, GENERAL_KPI_ORDER)}
                     </section>
@@ -960,15 +1038,7 @@ const DashboardPage = () => {
                         </div>
                     </div>
 
-                    <div className={styles.statusDistribution}>
-                        <h3>Distribuição por Etapa do Processo</h3>
-                        {dashboardData && dashboardData.status_distribution ? (
-                            <ProcessStageChart
-                                data={dashboardData.status_distribution}
-                                onStageClick={handleChartClick}
-                            />
-                        ) : <p>Não há dados de distribuição para exibir.</p>}
-                    </div>
+                    {/* Distribuição por Etapa movida para fora do bloco filtrado */}
 
                     <section className={styles.analyticsSection}>
                         <div className={styles.analyticsSectionHeader}>
@@ -1036,10 +1106,13 @@ const DashboardPage = () => {
                     {isManager && (
                         <section className={styles.teamPerformanceSection}>
                             <div className={styles.teamPerformanceSectionHeader}>
-                                <h3>Performance da Equipe</h3>
-                                <p>
-                                    Destaque dos advogados com melhor score no período filtrado, mantendo o acesso ao ranking completo.
-                                </p>
+                                <div>
+                                    <h3>Performance da Equipe</h3>
+                                    <p>
+                                        Destaque dos advogados com melhor score no período selecionado, mantendo o acesso ao ranking completo.
+                                    </p>
+                                </div>
+                                <span className={styles.teamPerformancePeriodChip}>{teamPerformanceRangeLabel}</span>
                             </div>
 
                             <div className={styles.teamPerformancePanelWrap}>
@@ -1051,6 +1124,49 @@ const DashboardPage = () => {
                             </div>
                         </section>
                     )}
+                </div>
+
+            </div>
+
+            {/* === SEÇÕES SEM FILTRO DE PERÍODO === */}
+            <div className={styles.unfilteredSections}>
+                    <div className={styles.statusDistribution}>
+                        <div className={styles.unfilteredSectionHeader}>
+                            <h3>Distribuição por Etapa do Processo</h3>
+                            <div className={styles.stageToggle}>
+                                <button
+                                    type="button"
+                                    className={`${styles.stageToggleBtn} ${processStageView === 'pre' ? styles.stageToggleBtnActive : ''}`}
+                                    onClick={() => setProcessStageView('pre')}
+                                >
+                                    Pré-Acordo
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`${styles.stageToggleBtn} ${processStageView === 'post' ? styles.stageToggleBtnActive : ''}`}
+                                    onClick={() => setProcessStageView('post')}
+                                >
+                                    Pós-Acordo
+                                </button>
+                            </div>
+                            <span className={styles.unfilteredInfo} title="Esta seção exibe o estado atual de todos os casos, sem ser afetada pelo filtro de período.">
+                                <FaInfoCircle />
+                            </span>
+                        </div>
+                        {processStageView === 'pre' && dashboardData && (dashboardData.status_distribution_global || dashboardData.status_distribution) ? (
+                            <ProcessStageChart
+                                data={dashboardData.status_distribution_global || dashboardData.status_distribution}
+                                onStageClick={handleChartClick}
+                            />
+                        ) : null}
+                        {processStageView === 'post' && dashboardData && dashboardData.status_distribution_global_post ? (
+                            <ProcessStageChart
+                                data={dashboardData.status_distribution_global_post}
+                                statusOrder={POST_AGREEMENT_STATUS_ORDER}
+                                onStageClick={handleChartClick}
+                            />
+                        ) : processStageView === 'post' ? <p>Não há dados de pós-acordo para exibir.</p> : null}
+                    </div>
 
                     <div className={styles.recentCases}>
                         <div className={styles.recentCasesHeader}>
@@ -1062,7 +1178,9 @@ const DashboardPage = () => {
                                     A lista considera os casos que entraram na alçada ou tiveram o valor da alçada atualizado mais recentemente.
                                 </p>
                             </div>
-
+                            <span className={styles.unfilteredInfo} title="Esta seção exibe os casos mais recentes, sem ser afetada pelo filtro de período.">
+                                <FaInfoCircle />
+                            </span>
                             <div className={styles.recentCasesHeaderActions}>
                                 <div className={styles.recentCasesPageSize}>
                                     <button
@@ -1135,8 +1253,6 @@ const DashboardPage = () => {
                             </div>
                         </div>
                     </div>
-                </div>
-
             </div>
 
             <TeamPerformanceModal

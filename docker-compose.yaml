@@ -1,0 +1,238 @@
+services:
+    app:
+        build:
+            context: ./concilia-backend
+            dockerfile: Dockerfile
+        restart: unless-stopped
+        working_dir: /var/www/html
+        environment:
+            APP_ENV: '${APP_ENV:-production}'
+            APP_DEBUG: '${APP_DEBUG:-false}'
+            APP_URL: '${APP_URL:-http://localhost:8123}'
+            APP_KEY: '${APP_KEY:-}'
+            DB_CONNECTION: '${DB_CONNECTION:-mysql}'
+            DB_HOST: '${DB_HOST:-db}'
+            DB_PORT: '${DB_PORT:-3306}'
+            DB_DATABASE: '${DB_DATABASE:-concilia_db}'
+            DB_USERNAME: '${DB_USERNAME:-conciliauser}'
+            DB_PASSWORD: '${DB_PASSWORD:-root}'
+            CACHE_STORE: '${CACHE_STORE:-array}'
+            SESSION_DRIVER: '${SESSION_DRIVER:-array}'
+            QUEUE_CONNECTION: '${QUEUE_CONNECTION:-sync}'
+            SANCTUM_STATEFUL_DOMAINS: '${SANCTUM_STATEFUL_DOMAINS:-localhost,localhost:5173,127.0.0.1,127.0.0.1:5173}'
+            CORS_ALLOWED_ORIGINS: '${CORS_ALLOWED_ORIGINS:-http://localhost:5173,https://lab-nic.mdradvocacia.com,https://nic.mdradvocacia.com,http://localhost:3000}'
+            CHATWOOT_URL: '${CHATWOOT_URL:-}'
+            CHATWOOT_API_TOKEN: '${CHATWOOT_API_TOKEN:-}'
+            CHATWOOT_PLATFORM_API_TOKEN: '${CHATWOOT_PLATFORM_API_TOKEN:-}'
+            CHATWOOT_ACCOUNT_ID: '${CHATWOOT_ACCOUNT_ID:-}'
+            META_WHATSAPP_ACCESS_TOKEN: '${META_WHATSAPP_ACCESS_TOKEN:-}'
+            META_WHATSAPP_BUSINESS_ACCOUNT_ID: '${META_WHATSAPP_BUSINESS_ACCOUNT_ID:-}'
+            META_WHATSAPP_PHONE_NUMBER_ID: '${META_WHATSAPP_PHONE_NUMBER_ID:-}'
+            META_WHATSAPP_BUSINESS_ACCOUNT_ID_MAP: '${META_WHATSAPP_BUSINESS_ACCOUNT_ID_MAP:-}'
+            META_WHATSAPP_PHONE_NUMBER_ID_MAP: '${META_WHATSAPP_PHONE_NUMBER_ID_MAP:-}'
+            META_WHATSAPP_API_VERSION: '${META_WHATSAPP_API_VERSION:-v22.0}'
+            COOLIFY_BRANCH: '"develop"'
+            COOLIFY_RESOURCE_UUID: q8gw4ks4s4k48sgw4og0gc44
+            COOLIFY_CONTAINER_NAME: app-q8gw4ks4s4k48sgw4og0gc44
+            SERVICE_URL_NGINX: 'https://api-nic-lab.mdradvocacia.com'
+            SERVICE_FQDN_NGINX: api-nic-lab.mdradvocacia.com
+            SERVICE_URL_FRONTEND: 'https://lab-nic.mdradvocacia.com'
+            SERVICE_FQDN_FRONTEND: lab-nic.mdradvocacia.com
+            SERVICE_NAME_APP: app
+            SERVICE_NAME_NGINX: nginx
+            SERVICE_NAME_DB: db
+            SERVICE_NAME_FRONTEND: frontend
+        depends_on:
+            - db
+        command: "sh -c \"[ -f .env ] || cp .env.example .env && grep -q '^APP_KEY=' .env || printf '\\nAPP_KEY=\\n' >> .env && mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions bootstrap/cache resources/views && chmod -R 777 storage bootstrap/cache && if [ -z \\\"${APP_KEY:-}\\\" ]; then php artisan key:generate --force; fi && php artisan config:clear && exec php-fpm\"\n"
+        container_name: app-q8gw4ks4s4k48sgw4og0gc44
+        labels:
+            - coolify.managed=true
+            - coolify.version=4.0.0-beta.463
+            - coolify.applicationId=1
+            - coolify.type=application
+            - coolify.name=app-q8gw4ks4s4k48sgw4og0gc44
+            - coolify.resourceName=nic-testes
+            - coolify.projectName=servidor-de-testes
+            - coolify.serviceName=nic-testes
+            - coolify.environmentName=production
+            - coolify.pullRequestId=0
+        networks:
+            q8gw4ks4s4k48sgw4og0gc44: null
+        env_file:
+            - .env
+        image: 'q8gw4ks4s4k48sgw4og0gc44_app:c6d534646bb2dcdba725095998902b65bf953a7f'
+    nginx:
+        image: 'nginx:1.19-alpine'
+        restart: unless-stopped
+        ports:
+            - '8123:80'
+        volumes:
+            - '/data/coolify/applications/q8gw4ks4s4k48sgw4og0gc44/concilia-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf'
+        depends_on:
+            - app
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - 'wget -q -O /dev/null http://127.0.0.1/up || exit 1'
+            interval: 30s
+            timeout: 5s
+            retries: 3
+            start_period: 10s
+        container_name: nginx-q8gw4ks4s4k48sgw4og0gc44
+        labels:
+            - coolify.managed=true
+            - coolify.version=4.0.0-beta.463
+            - coolify.applicationId=1
+            - coolify.type=application
+            - coolify.name=nginx-q8gw4ks4s4k48sgw4og0gc44
+            - coolify.resourceName=nic-testes
+            - coolify.projectName=servidor-de-testes
+            - coolify.serviceName=nic-testes
+            - coolify.environmentName=production
+            - coolify.pullRequestId=0
+            - traefik.enable=true
+            - traefik.http.middlewares.gzip.compress=true
+            - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+            - traefik.http.routers.http-0-q8gw4ks4s4k48sgw4og0gc44-nginx.entryPoints=http
+            - traefik.http.routers.http-0-q8gw4ks4s4k48sgw4og0gc44-nginx.middlewares=redirect-to-https
+            - 'traefik.http.routers.http-0-q8gw4ks4s4k48sgw4og0gc44-nginx.rule=Host(`api-nic-lab.mdradvocacia.com`) && PathPrefix(`/`)'
+            - traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-nginx.entryPoints=https
+            - traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-nginx.middlewares=gzip
+            - 'traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-nginx.rule=Host(`api-nic-lab.mdradvocacia.com`) && PathPrefix(`/`)'
+            - traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-nginx.tls.certresolver=letsencrypt
+            - traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-nginx.tls=true
+            - 'caddy_0.encode=zstd gzip'
+            - 'caddy_0.handle_path.0_reverse_proxy={{upstreams}}'
+            - 'caddy_0.handle_path=/*'
+            - caddy_0.header=-Server
+            - 'caddy_0.try_files={path} /index.html /index.php'
+            - 'caddy_0=https://api-nic-lab.mdradvocacia.com'
+            - caddy_ingress_network=q8gw4ks4s4k48sgw4og0gc44
+        networks:
+            q8gw4ks4s4k48sgw4og0gc44: null
+        environment:
+            COOLIFY_BRANCH: '"develop"'
+            COOLIFY_RESOURCE_UUID: q8gw4ks4s4k48sgw4og0gc44
+            COOLIFY_CONTAINER_NAME: nginx-q8gw4ks4s4k48sgw4og0gc44
+            SERVICE_URL_NGINX: 'https://api-nic-lab.mdradvocacia.com'
+            SERVICE_FQDN_NGINX: api-nic-lab.mdradvocacia.com
+            SERVICE_URL_FRONTEND: 'https://lab-nic.mdradvocacia.com'
+            SERVICE_FQDN_FRONTEND: lab-nic.mdradvocacia.com
+            COOLIFY_URL: 'https://api-nic-lab.mdradvocacia.com'
+            COOLIFY_FQDN: api-nic-lab.mdradvocacia.com
+            SERVICE_NAME_APP: app
+            SERVICE_NAME_NGINX: nginx
+            SERVICE_NAME_DB: db
+            SERVICE_NAME_FRONTEND: frontend
+        env_file:
+            - .env
+    db:
+        image: 'mysql:8.0'
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: concilia_db
+            MYSQL_USER: conciliauser
+            MYSQL_PASSWORD: root
+            MYSQL_ROOT_PASSWORD: root
+            COOLIFY_BRANCH: '"develop"'
+            COOLIFY_RESOURCE_UUID: q8gw4ks4s4k48sgw4og0gc44
+            COOLIFY_CONTAINER_NAME: db-q8gw4ks4s4k48sgw4og0gc44
+            SERVICE_URL_NGINX: 'https://api-nic-lab.mdradvocacia.com'
+            SERVICE_FQDN_NGINX: api-nic-lab.mdradvocacia.com
+            SERVICE_URL_FRONTEND: 'https://lab-nic.mdradvocacia.com'
+            SERVICE_FQDN_FRONTEND: lab-nic.mdradvocacia.com
+            SERVICE_NAME_APP: app
+            SERVICE_NAME_NGINX: nginx
+            SERVICE_NAME_DB: db
+            SERVICE_NAME_FRONTEND: frontend
+        ports:
+            - '3306:3306'
+        volumes:
+            - 'q8gw4ks4s4k48sgw4og0gc44_db-data:/var/lib/mysql'
+        container_name: db-q8gw4ks4s4k48sgw4og0gc44
+        labels:
+            - coolify.managed=true
+            - coolify.version=4.0.0-beta.463
+            - coolify.applicationId=1
+            - coolify.type=application
+            - coolify.name=db-q8gw4ks4s4k48sgw4og0gc44
+            - coolify.resourceName=nic-testes
+            - coolify.projectName=servidor-de-testes
+            - coolify.serviceName=nic-testes
+            - coolify.environmentName=production
+            - coolify.pullRequestId=0
+        networks:
+            q8gw4ks4s4k48sgw4og0gc44: null
+        env_file:
+            - .env
+    frontend:
+        build:
+            context: ./concilia-frontend
+            dockerfile: Dockerfile
+            args:
+                VITE_API_URL: '${VITE_API_URL:-http://localhost:8123/api}'
+        restart: unless-stopped
+        ports:
+            - '5173:80'
+        deploy:
+            resources:
+                limits:
+                    memory: 1024M
+        environment:
+            VITE_API_URL: '${VITE_API_URL:-http://localhost:8123/api}'
+            COOLIFY_BRANCH: '"develop"'
+            COOLIFY_RESOURCE_UUID: q8gw4ks4s4k48sgw4og0gc44
+            COOLIFY_CONTAINER_NAME: frontend-q8gw4ks4s4k48sgw4og0gc44
+            SERVICE_URL_NGINX: 'https://api-nic-lab.mdradvocacia.com'
+            SERVICE_FQDN_NGINX: api-nic-lab.mdradvocacia.com
+            SERVICE_URL_FRONTEND: 'https://lab-nic.mdradvocacia.com'
+            SERVICE_FQDN_FRONTEND: lab-nic.mdradvocacia.com
+            COOLIFY_URL: 'https://lab-nic.mdradvocacia.com'
+            COOLIFY_FQDN: lab-nic.mdradvocacia.com
+            SERVICE_NAME_APP: app
+            SERVICE_NAME_NGINX: nginx
+            SERVICE_NAME_DB: db
+            SERVICE_NAME_FRONTEND: frontend
+        container_name: frontend-q8gw4ks4s4k48sgw4og0gc44
+        labels:
+            - coolify.managed=true
+            - coolify.version=4.0.0-beta.463
+            - coolify.applicationId=1
+            - coolify.type=application
+            - coolify.name=frontend-q8gw4ks4s4k48sgw4og0gc44
+            - coolify.resourceName=nic-testes
+            - coolify.projectName=servidor-de-testes
+            - coolify.serviceName=nic-testes
+            - coolify.environmentName=production
+            - coolify.pullRequestId=0
+            - traefik.enable=true
+            - traefik.http.middlewares.gzip.compress=true
+            - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+            - traefik.http.routers.http-0-q8gw4ks4s4k48sgw4og0gc44-frontend.entryPoints=http
+            - traefik.http.routers.http-0-q8gw4ks4s4k48sgw4og0gc44-frontend.middlewares=redirect-to-https
+            - 'traefik.http.routers.http-0-q8gw4ks4s4k48sgw4og0gc44-frontend.rule=Host(`lab-nic.mdradvocacia.com`) && PathPrefix(`/`)'
+            - traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-frontend.entryPoints=https
+            - traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-frontend.middlewares=gzip
+            - 'traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-frontend.rule=Host(`lab-nic.mdradvocacia.com`) && PathPrefix(`/`)'
+            - traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-frontend.tls.certresolver=letsencrypt
+            - traefik.http.routers.https-0-q8gw4ks4s4k48sgw4og0gc44-frontend.tls=true
+            - 'caddy_0.encode=zstd gzip'
+            - 'caddy_0.handle_path.0_reverse_proxy={{upstreams}}'
+            - 'caddy_0.handle_path=/*'
+            - caddy_0.header=-Server
+            - 'caddy_0.try_files={path} /index.html /index.php'
+            - 'caddy_0=https://lab-nic.mdradvocacia.com'
+            - caddy_ingress_network=q8gw4ks4s4k48sgw4og0gc44
+        networks:
+            q8gw4ks4s4k48sgw4og0gc44: null
+        env_file:
+            - .env
+        image: 'q8gw4ks4s4k48sgw4og0gc44_frontend:c6d534646bb2dcdba725095998902b65bf953a7f'
+volumes:
+    q8gw4ks4s4k48sgw4og0gc44_db-data:
+        name: q8gw4ks4s4k48sgw4og0gc44_db-data
+networks:
+    q8gw4ks4s4k48sgw4og0gc44:
+        name: q8gw4ks4s4k48sgw4og0gc44
+        external: true
