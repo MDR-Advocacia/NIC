@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FaExclamationTriangle, FaTimes } from 'react-icons/fa';
+import apiClient from '../api';
 import styles from '../styles/Pipeline.module.css';
 
 const FailedDealReasonModal = ({
@@ -12,6 +13,16 @@ const FailedDealReasonModal = ({
   onCancel,
   onConfirm,
 }) => {
+  const [predefinedReasons, setPredefinedReasons] = useState([]);
+  const [loadingReasons, setLoadingReasons] = useState(true);
+
+  useEffect(() => {
+    apiClient.get('/failed-deal-reasons')
+      .then((res) => setPredefinedReasons(res.data?.data || res.data || []))
+      .catch(() => setPredefinedReasons([]))
+      .finally(() => setLoadingReasons(false));
+  }, []);
+
   const title = selectedCount
     ? `Frustrar acordo de ${selectedCount} ${selectedCount === 1 ? 'caso' : 'casos'}`
     : 'Acordo frustrado';
@@ -44,20 +55,26 @@ const FailedDealReasonModal = ({
         </div>
 
         <div className={styles.formGroup}>
-          <label className={styles.label} htmlFor="failed-deal-reason">
+          <label className={styles.label} htmlFor="failed-deal-reason-select">
             Motivo do acordo frustrado *
           </label>
-          <textarea
-            id="failed-deal-reason"
-            className={styles.textarea}
-            rows={6}
-            maxLength={4000}
+          <select
+            id="failed-deal-reason-select"
+            className={styles.select}
             value={reason}
-            onChange={(event) => onReasonChange(event.target.value)}
-            placeholder="Descreva objetivamente por que o acordo foi frustrado."
-            autoFocus
+            onChange={(e) => onReasonChange(e.target.value)}
             required
-          />
+            disabled={loadingReasons}
+          >
+            <option value="">
+              {loadingReasons ? 'Carregando motivos...' : 'Selecione um motivo'}
+            </option>
+            {predefinedReasons.map((r) => (
+              <option key={r.id} value={r.name}>
+                {r.name}
+              </option>
+            ))}
+          </select>
           <span className={styles.inputDescription}>
             Essa justificativa ficará registrada no caso para consulta da equipe.
           </span>
@@ -69,7 +86,7 @@ const FailedDealReasonModal = ({
           <button type="button" className={styles.cancelButton} onClick={onCancel} disabled={isSubmitting}>
             Cancelar
           </button>
-          <button type="submit" className={styles.saveButton} disabled={isSubmitting}>
+          <button type="submit" className={styles.saveButton} disabled={isSubmitting || loadingReasons}>
             {isSubmitting ? 'Salvando...' : 'Salvar acordo frustrado'}
           </button>
         </div>

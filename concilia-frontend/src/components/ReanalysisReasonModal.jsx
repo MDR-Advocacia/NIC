@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FaRedo, FaTimes } from 'react-icons/fa';
+import apiClient from '../api';
 import styles from '../styles/Pipeline.module.css';
 
 const ReanalysisReasonModal = ({
@@ -10,61 +11,79 @@ const ReanalysisReasonModal = ({
   isSubmitting = false,
   onCancel,
   onConfirm,
-}) => (
-  <div className={styles.modalOverlay} role="presentation">
-    <form className={`${styles.modalContent} ${styles.statusReasonModal}`} onSubmit={onConfirm}>
-      <button
-        type="button"
-        className={styles.closeButton}
-        onClick={onCancel}
-        disabled={isSubmitting}
-        aria-label="Fechar"
-      >
-        <FaTimes />
-      </button>
+}) => {
+  const [predefinedReasons, setPredefinedReasons] = useState([]);
+  const [loadingReasons, setLoadingReasons] = useState(true);
 
-      <div className={styles.statusReasonHeader}>
-        <span className={styles.statusReasonIcon}>
-          <FaRedo />
-        </span>
-        <div>
-          <h2 className={styles.modalTitle}>Solicitar reanálise</h2>
-          <p className={styles.statusReasonSubtitle}>Processo {caseNumber || 'selecionado'}</p>
+  useEffect(() => {
+    apiClient.get('/reanalysis-reasons')
+      .then((res) => setPredefinedReasons(res.data?.data || res.data || []))
+      .catch(() => setPredefinedReasons([]))
+      .finally(() => setLoadingReasons(false));
+  }, []);
+
+  return (
+    <div className={styles.modalOverlay} role="presentation">
+      <form className={`${styles.modalContent} ${styles.statusReasonModal}`} onSubmit={onConfirm}>
+        <button
+          type="button"
+          className={styles.closeButton}
+          onClick={onCancel}
+          disabled={isSubmitting}
+          aria-label="Fechar"
+        >
+          <FaTimes />
+        </button>
+
+        <div className={styles.statusReasonHeader}>
+          <span className={styles.statusReasonIcon}>
+            <FaRedo />
+          </span>
+          <div>
+            <h2 className={styles.modalTitle}>Solicitar reanálise</h2>
+            <p className={styles.statusReasonSubtitle}>Processo {caseNumber || 'selecionado'}</p>
+          </div>
         </div>
-      </div>
 
-      <div className={styles.formGroup}>
-        <label className={styles.label} htmlFor="reanalysis-reason">
-          Motivo da reanálise *
-        </label>
-        <textarea
-          id="reanalysis-reason"
-          className={styles.textarea}
-          rows={6}
-          maxLength={4000}
-          value={reason}
-          onChange={(event) => onReasonChange(event.target.value)}
-          placeholder="Descreva objetivamente por que o caso deve voltar para análise."
-          autoFocus
-          required
-        />
-        <span className={styles.inputDescription}>
-          O caso voltará para Análise Inicial, ficará vinculado a você como indicador e essa justificativa ficará registrada.
-        </span>
-      </div>
+        <div className={styles.formGroup}>
+          <label className={styles.label} htmlFor="reanalysis-reason-select">
+            Motivo da reanálise *
+          </label>
+          <select
+            id="reanalysis-reason-select"
+            className={styles.select}
+            value={reason}
+            onChange={(e) => onReasonChange(e.target.value)}
+            required
+            disabled={loadingReasons}
+          >
+            <option value="">
+              {loadingReasons ? 'Carregando motivos...' : 'Selecione um motivo'}
+            </option>
+            {predefinedReasons.map((r) => (
+              <option key={r.id} value={r.name}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <span className={styles.inputDescription}>
+            O caso voltará para Análise Inicial, ficará vinculado a você como indicador e essa justificativa ficará registrada.
+          </span>
+        </div>
 
-      {error && <p className={styles.error}>{error}</p>}
+        {error && <p className={styles.error}>{error}</p>}
 
-      <div className={styles.actions}>
-        <button type="button" className={styles.cancelButton} onClick={onCancel} disabled={isSubmitting}>
-          Cancelar
-        </button>
-        <button type="submit" className={styles.saveButton} disabled={isSubmitting}>
-          {isSubmitting ? 'Solicitando...' : 'Solicitar reanálise'}
-        </button>
-      </div>
-    </form>
-  </div>
-);
+        <div className={styles.actions}>
+          <button type="button" className={styles.cancelButton} onClick={onCancel} disabled={isSubmitting}>
+            Cancelar
+          </button>
+          <button type="submit" className={styles.saveButton} disabled={isSubmitting || loadingReasons}>
+            {isSubmitting ? 'Solicitando...' : 'Solicitar reanálise'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
 
 export default ReanalysisReasonModal;

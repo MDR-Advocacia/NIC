@@ -683,7 +683,19 @@ const DashboardPage = () => {
                                                     )}
                                                     <td className={styles.lbCellNum}>
                                                         <a
-                                                            href={`/cases?indicator_user_ids=${item.id}&statuses=closed_deal&statuses=awaiting_draft`}
+                                                            href={(() => {
+                                                                const p = new URLSearchParams();
+                                                                if (isIndicatorView) {
+                                                                    p.append('indicator_user_ids', item.id);
+                                                                } else {
+                                                                    p.append('lawyer_ids', item.id);
+                                                                }
+                                                                p.append('statuses', 'closed_deal');
+                                                                p.append('statuses', 'awaiting_draft');
+                                                                if (dashboardStartDate) p.append('date_from', dashboardStartDate);
+                                                                if (dashboardEndDate) p.append('date_to', dashboardEndDate);
+                                                                return `/cases?${p.toString()}`;
+                                                            })()}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className={styles.lbAgreementLink}

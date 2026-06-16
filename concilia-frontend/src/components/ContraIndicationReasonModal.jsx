@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FaExclamationTriangle, FaTimes } from 'react-icons/fa';
+import apiClient from '../api';
 import styles from '../styles/Pipeline.module.css';
 
 const ContraIndicationReasonModal = ({
@@ -12,6 +13,16 @@ const ContraIndicationReasonModal = ({
   onCancel,
   onConfirm,
 }) => {
+  const [predefinedReasons, setPredefinedReasons] = useState([]);
+  const [loadingReasons, setLoadingReasons] = useState(true);
+
+  useEffect(() => {
+    apiClient.get('/contra-indication-reasons')
+      .then((res) => setPredefinedReasons(res.data?.data || res.data || []))
+      .catch(() => setPredefinedReasons([]))
+      .finally(() => setLoadingReasons(false));
+  }, []);
+
   const title = selectedCount
     ? `Contraindicar ${selectedCount} ${selectedCount === 1 ? 'caso' : 'casos'}`
     : 'Contraindicar caso';
@@ -44,20 +55,26 @@ const ContraIndicationReasonModal = ({
         </div>
 
         <div className={styles.formGroup}>
-          <label className={styles.label} htmlFor="contra-indication-reason">
+          <label className={styles.label} htmlFor="contra-indication-reason-select">
             Motivo da contraindicação *
           </label>
-          <textarea
-            id="contra-indication-reason"
-            className={styles.textarea}
-            rows={6}
-            maxLength={4000}
+          <select
+            id="contra-indication-reason-select"
+            className={styles.select}
             value={reason}
-            onChange={(event) => onReasonChange(event.target.value)}
-            placeholder="Descreva objetivamente por que o caso está sendo contraindicado."
-            autoFocus
+            onChange={(e) => onReasonChange(e.target.value)}
             required
-          />
+            disabled={loadingReasons}
+          >
+            <option value="">
+              {loadingReasons ? 'Carregando motivos...' : 'Selecione um motivo'}
+            </option>
+            {predefinedReasons.map((r) => (
+              <option key={r.id} value={r.name}>
+                {r.name}
+              </option>
+            ))}
+          </select>
           <span className={styles.inputDescription}>
             Essa justificativa ficará registrada no caso para consulta da equipe.
           </span>
@@ -69,7 +86,7 @@ const ContraIndicationReasonModal = ({
           <button type="button" className={styles.cancelButton} onClick={onCancel} disabled={isSubmitting}>
             Cancelar
           </button>
-          <button type="submit" className={styles.saveButton} disabled={isSubmitting}>
+          <button type="submit" className={styles.saveButton} disabled={isSubmitting || loadingReasons}>
             {isSubmitting ? 'Salvando...' : 'Salvar contraindicação'}
           </button>
         </div>

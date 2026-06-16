@@ -318,7 +318,7 @@
     height: 220px;
     pointer-events: none;
     background: var(--content-top-glow);
-    z-index: 0;
+    z-index: -1;
 }
 
 .mainContentInbox {
@@ -331,7 +331,6 @@
 
 .mainContent > * {
     position: relative;
-    z-index: 1;
 }
 
 @media (max-width: 1080px) {

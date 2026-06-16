@@ -127,8 +127,8 @@ const PipelinePage = () => {
     const { token, user } = useAuth();
     const navigate = useNavigate();
     const isIndicator = isIndicatorRole(user?.role);
-    const canChooseResponsible = ['administrador', 'supervisor'].includes(user?.role);
-    const canChooseIndicator = !isIndicator;
+    const canChooseResponsible = true;
+    const canChooseIndicator = true;
     const canManageSavedTags = ['administrador', 'admin'].includes(normalizeUserRole(user?.role));
 
     const [pipelineData, setPipelineData] = useState(null);
@@ -397,6 +397,8 @@ const PipelinePage = () => {
             // Filter by statuses based on pipeline view
             if (pipelineView === 'post') {
                 fetchParams.statuses = POST_AGREEMENT_STATUS_ORDER;
+            } else {
+                fetchParams.statuses = LEGAL_CASE_STATUS_ORDER;
             }
 
             let fetchedCases = await fetchAllPaginatedResults('/cases', token, fetchParams);
@@ -435,6 +437,10 @@ const PipelinePage = () => {
     useEffect(() => {
         fetchAllData();
     }, [fetchAllData]);
+
+    useEffect(() => {
+        setPipelineData(null);
+    }, [pipelineView]);
 
     const sensors = useSensors(useSensor(PointerSensor, {
         activationConstraint: {

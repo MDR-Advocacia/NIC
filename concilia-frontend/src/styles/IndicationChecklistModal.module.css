@@ -15,6 +15,7 @@
   max-height: 92vh;
   display: grid;
   grid-template-columns: minmax(200px, 28%) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   background: #f8fafc;
   border-radius: 18px;
   box-shadow: 0 32px 80px rgba(15, 23, 42, 0.28);

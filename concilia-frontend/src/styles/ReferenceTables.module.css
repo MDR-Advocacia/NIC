@@ -1,0 +1,357 @@
+.pageContainer {
+    padding: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.pageHeader {
+    margin-bottom: 1.5rem;
+}
+
+.pageTitle {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary, #212529);
+    margin: 0 0 0.25rem;
+}
+
+.pageSubtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary, #6c757d);
+    margin: 0;
+}
+
+.tabBar {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border-color, #dee2e6);
+    margin-bottom: 1.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.tabButton {
+    padding: 0.75rem 1.25rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary, #6c757d);
+    white-space: nowrap;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.tabButton:hover {
+    color: var(--text-primary, #212529);
+}
+
+.tabButtonActive {
+    color: var(--accent-primary, #0d6efd);
+    border-bottom-color: var(--accent-primary, #0d6efd);
+    font-weight: 600;
+}
+
+.tabContent {
+    min-height: 300px;
+}
+
+.tabHeader {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.searchBox {
+    position: relative;
+    flex: 1;
+    max-width: 400px;
+}
+
+.searchIcon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary, #6c757d);
+    font-size: 0.8rem;
+}
+
+.searchInput {
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    background: var(--bg-input, #fff);
+    color: var(--text-primary, #212529);
+}
+
+.searchInput:focus {
+    outline: none;
+    border-color: var(--accent-primary, #0d6efd);
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
+}
+
+.addButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--accent-primary, #0d6efd);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+
+.addButton:hover {
+    background: var(--accent-primary-hover, #0b5ed7);
+}
+
+.addButton:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.errorMessage {
+    color: var(--danger-color, #dc3545);
+    font-size: 0.85rem;
+    margin: 0 0 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(220, 53, 69, 0.08);
+    border-radius: 4px;
+}
+
+.tableWrapper {
+    overflow-x: auto;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 8px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.table thead th {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary, #6c757d);
+    background: var(--bg-hover, #f8f9fa);
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.table tbody td {
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--border-color-light, #eee);
+    color: var(--text-primary, #212529);
+    vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table tbody tr:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.02));
+}
+
+.editingRow {
+    background: var(--accent-soft, rgba(13, 110, 253, 0.04)) !important;
+}
+
+.inlineInput {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 4px;
+    font-size: 0.875rem;
+    background: var(--bg-input, #fff);
+    color: var(--text-primary, #212529);
+}
+
+.inlineInput:focus {
+    outline: none;
+    border-color: var(--accent-primary, #0d6efd);
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
+}
+
+.actionCell {
+    display: flex;
+    gap: 0.375rem;
+    align-items: center;
+}
+
+.iconButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 4px;
+    background: var(--accent-primary, #0d6efd);
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: background 0.2s;
+}
+
+.iconButton:hover {
+    background: var(--accent-primary-hover, #0b5ed7);
+}
+
+.iconButton:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.iconButtonCancel {
+    background: var(--text-secondary, #6c757d);
+}
+
+.iconButtonCancel:hover {
+    background: var(--text-primary, #495057);
+}
+
+.loadingCell,
+.emptyCell {
+    text-align: center;
+    padding: 2rem 1rem !important;
+    color: var(--text-secondary, #6c757d);
+    font-style: italic;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    margin-top: 0.5rem;
+}
+
+.paginationInfo {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #6c757d);
+}
+
+.paginationControls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.pageNavButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 6px;
+    background: var(--bg-input, #fff);
+    color: var(--text-primary, #212529);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.pageNavButton:hover:not(:disabled) {
+    background: var(--bg-hover, #f8f9fa);
+    border-color: var(--accent-primary, #0d6efd);
+}
+
+.pageNavButton:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pageButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 0.5rem;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 6px;
+    background: var(--bg-input, #fff);
+    color: var(--text-primary, #212529);
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.pageButton:hover {
+    background: var(--bg-hover, #f8f9fa);
+    border-color: var(--accent-primary, #0d6efd);
+}
+
+.pageButtonActive {
+    background: var(--accent-primary, #0d6efd);
+    color: #fff;
+    border-color: var(--accent-primary, #0d6efd);
+}
+
+.pageButtonActive:hover {
+    background: var(--accent-primary-hover, #0b5ed7);
+}
+
+.pageDots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 32px;
+    font-size: 0.8rem;
+    color: var(--text-secondary, #6c757d);
+}
+
+.booleanBadgeTrue {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--danger-soft, rgba(220, 53, 69, 0.1));
+    color: var(--danger-primary, #dc3545);
+}
+
+.booleanBadgeFalse {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: var(--neutral-soft, rgba(148, 163, 184, 0.12));
+    color: var(--text-secondary, #6c757d);
+}
+
+.checkboxLabel {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-primary, #212529);
+}
+
+.checkboxLabel input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-primary, #0d6efd);
+    cursor: pointer;
+}

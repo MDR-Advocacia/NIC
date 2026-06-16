@@ -23,6 +23,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import GeneralBasePage from './pages/GeneralBasePage';
 import ArchivePage from './pages/ArchivePage';
+import ReferenceTablesPage from './pages/ReferenceTablesPage';
 import {
   USER_ROLES,
   getDefaultRouteForRole,
@@ -163,6 +164,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR, USER_ROLES.OPERADOR]}>
               <ArchivePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="reference-tables"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.ADMINISTRADOR, USER_ROLES.SUPERVISOR]}>
+              <ReferenceTablesPage />
             </ProtectedRoute>
           }
         />

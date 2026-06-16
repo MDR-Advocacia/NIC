@@ -5,6 +5,9 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\ActionObjectController;
 use App\Http\Controllers\Api\AggressorLawyerController;
+use App\Http\Controllers\Api\ContraIndicationReasonController;
+use App\Http\Controllers\Api\FailedDealReasonController;
+use App\Http\Controllers\Api\ReanalysisReasonController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CaseHistoryController;
@@ -72,6 +75,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cases/sync-alcada', [LegalCaseController::class, 'syncAlcada']);
     Route::post('/cases/batch-update', [LegalCaseController::class, 'batchUpdate']);
     Route::post('/cases/{case}/indicate', [LegalCaseController::class, 'indicate']);
+    Route::post('/cases/{case}/request-reanalysis', [LegalCaseController::class, 'requestReanalysis']);
+    Route::post('/cases/{case}/formalize-agreement', [LegalCaseController::class, 'formalizeAgreement']);
     Route::get('/cases/{id}/agreement', [LegalCaseController::class, 'generateAgreement']);
     Route::apiResource('cases', LegalCaseController::class);
 
@@ -81,6 +86,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('aggressor-lawyers', AggressorLawyerController::class);
     Route::apiResource('opposing-lawyers', OpposingLawyerController::class);
     Route::apiResource('action-objects', ActionObjectController::class)->only(['index', 'store', 'update']);
+    Route::apiResource('contra-indication-reasons', ContraIndicationReasonController::class)->only(['index', 'store', 'update']);
+    Route::apiResource('failed-deal-reasons', FailedDealReasonController::class)->only(['index', 'store', 'update']);
+    Route::apiResource('reanalysis-reasons', ReanalysisReasonController::class)->only(['index', 'store', 'update']);
 
     Route::get('/plaintiffs', [PlaintiffController::class, 'index']);
     Route::post('/plaintiffs', [PlaintiffController::class, 'store']);
@@ -89,9 +97,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Archive routes
     Route::get('/archives', [ArchiveController::class, 'index']);
-    Route::post('/archives', [ArchiveController::class, 'archive']);
+    Route::post('/archives/archive', [ArchiveController::class, 'archive']);
     Route::post('/archives/unarchive', [ArchiveController::class, 'unarchive']);
-    Route::get('/archives/preview', [ArchiveController::class, 'archivablePreview']);
+    Route::get('/archives/archivable-preview', [ArchiveController::class, 'archivablePreview']);
     Route::post('/archives/compare-upload', [ArchiveController::class, 'compareUpload']);
 
     // Filter Preset routes

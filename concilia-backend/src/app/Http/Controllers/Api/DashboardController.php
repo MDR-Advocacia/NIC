@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -18,6 +19,7 @@ class DashboardController extends Controller
     private const UNASSIGNED_RESPONSIBLE_VALUE = '__unassigned__';
     private const TEAM_ROLES = ['operador', 'administrador', 'supervisor'];
     private const METRIC_PERIOD_LABELS = [
+        'filtered' => 'Filtro atual',
         'day' => 'Dia',
         'week' => 'Semana',
         'month' => 'Mes',
@@ -72,6 +74,15 @@ class DashboardController extends Controller
             'closing_end_date',
             ['start_date', 'end_date']
         );
+        $teamPerformanceDateRange = $this->resolveDateRange(
+            $request,
+            'team_start_date',
+            'team_end_date',
+            ['start_date', 'end_date']
+        );
+        $teamPerformanceEffectiveRange = $this->dateRangeHasBounds($teamPerformanceDateRange)
+            ? $teamPerformanceDateRange
+            : $portfolioDateRange;
         $todayRange = $this->resolveTodayRange();
         $portfolioCasesQuery = $this->newFilteredCaseQuery($request, $user, $portfolioDateRange);
         $closedDealsQuery = $this->newClosedDealsQuery($request, $user, $closingDateRange, 'agreement_closed_at');
@@ -142,6 +153,13 @@ class DashboardController extends Controller
             ? ($agreementsViaIndication / $indicationsReceived) * 100
             : 0;
         $indicatorLeaderboard = $this->buildIndicatorLeaderboard($request, $user, $portfolioDateRange);
+
+        // Global queries (unaffected by date filter)
+        $noDateRange = ['start' => null, 'end' => null];
+        $globalStatusCounts = $this->newFilteredCaseQuery($request, $user, $noDateRange, null)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
         $recentCases = $this->buildRecentCases($request, $user, $portfolioDateRange);
         $viewMetrics = $this->buildViewMetrics($request, $user, $closingDateRange);
 
@@ -174,13 +192,32 @@ class DashboardController extends Controller
                 LegalCase::STATUS_CLOSED_DEAL => (int) ($statusCounts[LegalCase::STATUS_CLOSED_DEAL] ?? 0),
                 LegalCase::STATUS_FAILED_DEAL => (int) ($statusCounts[LegalCase::STATUS_FAILED_DEAL] ?? 0),
             ],
-            'monthly_evolution' => $this->buildMonthlyEvolution($request, $user, $portfolioDateRange, $closingDateRange),
+            'status_distribution_global' => [
+                LegalCase::STATUS_INITIAL_ANALYSIS => (int) ($globalStatusCounts[LegalCase::STATUS_INITIAL_ANALYSIS] ?? 0),
+                LegalCase::STATUS_INDICATIONS => (int) ($globalStatusCounts[LegalCase::STATUS_INDICATIONS] ?? 0),
+                LegalCase::STATUS_CONTRA_INDICATED => (int) ($globalStatusCounts[LegalCase::STATUS_CONTRA_INDICATED] ?? 0),
+                LegalCase::STATUS_PROPOSAL_SENT => (int) ($globalStatusCounts[LegalCase::STATUS_PROPOSAL_SENT] ?? 0),
+                LegalCase::STATUS_IN_NEGOTIATION => (int) ($globalStatusCounts[LegalCase::STATUS_IN_NEGOTIATION] ?? 0),
+                LegalCase::STATUS_AWAITING_DRAFT => (int) ($globalStatusCounts[LegalCase::STATUS_AWAITING_DRAFT] ?? 0),
+                LegalCase::STATUS_CLOSED_DEAL => (int) ($globalStatusCounts[LegalCase::STATUS_CLOSED_DEAL] ?? 0),
+                LegalCase::STATUS_FAILED_DEAL => (int) ($globalStatusCounts[LegalCase::STATUS_FAILED_DEAL] ?? 0),
+            ],
+            'status_distribution_global_post' => [
+                LegalCase::STATUS_CLOSED_IN_HEARING => (int) ($globalStatusCounts[LegalCase::STATUS_CLOSED_IN_HEARING] ?? 0),
+                LegalCase::STATUS_PENDING_PAYMENT => (int) ($globalStatusCounts[LegalCase::STATUS_PENDING_PAYMENT] ?? 0),
+                LegalCase::STATUS_PENDING_OBF => (int) ($globalStatusCounts[LegalCase::STATUS_PENDING_OBF] ?? 0),
+                LegalCase::STATUS_PENDING_LIVELO_OUROCAP => (int) ($globalStatusCounts[LegalCase::STATUS_PENDING_LIVELO_OUROCAP] ?? 0),
+                LegalCase::STATUS_DEAL_COMPLETED => (int) ($globalStatusCounts[LegalCase::STATUS_DEAL_COMPLETED] ?? 0),
+            ],
+            'monthly_evolution' => $this->buildMonthlyEvolution($request, $user, $noDateRange, $noDateRange),
             'agreements_by_state' => $this->buildAgreementsByState($request, $user, $closingDateRange),
             'agreement_macro_distribution' => $this->buildAgreementMacroDistribution($request, $user, $closingDateRange),
             'indicator_leaderboard' => $indicatorLeaderboard,
-            'team_performance' => $this->buildTeamPerformance($request, $user, $portfolioDateRange),
+            'team_performance' => $this->buildTeamPerformance($request, $user, $teamPerformanceEffectiveRange),
+            'team_performance_period' => $this->buildDateRangePayload($teamPerformanceEffectiveRange),
             'view_metrics' => $viewMetrics,
             'recent_cases' => $recentCases,
+            'recent_cases_global' => $this->buildRecentCases($request, $user, $noDateRange),
         ]);
     }
 
@@ -193,10 +230,14 @@ class DashboardController extends Controller
         ];
 
         foreach (array_keys(self::METRIC_PERIOD_LABELS) as $periodKey) {
-            $periodRange = $this->mergeDateRanges(
-                $closingDateRange,
-                $this->resolveMetricPeriodRange($periodKey)
-            );
+            if ($periodKey === 'filtered') {
+                $periodRange = $closingDateRange;
+            } else {
+                $periodRange = $this->mergeDateRanges(
+                    $closingDateRange,
+                    $this->resolveMetricPeriodRange($periodKey)
+                );
+            }
             $periodPayload = $this->buildMetricPeriodPayload($periodKey, $periodRange);
             $responsibleItems = $this->buildResponsibleMetricItems($request, $user, $periodRange);
             $indicatorItems = $this->buildIndicatorMetricItems($request, $user, $periodRange);
@@ -272,24 +313,61 @@ class DashboardController extends Controller
 
     private function buildIndicatorMetricItems(Request $request, User $user, array $dateRange): array
     {
-        return $this->newClosedDealsQuery($request, $user, $dateRange, 'agreement_closed_at')
-            ->leftJoin('users as indicators', 'indicators.id', '=', 'legal_cases.indicator_user_id')
-            ->whereNotNull('legal_cases.indicator_user_id')
+        $agreementStatuses = LegalCase::AGREEMENT_METRIC_STATUSES;
+        $statusPlaceholders = implode(',', array_fill(0, count($agreementStatuses), '?'));
+
+        $query = LegalCase::query()
+            ->join('users as indicators', 'indicators.id', '=', 'legal_cases.indicator_user_id')
+            ->whereNotNull('legal_cases.indicator_user_id');
+
+        if (($dateRange['start'] ?? null) instanceof Carbon) {
+            $query->where('legal_cases.created_at', '>=', $dateRange['start']);
+        }
+        if (($dateRange['end'] ?? null) instanceof Carbon) {
+            $query->where('legal_cases.created_at', '<=', $dateRange['end']);
+        }
+
+        $responsibleFilter = $this->resolveResponsibleFilter($request);
+        if (!empty($responsibleFilter['ids'])) {
+            $query->whereIn('legal_cases.lawyer_id', $responsibleFilter['ids']);
+        }
+
+        $indicatorFilter = $this->resolveIndicatorFilter($request);
+        if (count($indicatorFilter['ids']) > 0) {
+            $query->whereIn('legal_cases.indicator_user_id', $indicatorFilter['ids']);
+        }
+
+        return $query
             ->selectRaw('legal_cases.indicator_user_id as entity_id')
             ->selectRaw("COALESCE(indicators.name, 'Indicador indisponivel') as entity_name")
-            ->selectRaw('COUNT(*) as agreements_count')
+            ->selectRaw('COUNT(*) as total_indicated')
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN legal_cases.status IN ({$statusPlaceholders}) THEN 1 ELSE 0 END), 0) as agreements_count",
+                $agreementStatuses
+            )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as contra_indicated_count",
+                [LegalCase::STATUS_CONTRA_INDICATED]
+            )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as failed_deal_count",
+                [LegalCase::STATUS_FAILED_DEAL]
+            )
             ->selectRaw(
                 "COALESCE(SUM(CASE WHEN JSON_EXTRACT(legal_cases.agreement_checklist_data, '$.indication_checklist') IS NOT NULL THEN 1 ELSE 0 END), 0) as converted_indications_count"
             )
             ->groupBy('legal_cases.indicator_user_id', 'indicators.name')
             ->orderByDesc('agreements_count')
-            ->orderByDesc('converted_indications_count')
+            ->orderByDesc('total_indicated')
             ->orderBy('entity_name')
             ->get()
             ->map(fn ($row) => [
                 'id' => (int) ($row->entity_id ?? 0),
                 'name' => $row->entity_name,
+                'total_indicated' => (int) ($row->total_indicated ?? 0),
                 'agreements_count' => (int) ($row->agreements_count ?? 0),
+                'contra_indicated_count' => (int) ($row->contra_indicated_count ?? 0),
+                'failed_deal_count' => (int) ($row->failed_deal_count ?? 0),
                 'converted_indications_count' => (int) ($row->converted_indications_count ?? 0),
             ])
             ->values()
@@ -300,6 +378,7 @@ class DashboardController extends Controller
     {
         return [
             'participants_count' => count($items),
+            'total_indicated' => array_sum(array_map(fn (array $item) => (int) ($item['total_indicated'] ?? 0), $items)),
             'agreements_count' => array_sum(array_map(fn (array $item) => (int) ($item['agreements_count'] ?? 0), $items)),
             'converted_indications_count' => array_sum(array_map(fn (array $item) => (int) ($item['converted_indications_count'] ?? 0), $items)),
         ];
@@ -307,7 +386,9 @@ class DashboardController extends Controller
 
     private function buildTeamPerformance(Request $request, User $user, array $dateRange): array
     {
-        if ($this->requestTargetsUnassignedResponsible($request)) {
+        $responsibleFilter = $this->resolveResponsibleFilter($request);
+
+        if ($responsibleFilter['has_filter'] && count($responsibleFilter['ids']) === 0) {
             return [];
         }
 
@@ -326,6 +407,14 @@ class DashboardController extends Controller
                 "COALESCE(SUM(CASE WHEN {$this->agreementMetricStatusCaseSql('legal_cases.status')} THEN COALESCE(legal_cases.original_value, 0) - COALESCE(legal_cases.agreement_value, 0) ELSE 0 END), 0) as economy",
                 LegalCase::AGREEMENT_METRIC_STATUSES
             )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN " . $this->agreementMetricStatusCaseSql('legal_cases.status') . " AND COALESCE(legal_cases.livelo_points, 0) > 0 THEN 1 ELSE 0 END), 0) as livelo_deals",
+                LegalCase::AGREEMENT_METRIC_STATUSES
+            )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN " . $this->agreementMetricStatusCaseSql('legal_cases.status') . " AND COALESCE(legal_cases.ourocap_value, 0) > 0 THEN 1 ELSE 0 END), 0) as ourocap_deals",
+                LegalCase::AGREEMENT_METRIC_STATUSES
+            )
             ->leftJoin('legal_cases', function (JoinClause $join) use ($request, $dateRange) {
                 $join->on('legal_cases.user_id', '=', 'users.id');
                 $this->applySharedCaseJoinFilters($join, $request, $dateRange, 'legal_cases', 'created_at');
@@ -336,8 +425,8 @@ class DashboardController extends Controller
         } else {
             $lawyersQuery->whereIn('users.role', self::TEAM_ROLES);
 
-            if ($request->filled('lawyer_id')) {
-                $lawyersQuery->where('users.id', (int) $request->input('lawyer_id'));
+            if ($responsibleFilter['has_filter']) {
+                $lawyersQuery->whereIn('users.id', $responsibleFilter['ids']);
             }
         }
 
@@ -367,6 +456,8 @@ class DashboardController extends Controller
                     'products_count' => $productsCount,
                     'products_proposed_value' => $productsValue,
                     'products_economy' => $productsEconomy,
+                    'livelo_deals' => (int) ($lawyer->livelo_deals ?? 0),
+                    'ourocap_deals' => (int) ($lawyer->ourocap_deals ?? 0),
                 ];
             })
             ->sortByDesc('score')
@@ -650,10 +741,26 @@ class DashboardController extends Controller
     ): void {
         if ($user->role === 'operador') {
             $query->where($this->qualifyLegalCaseColumn('user_id'), $user->id);
-        } elseif ($this->requestTargetsUnassignedResponsible($request)) {
-            $query->whereNull($this->qualifyLegalCaseColumn('user_id'));
-        } elseif ($request->filled('lawyer_id')) {
-            $query->where($this->qualifyLegalCaseColumn('user_id'), (int) $request->input('lawyer_id'));
+        } else {
+            $responsibleFilter = $this->resolveResponsibleFilter($request);
+
+            if ($responsibleFilter['has_filter']) {
+                $qualifiedUserId = $this->qualifyLegalCaseColumn('user_id');
+
+                $query->where(function (Builder $responsibleQuery) use ($responsibleFilter, $qualifiedUserId) {
+                    if (count($responsibleFilter['ids']) > 0) {
+                        $responsibleQuery->whereIn($qualifiedUserId, $responsibleFilter['ids']);
+                    }
+
+                    if ($responsibleFilter['include_unassigned']) {
+                        if (count($responsibleFilter['ids']) > 0) {
+                            $responsibleQuery->orWhereNull($qualifiedUserId);
+                        } else {
+                            $responsibleQuery->whereNull($qualifiedUserId);
+                        }
+                    }
+                });
+            }
         }
 
         $this->applySharedCaseFilters($query, $request, $dateRange, $dateColumn);
@@ -666,6 +773,7 @@ class DashboardController extends Controller
         ?string $dateColumn = 'created_at'
     ): void {
         $query->where($this->qualifyLegalCaseColumn('has_alcada'), true);
+        $query->whereNull($this->qualifyLegalCaseColumn('archived_at'));
 
         if ($request->filled('client_id')) {
             $query->where($this->qualifyLegalCaseColumn('client_id'), (int) $request->input('client_id'));
@@ -673,6 +781,11 @@ class DashboardController extends Controller
 
         if ($request->filled('status')) {
             $query->where($this->qualifyLegalCaseColumn('status'), $request->input('status'));
+        }
+
+        $indicatorFilter = $this->resolveIndicatorFilter($request);
+        if (count($indicatorFilter['ids']) > 0) {
+            $query->whereIn($this->qualifyLegalCaseColumn('indicator_user_id'), $indicatorFilter['ids']);
         }
 
         if ($dateColumn !== null && $dateRange['start'] instanceof Carbon) {
@@ -699,6 +812,11 @@ class DashboardController extends Controller
 
         if ($request->filled('status')) {
             $join->where("{$table}.status", '=', $request->input('status'));
+        }
+
+        $indicatorFilter = $this->resolveIndicatorFilter($request);
+        if (count($indicatorFilter['ids']) > 0) {
+            $join->whereIn("{$table}.indicator_user_id", $indicatorFilter['ids']);
         }
 
         if ($dateRange['start'] instanceof Carbon) {
@@ -855,6 +973,18 @@ class DashboardController extends Controller
         ];
     }
 
+    private function buildDateRangePayload(array $dateRange): array
+    {
+        return [
+            'start_date' => ($dateRange['start'] ?? null) instanceof Carbon
+                ? $dateRange['start']->toDateString()
+                : null,
+            'end_date' => ($dateRange['end'] ?? null) instanceof Carbon
+                ? $dateRange['end']->toDateString()
+                : null,
+        ];
+    }
+
     private function buildMonthKey(int $year, int $month): string
     {
         return sprintf('%04d-%02d', $year, $month);
@@ -896,9 +1026,75 @@ class DashboardController extends Controller
         return (new LegalCase())->qualifyColumn($column);
     }
 
-    private function requestTargetsUnassignedResponsible(Request $request): bool
+    private function resolveResponsibleFilter(Request $request): array
     {
-        return $request->filled('lawyer_id')
-            && (string) $request->input('lawyer_id') === self::UNASSIGNED_RESPONSIBLE_VALUE;
+        $rawValues = [];
+
+        if ($request->has('lawyer_ids')) {
+            $rawValues = Arr::wrap($request->input('lawyer_ids'));
+        } elseif ($request->has('lawyer_ids[]')) {
+            $rawValues = Arr::wrap($request->input('lawyer_ids[]'));
+        } elseif ($request->filled('lawyer_id')) {
+            $rawValues = [$request->input('lawyer_id')];
+        }
+
+        $ids = [];
+        $includeUnassigned = false;
+
+        foreach (Arr::flatten($rawValues) as $rawValue) {
+            foreach (explode(',', (string) $rawValue) as $value) {
+                $normalizedValue = trim($value);
+
+                if ($normalizedValue === '') {
+                    continue;
+                }
+
+                if ($normalizedValue === self::UNASSIGNED_RESPONSIBLE_VALUE) {
+                    $includeUnassigned = true;
+                    continue;
+                }
+
+                if (ctype_digit($normalizedValue)) {
+                    $ids[] = (int) $normalizedValue;
+                }
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0)));
+
+        return [
+            'ids' => $ids,
+            'include_unassigned' => $includeUnassigned,
+            'has_filter' => $includeUnassigned || count($ids) > 0,
+        ];
+    }
+
+    private function resolveIndicatorFilter(Request $request): array
+    {
+        $rawValues = [];
+
+        if ($request->has('indicator_user_ids')) {
+            $rawValues = Arr::wrap($request->input('indicator_user_ids'));
+        } elseif ($request->has('indicator_user_ids[]')) {
+            $rawValues = Arr::wrap($request->input('indicator_user_ids[]'));
+        } elseif ($request->filled('indicator_user_id')) {
+            $rawValues = [$request->input('indicator_user_id')];
+        }
+
+        $ids = [];
+
+        foreach (Arr::flatten($rawValues) as $rawValue) {
+            foreach (explode(',', (string) $rawValue) as $value) {
+                $normalizedValue = trim($value);
+
+                if ($normalizedValue !== '' && ctype_digit($normalizedValue)) {
+                    $ids[] = (int) $normalizedValue;
+                }
+            }
+        }
+
+        return [
+            'ids' => array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0))),
+        ];
     }
 }

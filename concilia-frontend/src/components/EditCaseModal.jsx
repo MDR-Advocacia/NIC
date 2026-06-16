@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import styles from '../styles/Pipeline.module.css';
 import { FaPencilAlt, FaRegCommentDots, FaTimes, FaExclamationTriangle, FaClock } from 'react-icons/fa';
 import AgreementChecklist from './AgreementChecklist';
+import ContraIndicationReasonModal from './ContraIndicationReasonModal';
+import FailedDealReasonModal from './FailedDealReasonModal';
 import AddEditOpposingLawyerModal from './AddEditOpposingLawyerModal';
 import OpposingLawyerListModal from './OpposingLawyerListModal';
 import AddEditActionObjectModal from './AddEditActionObjectModal';
@@ -245,9 +247,10 @@ const HistoryTab = ({ caseId }) => {
 };
 
 // --- Sub-componente DetailsTab (ATUALIZADO E PROTEGIDO) ---
-const DetailsTab = ({ 
-    formData, 
-    handleChange, 
+const DetailsTab = ({
+    legalCase,
+    formData,
+    handleChange,
     handlePriorityChange, 
     handleAddTag, 
     handleRemoveTag, 
@@ -367,40 +370,32 @@ const DetailsTab = ({
                             ))}
                         </select>
                     </div>
-                    {formData.status === 'contra_indicated' && (
+                    {formData.status === 'contra_indicated' && formData.contra_indication_reason && (
                         <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                            <label className={styles.label}>Motivo da contraindicação *</label>
+                            <label className={styles.label}>Motivo da contraindicação</label>
                             <textarea
                                 className={styles.textarea}
                                 name="contra_indication_reason"
                                 value={formData.contra_indication_reason || ''}
-                                onChange={handleChange}
-                                rows={4}
+                                readOnly
+                                rows={3}
                                 maxLength={4000}
-                                placeholder="Descreva por que este caso foi contraindicado."
-                                required
+                                style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
                             />
-                            <span className={styles.inputDescription}>
-                                Este motivo ficará visível no caso enquanto ele estiver contraindicado.
-                            </span>
                         </div>
                     )}
-                    {formData.status === 'failed_deal' && (
+                    {formData.status === 'failed_deal' && formData.failed_deal_reason && (
                         <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                            <label className={styles.label}>Motivo do acordo frustrado *</label>
+                            <label className={styles.label}>Motivo do acordo frustrado</label>
                             <textarea
                                 className={styles.textarea}
                                 name="failed_deal_reason"
                                 value={formData.failed_deal_reason || ''}
-                                onChange={handleChange}
-                                rows={4}
+                                readOnly
+                                rows={3}
                                 maxLength={4000}
-                                placeholder="Descreva por que este acordo foi frustrado."
-                                required
+                                style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
                             />
-                            <span className={styles.inputDescription}>
-                                Este motivo ficará visível no caso enquanto ele estiver como acordo frustrado.
-                            </span>
                         </div>
                     )}
                     <div className={styles.formGroup}>
@@ -838,6 +833,11 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     const [defendantSearchTerm, setDefendantSearchTerm] = useState('');
     const [showDefendantDropdown, setShowDefendantDropdown] = useState(false);
     
+    // Controle dos Modais de Motivo (status que exigem justificativa)
+    const [reasonModalType, setReasonModalType] = useState(null);
+    const [reasonModalReason, setReasonModalReason] = useState('');
+    const [previousStatus, setPreviousStatus] = useState(null);
+
     // Controle dos Modais
     const [isLawyerModalOpen, setIsLawyerModalOpen] = useState(false);
     const [isListModalOpen, setIsListModalOpen] = useState(false);
@@ -989,14 +989,22 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
         handleSelectDefendant(newDefendant);
     };
 
-    const handleChange = (e) => { 
-        const { name, value } = e.target; 
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        if (name === 'status' && (value === 'contra_indicated' || value === 'failed_deal')) {
+            if (legalCase?.status !== value) {
+                setPreviousStatus(formData.status);
+                setReasonModalReason('');
+                setReasonModalType(value);
+                return;
+            }
+        }
         if (name === 'action_object') {
-            setFormData(prevState => ({ ...prevState, action_object: value, action_object_id: '' })); 
+            setFormData(prevState => ({ ...prevState, action_object: value, action_object_id: '' }));
             setActionObjectSearchTerm(value);
             setShowActionObjectDropdown(true);
         } else {
-            setFormData(prevState => ({ ...prevState, [name]: value })); 
+            setFormData(prevState => ({ ...prevState, [name]: value }));
         }
     };
     
@@ -1159,9 +1167,10 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                     <div className={styles.tabContent}>
                         {activeTab === 'details' && (
                             <form onSubmit={handleSubmit}>
-                                <DetailsTab 
-                                    formData={formData} 
-                                    handleChange={handleChange} 
+                                <DetailsTab
+                                    legalCase={legalCase}
+                                    formData={formData}
+                                    handleChange={handleChange}
                                     handlePriorityChange={handlePriorityChange} 
                                     handleAddTag={handleAddTag} 
                                     handleRemoveTag={handleRemoveTag} 
@@ -1257,6 +1266,42 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                     onClose={() => setIsDefendantModalOpen(false)}
                     onSuccess={handleDefendantCreated}
                     initialName={defendantSearchTerm}
+                />
+            )}
+
+            {/* Modais de Motivo para Status */}
+            {reasonModalType === 'contra_indicated' && (
+                <ContraIndicationReasonModal
+                    caseNumber={formData.case_number}
+                    reason={reasonModalReason}
+                    onReasonChange={setReasonModalReason}
+                    onCancel={() => { setReasonModalType(null); setReasonModalReason(''); }}
+                    onConfirm={(e) => {
+                        e.preventDefault();
+                        setFormData(prev => ({
+                            ...prev,
+                            status: 'contra_indicated',
+                            contra_indication_reason: reasonModalReason,
+                        }));
+                        setReasonModalType(null);
+                    }}
+                />
+            )}
+            {reasonModalType === 'failed_deal' && (
+                <FailedDealReasonModal
+                    caseNumber={formData.case_number}
+                    reason={reasonModalReason}
+                    onReasonChange={setReasonModalReason}
+                    onCancel={() => { setReasonModalType(null); setReasonModalReason(''); }}
+                    onConfirm={(e) => {
+                        e.preventDefault();
+                        setFormData(prev => ({
+                            ...prev,
+                            status: 'failed_deal',
+                            failed_deal_reason: reasonModalReason,
+                        }));
+                        setReasonModalType(null);
+                    }}
                 />
             )}
 

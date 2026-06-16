@@ -16,7 +16,7 @@ import {
 import {
     FaTachometerAlt, FaInbox, FaStream, FaSuitcase,
     FaFileUpload, FaUsers, FaSignOutAlt, FaHandshake,
-    FaSun, FaMoon, FaShieldAlt, FaDatabase, FaChevronDown, FaCog, FaArchive
+    FaSun, FaMoon, FaShieldAlt, FaDatabase, FaChevronDown, FaCog, FaArchive, FaTable
 } from 'react-icons/fa';
 
 const MainLayout = () => {
@@ -32,7 +32,11 @@ const MainLayout = () => {
     const isAdmin = canAccessLogs(user?.role);
     const canManageUsersSection = canManageUsers(user?.role);
     const pipelineLabel = isIndicatorRole(user?.role) ? 'Indicações' : 'Pipeline de Acordos';
-    const configRoutes = ['/cases', '/import', '/base-geral', '/users', '/logs'];
+    const baseRoutes = ['/base-geral', '/cases', '/reference-tables', '/import'];
+    const isBaseSectionActive = baseRoutes.some((route) => location.pathname.startsWith(route));
+    const [isBaseOpen, setIsBaseOpen] = useState(isBaseSectionActive);
+
+    const configRoutes = ['/users', '/logs', '/profile'];
     const isConfigSectionActive = configRoutes.some((route) => location.pathname.startsWith(route));
     const [isConfigOpen, setIsConfigOpen] = useState(isConfigSectionActive);
 
@@ -40,6 +44,12 @@ const MainLayout = () => {
     const [searchParams] = useSearchParams();
     const currentPipelineView = searchParams.get('view') || 'pre';
     const [isPipelineOpen, setIsPipelineOpen] = useState(isPipelineRoute);
+
+    useEffect(() => {
+        if (isBaseSectionActive) {
+            setIsBaseOpen(true);
+        }
+    }, [isBaseSectionActive]);
 
     useEffect(() => {
         if (isConfigSectionActive) {
@@ -53,7 +63,14 @@ const MainLayout = () => {
         }
     }, [isPipelineRoute]);
 
+    const hasBaseSection = Boolean(user);
     const hasConfigSection = Boolean(user);
+
+    const baseButtonClass = [
+        styles.navLink,
+        styles.submenuToggle,
+        isBaseSectionActive ? styles.navLinkActive : '',
+    ].filter(Boolean).join(' ');
 
     const configButtonClass = [
         styles.navLink,
@@ -149,6 +166,56 @@ const MainLayout = () => {
                                 </ul>
                             )}
                         </li>
+                        {hasBaseSection && (
+                            <li className={`${styles.navItem} ${styles.submenuItem}`}>
+                                <button
+                                    type="button"
+                                    className={baseButtonClass}
+                                    onClick={() => setIsBaseOpen((current) => !current)}
+                                    aria-expanded={isBaseOpen}
+                                >
+                                    <span className={styles.submenuLabel}>
+                                        <FaDatabase /> <span>Base</span>
+                                    </span>
+                                    <FaChevronDown className={`${styles.submenuChevron} ${isBaseOpen ? styles.submenuChevronOpen : ''}`} />
+                                </button>
+
+                                {isBaseOpen && (
+                                    <ul className={styles.submenuList}>
+                                        {canAccessGeneralBase(user?.role) && (
+                                            <li className={styles.submenuListItem}>
+                                                <NavLink to="/base-geral" className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}>
+                                                    <FaDatabase /> <span>Base Geral</span>
+                                                </NavLink>
+                                            </li>
+                                        )}
+
+                                        <li className={styles.submenuListItem}>
+                                            <NavLink to="/cases" className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}>
+                                                <FaSuitcase /> <span>Gestão de Casos</span>
+                                            </NavLink>
+                                        </li>
+
+                                        {canAccessGeneralBase(user?.role) && (
+                                            <li className={styles.submenuListItem}>
+                                                <NavLink to="/reference-tables" className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}>
+                                                    <FaTable /> <span>Tabelas de Referência</span>
+                                                </NavLink>
+                                            </li>
+                                        )}
+
+                                        {canAccessImport(user?.role) && (
+                                            <li className={styles.submenuListItem}>
+                                                <NavLink to="/import" className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}>
+                                                    <FaFileUpload /> <span>Importar Dados</span>
+                                                </NavLink>
+                                            </li>
+                                        )}
+                                    </ul>
+                                )}
+                            </li>
+                        )}
+
                         {hasConfigSection && (
                             <li className={`${styles.navItem} ${styles.submenuItem}`}>
                                 <button
@@ -166,26 +233,10 @@ const MainLayout = () => {
                                 {isConfigOpen && (
                                     <ul className={styles.submenuList}>
                                         <li className={styles.submenuListItem}>
-                                            <NavLink to="/cases" className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}>
-                                                <FaSuitcase /> <span>Gestão de Casos</span>
+                                            <NavLink to="/profile" className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}>
+                                                <FaUserCog /> <span>Meu Perfil</span>
                                             </NavLink>
                                         </li>
-
-                                        {canAccessImport(user?.role) && (
-                                            <li className={styles.submenuListItem}>
-                                                <NavLink to="/import" className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}>
-                                                    <FaFileUpload /> <span>Importar Dados</span>
-                                                </NavLink>
-                                            </li>
-                                        )}
-
-                                        {canAccessGeneralBase(user?.role) && (
-                                            <li className={styles.submenuListItem}>
-                                                <NavLink to="/base-geral" className={({ isActive }) => `${styles.navLink} ${styles.submenuLink} ${isActive ? styles.navLinkActive : ''}`}>
-                                                    <FaDatabase /> <span>Base Geral</span>
-                                                </NavLink>
-                                            </li>
-                                        )}
 
                                         {canManageUsersSection && (
                                             <li className={styles.submenuListItem}>
@@ -206,11 +257,6 @@ const MainLayout = () => {
                                 )}
                             </li>
                         )}
-                        <li className={styles.navItem}>
-                            <NavLink to="/profile" className={getNavLinkClass}>
-                                <FaUserCog /> <span>Meu Perfil</span>
-                            </NavLink>
-                        </li>
                     </ul>
                 </nav>
 
