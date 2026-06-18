@@ -79,7 +79,7 @@ export const litigantsApi = {
 };
 
 export const getConversations = (assigneeType = 'all') => {
-  return apiClient.get(`/chat/conversations?assignee_type=${assigneeType}`);
+  return apiClient.get(`/chat/conversations?assignee_type=${assigneeType}&status=all`);
 };
 
 export const getInboxes = () => {

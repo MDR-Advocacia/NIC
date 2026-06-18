@@ -1283,20 +1283,11 @@ class ChatController extends Controller
             return $tokenBootstrap;
         }
 
-        $status = $request->query('status', 'open');
+        $status = $request->query('status', 'all');
         $assigneeType = $request->query('assignee_type', 'all');
-        $currentUserAssigneeId = null;
 
         if ($assigneeType === 'mine') {
             $assigneeType = 'me';
-        }
-
-        if ($assigneeType === 'me') {
-            $currentUserAssigneeId = $this->resolveChatwootAssigneeIdForRequest($request);
-
-            if ($currentUserAssigneeId) {
-                $assigneeType = 'all';
-            }
         }
 
         $queryParams = ['status' => $status];
@@ -1311,23 +1302,17 @@ class ChatController extends Controller
         }
 
         try {
-            $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
-                ->timeout(10)
-                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", $queryParams);
+            $payload = $this->fetchPaginatedChatwootConversations($queryParams);
 
-            if ($response->failed()) {
-                return response()->json(['error' => 'Erro na API'], 502);
-            }
-
-            $data = $response->json();
-            $payload = $data['payload'] ?? data_get($data, 'data.payload') ?? $data;
-
-            if ($currentUserAssigneeId && is_array($payload)) {
-                $payload = $this->filterConversationsByAssignee($payload, $currentUserAssigneeId, $request->user()?->email);
-            }
-
-            return response()->json(is_array($payload) ? $this->attachLinkedCasesToConversations($payload) : $payload);
+            return response()->json($this->attachLinkedCasesToConversations($payload));
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => 'Erro na API'], 502);
         } catch (\Exception $e) {
+            Log::error('Erro ao buscar conversas do Chatwoot', [
+                'error' => $e->getMessage(),
+                'query' => $queryParams,
+            ]);
+
             return response()->json(['error' => 'Timeout'], 504);
         }
     }
@@ -1419,20 +1404,25 @@ class ChatController extends Controller
             return $tokenBootstrap;
         }
 
-        $response = Http::withHeaders([
-            'api_access_token' => $this->chatwootApiToken(),
-        ])
-            ->timeout(5)
-            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages");
+        try {
+            $messages = $this->fetchAllConversationMessages((int) $conversationId);
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => 'Nao foi possivel carregar as mensagens'], 500);
+        } catch (\Exception $e) {
+            Log::error('Erro ao buscar mensagens do Chatwoot', [
+                'conversation_id' => $conversationId,
+                'error' => $e->getMessage(),
+            ]);
 
-        if ($response->failed()) {
             return response()->json(['error' => 'Nao foi possivel carregar as mensagens'], 500);
         }
 
-        $payload = $response->json();
+        $payload = ['payload' => $messages];
+        $conversationDetails = $this->fetchChatwootConversationDetails((int) $conversationId);
 
-        if (!is_array($payload)) {
-            $payload = ['payload' => $payload];
+        if (is_array($conversationDetails)) {
+            $payload['conversation'] = $conversationDetails;
+            $payload['meta'] = $conversationDetails['meta'] ?? null;
         }
 
         $conversation = $this->resolveConversationRecord($conversationId);
@@ -2080,6 +2070,116 @@ class ChatController extends Controller
         return is_array($data) ? $data : [];
     }
 
+    private function fetchPaginatedChatwootConversations(array $queryParams, int $maxPages = 40): array
+    {
+        $allConversations = [];
+        $page = 1;
+        $perPage = (int) env('CONVERSATION_RESULTS_PER_PAGE', 25);
+
+        while ($page <= $maxPages) {
+            $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
+                ->timeout(15)
+                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", array_merge($queryParams, [
+                    'page' => $page,
+                ]));
+
+            if ($response->failed()) {
+                if ($page === 1) {
+                    throw new \RuntimeException('Erro na API do Chatwoot ao listar conversas.');
+                }
+
+                break;
+            }
+
+            $batch = $this->extractChatwootContactsList($response->json());
+
+            if (empty($batch)) {
+                break;
+            }
+
+            $allConversations = array_merge($allConversations, $batch);
+
+            if (count($batch) < $perPage) {
+                break;
+            }
+
+            $page++;
+        }
+
+        return $allConversations;
+    }
+
+    private function fetchAllConversationMessages(int $conversationId, int $maxPages = 100): array
+    {
+        $allMessages = [];
+        $beforeId = null;
+        $page = 0;
+        $batchSize = 20;
+
+        while ($page < $maxPages) {
+            $queryParams = [];
+
+            if ($beforeId !== null) {
+                $queryParams['before'] = $beforeId;
+            }
+
+            $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
+                ->timeout(15)
+                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}/messages", $queryParams);
+
+            if ($response->failed()) {
+                if ($page === 0) {
+                    throw new \RuntimeException('Nao foi possivel carregar as mensagens da conversa.');
+                }
+
+                break;
+            }
+
+            $batch = $this->extractChatwootContactsList($response->json());
+
+            if (empty($batch)) {
+                break;
+            }
+
+            $allMessages = array_merge($batch, $allMessages);
+
+            $oldestId = collect($batch)
+                ->map(fn ($message) => $message['id'] ?? null)
+                ->filter()
+                ->min();
+
+            if ($oldestId === null || (int) $oldestId === (int) $beforeId || count($batch) < $batchSize) {
+                break;
+            }
+
+            $beforeId = (int) $oldestId;
+            $page++;
+        }
+
+        return $allMessages;
+    }
+
+    private function fetchChatwootConversationDetails(int $conversationId): ?array
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
+            ->timeout(10)
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations/{$conversationId}");
+
+        if ($response->failed()) {
+            return null;
+        }
+
+        $data = $response->json();
+
+        if (!is_array($data)) {
+            return null;
+        }
+
+        $conversation = $data['payload'] ?? $data;
+
+        return is_array($conversation) ? $conversation : null;
+    }
+
     private function resolveContactInboxSourceId(array $contact, int $inboxId): ?string
     {
         $contactInboxes = collect($contact['contact_inboxes'] ?? []);
@@ -2247,19 +2347,17 @@ class ChatController extends Controller
 
     private function findExistingOpenConversationForContact($contactId, int $inboxId, ?string $sourceId = null): ?array
     {
-        $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
-            ->timeout(10)
-            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", [
+        try {
+            $conversationList = $this->fetchPaginatedChatwootConversations([
                 'status' => 'open',
                 'assignee_type' => 'all',
                 'inbox_id' => $inboxId,
             ]);
-
-        if ($response->failed()) {
+        } catch (\Exception $e) {
             return null;
         }
 
-        $conversations = collect($this->extractChatwootContactsList($response->json()))
+        $conversations = collect($conversationList)
             ->filter(fn ($conversation) => is_array($conversation))
             ->filter(function ($conversation) use ($contactId, $inboxId, $sourceId) {
                 $conversationInboxId = data_get($conversation, 'inbox_id')

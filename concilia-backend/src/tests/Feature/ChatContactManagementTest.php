@@ -412,7 +412,7 @@ class ChatContactManagementTest extends TestCase
                     ],
                 ],
             ], 200),
-            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=7' => Http::response([
+            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=7&page=1' => Http::response([
                 'payload' => [],
             ], 200),
             'https://chatwoot.test/api/v1/accounts/1/conversations' => Http::response([
@@ -460,7 +460,7 @@ class ChatContactManagementTest extends TestCase
                     'name' => 'WhatsApp',
                 ],
             ], 200),
-            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=5' => Http::response([
+            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=5&page=1' => Http::response([
                 'payload' => [],
             ], 200),
             'https://chatwoot.test/api/v1/accounts/1/conversations' => Http::response([
@@ -777,6 +777,87 @@ class ChatContactManagementTest extends TestCase
                 && $request['template']['name'] === 'bom_dia'
                 && $request['to'] === '5584999990000';
         });
+    }
+
+    public function test_get_conversations_paginates_through_all_pages_and_uses_status_all_by_default(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        Http::fake([
+            'https://chatwoot.test/api/v1/accounts/1/conversations*' => Http::sequence()
+                ->push([
+                    'payload' => array_map(
+                        fn (int $id) => ['id' => $id, 'status' => 'open', 'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']]],
+                        range(1, 25)
+                    ),
+                ], 200)
+                ->push([
+                    'payload' => [
+                        ['id' => 26, 'status' => 'resolved', 'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']]],
+                    ],
+                ], 200),
+        ]);
+
+        $this->getJson('/api/chat/conversations?assignee_type=me')
+            ->assertOk()
+            ->assertJsonCount(26);
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
+                && ($request['status'] ?? null) === 'all'
+                && ($request['assignee_type'] ?? null) === 'me'
+                && (int) ($request['page'] ?? 0) === 1;
+        });
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
+                && (int) ($request['page'] ?? 0) === 2;
+        });
+    }
+
+    public function test_get_conversation_messages_fetches_full_history_with_before_pagination(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        Http::fake([
+            'https://chatwoot.test/api/v1/accounts/1/conversations/55/messages*' => function ($request) {
+                if (!str_contains($request->url(), 'before=11')) {
+                    return Http::response([
+                        'payload' => array_map(
+                            fn (int $id) => ['id' => $id, 'content' => "mensagem {$id}", 'created_at' => 1_700_000_000 + $id],
+                            range(11, 30)
+                        ),
+                    ], 200);
+                }
+
+                return Http::response([
+                    'payload' => array_map(
+                        fn (int $id) => ['id' => $id, 'content' => "mensagem {$id}", 'created_at' => 1_700_000_000 + $id],
+                        range(1, 10)
+                    ),
+                ], 200);
+            },
+            'https://chatwoot.test/api/v1/accounts/1/conversations/55' => Http::response([
+                'payload' => [
+                    'id' => 55,
+                    'status' => 'open',
+                    'meta' => [
+                        'sender' => ['id' => 90, 'name' => 'Lucas Pinheiro Ciriaco'],
+                        'assignee' => ['id' => 777, 'email' => 'agente@nic.test'],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $this->getJson('/api/chat/conversations/55')
+            ->assertOk()
+            ->assertJsonPath('conversation.id', 55)
+            ->assertJsonPath('conversation.meta.sender.name', 'Lucas Pinheiro Ciriaco')
+            ->assertJsonCount(30, 'payload')
+            ->assertJsonPath('payload.0.id', 1)
+            ->assertJsonPath('payload.29.id', 30);
     }
 
     public function test_destroy_contact_proxies_the_delete_request(): void

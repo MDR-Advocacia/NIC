@@ -1250,7 +1250,7 @@ const InboxPage = () => {
       return emailUsuarioAtual === emailAssignee;
     }
 
-    return user?.id && assignee.id ? String(user.id) === String(assignee.id) : false;
+    return false;
   };
 
   const resolverAbaParaConversa = (conversa, fallback = 'all') => {
@@ -2258,7 +2258,7 @@ const InboxPage = () => {
       return [];
     }
 
-    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
+    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}&status=all`;
     const filtroInbox = options.inboxId ?? inboxSelecionada;
 
     if (filtroInbox && filtroInbox !== 'all') {
@@ -2555,8 +2555,27 @@ const InboxPage = () => {
       const msgLista = extrairLista(data);
       const mensagensOrdenadas = [...msgLista].sort((left, right) => getMessageTimestamp(left) - getMessageTimestamp(right));
       setMensagens(sincronizarFallbacksLocais(chatId, mensagensOrdenadas));
-      setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
+
+      const conversationMeta = data?.conversation || null;
+      const sender = conversationMeta?.meta?.sender || data.data?.meta?.sender || data.meta?.sender || null;
+      setContatoParaDetalhar(sender);
       setProcessoVinculado(data?.linked_case || null);
+
+      if (conversationMeta?.id) {
+        const conversationKey = getNormalizedId(conversationMeta.id);
+
+        setConversas((anterior) => {
+          const existe = anterior.some((conversa) => getNormalizedId(conversa?.id) === conversationKey);
+
+          if (existe) {
+            return anterior.map((conversa) =>
+              getNormalizedId(conversa?.id) === conversationKey ? { ...conversa, ...conversationMeta } : conversa
+            );
+          }
+
+          return [conversationMeta, ...anterior];
+        });
+      }
     } catch (error) {
       console.error('Erro ao carregar conversa:', error);
     } finally {
