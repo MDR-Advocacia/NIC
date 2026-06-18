@@ -829,9 +829,6 @@ class ChatContactManagementTest extends TestCase
                         range(26, 50)
                     ),
                 ], 200)
-                ->push([
-                    'payload' => [],
-                ], 200),
         ]);
 
         $this->getJson('/api/chat/conversations?assignee_type=all&page=2')
@@ -839,22 +836,16 @@ class ChatContactManagementTest extends TestCase
             ->assertJsonCount(25, 'payload')
             ->assertJsonPath('meta.current_page', 2)
             ->assertJsonPath('meta.per_page', 25)
-            ->assertJsonPath('meta.has_more', false)
+            ->assertJsonPath('meta.has_more', true)
             ->assertJsonPath('meta.prev_page', 1)
-            ->assertJsonPath('meta.next_page', null);
+            ->assertJsonPath('meta.next_page', 3);
 
-        Http::assertSentCount(2);
+        Http::assertSentCount(1);
 
         Http::assertSent(function ($request) {
             return $request->method() === 'GET'
                 && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
                 && (int) ($request['page'] ?? 0) === 2;
-        });
-
-        Http::assertSent(function ($request) {
-            return $request->method() === 'GET'
-                && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
-                && (int) ($request['page'] ?? 0) === 3;
         });
     }
 

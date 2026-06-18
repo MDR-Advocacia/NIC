@@ -2134,15 +2134,6 @@ class ChatController extends Controller
 
         $hasMore = count($batch) >= $perPage;
 
-        if ($hasMore) {
-            try {
-                $nextBatch = $this->fetchChatwootConversationBatch($queryParams, $page + 1);
-                $hasMore = !empty($nextBatch);
-            } catch (\Throwable $e) {
-                // Mantem o "proximo" habilitado quando nao conseguimos confirmar a existencia da pagina seguinte.
-            }
-        }
-
         return [
             'payload' => $batch,
             'meta' => [

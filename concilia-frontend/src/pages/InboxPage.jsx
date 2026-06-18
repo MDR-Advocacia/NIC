@@ -515,13 +515,6 @@ const InboxPage = () => {
   const navigate = useNavigate();
   const [conversas, setConversas] = useState([]);
   const [paginaConversas, setPaginaConversas] = useState(1);
-  const [conversasMeta, setConversasMeta] = useState({
-    current_page: 1,
-    per_page: DEFAULT_CONVERSATIONS_PER_PAGE,
-    has_more: false,
-    next_page: null,
-    prev_page: null,
-  });
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState('me');
   const [conversaSelecionada, setConversaSelecionada] = useState(null);
@@ -613,17 +606,8 @@ const InboxPage = () => {
     return [];
   };
 
-  const criarMetaConversasPadrao = (page = 1) => ({
-    current_page: page,
-    per_page: DEFAULT_CONVERSATIONS_PER_PAGE,
-    has_more: false,
-    next_page: null,
-    prev_page: page > 1 ? page - 1 : null,
-  });
-
   const resetarPaginacaoConversas = (page = 1) => {
     setPaginaConversas(page);
-    setConversasMeta(criarMetaConversasPadrao(page));
   };
 
   const definirFiltroConversas = ({ aba, inboxId } = {}) => {
@@ -636,23 +620,6 @@ const InboxPage = () => {
     if (inboxId !== undefined) {
       setInboxSelecionada(String(inboxId));
     }
-  };
-
-  const extrairMetaPaginacaoConversas = (response, fallbackPage = 1, fallbackPerPage = DEFAULT_CONVERSATIONS_PER_PAGE) => {
-    const meta = response?.meta || response?.data?.meta || response?.pagination || {};
-    const currentPage = Number(meta.current_page ?? meta.page ?? fallbackPage ?? 1);
-    const perPage = Number(meta.per_page ?? meta.perPage ?? fallbackPerPage ?? DEFAULT_CONVERSATIONS_PER_PAGE);
-    const hasMore = Boolean(meta.has_more ?? meta.hasMore ?? meta.next_page ?? meta.nextPage);
-    const normalizedPage = Number.isFinite(currentPage) && currentPage > 0 ? Math.floor(currentPage) : fallbackPage;
-    const normalizedPerPage = Number.isFinite(perPage) && perPage > 0 ? Math.floor(perPage) : fallbackPerPage;
-
-    return {
-      current_page: normalizedPage,
-      per_page: normalizedPerPage,
-      has_more: hasMore,
-      next_page: meta.next_page ?? meta.nextPage ?? (hasMore ? normalizedPage + 1 : null),
-      prev_page: meta.prev_page ?? meta.prevPage ?? (normalizedPage > 1 ? normalizedPage - 1 : null),
-    };
   };
 
   const getTextoTemplate = (template) => {
@@ -1545,10 +1512,23 @@ const InboxPage = () => {
     [conversaAtual, contatoAtual]
   );
 
+  const totalPaginasConversas = useMemo(
+    () => Math.max(1, Math.ceil(conversas.length / DEFAULT_CONVERSATIONS_PER_PAGE)),
+    [conversas.length]
+  );
+  const paginaConversasEfetiva = Math.min(paginaConversas, totalPaginasConversas);
+
+  useEffect(() => {
+    setPaginaConversas((current) => Math.min(current, totalPaginasConversas));
+  }, [totalPaginasConversas]);
+
   const registrosVisiveis = useMemo(() => {
-    if (visaoAtiva === 'conversas') return conversas;
+    if (visaoAtiva === 'conversas') {
+      const inicio = (paginaConversasEfetiva - 1) * DEFAULT_CONVERSATIONS_PER_PAGE;
+      return conversas.slice(inicio, inicio + DEFAULT_CONVERSATIONS_PER_PAGE);
+    }
     return contatos.filter((contato) => (contato?.name || '').toLowerCase().includes(buscaContato.toLowerCase()));
-  }, [visaoAtiva, conversas, contatos, buscaContato]);
+  }, [visaoAtiva, conversas, contatos, buscaContato, paginaConversasEfetiva]);
 
   const templatesFiltrados = useMemo(
     () => templates.filter((template) => template?.name?.toLowerCase().includes(buscaTemplate.toLowerCase())),
@@ -1834,7 +1814,7 @@ const InboxPage = () => {
 
       const conversaCriada = extrairConversaResposta(data);
 
-      const listaAtualizada = await buscarConversas('all', { silent: true, inboxId: targetInboxId, page: 1 });
+      const listaAtualizada = await buscarConversas('all', { silent: true, inboxId: targetInboxId });
       const conversaExistenteAtualizada =
         (conversaCriada?.id ? listaAtualizada.find((item) => String(item.id) === String(conversaCriada.id)) : null) ||
         encontrarConversaPorContatoEInbox(contato.id, targetInboxId, listaAtualizada);
@@ -2344,12 +2324,6 @@ const InboxPage = () => {
   const buscarConversas = async (tipo, options = {}) => {
     const silent = options.silent === true;
     const requestId = ++conversasRequestSeqRef.current;
-    const paginaSolicitada = Number(options.page ?? paginaConversas ?? 1);
-    const paginaAtual = Number.isFinite(paginaSolicitada) && paginaSolicitada > 0 ? Math.floor(paginaSolicitada) : 1;
-    const perPageSolicitado = Number(options.perPage ?? conversasMeta.per_page ?? DEFAULT_CONVERSATIONS_PER_PAGE);
-    const perPageAtual = Number.isFinite(perPageSolicitado) && perPageSolicitado > 0
-      ? Math.floor(perPageSolicitado)
-      : DEFAULT_CONVERSATIONS_PER_PAGE;
 
     const token = getCleanToken();
     if (!token) {
@@ -2364,7 +2338,7 @@ const InboxPage = () => {
       setCarregando(true);
     }
 
-    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}&status=all&page=${paginaAtual}&per_page=${perPageAtual}`;
+    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}&status=all`;
     const filtroInbox = options.inboxId ?? inboxSelecionada;
 
     if (filtroInbox && filtroInbox !== 'all') {
@@ -2384,7 +2358,6 @@ const InboxPage = () => {
       }
 
       if (!response.ok) {
-        setConversasMeta(criarMetaConversasPadrao(paginaAtual));
         if (!silent) {
           setConversas([]);
           definirFeedback(data?.message || 'Nao foi possivel carregar as conversas do Chatwoot.', 'error');
@@ -2402,14 +2375,12 @@ const InboxPage = () => {
       }
 
       setConversas(listaComFallback);
-      setConversasMeta(meta);
       return listaComFallback;
     } catch (error) {
       console.error('Erro ao buscar conversas:', error);
       if (requestId !== conversasRequestSeqRef.current) {
         return [];
       }
-      setConversasMeta(criarMetaConversasPadrao(paginaAtual));
       if (!silent) {
         setConversas([]);
       }
@@ -2538,8 +2509,8 @@ const InboxPage = () => {
   }, [painelContatoAberto, conversaAtual?.inbox_id]);
 
   useEffect(() => {
-    buscarConversas(abaAtiva, { page: paginaConversas });
-  }, [abaAtiva, inboxSelecionada, paginaConversas]);
+    buscarConversas(abaAtiva);
+  }, [abaAtiva, inboxSelecionada]);
 
   useEffect(() => {
     if (chatwootConnectionRequired) {
@@ -2548,7 +2519,7 @@ const InboxPage = () => {
     }
 
     const intervaloConversas = window.setInterval(async () => {
-      const lista = await buscarConversas(abaAtiva, { silent: true, page: paginaConversas });
+      const lista = await buscarConversas(abaAtiva, { silent: true });
 
       if (!lista.length) {
         return;
@@ -2595,7 +2566,7 @@ const InboxPage = () => {
       window.clearInterval(intervaloConversas);
       document.title = 'NIC';
     };
-  }, [abaAtiva, inboxSelecionada, paginaConversas, chatwootConnectionRequired]);
+  }, [abaAtiva, inboxSelecionada, chatwootConnectionRequired]);
 
   useEffect(() => {
     if (!conversaSelecionada) {
@@ -3805,15 +3776,15 @@ const InboxPage = () => {
           <div style={styles.paginationFooter}>
             <div style={styles.paginationInfo}>
               <div style={styles.paginationLabel}>Pagina</div>
-              <div style={styles.paginationPage}>Pagina {conversasMeta.current_page}</div>
+              <div style={styles.paginationPage}>Pagina {paginaConversasEfetiva} de {totalPaginasConversas}</div>
             </div>
 
             <div style={styles.paginationActions}>
               <button
                 type="button"
-                style={styles.paginationButton(paginaConversas <= 1 || carregando)}
+                style={styles.paginationButton(paginaConversasEfetiva <= 1 || carregando)}
                 onClick={() => setPaginaConversas((pagina) => Math.max(1, pagina - 1))}
-                disabled={paginaConversas <= 1 || carregando}
+                disabled={paginaConversasEfetiva <= 1 || carregando}
               >
                 <FaChevronLeft size={12} />
                 Anterior
@@ -3821,9 +3792,9 @@ const InboxPage = () => {
 
               <button
                 type="button"
-                style={styles.paginationButton(carregando || !conversasMeta.has_more)}
+                style={styles.paginationButton(carregando || paginaConversasEfetiva >= totalPaginasConversas)}
                 onClick={() => setPaginaConversas((pagina) => pagina + 1)}
-                disabled={carregando || !conversasMeta.has_more}
+                disabled={carregando || paginaConversasEfetiva >= totalPaginasConversas}
               >
                 Proxima
                 <FaChevronRight size={12} />
