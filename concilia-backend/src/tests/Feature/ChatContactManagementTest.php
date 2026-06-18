@@ -817,6 +817,47 @@ class ChatContactManagementTest extends TestCase
         });
     }
 
+    public function test_get_conversations_can_return_a_single_page_with_pagination_meta(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        Http::fake([
+            'https://chatwoot.test/api/v1/accounts/1/conversations*' => Http::sequence()
+                ->push([
+                    'payload' => array_map(
+                        fn (int $id) => ['id' => $id, 'status' => 'open', 'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']]],
+                        range(26, 50)
+                    ),
+                ], 200)
+                ->push([
+                    'payload' => [],
+                ], 200),
+        ]);
+
+        $this->getJson('/api/chat/conversations?assignee_type=all&page=2')
+            ->assertOk()
+            ->assertJsonCount(25, 'payload')
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.per_page', 25)
+            ->assertJsonPath('meta.has_more', false)
+            ->assertJsonPath('meta.prev_page', 1)
+            ->assertJsonPath('meta.next_page', null);
+
+        Http::assertSentCount(2);
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
+                && (int) ($request['page'] ?? 0) === 2;
+        });
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'GET'
+                && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
+                && (int) ($request['page'] ?? 0) === 3;
+        });
+    }
+
     public function test_get_conversation_messages_fetches_full_history_with_before_pagination(): void
     {
         Sanctum::actingAs($this->makeAuthorizedUser());

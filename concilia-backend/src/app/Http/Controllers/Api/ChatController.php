@@ -1301,13 +1301,25 @@ class ChatController extends Controller
             $queryParams['inbox_id'] = (int) $inboxId;
         }
 
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = max(1, min((int) $request->query('per_page', env('CONVERSATION_RESULTS_PER_PAGE', 25)), 100));
+        $useSinglePageMode = $request->filled('page') || $request->filled('per_page');
+
         try {
+            if ($useSinglePageMode) {
+                $payload = $this->fetchChatwootConversationPage($queryParams, $page, $perPage);
+
+                $payload['payload'] = $this->attachLinkedCasesToConversations($payload['payload']);
+
+                return response()->json($payload);
+            }
+
             $payload = $this->fetchPaginatedChatwootConversations($queryParams);
 
             return response()->json($this->attachLinkedCasesToConversations($payload));
         } catch (\RuntimeException $e) {
             return response()->json(['error' => 'Erro na API'], 502);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Erro ao buscar conversas do Chatwoot', [
                 'error' => $e->getMessage(),
                 'query' => $queryParams,
@@ -2077,21 +2089,7 @@ class ChatController extends Controller
         $perPage = (int) env('CONVERSATION_RESULTS_PER_PAGE', 25);
 
         while ($page <= $maxPages) {
-            $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
-                ->timeout(15)
-                ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", array_merge($queryParams, [
-                    'page' => $page,
-                ]));
-
-            if ($response->failed()) {
-                if ($page === 1) {
-                    throw new \RuntimeException('Erro na API do Chatwoot ao listar conversas.');
-                }
-
-                break;
-            }
-
-            $batch = $this->extractChatwootContactsList($response->json());
+            $batch = $this->fetchChatwootConversationBatch($queryParams, $page);
 
             if (empty($batch)) {
                 break;
@@ -2107,6 +2105,54 @@ class ChatController extends Controller
         }
 
         return $allConversations;
+    }
+
+    private function fetchChatwootConversationBatch(array $queryParams, int $page): array
+    {
+        $response = Http::withHeaders(['api_access_token' => $this->chatwootApiToken()])
+            ->timeout(15)
+            ->get("{$this->chatwootUrl}/api/v1/accounts/{$this->accountId}/conversations", array_merge($queryParams, [
+                'page' => $page,
+            ]));
+
+        if ($response->failed()) {
+            throw new \RuntimeException('Erro na API do Chatwoot ao listar conversas.');
+        }
+
+        $batch = $this->extractChatwootContactsList($response->json());
+
+        return is_array($batch) ? array_values($batch) : [];
+    }
+
+    private function fetchChatwootConversationsPage(array $queryParams, int $page, int $perPage): array
+    {
+        $batch = $this->fetchChatwootConversationBatch($queryParams, $page);
+
+        if ($perPage <= 0) {
+            $perPage = 25;
+        }
+
+        $hasMore = count($batch) >= $perPage;
+
+        if ($hasMore) {
+            try {
+                $nextBatch = $this->fetchChatwootConversationBatch($queryParams, $page + 1);
+                $hasMore = !empty($nextBatch);
+            } catch (\Throwable $e) {
+                // Mantem o "proximo" habilitado quando nao conseguimos confirmar a existencia da pagina seguinte.
+            }
+        }
+
+        return [
+            'payload' => $batch,
+            'meta' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'has_more' => $hasMore,
+                'next_page' => $hasMore ? $page + 1 : null,
+                'prev_page' => $page > 1 ? $page - 1 : null,
+            ],
+        ];
     }
 
     private function fetchAllConversationMessages(int $conversationId, int $maxPages = 100): array
