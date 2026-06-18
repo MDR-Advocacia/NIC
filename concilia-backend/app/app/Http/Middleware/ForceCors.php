@@ -16,16 +16,13 @@ class ForceCors
         ])));
 
         $origin = $request->headers->get('Origin');
-        $allowOrigin = in_array($origin, $allowedOrigins, true)
-            ? $origin
-            : ($allowedOrigins[0] ?? 'https://lab-nic.mdradvocacia.com');
+        $allowOrigin = in_array($origin, $allowedOrigins, true) ? $origin : null;
         $allowHeaders = $request->headers->get(
             'Access-Control-Request-Headers',
             'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-XSRF-TOKEN, X-CSRF-TOKEN'
         );
 
         $headers = [
-            'Access-Control-Allow-Origin' => $allowOrigin,
             'Access-Control-Allow-Methods' => 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
             'Access-Control-Allow-Headers' => $allowHeaders,
             'Access-Control-Allow-Credentials' => 'true',
@@ -33,20 +30,37 @@ class ForceCors
             'Vary' => 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
         ];
 
-        if ($request->isMethod('OPTIONS')) {
-            $response = response('', 204);
+        if ($allowOrigin) {
+            $headers['Access-Control-Allow-Origin'] = $allowOrigin;
+        }
 
+        try {
+            if ($request->isMethod('OPTIONS')) {
+                $response = response('', 204);
+
+                foreach ($headers as $header => $value) {
+                    $response->headers->set($header, $value);
+                }
+
+                return $response;
+            }
+
+            $response = $next($request);
+        } catch (\Throwable $e) {
+            if (! $request->is('api/*')) {
+                throw $e;
+            }
+
+            report($e);
+            $response = response()->json([
+                'message' => 'Erro interno ao processar a requisicao.',
+            ], 500);
+        }
+
+        if ($allowOrigin) {
             foreach ($headers as $header => $value) {
                 $response->headers->set($header, $value);
             }
-
-            return $response;
-        }
-
-        $response = $next($request);
-
-        foreach ($headers as $header => $value) {
-            $response->headers->set($header, $value);
         }
 
         return $response;
