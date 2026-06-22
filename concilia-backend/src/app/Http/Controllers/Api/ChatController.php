@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\LegalCase;
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -1309,6 +1310,18 @@ class ChatController extends Controller
             $payload['payload'] = $this->attachLinkedCasesToConversations($payload['payload']);
 
             return response()->json($payload);
+        } catch (ConnectionException $e) {
+            Log::warning('Falha de conectividade ao carregar conversas do Chatwoot', [
+                'error' => $e->getMessage(),
+                'query' => $queryParams,
+                'page' => $page,
+                'per_page' => $perPage,
+            ]);
+
+            return response()->json([
+                'message' => 'Nao foi possivel conectar ao Chatwoot.',
+                'error' => 'Nao foi possivel conectar ao Chatwoot.',
+            ], 502);
         } catch (\RuntimeException $e) {
             Log::warning('Falha ao carregar conversas do Chatwoot', [
                 'error' => $e->getMessage(),
@@ -1658,46 +1671,55 @@ class ChatController extends Controller
             return $conversations;
         }
 
-        $conversationIds = collect($conversations)
-            ->map(fn ($conversation) => isset($conversation['id']) ? (string) $conversation['id'] : null)
-            ->filter()
-            ->unique()
-            ->values();
+        try {
+            $conversationIds = collect($conversations)
+                ->map(fn ($conversation) => isset($conversation['id']) ? (string) $conversation['id'] : null)
+                ->filter()
+                ->unique()
+                ->values();
 
-        if ($conversationIds->isEmpty()) {
+            if ($conversationIds->isEmpty()) {
+                return $conversations;
+            }
+
+            $query = Conversation::query()->with([
+                'legalCase.client',
+                'legalCase.lawyer',
+                'legalCase.indicator',
+            ]);
+
+            $records = $this->conversationHasChatwootIdColumn()
+                ? $query->whereIn('chatwoot_id', $conversationIds->all())->get()->keyBy(fn ($record) => (string) $record->chatwoot_id)
+                : $query->whereIn('id', $conversationIds->map(fn ($id) => (int) $id)->all())->get()->keyBy(fn ($record) => (string) $record->id);
+
+            return array_map(function ($conversation) use ($records) {
+                if (!is_array($conversation) || !isset($conversation['id'])) {
+                    return $conversation;
+                }
+
+                $record = $records->get((string) $conversation['id']);
+
+                if (!$record) {
+                    return $conversation;
+                }
+
+                $conversation['linked_case'] = $this->serializeLinkedCase($record->legalCase);
+                $conversation['conversation_record'] = [
+                    'id' => $record->id,
+                    'chatwoot_id' => $record->chatwoot_id ?? null,
+                    'legal_case_id' => $record->legal_case_id,
+                ];
+
+                return $conversation;
+            }, $conversations);
+        } catch (\Throwable $e) {
+            Log::warning('Falha ao enriquecer conversas com processos vinculados', [
+                'error' => $e->getMessage(),
+                'conversation_count' => count($conversations),
+            ]);
+
             return $conversations;
         }
-
-        $query = Conversation::query()->with([
-            'legalCase.client',
-            'legalCase.lawyer',
-            'legalCase.indicator',
-        ]);
-
-        $records = $this->conversationHasChatwootIdColumn()
-            ? $query->whereIn('chatwoot_id', $conversationIds->all())->get()->keyBy(fn ($record) => (string) $record->chatwoot_id)
-            : $query->whereIn('id', $conversationIds->map(fn ($id) => (int) $id)->all())->get()->keyBy(fn ($record) => (string) $record->id);
-
-        return array_map(function ($conversation) use ($records) {
-            if (!is_array($conversation) || !isset($conversation['id'])) {
-                return $conversation;
-            }
-
-            $record = $records->get((string) $conversation['id']);
-
-            if (!$record) {
-                return $conversation;
-            }
-
-            $conversation['linked_case'] = $this->serializeLinkedCase($record->legalCase);
-            $conversation['conversation_record'] = [
-                'id' => $record->id,
-                'chatwoot_id' => $record->chatwoot_id ?? null,
-                'legal_case_id' => $record->legal_case_id,
-            ];
-
-            return $conversation;
-        }, $conversations);
     }
 
     private function conversationHasChatwootIdColumn(): bool
@@ -2039,8 +2061,12 @@ class ChatController extends Controller
             ->all();
     }
 
-    private function extractChatwootContact(array $data): array
+    private function extractChatwootContact($data): array
     {
+        if (!is_array($data)) {
+            return [];
+        }
+
         if (is_array($data['payload']['contact'] ?? null)) {
             return $data['payload']['contact'];
         }
@@ -2072,8 +2098,12 @@ class ChatController extends Controller
         return $data;
     }
 
-    private function extractChatwootContactsList(array $data): array
+    private function extractChatwootContactsList($data): array
     {
+        if (!is_array($data)) {
+            return [];
+        }
+
         if (is_array($data['payload'] ?? null)) {
             return $data['payload'];
         }
@@ -2126,7 +2156,13 @@ class ChatController extends Controller
             throw new \RuntimeException('Erro na API do Chatwoot ao listar conversas.');
         }
 
-        $batch = $this->extractChatwootContactsList($response->json());
+        $responseData = $response->json();
+
+        if (!is_array($responseData)) {
+            throw new \RuntimeException('Resposta invalida do Chatwoot ao listar conversas.');
+        }
+
+        $batch = $this->extractChatwootContactsList($responseData);
 
         return is_array($batch) ? array_values($batch) : [];
     }
