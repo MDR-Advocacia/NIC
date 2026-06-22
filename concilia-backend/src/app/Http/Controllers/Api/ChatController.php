@@ -1305,9 +1305,10 @@ class ChatController extends Controller
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min((int) $request->query('per_page', env('CONVERSATION_RESULTS_PER_PAGE', 25)), 100));
         $recentDays = max(1, min((int) $request->query('recent_days', 15), 30));
+        $windowMaxPages = $this->conversationWindowMaxPagesForRequest($assigneeType, $request);
 
         try {
-            $recentConversations = $this->fetchRecentChatwootConversationWindow($queryParams, $recentDays);
+            $recentConversations = $this->fetchRecentChatwootConversationWindow($queryParams, $recentDays, $windowMaxPages);
             $total = count($recentConversations);
             $offset = ($page - 1) * $perPage;
             $pagePayload = array_slice($recentConversations, $offset, $perPage);
@@ -1327,6 +1328,7 @@ class ChatController extends Controller
                     'total' => $total,
                     'total_pages' => $totalPages,
                     'recent_days' => $recentDays,
+                    'window_max_pages' => $windowMaxPages,
                 ],
             ];
 
@@ -2167,7 +2169,7 @@ class ChatController extends Controller
 
     private function fetchRecentChatwootConversationWindow(array $queryParams, int $recentDays = 15, int $maxPages = 40): array
     {
-        $cacheKey = $this->recentChatwootConversationCacheKey($queryParams, $recentDays);
+        $cacheKey = $this->recentChatwootConversationCacheKey($queryParams, $recentDays, $maxPages);
         $cachedWindow = Cache::get($cacheKey);
 
         try {
@@ -2230,10 +2232,22 @@ class ChatController extends Controller
             ->all();
     }
 
-    private function recentChatwootConversationCacheKey(array $queryParams, int $recentDays): string
+    private function conversationWindowMaxPagesForRequest(string $assigneeType, Request $request): int
+    {
+        $defaultMaxPages = $assigneeType === 'all'
+            ? (int) env('CONVERSATION_ALL_WINDOW_MAX_PAGES', 1)
+            : (int) env('CONVERSATION_RECENT_WINDOW_MAX_PAGES', 8);
+
+        $maxPages = (int) $request->query('window_max_pages', $defaultMaxPages);
+
+        return max(1, min($maxPages, 10));
+    }
+
+    private function recentChatwootConversationCacheKey(array $queryParams, int $recentDays, int $maxPages): string
     {
         return 'chatwoot:account:' . $this->accountId
             . ':recent-conversations:' . $recentDays
+            . ':pages:' . $maxPages
             . ':' . md5(json_encode($queryParams));
     }
 
