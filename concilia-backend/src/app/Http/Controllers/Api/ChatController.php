@@ -1303,29 +1303,36 @@ class ChatController extends Controller
 
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min((int) $request->query('per_page', env('CONVERSATION_RESULTS_PER_PAGE', 25)), 100));
-        $useSinglePageMode = $request->filled('page') || $request->filled('per_page');
 
         try {
-            if ($useSinglePageMode) {
-                $payload = $this->fetchChatwootConversationPage($queryParams, $page, $perPage);
+            $payload = $this->fetchChatwootConversationPage($queryParams, $page, $perPage);
+            $payload['payload'] = $this->attachLinkedCasesToConversations($payload['payload']);
 
-                $payload['payload'] = $this->attachLinkedCasesToConversations($payload['payload']);
-
-                return response()->json($payload);
-            }
-
-            $payload = $this->fetchPaginatedChatwootConversations($queryParams);
-
-            return response()->json($this->attachLinkedCasesToConversations($payload));
+            return response()->json($payload);
         } catch (\RuntimeException $e) {
-            return response()->json(['error' => 'Erro na API'], 502);
+            Log::warning('Falha ao carregar conversas do Chatwoot', [
+                'error' => $e->getMessage(),
+                'query' => $queryParams,
+                'page' => $page,
+                'per_page' => $perPage,
+            ]);
+
+            return response()->json([
+                'message' => 'Nao foi possivel carregar as conversas do Chatwoot.',
+                'error' => 'Nao foi possivel carregar as conversas do Chatwoot.',
+            ], 502);
         } catch (\Throwable $e) {
             Log::error('Erro ao buscar conversas do Chatwoot', [
                 'error' => $e->getMessage(),
                 'query' => $queryParams,
+                'page' => $page,
+                'per_page' => $perPage,
             ]);
 
-            return response()->json(['error' => 'Timeout'], 504);
+            return response()->json([
+                'message' => 'Erro inesperado ao carregar as conversas do Chatwoot.',
+                'error' => 'Erro inesperado ao carregar as conversas do Chatwoot.',
+            ], 500);
         }
     }
 

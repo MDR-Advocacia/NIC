@@ -779,41 +779,36 @@ class ChatContactManagementTest extends TestCase
         });
     }
 
-    public function test_get_conversations_paginates_through_all_pages_and_uses_status_all_by_default(): void
+    public function test_get_conversations_uses_a_single_chatwoot_page_by_default(): void
     {
         Sanctum::actingAs($this->makeAuthorizedUser());
 
         Http::fake([
-            'https://chatwoot.test/api/v1/accounts/1/conversations*' => Http::sequence()
-                ->push([
-                    'payload' => array_map(
-                        fn (int $id) => ['id' => $id, 'status' => 'open', 'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']]],
-                        range(1, 25)
-                    ),
-                ], 200)
-                ->push([
-                    'payload' => [
-                        ['id' => 26, 'status' => 'resolved', 'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']]],
-                    ],
-                ], 200),
+            'https://chatwoot.test/api/v1/accounts/1/conversations*' => Http::response([
+                'payload' => array_map(
+                    fn (int $id) => ['id' => $id, 'status' => 'open', 'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']]],
+                    range(1, 25)
+                ),
+            ], 200),
         ]);
 
-        $this->getJson('/api/chat/conversations?assignee_type=me')
+        $this->getJson('/api/chat/conversations?assignee_type=all&status=all')
             ->assertOk()
-            ->assertJsonCount(26);
+            ->assertJsonCount(25, 'payload')
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.per_page', 25)
+            ->assertJsonPath('meta.has_more', true)
+            ->assertJsonPath('meta.prev_page', null)
+            ->assertJsonPath('meta.next_page', 2);
+
+        Http::assertSentCount(1);
 
         Http::assertSent(function ($request) {
             return $request->method() === 'GET'
                 && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
                 && ($request['status'] ?? null) === 'all'
-                && ($request['assignee_type'] ?? null) === 'me'
+                && ($request['assignee_type'] ?? null) === null
                 && (int) ($request['page'] ?? 0) === 1;
-        });
-
-        Http::assertSent(function ($request) {
-            return $request->method() === 'GET'
-                && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
-                && (int) ($request['page'] ?? 0) === 2;
         });
     }
 
