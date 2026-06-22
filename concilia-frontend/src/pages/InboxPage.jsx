@@ -2367,7 +2367,6 @@ const InboxPage = () => {
 
       setChatwootConnectionRequired(null);
       const lista = extrairLista(data);
-      const meta = extrairMetaPaginacaoConversas(data, paginaAtual, perPageAtual);
 
       const listaComFallback = aplicarPreviewFallbackNasConversas(lista);
       if (requestId !== conversasRequestSeqRef.current) {
