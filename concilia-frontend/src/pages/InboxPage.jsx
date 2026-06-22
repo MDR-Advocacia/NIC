@@ -2357,7 +2357,6 @@ const InboxPage = () => {
     const silent = options.silent === true;
     const requestId = ++conversasRequestSeqRef.current;
     const paginaSolicitada = Math.max(1, Number(options.page ?? paginaConversas ?? 1));
-    const perPageSolicitado = Math.max(1, Number(options.perPage ?? DEFAULT_CONVERSATIONS_PER_PAGE));
 
     const token = getCleanToken();
     if (!token) {
@@ -2372,7 +2371,7 @@ const InboxPage = () => {
       setCarregando(true);
     }
 
-    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}&status=all&page=${paginaSolicitada}&per_page=${perPageSolicitado}`;
+    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}&status=all&page=${paginaSolicitada}`;
     const filtroInbox = options.inboxId ?? inboxSelecionada;
 
     if (filtroInbox && filtroInbox !== 'all') {
@@ -2402,7 +2401,7 @@ const InboxPage = () => {
 
       setChatwootConnectionRequired(null);
       const lista = extrairLista(data);
-      const meta = extrairMetaPaginacaoConversas(data, paginaSolicitada, perPageSolicitado);
+      const meta = extrairMetaPaginacaoConversas(data, paginaSolicitada, DEFAULT_CONVERSATIONS_PER_PAGE);
 
       const listaComFallback = aplicarPreviewFallbackNasConversas(lista);
       if (requestId !== conversasRequestSeqRef.current) {
