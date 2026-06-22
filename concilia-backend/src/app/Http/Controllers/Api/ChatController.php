@@ -1304,10 +1304,31 @@ class ChatController extends Controller
 
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min((int) $request->query('per_page', env('CONVERSATION_RESULTS_PER_PAGE', 25)), 100));
+        $recentDays = max(1, min((int) $request->query('recent_days', 15), 30));
 
         try {
-            $payload = $this->fetchChatwootConversationPage($queryParams, $page, $perPage);
-            $payload['payload'] = $this->attachLinkedCasesToConversations($payload['payload']);
+            $recentConversations = $this->fetchRecentChatwootConversationWindow($queryParams, $recentDays);
+            $total = count($recentConversations);
+            $offset = ($page - 1) * $perPage;
+            $pagePayload = array_slice($recentConversations, $offset, $perPage);
+            $pagePayload = $this->attachLinkedCasesToConversations($pagePayload);
+
+            $totalPages = max(1, (int) ceil($total / $perPage));
+            $hasMore = $page < $totalPages && $offset + count($pagePayload) < $total;
+
+            $payload = [
+                'payload' => $pagePayload,
+                'meta' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'has_more' => $hasMore,
+                    'next_page' => $hasMore ? $page + 1 : null,
+                    'prev_page' => $page > 1 ? $page - 1 : null,
+                    'total' => $total,
+                    'total_pages' => $totalPages,
+                    'recent_days' => $recentDays,
+                ],
+            ];
 
             return response()->json($payload);
         } catch (ConnectionException $e) {
@@ -2142,6 +2163,78 @@ class ChatController extends Controller
         }
 
         return $allConversations;
+    }
+
+    private function fetchRecentChatwootConversationWindow(array $queryParams, int $recentDays = 15, int $maxPages = 40): array
+    {
+        $cacheKey = $this->recentChatwootConversationCacheKey($queryParams, $recentDays);
+        $cachedWindow = Cache::get($cacheKey);
+
+        try {
+            $window = $this->buildRecentChatwootConversationWindow($queryParams, $recentDays, $maxPages);
+
+            Cache::put($cacheKey, $window, now()->addMinutes(2));
+
+            return $window;
+        } catch (\Throwable $e) {
+            if (is_array($cachedWindow)) {
+                Log::warning('Usando janela em cache de conversas recentes do Chatwoot apos falha', [
+                    'error' => $e->getMessage(),
+                    'query' => $queryParams,
+                    'recent_days' => $recentDays,
+                ]);
+
+                return $cachedWindow;
+            }
+
+            throw $e;
+        }
+    }
+
+    private function buildRecentChatwootConversationWindow(array $queryParams, int $recentDays, int $maxPages = 40): array
+    {
+        $cutoffTimestamp = now()->subDays($recentDays)->timestamp;
+        $allConversations = [];
+        $page = 1;
+        $perPage = (int) env('CONVERSATION_RESULTS_PER_PAGE', 25);
+
+        while ($page <= $maxPages) {
+            $batch = $this->fetchChatwootConversationBatch($queryParams, $page);
+
+            if (empty($batch)) {
+                break;
+            }
+
+            $allConversations = array_merge($allConversations, $batch);
+
+            $oldestTimestampInBatch = collect($batch)
+                ->map(fn ($conversation) => $this->getConversationActivityTimestamp($conversation))
+                ->filter(fn ($timestamp) => $timestamp > 0)
+                ->min();
+
+            if ($oldestTimestampInBatch !== null && $oldestTimestampInBatch < $cutoffTimestamp) {
+                break;
+            }
+
+            if (count($batch) < $perPage) {
+                break;
+            }
+
+            $page++;
+        }
+
+        return collect($allConversations)
+            ->filter(fn ($conversation) => $this->getConversationActivityTimestamp($conversation) >= $cutoffTimestamp)
+            ->sortByDesc(fn ($conversation) => $this->getConversationActivityTimestamp($conversation))
+            ->values()
+            ->all();
+    }
+
+    private function recentChatwootConversationCacheKey(array $queryParams, int $recentDays): string
+    {
+        return 'chatwoot:account:' . $this->accountId
+            . ':recent-conversations:' . $recentDays
+            . ':' . md5(json_encode($queryParams));
     }
 
     private function fetchChatwootConversationBatch(array $queryParams, int $page): array
