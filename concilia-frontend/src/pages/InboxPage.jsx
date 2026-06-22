@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import LinkCaseModal from '../components/LinkCaseModal';
 import { useAuth } from '../context/AuthContext';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
@@ -18,6 +19,7 @@ const SYSTEM_ASSIGNMENT_PATTERNS = [
 ];
 
 const getNormalizedId = (value) => (value == null ? '' : String(value));
+const DEFAULT_CONVERSATIONS_PER_PAGE = 25;
 
 const styles = {
   page: {
@@ -126,6 +128,51 @@ const styles = {
     flexDirection: 'column',
     gap: '10px',
   },
+  paginationFooter: {
+    padding: '14px 18px 18px',
+    borderTop: '1px solid #dbe3ee',
+    backgroundColor: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    flexShrink: 0,
+  },
+  paginationInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  paginationLabel: {
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: '#5f7291',
+  },
+  paginationPage: {
+    fontSize: '14px',
+    fontWeight: 800,
+    color: '#10233f',
+  },
+  paginationActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  paginationButton: (disabled) => ({
+    padding: '10px 12px',
+    borderRadius: '12px',
+    border: disabled ? '1px solid #dbe3ee' : '1px solid #c7d8fb',
+    backgroundColor: disabled ? '#f8fafc' : '#eef4ff',
+    color: disabled ? '#94a3b8' : '#1d4ed8',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  }),
   listCard: (active) => ({
     display: 'flex',
     gap: '12px',
@@ -467,6 +514,7 @@ const InboxPage = () => {
   const { conversationId: urlConversationId } = useParams();
   const navigate = useNavigate();
   const [conversas, setConversas] = useState([]);
+  const [paginaConversas, setPaginaConversas] = useState(1);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState('me');
   const [conversaSelecionada, setConversaSelecionada] = useState(null);
@@ -479,6 +527,13 @@ const InboxPage = () => {
   const [inboxes, setInboxes] = useState([]);
   const [inboxSelecionada, setInboxSelecionada] = useState('all');
   const [visaoAtiva, setVisaoAtiva] = useState('conversas');
+  const [conversasMeta, setConversasMeta] = useState({
+    current_page: 1,
+    per_page: DEFAULT_CONVERSATIONS_PER_PAGE,
+    has_more: false,
+    next_page: null,
+    prev_page: null,
+  });
   const [contatos, setContatos] = useState([]);
   const [buscaContato, setBuscaContato] = useState('');
   const [buscaContatoExistente, setBuscaContatoExistente] = useState('');
@@ -530,6 +585,8 @@ const InboxPage = () => {
   const notificacoesInicializadasRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
   const previousConversationRef = useRef(null);
+  const conversasLoadingRef = useRef(0);
+  const conversasRequestSeqRef = useRef(0);
   const fallbackMessagesRef = useRef((() => {
     try {
       if (typeof window === 'undefined') return {};
@@ -554,6 +611,31 @@ const InboxPage = () => {
     if (Array.isArray(response?.payload)) return response.payload;
     if (Array.isArray(response?.data?.payload)) return response.data.payload;
     return [];
+  };
+
+  const criarMetaConversasPadrao = (page = 1) => ({
+    current_page: page,
+    per_page: DEFAULT_CONVERSATIONS_PER_PAGE,
+    has_more: false,
+    next_page: null,
+    prev_page: page > 1 ? page - 1 : null,
+  });
+
+  const resetarPaginacaoConversas = (page = 1) => {
+    setPaginaConversas(page);
+    setConversasMeta(criarMetaConversasPadrao(page));
+  };
+
+  const definirFiltroConversas = ({ aba, inboxId } = {}) => {
+    resetarPaginacaoConversas(1);
+
+    if (aba !== undefined) {
+      setAbaAtiva(aba);
+    }
+
+    if (inboxId !== undefined) {
+      setInboxSelecionada(String(inboxId));
+    }
   };
 
   const getTextoTemplate = (template) => {
@@ -769,6 +851,7 @@ const InboxPage = () => {
     setMensagens([]);
     setConversaSelecionada(null);
     setProcessoVinculado(null);
+    resetarPaginacaoConversas(1);
   };
 
   const tratarConexaoChatwootPendente = (response, data) => {
@@ -1127,6 +1210,23 @@ const InboxPage = () => {
     return data;
   };
 
+  const extrairMetaPaginacaoConversas = (response, fallbackPage = 1, fallbackPerPage = DEFAULT_CONVERSATIONS_PER_PAGE) => {
+    const meta = response?.meta || response?.data?.meta || response?.pagination || {};
+    const currentPage = Number(meta.current_page ?? meta.page ?? fallbackPage ?? 1);
+    const perPage = Number(meta.per_page ?? meta.perPage ?? fallbackPerPage ?? DEFAULT_CONVERSATIONS_PER_PAGE);
+    const hasMore = Boolean(meta.has_more ?? meta.hasMore ?? meta.next_page ?? meta.nextPage);
+    const normalizedPage = Number.isFinite(currentPage) && currentPage > 0 ? Math.floor(currentPage) : fallbackPage;
+    const normalizedPerPage = Number.isFinite(perPage) && perPage > 0 ? Math.floor(perPage) : fallbackPerPage;
+
+    return {
+      current_page: normalizedPage,
+      per_page: normalizedPerPage,
+      has_more: hasMore,
+      next_page: meta.next_page ?? meta.nextPage ?? (hasMore ? normalizedPage + 1 : null),
+      prev_page: meta.prev_page ?? meta.prevPage ?? (normalizedPage > 1 ? normalizedPage - 1 : null),
+    };
+  };
+
   const getInboxIdDaConversa = (conversa) =>
     conversa?.inbox_id || conversa?.meta?.inbox?.id || conversa?.inbox?.id || null;
 
@@ -1250,7 +1350,7 @@ const InboxPage = () => {
       return emailUsuarioAtual === emailAssignee;
     }
 
-    return user?.id && assignee.id ? String(user.id) === String(assignee.id) : false;
+    return false;
   };
 
   const resolverAbaParaConversa = (conversa, fallback = 'all') => {
@@ -1445,10 +1545,22 @@ const InboxPage = () => {
     [conversaAtual, contatoAtual]
   );
 
+  const totalPaginasConversas = useMemo(
+    () => Math.max(1, conversasMeta.current_page + (conversasMeta.has_more ? 1 : 0)),
+    [conversasMeta.current_page, conversasMeta.has_more]
+  );
+  const paginaConversasEfetiva = Math.min(paginaConversas, totalPaginasConversas);
+
+  useEffect(() => {
+    setPaginaConversas((current) => Math.min(current, totalPaginasConversas));
+  }, [totalPaginasConversas]);
+
   const registrosVisiveis = useMemo(() => {
-    if (visaoAtiva === 'conversas') return conversas;
+    if (visaoAtiva === 'conversas') {
+      return conversas;
+    }
     return contatos.filter((contato) => (contato?.name || '').toLowerCase().includes(buscaContato.toLowerCase()));
-  }, [visaoAtiva, conversas, contatos, buscaContato]);
+  }, [visaoAtiva, conversas, contatos, buscaContato, paginaConversasEfetiva]);
 
   const templatesFiltrados = useMemo(
     () => templates.filter((template) => template?.name?.toLowerCase().includes(buscaTemplate.toLowerCase())),
@@ -1701,8 +1813,7 @@ const InboxPage = () => {
     if (conversaExistenteLocal) {
       const abaDestino = resolverAbaParaConversa(conversaExistenteLocal);
       setVisaoAtiva('conversas');
-      setAbaAtiva(abaDestino);
-      setInboxSelecionada(String(targetInboxId));
+      definirFiltroConversas({ aba: abaDestino, inboxId: targetInboxId });
       setContatoParaDetalhar(contato);
       setPainelContatoAberto(false);
       abrirConversa(conversaExistenteLocal.id);
@@ -1743,8 +1854,7 @@ const InboxPage = () => {
       if (conversaExistenteAtualizada?.id) {
         const abaDestino = resolverAbaParaConversa(conversaExistenteAtualizada);
         setVisaoAtiva('conversas');
-        setAbaAtiva(abaDestino);
-        setInboxSelecionada(String(targetInboxId));
+        definirFiltroConversas({ aba: abaDestino, inboxId: targetInboxId });
         setContatoParaDetalhar(contato);
         setPainelContatoAberto(false);
         abrirConversa(conversaExistenteAtualizada.id);
@@ -1760,8 +1870,7 @@ const InboxPage = () => {
         garantirConversaNaLista(conversaCriada, contato, targetInboxId);
         const abaDestino = resolverAbaParaConversa(conversaCriada);
         setVisaoAtiva('conversas');
-        setAbaAtiva(abaDestino);
-        setInboxSelecionada(String(targetInboxId));
+        definirFiltroConversas({ aba: abaDestino, inboxId: targetInboxId });
         setContatoParaDetalhar(contato);
         setPainelContatoAberto(false);
         abrirConversa(conversaCriada.id);
@@ -2246,9 +2355,8 @@ const InboxPage = () => {
 
   const buscarConversas = async (tipo, options = {}) => {
     const silent = options.silent === true;
-    if (!silent) {
-      setCarregando(true);
-    }
+    const requestId = ++conversasRequestSeqRef.current;
+    const paginaSolicitada = Math.max(1, Number(options.page ?? paginaConversas ?? 1));
 
     const token = getCleanToken();
     if (!token) {
@@ -2258,7 +2366,12 @@ const InboxPage = () => {
       return [];
     }
 
-    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}`;
+    if (!silent) {
+      conversasLoadingRef.current += 1;
+      setCarregando(true);
+    }
+
+    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}&status=all&page=${paginaSolicitada}`;
     const filtroInbox = options.inboxId ?? inboxSelecionada;
 
     if (filtroInbox && filtroInbox !== 'all') {
@@ -2269,6 +2382,10 @@ const InboxPage = () => {
       const response = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
       const data = await response.json().catch(() => ({}));
 
+      if (requestId !== conversasRequestSeqRef.current) {
+        return [];
+      }
+
       if (tratarConexaoChatwootPendente(response, data)) {
         return [];
       }
@@ -2276,6 +2393,7 @@ const InboxPage = () => {
       if (!response.ok) {
         if (!silent) {
           setConversas([]);
+          setConversasMeta(criarMetaConversasPadrao(paginaSolicitada));
           definirFeedback(data?.message || 'Nao foi possivel carregar as conversas do Chatwoot.', 'error');
         }
         return [];
@@ -2283,19 +2401,32 @@ const InboxPage = () => {
 
       setChatwootConnectionRequired(null);
       const lista = extrairLista(data);
+      const meta = extrairMetaPaginacaoConversas(data, paginaSolicitada, DEFAULT_CONVERSATIONS_PER_PAGE);
 
       const listaComFallback = aplicarPreviewFallbackNasConversas(lista);
+      if (requestId !== conversasRequestSeqRef.current) {
+        return listaComFallback;
+      }
+
       setConversas(listaComFallback);
+      setConversasMeta(meta);
       return listaComFallback;
     } catch (error) {
       console.error('Erro ao buscar conversas:', error);
+      if (requestId !== conversasRequestSeqRef.current) {
+        return [];
+      }
       if (!silent) {
         setConversas([]);
+        setConversasMeta(criarMetaConversasPadrao(paginaSolicitada));
       }
       return [];
     } finally {
       if (!silent) {
-        setCarregando(false);
+        conversasLoadingRef.current = Math.max(0, conversasLoadingRef.current - 1);
+        if (conversasLoadingRef.current === 0) {
+          setCarregando(false);
+        }
       }
     }
   };
@@ -2414,8 +2545,8 @@ const InboxPage = () => {
   }, [painelContatoAberto, conversaAtual?.inbox_id]);
 
   useEffect(() => {
-    buscarConversas(abaAtiva);
-  }, [abaAtiva, inboxSelecionada]);
+    buscarConversas(abaAtiva, { page: paginaConversas });
+  }, [abaAtiva, inboxSelecionada, paginaConversas]);
 
   useEffect(() => {
     if (chatwootConnectionRequired) {
@@ -2424,7 +2555,7 @@ const InboxPage = () => {
     }
 
     const intervaloConversas = window.setInterval(async () => {
-      const lista = await buscarConversas(abaAtiva, { silent: true });
+      const lista = await buscarConversas(abaAtiva, { silent: true, page: paginaConversas });
 
       if (!lista.length) {
         return;
@@ -2471,7 +2602,7 @@ const InboxPage = () => {
       window.clearInterval(intervaloConversas);
       document.title = 'NIC';
     };
-  }, [abaAtiva, inboxSelecionada, chatwootConnectionRequired]);
+  }, [abaAtiva, inboxSelecionada, paginaConversas, chatwootConnectionRequired]);
 
   useEffect(() => {
     if (!conversaSelecionada) {
@@ -2555,8 +2686,27 @@ const InboxPage = () => {
       const msgLista = extrairLista(data);
       const mensagensOrdenadas = [...msgLista].sort((left, right) => getMessageTimestamp(left) - getMessageTimestamp(right));
       setMensagens(sincronizarFallbacksLocais(chatId, mensagensOrdenadas));
-      setContatoParaDetalhar(data.data?.meta?.sender || data.meta?.sender || null);
+
+      const conversationMeta = data?.conversation || null;
+      const sender = conversationMeta?.meta?.sender || data.data?.meta?.sender || data.meta?.sender || null;
+      setContatoParaDetalhar(sender);
       setProcessoVinculado(data?.linked_case || null);
+
+      if (conversationMeta?.id) {
+        const conversationKey = getNormalizedId(conversationMeta.id);
+
+        setConversas((anterior) => {
+          const existe = anterior.some((conversa) => getNormalizedId(conversa?.id) === conversationKey);
+
+          if (existe) {
+            return anterior.map((conversa) =>
+              getNormalizedId(conversa?.id) === conversationKey ? { ...conversa, ...conversationMeta } : conversa
+            );
+          }
+
+          return [conversationMeta, ...anterior];
+        });
+      }
     } catch (error) {
       console.error('Erro ao carregar conversa:', error);
     } finally {
@@ -3563,7 +3713,11 @@ const InboxPage = () => {
 
       <div style={styles.panel}>
         <div style={styles.panelHeader}>
-          <select value={inboxSelecionada} onChange={(event) => setInboxSelecionada(event.target.value)} style={styles.select}>
+          <select
+            value={inboxSelecionada}
+            onChange={(event) => definirFiltroConversas({ inboxId: event.target.value })}
+            style={styles.select}
+          >
             <option value="all">Todos os Canais</option>
             {inboxes.map((inbox) => (
               <option key={inbox.id} value={inbox.id}>
@@ -3574,13 +3728,17 @@ const InboxPage = () => {
 
           {visaoAtiva === 'conversas' ? (
             <div style={styles.tabs}>
-              <button type="button" style={styles.tab(abaAtiva === 'me')} onClick={() => setAbaAtiva('me')}>
+              <button type="button" style={styles.tab(abaAtiva === 'me')} onClick={() => definirFiltroConversas({ aba: 'me' })}>
                 Minhas
               </button>
-              <button type="button" style={styles.tab(abaAtiva === 'unassigned')} onClick={() => setAbaAtiva('unassigned')}>
+              <button
+                type="button"
+                style={styles.tab(abaAtiva === 'unassigned')}
+                onClick={() => definirFiltroConversas({ aba: 'unassigned' })}
+              >
                 Nao atribuidas
               </button>
-              <button type="button" style={styles.tab(abaAtiva === 'all')} onClick={() => setAbaAtiva('all')}>
+              <button type="button" style={styles.tab(abaAtiva === 'all')} onClick={() => definirFiltroConversas({ aba: 'all' })}>
                 Todas
               </button>
             </div>
@@ -3649,6 +3807,37 @@ const InboxPage = () => {
             <div style={{ padding: '16px', color: '#6b7d96' }}>Nenhum registro encontrado.</div>
           )}
         </div>
+
+        {visaoAtiva === 'conversas' ? (
+          <div style={styles.paginationFooter}>
+            <div style={styles.paginationInfo}>
+              <div style={styles.paginationLabel}>Pagina</div>
+              <div style={styles.paginationPage}>Pagina {paginaConversasEfetiva} de {totalPaginasConversas}</div>
+            </div>
+
+            <div style={styles.paginationActions}>
+              <button
+                type="button"
+                style={styles.paginationButton(paginaConversasEfetiva <= 1 || carregando)}
+                onClick={() => setPaginaConversas((pagina) => Math.max(1, pagina - 1))}
+                disabled={paginaConversasEfetiva <= 1 || carregando}
+              >
+                <FaChevronLeft size={12} />
+                Anterior
+              </button>
+
+              <button
+                type="button"
+                style={styles.paginationButton(carregando || paginaConversasEfetiva >= totalPaginasConversas)}
+                onClick={() => setPaginaConversas((pagina) => pagina + 1)}
+                disabled={carregando || paginaConversasEfetiva >= totalPaginasConversas}
+              >
+                Proxima
+                <FaChevronRight size={12} />
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
       <div style={styles.chat}>
         {conversaSelecionada ? (

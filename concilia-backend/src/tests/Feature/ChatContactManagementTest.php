@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
@@ -412,7 +413,7 @@ class ChatContactManagementTest extends TestCase
                     ],
                 ],
             ], 200),
-            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=7' => Http::response([
+            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=7&page=1' => Http::response([
                 'payload' => [],
             ], 200),
             'https://chatwoot.test/api/v1/accounts/1/conversations' => Http::response([
@@ -460,7 +461,7 @@ class ChatContactManagementTest extends TestCase
                     'name' => 'WhatsApp',
                 ],
             ], 200),
-            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=5' => Http::response([
+            'https://chatwoot.test/api/v1/accounts/1/conversations?status=open&assignee_type=all&inbox_id=5&page=1' => Http::response([
                 'payload' => [],
             ], 200),
             'https://chatwoot.test/api/v1/accounts/1/conversations' => Http::response([
@@ -777,6 +778,270 @@ class ChatContactManagementTest extends TestCase
                 && $request['template']['name'] === 'bom_dia'
                 && $request['to'] === '5584999990000';
         });
+    }
+
+    public function test_get_conversations_builds_a_recent_window_and_pages_it_locally(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        Carbon::setTestNow(Carbon::parse('2026-06-22 12:00:00'));
+
+        try {
+            Http::fake([
+                'https://chatwoot.test/api/v1/accounts/1/conversations*' => Http::sequence()
+                    ->push([
+                        'payload' => array_map(
+                            fn (int $id) => [
+                                'id' => $id,
+                                'status' => 'open',
+                                'timestamp' => Carbon::parse('2026-06-21 12:00:00')->timestamp,
+                                'updated_at' => Carbon::parse('2026-06-21 12:00:00')->timestamp,
+                                'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']],
+                            ],
+                            range(1, 25)
+                        ),
+                    ], 200)
+                    ->push([
+                        'payload' => array_map(
+                            fn (int $id) => [
+                                'id' => $id,
+                                'status' => 'open',
+                                'timestamp' => Carbon::parse('2026-06-14 12:00:00')->timestamp,
+                                'updated_at' => Carbon::parse('2026-06-14 12:00:00')->timestamp,
+                                'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']],
+                            ],
+                            range(26, 35)
+                        ),
+                    ], 200)
+                    ->push([
+                        'payload' => array_map(
+                            fn (int $id) => [
+                                'id' => $id,
+                                'status' => 'open',
+                                'timestamp' => Carbon::parse('2026-06-14 12:00:00')->timestamp,
+                                'updated_at' => Carbon::parse('2026-06-14 12:00:00')->timestamp,
+                                'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']],
+                            ],
+                            range(26, 35)
+                        ),
+                    ], 200),
+            ]);
+
+            $this->getJson('/api/chat/conversations?assignee_type=me&status=all&page=1&inbox_id=999')
+                ->assertOk()
+                ->assertJsonCount(25, 'payload')
+                ->assertJsonPath('meta.current_page', 1)
+                ->assertJsonPath('meta.per_page', 25)
+                ->assertJsonPath('meta.has_more', true)
+                ->assertJsonPath('meta.prev_page', null)
+                ->assertJsonPath('meta.next_page', 2)
+                ->assertJsonPath('meta.total', 35)
+                ->assertJsonPath('meta.total_pages', 2)
+                ->assertJsonPath('meta.recent_days', 15)
+                ->assertJsonPath('meta.window_max_pages', 8);
+
+            $this->getJson('/api/chat/conversations?assignee_type=me&status=all&page=2&inbox_id=999')
+                ->assertOk()
+                ->assertJsonCount(10, 'payload')
+                ->assertJsonPath('meta.current_page', 2)
+                ->assertJsonPath('meta.per_page', 25)
+                ->assertJsonPath('meta.has_more', false)
+                ->assertJsonPath('meta.prev_page', 1)
+                ->assertJsonPath('meta.next_page', null)
+                ->assertJsonPath('meta.total', 35)
+                ->assertJsonPath('meta.total_pages', 2)
+                ->assertJsonPath('meta.recent_days', 15)
+                ->assertJsonPath('meta.window_max_pages', 8);
+
+            Http::assertSentCount(2);
+
+            Http::assertSent(function ($request) {
+                return $request->method() === 'GET'
+                    && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
+                    && ($request['status'] ?? null) === 'all'
+                    && ($request['assignee_type'] ?? null) === 'me'
+                    && ($request['inbox_id'] ?? null) === 999
+                    && (int) ($request['page'] ?? 0) === 1;
+            });
+
+            Http::assertSent(function ($request) {
+                return $request->method() === 'GET'
+                    && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
+                    && (int) ($request['page'] ?? 0) === 2;
+            });
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_get_conversations_stops_before_older_conversations_outside_the_window(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        Carbon::setTestNow(Carbon::parse('2026-06-22 12:00:00'));
+
+        try {
+            Http::fake([
+                'https://chatwoot.test/api/v1/accounts/1/conversations*' => Http::sequence()
+                    ->push([
+                        'payload' => array_map(
+                            fn (int $id) => [
+                                'id' => $id,
+                                'status' => 'open',
+                                'timestamp' => Carbon::parse('2026-06-21 12:00:00')->timestamp,
+                                'updated_at' => Carbon::parse('2026-06-21 12:00:00')->timestamp,
+                                'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']],
+                            ],
+                            range(1, 25)
+                        ),
+                    ], 200)
+                    ->push([
+                        'payload' => array_map(
+                            fn (int $id) => [
+                                'id' => $id,
+                                'status' => 'open',
+                                'timestamp' => Carbon::parse('2026-05-31 12:00:00')->timestamp,
+                                'updated_at' => Carbon::parse('2026-05-31 12:00:00')->timestamp,
+                                'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']],
+                            ],
+                            range(26, 50)
+                        ),
+                    ], 200),
+            ]);
+
+            $this->getJson('/api/chat/conversations?assignee_type=unassigned&status=all&page=1&inbox_id=998')
+                ->assertOk()
+                ->assertJsonCount(25, 'payload')
+                ->assertJsonPath('meta.current_page', 1)
+                ->assertJsonPath('meta.per_page', 25)
+                ->assertJsonPath('meta.has_more', false)
+                ->assertJsonPath('meta.prev_page', null)
+                ->assertJsonPath('meta.next_page', null)
+                ->assertJsonPath('meta.total', 25)
+                ->assertJsonPath('meta.total_pages', 1)
+                ->assertJsonPath('meta.recent_days', 15)
+                ->assertJsonPath('meta.window_max_pages', 8);
+
+            Http::assertSentCount(2);
+
+            Http::assertSent(function ($request) {
+                return $request->method() === 'GET'
+                    && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
+                    && ($request['assignee_type'] ?? null) === 'unassigned'
+                    && (int) ($request['page'] ?? 0) === 1;
+            });
+
+            Http::assertSent(function ($request) {
+                return $request->method() === 'GET'
+                    && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
+                    && (int) ($request['page'] ?? 0) === 2;
+            });
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_get_conversations_limits_all_tab_to_one_chatwoot_page_by_default(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        Carbon::setTestNow(Carbon::parse('2026-06-22 12:00:00'));
+
+        try {
+            Http::fake([
+                'https://chatwoot.test/api/v1/accounts/1/conversations*' => Http::sequence()
+                    ->push([
+                        'payload' => array_map(
+                            fn (int $id) => [
+                                'id' => $id,
+                                'status' => 'open',
+                                'timestamp' => Carbon::parse('2026-06-21 12:00:00')->timestamp,
+                                'updated_at' => Carbon::parse('2026-06-21 12:00:00')->timestamp,
+                                'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']],
+                            ],
+                            range(1, 25)
+                        ),
+                    ], 200)
+                    ->push([
+                        'payload' => array_map(
+                            fn (int $id) => [
+                                'id' => $id,
+                                'status' => 'open',
+                                'timestamp' => Carbon::parse('2026-06-20 12:00:00')->timestamp,
+                                'updated_at' => Carbon::parse('2026-06-20 12:00:00')->timestamp,
+                                'meta' => ['assignee' => ['id' => 777, 'email' => 'agente@nic.test']],
+                            ],
+                            range(26, 50)
+                        ),
+                    ], 200),
+            ]);
+
+            $this->getJson('/api/chat/conversations?assignee_type=all&status=all&page=1&inbox_id=997')
+                ->assertOk()
+                ->assertJsonCount(25, 'payload')
+                ->assertJsonPath('meta.current_page', 1)
+                ->assertJsonPath('meta.per_page', 25)
+                ->assertJsonPath('meta.has_more', false)
+                ->assertJsonPath('meta.next_page', null)
+                ->assertJsonPath('meta.total', 25)
+                ->assertJsonPath('meta.total_pages', 1)
+                ->assertJsonPath('meta.recent_days', 15)
+                ->assertJsonPath('meta.window_max_pages', 1);
+
+            Http::assertSentCount(1);
+
+            Http::assertSent(function ($request) {
+                return $request->method() === 'GET'
+                    && str_contains($request->url(), 'https://chatwoot.test/api/v1/accounts/1/conversations')
+                    && ($request['assignee_type'] ?? null) === null
+                    && (int) ($request['page'] ?? 0) === 1;
+            });
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_get_conversation_messages_fetches_full_history_with_before_pagination(): void
+    {
+        Sanctum::actingAs($this->makeAuthorizedUser());
+
+        Http::fake([
+            'https://chatwoot.test/api/v1/accounts/1/conversations/55/messages*' => function ($request) {
+                if (!str_contains($request->url(), 'before=11')) {
+                    return Http::response([
+                        'payload' => array_map(
+                            fn (int $id) => ['id' => $id, 'content' => "mensagem {$id}", 'created_at' => 1_700_000_000 + $id],
+                            range(11, 30)
+                        ),
+                    ], 200);
+                }
+
+                return Http::response([
+                    'payload' => array_map(
+                        fn (int $id) => ['id' => $id, 'content' => "mensagem {$id}", 'created_at' => 1_700_000_000 + $id],
+                        range(1, 10)
+                    ),
+                ], 200);
+            },
+            'https://chatwoot.test/api/v1/accounts/1/conversations/55' => Http::response([
+                'payload' => [
+                    'id' => 55,
+                    'status' => 'open',
+                    'meta' => [
+                        'sender' => ['id' => 90, 'name' => 'Lucas Pinheiro Ciriaco'],
+                        'assignee' => ['id' => 777, 'email' => 'agente@nic.test'],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $this->getJson('/api/chat/conversations/55')
+            ->assertOk()
+            ->assertJsonPath('conversation.id', 55)
+            ->assertJsonPath('conversation.meta.sender.name', 'Lucas Pinheiro Ciriaco')
+            ->assertJsonCount(30, 'payload')
+            ->assertJsonPath('payload.0.id', 1)
+            ->assertJsonPath('payload.29.id', 30);
     }
 
     public function test_destroy_contact_proxies_the_delete_request(): void

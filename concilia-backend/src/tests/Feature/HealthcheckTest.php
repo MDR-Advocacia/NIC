@@ -41,4 +41,23 @@ class HealthcheckTest extends TestCase
             (string) $response->headers->get('Access-Control-Allow-Methods')
         );
     }
+
+    public function test_chat_preflight_returns_cors_headers_for_the_lab_frontend(): void
+    {
+        $response = $this->call('OPTIONS', '/api/chat/conversations', [], [], [], [
+            'HTTP_ORIGIN' => 'https://lab-nic.mdradvocacia.com',
+            'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET',
+            'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'authorization, accept',
+        ]);
+
+        $response
+            ->assertNoContent()
+            ->assertHeader('Access-Control-Allow-Origin', 'https://lab-nic.mdradvocacia.com')
+            ->assertHeader('Access-Control-Allow-Credentials', 'true');
+
+        $this->assertStringContainsString(
+            'GET',
+            (string) $response->headers->get('Access-Control-Allow-Methods')
+        );
+    }
 }
