@@ -527,6 +527,13 @@ const InboxPage = () => {
   const [inboxes, setInboxes] = useState([]);
   const [inboxSelecionada, setInboxSelecionada] = useState('all');
   const [visaoAtiva, setVisaoAtiva] = useState('conversas');
+  const [conversasMeta, setConversasMeta] = useState({
+    current_page: 1,
+    per_page: DEFAULT_CONVERSATIONS_PER_PAGE,
+    has_more: false,
+    next_page: null,
+    prev_page: null,
+  });
   const [contatos, setContatos] = useState([]);
   const [buscaContato, setBuscaContato] = useState('');
   const [buscaContatoExistente, setBuscaContatoExistente] = useState('');
@@ -606,8 +613,17 @@ const InboxPage = () => {
     return [];
   };
 
+  const criarMetaConversasPadrao = (page = 1) => ({
+    current_page: page,
+    per_page: DEFAULT_CONVERSATIONS_PER_PAGE,
+    has_more: false,
+    next_page: null,
+    prev_page: page > 1 ? page - 1 : null,
+  });
+
   const resetarPaginacaoConversas = (page = 1) => {
     setPaginaConversas(page);
+    setConversasMeta(criarMetaConversasPadrao(page));
   };
 
   const definirFiltroConversas = ({ aba, inboxId } = {}) => {
@@ -1194,6 +1210,23 @@ const InboxPage = () => {
     return data;
   };
 
+  const extrairMetaPaginacaoConversas = (response, fallbackPage = 1, fallbackPerPage = DEFAULT_CONVERSATIONS_PER_PAGE) => {
+    const meta = response?.meta || response?.data?.meta || response?.pagination || {};
+    const currentPage = Number(meta.current_page ?? meta.page ?? fallbackPage ?? 1);
+    const perPage = Number(meta.per_page ?? meta.perPage ?? fallbackPerPage ?? DEFAULT_CONVERSATIONS_PER_PAGE);
+    const hasMore = Boolean(meta.has_more ?? meta.hasMore ?? meta.next_page ?? meta.nextPage);
+    const normalizedPage = Number.isFinite(currentPage) && currentPage > 0 ? Math.floor(currentPage) : fallbackPage;
+    const normalizedPerPage = Number.isFinite(perPage) && perPage > 0 ? Math.floor(perPage) : fallbackPerPage;
+
+    return {
+      current_page: normalizedPage,
+      per_page: normalizedPerPage,
+      has_more: hasMore,
+      next_page: meta.next_page ?? meta.nextPage ?? (hasMore ? normalizedPage + 1 : null),
+      prev_page: meta.prev_page ?? meta.prevPage ?? (normalizedPage > 1 ? normalizedPage - 1 : null),
+    };
+  };
+
   const getInboxIdDaConversa = (conversa) =>
     conversa?.inbox_id || conversa?.meta?.inbox?.id || conversa?.inbox?.id || null;
 
@@ -1513,8 +1546,8 @@ const InboxPage = () => {
   );
 
   const totalPaginasConversas = useMemo(
-    () => Math.max(1, Math.ceil(conversas.length / DEFAULT_CONVERSATIONS_PER_PAGE)),
-    [conversas.length]
+    () => Math.max(1, conversasMeta.current_page + (conversasMeta.has_more ? 1 : 0)),
+    [conversasMeta.current_page, conversasMeta.has_more]
   );
   const paginaConversasEfetiva = Math.min(paginaConversas, totalPaginasConversas);
 
@@ -1524,8 +1557,7 @@ const InboxPage = () => {
 
   const registrosVisiveis = useMemo(() => {
     if (visaoAtiva === 'conversas') {
-      const inicio = (paginaConversasEfetiva - 1) * DEFAULT_CONVERSATIONS_PER_PAGE;
-      return conversas.slice(inicio, inicio + DEFAULT_CONVERSATIONS_PER_PAGE);
+      return conversas;
     }
     return contatos.filter((contato) => (contato?.name || '').toLowerCase().includes(buscaContato.toLowerCase()));
   }, [visaoAtiva, conversas, contatos, buscaContato, paginaConversasEfetiva]);
@@ -2324,6 +2356,8 @@ const InboxPage = () => {
   const buscarConversas = async (tipo, options = {}) => {
     const silent = options.silent === true;
     const requestId = ++conversasRequestSeqRef.current;
+    const paginaSolicitada = Math.max(1, Number(options.page ?? paginaConversas ?? 1));
+    const perPageSolicitado = Math.max(1, Number(options.perPage ?? DEFAULT_CONVERSATIONS_PER_PAGE));
 
     const token = getCleanToken();
     if (!token) {
@@ -2338,7 +2372,7 @@ const InboxPage = () => {
       setCarregando(true);
     }
 
-    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}&status=all`;
+    let url = `${API_BASE}/chat/conversations?assignee_type=${tipo}&status=all&page=${paginaSolicitada}&per_page=${perPageSolicitado}`;
     const filtroInbox = options.inboxId ?? inboxSelecionada;
 
     if (filtroInbox && filtroInbox !== 'all') {
@@ -2360,6 +2394,7 @@ const InboxPage = () => {
       if (!response.ok) {
         if (!silent) {
           setConversas([]);
+          setConversasMeta(criarMetaConversasPadrao(paginaSolicitada));
           definirFeedback(data?.message || 'Nao foi possivel carregar as conversas do Chatwoot.', 'error');
         }
         return [];
@@ -2367,6 +2402,7 @@ const InboxPage = () => {
 
       setChatwootConnectionRequired(null);
       const lista = extrairLista(data);
+      const meta = extrairMetaPaginacaoConversas(data, paginaSolicitada, perPageSolicitado);
 
       const listaComFallback = aplicarPreviewFallbackNasConversas(lista);
       if (requestId !== conversasRequestSeqRef.current) {
@@ -2374,6 +2410,7 @@ const InboxPage = () => {
       }
 
       setConversas(listaComFallback);
+      setConversasMeta(meta);
       return listaComFallback;
     } catch (error) {
       console.error('Erro ao buscar conversas:', error);
@@ -2382,6 +2419,7 @@ const InboxPage = () => {
       }
       if (!silent) {
         setConversas([]);
+        setConversasMeta(criarMetaConversasPadrao(paginaSolicitada));
       }
       return [];
     } finally {
@@ -2508,8 +2546,8 @@ const InboxPage = () => {
   }, [painelContatoAberto, conversaAtual?.inbox_id]);
 
   useEffect(() => {
-    buscarConversas(abaAtiva);
-  }, [abaAtiva, inboxSelecionada]);
+    buscarConversas(abaAtiva, { page: paginaConversas });
+  }, [abaAtiva, inboxSelecionada, paginaConversas]);
 
   useEffect(() => {
     if (chatwootConnectionRequired) {
@@ -2518,7 +2556,7 @@ const InboxPage = () => {
     }
 
     const intervaloConversas = window.setInterval(async () => {
-      const lista = await buscarConversas(abaAtiva, { silent: true });
+      const lista = await buscarConversas(abaAtiva, { silent: true, page: paginaConversas });
 
       if (!lista.length) {
         return;
@@ -2565,7 +2603,7 @@ const InboxPage = () => {
       window.clearInterval(intervaloConversas);
       document.title = 'NIC';
     };
-  }, [abaAtiva, inboxSelecionada, chatwootConnectionRequired]);
+  }, [abaAtiva, inboxSelecionada, paginaConversas, chatwootConnectionRequired]);
 
   useEffect(() => {
     if (!conversaSelecionada) {
