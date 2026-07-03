@@ -139,11 +139,14 @@ class LegalCaseController extends Controller
         }
 
         // Filtro por Data
+        $dateColumn = in_array($request->input('date_field'), ['agreement_closed_at', 'indicated_at', 'created_at'], true)
+            ? $request->input('date_field')
+            : 'created_at';
         if ($request->filled('date_from')) {
-            $query->where('created_at', '>=', $request->input('date_from') . ' 00:00:00');
+            $query->where($dateColumn, '>=', $request->input('date_from') . ' 00:00:00');
         }
         if ($request->filled('date_to')) {
-            $query->where('created_at', '<=', $request->input('date_to') . ' 23:59:59');
+            $query->where($dateColumn, '<=', $request->input('date_to') . ' 23:59:59');
         }
 
         // --- ORDENAÇÃO DINÂMICA ---
@@ -397,12 +400,45 @@ class LegalCaseController extends Controller
         $validatedData = $this->applyContraIndicationPayload($validatedData, $case);
         $validatedData = $this->applyFailedDealPayload($validatedData, $case);
 
+        $resultingStatus = $validatedData['status'] ?? $case->status;
+        if ($resultingStatus === 'closed_deal' || $resultingStatus === 'closed_in_hearing') {
+            $agreementValue = $validatedData['agreement_value'] ?? $case->agreement_value;
+            $agreementClosedAt = $validatedData['agreement_closed_at'] ?? $case->agreement_closed_at;
+
+            if (!$agreementValue || $agreementValue <= 0) {
+                return response()->json([
+                    'message' => 'Informe o valor do acordo para fechar o caso.',
+                    'errors'  => ['agreement_value' => ['O valor do acordo é obrigatório.']],
+                ], 422);
+            }
+            if (!$agreementClosedAt) {
+                return response()->json([
+                    'message' => 'Informe a data do acordo para fechar o caso.',
+                    'errors'  => ['agreement_closed_at' => ['A data do acordo é obrigatória.']],
+                ], 422);
+            }
+        }
+
         $originalData = $case->getOriginal();
         $case->update($validatedData);
         if (array_key_exists('tags', $validatedData)) {
             $this->syncCaseTagCatalog($validatedData['tags'] ?? []);
         }
         $changes = $case->getChanges();
+
+        if (isset($changes['user_id'])) {
+            $checklist = $case->agreement_checklist_data;
+            if (is_array($checklist) && isset($checklist['indication_checklist']['assigned_operator'])) {
+                $newOperator = User::find($changes['user_id']);
+                if ($newOperator) {
+                    $checklist['indication_checklist']['assigned_operator'] = [
+                        'id' => $newOperator->id,
+                        'name' => $newOperator->name,
+                    ];
+                    $case->updateQuietly(['agreement_checklist_data' => $checklist]);
+                }
+            }
+        }
 
         // --- SISTEMA DE HISTÓRICO INTERNO DO CASO (Lógica Original Mantida) ---
         if (!empty($changes)) {
@@ -478,14 +514,14 @@ class LegalCaseController extends Controller
                 }),
             ],
             'materia.is_valid_for_agreement' => 'required|boolean',
-            'materia.notes' => 'nullable|string|max:1000',
+            'materia.notes' => 'nullable|string|max:2000',
             'obrigacao.type' => 'required|string|in:simples,complexa,apenas_pecuniaria',
             'subsidio.available' => 'required|string|in:sim,nao',
             'analise_subsidio.notes' => 'required|string|max:4000',
-            'litigante_habitual.notes' => 'nullable|string|max:1000',
+            'litigante_habitual.notes' => 'nullable|string|max:2000',
             'analise_risco.last_analysis_date' => 'required|date',
-            'pcond_portal.value' => 'required|string|max:255',
-            'pcond_processual.value' => 'required|string|max:1000',
+            'pcond_portal.value' => 'required|string|max:2000',
+            'pcond_processual.value' => 'required|string|max:4000',
         ]);
 
         $hasLitigantRestriction = (bool) ($case->opposingLawyer?->is_abusive ?? false);
@@ -605,9 +641,12 @@ class LegalCaseController extends Controller
             'agreement_checklist_data' => $existingChecklistData,
         ];
 
-        if ($supportsIndicatorUserId) {
+        if ($supportsIndicatorUserId && !$case->indicator_user_id) {
             $caseUpdatePayload['indicator_user_id'] = $user->id;
+            $caseUpdatePayload['indicated_at'] = now();
         }
+
+        $effectiveIndicatorId = $case->indicator_user_id ?: $user->id;
 
         $case->update($caseUpdatePayload);
 
@@ -623,7 +662,7 @@ class LegalCaseController extends Controller
             'new_values' => [
                 'status' => LegalCase::STATUS_INDICATIONS,
                 'user_id' => $responsibleOperator->id,
-                'indicator_user_id' => $user->id,
+                'indicator_user_id' => $effectiveIndicatorId,
             ],
         ]);
 
@@ -662,7 +701,7 @@ class LegalCaseController extends Controller
 
         $oldStatus = $case->status;
 
-        $case->update([
+        $formalizePayload = [
             'status'                  => LegalCase::STATUS_CLOSED_IN_HEARING,
             'formalized_by_name'      => $validatedData['formalized_by_name'],
             'hearing_date'            => $validatedData['hearing_date'],
@@ -670,10 +709,16 @@ class LegalCaseController extends Controller
             'agreement_closed_at'     => $validatedData['hearing_date'],
             'has_obligation'          => $validatedData['has_obligation'],
             'obligation_description'  => $validatedData['obligation_description'] ?? null,
-            'indicator_user_id'       => $validatedData['formalized_by_indicator_id'] ?? $user->id,
             'formalized_by_user_id'   => $user->id,
             'formalized_at'           => now(),
-        ]);
+        ];
+
+        if (!$case->indicator_user_id) {
+            $formalizePayload['indicator_user_id'] = $validatedData['formalized_by_indicator_id'] ?? $user->id;
+            $formalizePayload['indicated_at'] = now();
+        }
+
+        $case->update($formalizePayload);
 
         $case->histories()->create([
             'user_id'     => Auth::id(),
@@ -754,8 +799,9 @@ class LegalCaseController extends Controller
             'reanalysis_requested_by_user_id' => $user->id,
         ];
 
-        if ($supportsIndicatorUserId) {
+        if ($supportsIndicatorUserId && !$case->indicator_user_id) {
             $caseUpdatePayload['indicator_user_id'] = $user->id;
+            $caseUpdatePayload['indicated_at'] = now();
         }
 
         $case->update($caseUpdatePayload);
@@ -772,7 +818,7 @@ class LegalCaseController extends Controller
             ],
             'new_values' => [
                 'status' => LegalCase::STATUS_INITIAL_ANALYSIS,
-                'indicator_user_id' => $supportsIndicatorUserId ? $user->id : null,
+                'indicator_user_id' => $case->indicator_user_id,
                 'contra_indication_reason' => null,
                 'reanalysis_reason' => $reanalysisReason,
                 'reanalysis_requested_at' => $requestedAt->toIso8601String(),

@@ -571,7 +571,7 @@ const DetailsTab = ({
                         </select>
                     </div>
                     <div className={styles.formGroup}>
-                        <label className={styles.label}>Colaborador</label>
+                        <label className={styles.label}>Responsável</label>
                         <select className={styles.select} name="lawyer_id" value={formData.lawyer_id || ''} onChange={handleChange}>
                             <option value="">Sem responsável</option>
                             {lawyers.map(lawyer => <option key={lawyer.id} value={lawyer.id}>{lawyer.name}</option>)}
@@ -1096,6 +1096,20 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 setError('Informe o motivo do acordo frustrado.');
                 setIsSubmitting(false);
                 return;
+            }
+
+            if (formData.status === 'closed_deal' || formData.status === 'closed_in_hearing') {
+                const agreementVal = parseFloat(formData.agreement_value);
+                if (!agreementVal || agreementVal <= 0) {
+                    setError('Informe o valor do acordo para fechar o caso.');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (!formData.agreement_closed_at) {
+                    setError('Informe a data do acordo para fechar o caso.');
+                    setIsSubmitting(false);
+                    return;
+                }
             }
 
             const payload = {

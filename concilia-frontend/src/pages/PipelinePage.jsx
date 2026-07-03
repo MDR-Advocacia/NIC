@@ -13,6 +13,7 @@ import FailedDealReasonModal from '../components/FailedDealReasonModal';
 import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import AgreementFieldsModal from '../components/AgreementFieldsModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
+import SingleSelect from '../components/SingleSelect';
 import { 
     DndContext, 
     PointerSensor, 
@@ -976,14 +977,15 @@ const PipelinePage = () => {
                             <FaBuilding />
                             <span>Cliente</span>
                         </label>
-                            <select
-                                className={styles.filterSelect}
-                                value={clientFilter}
-                                onChange={(e) => handleFilterChange('client_id', e.target.value)}
-                            >
-                                <option value="">Todos</option>
-                            {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
-                        </select>
+                        <SingleSelect
+                            options={clients}
+                            value={clientFilter}
+                            onChange={(v) => handleFilterChange('client_id', v)}
+                            emptyOptionLabel="Todos"
+                            searchPlaceholder="Buscar cliente"
+                            emptyMessage="Nenhum cliente encontrado."
+                            ariaLabel="Filtro de cliente"
+                        />
                     </div>
                     
                     {canChooseResponsible && (
@@ -1007,18 +1009,15 @@ const PipelinePage = () => {
                                 <FaUserTag />
                                 <span>Indicador</span>
                             </label>
-                            <select
-                                className={styles.filterSelect}
+                            <SingleSelect
+                                options={indicators}
                                 value={indicatorFilter}
-                                onChange={(e) => handleFilterChange('indicator_user_id', e.target.value)}
-                            >
-                                <option value="">Todos</option>
-                                {indicators.map((indicator) => (
-                                    <option key={indicator.id} value={indicator.id}>
-                                        {indicator.name}
-                                    </option>
-                                ))}
-                            </select>
+                                onChange={(v) => handleFilterChange('indicator_user_id', v)}
+                                emptyOptionLabel="Todos"
+                                searchPlaceholder="Buscar indicador"
+                                emptyMessage="Nenhum indicador encontrado."
+                                ariaLabel="Filtro de indicador"
+                            />
                         </div>
                     )}
                     
@@ -1027,16 +1026,17 @@ const PipelinePage = () => {
                             <FaSignal />
                             <span>Prioridade</span>
                         </label>
-                        <select
-                            className={styles.filterSelect}
+                        <SingleSelect
+                            options={[
+                                { value: 'baixa', label: 'Baixa' },
+                                { value: 'media', label: 'Média' },
+                                { value: 'alta', label: 'Alta' },
+                            ]}
                             value={priorityFilter}
-                            onChange={(e) => handleFilterChange('priority', e.target.value)}
-                        >
-                            <option value="">Todas</option>
-                            <option value="baixa">Baixa</option>
-                            <option value="media">Média</option>
-                            <option value="alta">Alta</option>
-                        </select>
+                            onChange={(v) => handleFilterChange('priority', v)}
+                            emptyOptionLabel="Todas"
+                            ariaLabel="Filtro de prioridade"
+                        />
                     </div>
 
                     <div className={styles.filterField}>

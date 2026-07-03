@@ -8,6 +8,7 @@ import {
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
+import SingleSelect from '../components/SingleSelect';
 import styles from '../styles/GeneralBase.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -349,16 +350,16 @@ const GeneralBasePage = () => {
                             <FaDatabase />
                             Alçada
                         </span>
-                        <select
-                            className={styles.filterControl}
-                            name="scope"
+                        <SingleSelect
+                            options={[
+                                { value: 'general_base', label: 'Sem alçada' },
+                                { value: 'pipeline', label: 'Com alçada' },
+                                { value: 'all', label: 'Todos' },
+                            ]}
                             value={filters.scope}
-                            onChange={handleFilterChange}
-                        >
-                            <option value="general_base">Sem alçada</option>
-                            <option value="pipeline">Com alçada</option>
-                            <option value="all">Todos</option>
-                        </select>
+                            onChange={(v) => setFilters((prev) => ({ ...prev, scope: v }))}
+                            ariaLabel="Filtro de alçada"
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -366,17 +367,15 @@ const GeneralBasePage = () => {
                             <FaSort />
                             Status
                         </span>
-                        <select
-                            className={styles.filterControl}
-                            name="status"
+                        <SingleSelect
+                            options={LEGAL_CASE_STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.name }))}
                             value={filters.status}
-                            onChange={handleFilterChange}
-                        >
-                            <option value="">Todos os status</option>
-                            {LEGAL_CASE_STATUS_OPTIONS.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.name}</option>
-                            ))}
-                        </select>
+                            onChange={(v) => setFilters((prev) => ({ ...prev, status: v }))}
+                            emptyOptionLabel="Todos os status"
+                            searchPlaceholder="Buscar status"
+                            emptyMessage="Nenhum status encontrado."
+                            ariaLabel="Filtro de status"
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -384,18 +383,18 @@ const GeneralBasePage = () => {
                             <FaUserTie />
                             Responsável
                         </span>
-                        <select
-                            className={styles.filterControl}
-                            name="lawyer_id"
+                        <SingleSelect
+                            options={[
+                                { value: UNASSIGNED_RESPONSIBLE_VALUE, label: 'Sem responsável' },
+                                ...lawyers.map((l) => ({ value: l.id, label: l.name })),
+                            ]}
                             value={filters.lawyer_id}
-                            onChange={handleFilterChange}
-                        >
-                            <option value="">Todos os responsáveis</option>
-                            <option value={UNASSIGNED_RESPONSIBLE_VALUE}>Sem responsável</option>
-                            {lawyers.map(l => (
-                                <option key={l.id} value={l.id}>{l.name}</option>
-                            ))}
-                        </select>
+                            onChange={(v) => setFilters((prev) => ({ ...prev, lawyer_id: v }))}
+                            emptyOptionLabel="Todos os responsáveis"
+                            searchPlaceholder="Buscar responsável"
+                            emptyMessage="Nenhum responsável encontrado."
+                            ariaLabel="Filtro de responsável"
+                        />
                     </label>
                 </div>
 

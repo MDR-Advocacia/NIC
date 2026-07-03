@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 import apiClient from '../api';
 import styles from '../styles/Pipeline.module.css';
+import SearchableReasonSelect from './SearchableReasonSelect';
 
 const ContraIndicationReasonModal = ({
   caseNumber,
@@ -58,23 +59,14 @@ const ContraIndicationReasonModal = ({
           <label className={styles.label} htmlFor="contra-indication-reason-select">
             Motivo da contraindicação *
           </label>
-          <select
+          <SearchableReasonSelect
             id="contra-indication-reason-select"
-            className={styles.select}
+            options={predefinedReasons}
             value={reason}
-            onChange={(e) => onReasonChange(e.target.value)}
-            required
-            disabled={loadingReasons}
-          >
-            <option value="">
-              {loadingReasons ? 'Carregando motivos...' : 'Selecione um motivo'}
-            </option>
-            {predefinedReasons.map((r) => (
-              <option key={r.id} value={r.name}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+            onChange={onReasonChange}
+            placeholder="Selecione um motivo"
+            loading={loadingReasons}
+          />
           <span className={styles.inputDescription}>
             Essa justificativa ficará registrada no caso para consulta da equipe.
           </span>

@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import styles from '../styles/TeamPerformanceModal.module.css';
-import LawyerPerformanceCard from './LawyerPerformanceCard';
-import { FaTimes } from 'react-icons/fa';
+import { FaTimes, FaTrophy, FaMedal } from 'react-icons/fa';
 
 const TeamPerformanceModal = ({ isOpen, onClose, onViewDetails, data }) => {
 
@@ -31,36 +30,45 @@ const TeamPerformanceModal = ({ isOpen, onClose, onViewDetails, data }) => {
         }
     };
 
+    const getRankIcon = (rank) => {
+        if (rank === 1) return <FaTrophy className={styles.rankGold} />;
+        if (rank === 2) return <FaMedal className={styles.rankSilver} />;
+        if (rank === 3) return <FaMedal className={styles.rankBronze} />;
+        return null;
+    };
+
     return (
         <div className={styles.modalOverlay} onClick={handleOverlayClick}>
             <div
                 className={styles.modalContent}
-                style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <button className={styles.closeButton} onClick={onClose}>
                     <FaTimes />
                 </button>
 
-                <h2 style={{ flexShrink: 0 }}>Ranking Completo da Equipe</h2>
+                <h2>Ranking Completo da Equipe</h2>
 
-                <div
-                    className={styles.lawyersList}
-                    style={{
-                        flex: 1,
-                        overflowY: 'auto',
-                        minHeight: 0,
-                        paddingRight: '5px'
-                    }}
-                >
+                <div className={styles.rankingListHeader}>
+                    <span className={styles.colRank}>#</span>
+                    <span className={styles.colName}>Nome</span>
+                    <span className={styles.colMetric}>Score</span>
+                    <span className={styles.colMetric}>Acordos</span>
+                    <span className={styles.colMetric}>Conversão</span>
+                    <span className={styles.colMetricWide}>Economia</span>
+                    <span className={styles.colAction}></span>
+                </div>
+
+                <div className={styles.lawyersList}>
                     {data && data.length > 0 ? (
                         data.map((lawyerBackend, index) => {
+                            const rank = index + 1;
                             const mappedLawyer = {
                                 id: lawyerBackend.id,
                                 name: lawyerBackend.name,
                                 isLeader: index === 0,
                                 score: lawyerBackend.score,
-                                ranking: index + 1,
+                                ranking: rank,
                                 total_cases: lawyerBackend.total_cases,
                                 worked_cases: lawyerBackend.worked_cases,
                                 performance: {
@@ -78,15 +86,42 @@ const TeamPerformanceModal = ({ isOpen, onClose, onViewDetails, data }) => {
                             };
 
                             return (
-                                <LawyerPerformanceCard
+                                <div
                                     key={mappedLawyer.id}
-                                    lawyer={mappedLawyer}
-                                    rank={index + 1}
-                                    onViewDetails={() => {
-                                        onClose();
-                                        onViewDetails(mappedLawyer);
-                                    }}
-                                />
+                                    className={`${styles.rankingRow} ${rank <= 3 ? styles.rankingRowTop : ''}`}
+                                >
+                                    <span className={styles.colRank}>
+                                        {getRankIcon(rank)}
+                                        <span className={styles.rankNumber}>{rank}º</span>
+                                    </span>
+                                    <span className={styles.colName}>
+                                        <span className={styles.lawyerName}>{mappedLawyer.name}</span>
+                                        {rank === 1 && <span className={styles.leaderBadge}>Líder</span>}
+                                    </span>
+                                    <span className={`${styles.colMetric} ${styles.scoreValue}`}>
+                                        {mappedLawyer.score}
+                                    </span>
+                                    <span className={styles.colMetric}>
+                                        {mappedLawyer.performance.deals}
+                                    </span>
+                                    <span className={styles.colMetric}>
+                                        {mappedLawyer.performance.conversion}%
+                                    </span>
+                                    <span className={`${styles.colMetricWide} ${styles.economyValue}`}>
+                                        {mappedLawyer.performance.economy}
+                                    </span>
+                                    <span className={styles.colAction}>
+                                        <button
+                                            className={styles.detailsBtn}
+                                            onClick={() => {
+                                                onClose();
+                                                onViewDetails(mappedLawyer);
+                                            }}
+                                        >
+                                            Detalhes
+                                        </button>
+                                    </span>
+                                </div>
                             );
                         })
                     ) : (

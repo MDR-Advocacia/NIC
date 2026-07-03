@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fa';
 import ConfirmModal from '../components/ConfirmModal';
 import styles from '../styles/Archive.module.css';
+import SingleSelect from '../components/SingleSelect';
 
 const TABS = [
     { key: 'archived', label: 'Arquivados', icon: <FaArchive /> },
@@ -278,12 +279,19 @@ const ArchivePage = () => {
                                 onChange={(e) => setDebouncedSearch(e.target.value)}
                             />
                         </div>
-                        <select className={styles.filterSelect} value={archivedFilter} onChange={e => { setArchivedFilter(e.target.value); setArchivedPage(1); }}>
-                            <option value="">Todos os status</option>
-                            <option value="contra_indicated">Contraindicado</option>
-                            <option value="failed_deal">Acordo Frustrado</option>
-                            <option value="deal_completed">Acordo Concluído</option>
-                        </select>
+                        <div style={{ flex: '0 0 230px', minWidth: 200 }}>
+                            <SingleSelect
+                                options={[
+                                    { value: 'contra_indicated', label: 'Contraindicado' },
+                                    { value: 'failed_deal', label: 'Acordo Frustrado' },
+                                    { value: 'deal_completed', label: 'Acordo Concluído' },
+                                ]}
+                                value={archivedFilter}
+                                onChange={(v) => { setArchivedFilter(v); setArchivedPage(1); }}
+                                emptyOptionLabel="Todos os status"
+                                ariaLabel="Filtro de status"
+                            />
+                        </div>
                         {isAdmin && selectedUnarchive.size > 0 && (
                             <button className={styles.actionBtn} onClick={() => openUnarchiveConfirm([...selectedUnarchive])} disabled={actionLoading}>
                                 <FaUndo /> Desarquivar ({selectedUnarchive.size})
@@ -385,16 +393,28 @@ const ArchivePage = () => {
                                 onChange={(e) => setArchivableSearchTerm(e.target.value)}
                             />
                         </div>
-                        <select className={styles.filterSelect} value={archivableFilter} onChange={e => { setArchivableFilter(e.target.value); setArchivablePage(1); }}>
-                            <option value="">Todos os status</option>
-                            <option value="contra_indicated">Contraindicado</option>
-                            <option value="failed_deal">Acordo Frustrado</option>
-                            <option value="deal_completed">Acordo Concluído</option>
-                        </select>
-                        <select className={styles.filterSelect} value={archiveReason} onChange={e => setArchiveReason(e.target.value)}>
-                            <option value="">Motivo do arquivamento</option>
-                            {ARCHIVE_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
+                        <div style={{ flex: '0 0 230px', minWidth: 200 }}>
+                            <SingleSelect
+                                options={[
+                                    { value: 'contra_indicated', label: 'Contraindicado' },
+                                    { value: 'failed_deal', label: 'Acordo Frustrado' },
+                                    { value: 'deal_completed', label: 'Acordo Concluído' },
+                                ]}
+                                value={archivableFilter}
+                                onChange={(v) => { setArchivableFilter(v); setArchivablePage(1); }}
+                                emptyOptionLabel="Todos os status"
+                                ariaLabel="Filtro de status"
+                            />
+                        </div>
+                        <div style={{ flex: '0 0 260px', minWidth: 220 }}>
+                            <SingleSelect
+                                options={ARCHIVE_REASONS.map((r) => ({ value: r, label: r }))}
+                                value={archiveReason}
+                                onChange={setArchiveReason}
+                                emptyOptionLabel="Motivo do arquivamento"
+                                ariaLabel="Motivo do arquivamento"
+                            />
+                        </div>
                         {selectedArchive.size > 0 && (
                             <button className={styles.actionBtn} onClick={() => openArchiveConfirm([...selectedArchive], archiveReason)} disabled={actionLoading}>
                                 <FaArchive /> Arquivar ({selectedArchive.size})

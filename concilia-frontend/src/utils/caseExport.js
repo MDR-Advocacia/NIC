@@ -35,8 +35,10 @@ const EXPORT_COLUMNS = [
     { header: 'Ourocap', getValue: (legalCase) => getNumericValue(legalCase?.ourocap_value) },
     { header: 'Economia', getValue: (legalCase) => getEconomyValue(legalCase) },
     { header: 'Etiquetas', getValue: (legalCase) => normalizeCaseTags(legalCase?.tags).map((tag) => tag.text).join(', ') },
+    { header: 'Data do acordo', getValue: (legalCase) => formatDate(legalCase?.agreement_closed_at) },
     { header: 'Atrasado (+5 dias)', getValue: (legalCase) => (isDelayedCaseForExport(legalCase) ? 'Sim' : 'Nao') },
     { header: 'Dias sem atualizacao', getValue: (legalCase) => getDaysSinceUpdate(legalCase) },
+    { header: 'Data da indicacao', getValue: (legalCase) => formatDateTime(legalCase?.indicated_at) },
     { header: 'Criado em', getValue: (legalCase) => formatDateTime(legalCase?.created_at) },
     { header: 'Atualizado em', getValue: (legalCase) => formatDateTime(legalCase?.updated_at) },
 ];
@@ -58,7 +60,7 @@ const getActionObjectName = (legalCase) =>
 
 const getResponsibleName = (legalCase) =>
     getDisplayValue(
-        legalCase?.agreement_checklist_data?.indication_checklist?.assigned_operator || legalCase?.lawyer,
+        legalCase?.lawyer || legalCase?.agreement_checklist_data?.indication_checklist?.assigned_operator,
         'Sem responsavel'
     );
 
@@ -90,6 +92,17 @@ const parseDate = (value) => {
     if (!value) return null;
     const parsedDate = new Date(value);
     return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const formatDate = (value) => {
+    const parsedDate = parseDate(value);
+    if (!parsedDate) return '';
+
+    return parsedDate.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    });
 };
 
 const formatDateTime = (value) => {

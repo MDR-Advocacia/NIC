@@ -320,16 +320,22 @@ class DashboardController extends Controller
             ->join('users as indicators', 'indicators.id', '=', 'legal_cases.indicator_user_id')
             ->whereNotNull('legal_cases.indicator_user_id');
 
-        if (($dateRange['start'] ?? null) instanceof Carbon) {
-            $query->where('legal_cases.created_at', '>=', $dateRange['start']);
-        }
-        if (($dateRange['end'] ?? null) instanceof Carbon) {
-            $query->where('legal_cases.created_at', '<=', $dateRange['end']);
+        $hasDateRange = ($dateRange['start'] ?? null) instanceof Carbon
+                     && ($dateRange['end'] ?? null) instanceof Carbon;
+
+        $indicatedExpr = 'COALESCE(legal_cases.indicated_at, legal_cases.created_at)';
+
+        if ($hasDateRange) {
+            $query->where(function ($q) use ($dateRange, $indicatedExpr) {
+                $q->whereRaw("{$indicatedExpr} BETWEEN ? AND ?", [$dateRange['start'], $dateRange['end']])
+                  ->orWhereBetween('legal_cases.agreement_closed_at', [$dateRange['start'], $dateRange['end']])
+                  ->orWhereBetween('legal_cases.contra_indicated_at', [$dateRange['start'], $dateRange['end']]);
+            });
         }
 
         $responsibleFilter = $this->resolveResponsibleFilter($request);
         if (!empty($responsibleFilter['ids'])) {
-            $query->whereIn('legal_cases.lawyer_id', $responsibleFilter['ids']);
+            $query->whereIn('legal_cases.user_id', $responsibleFilter['ids']);
         }
 
         $indicatorFilter = $this->resolveIndicatorFilter($request);
@@ -337,25 +343,42 @@ class DashboardController extends Controller
             $query->whereIn('legal_cases.indicator_user_id', $indicatorFilter['ids']);
         }
 
+        $query->selectRaw('legal_cases.indicator_user_id as entity_id')
+              ->selectRaw("COALESCE(indicators.name, 'Indicador indisponivel') as entity_name");
+
+        if ($hasDateRange) {
+            $query->selectRaw(
+                "COUNT(*) as total_indicated"
+            )->selectRaw(
+                "COALESCE(SUM(CASE WHEN legal_cases.status IN ({$statusPlaceholders}) AND legal_cases.agreement_closed_at >= ? AND legal_cases.agreement_closed_at <= ? THEN 1 ELSE 0 END), 0) as agreements_count",
+                array_merge($agreementStatuses, [$dateRange['start'], $dateRange['end']])
+            )->selectRaw(
+                "COALESCE(SUM(CASE WHEN legal_cases.status = ? AND legal_cases.contra_indicated_at >= ? AND legal_cases.contra_indicated_at <= ? THEN 1 ELSE 0 END), 0) as contra_indicated_count",
+                [LegalCase::STATUS_CONTRA_INDICATED, $dateRange['start'], $dateRange['end']]
+            )->selectRaw(
+                "COALESCE(SUM(CASE WHEN legal_cases.status = ? AND {$indicatedExpr} >= ? AND {$indicatedExpr} <= ? THEN 1 ELSE 0 END), 0) as failed_deal_count",
+                [LegalCase::STATUS_FAILED_DEAL, $dateRange['start'], $dateRange['end']]
+            )->selectRaw(
+                "COALESCE(SUM(CASE WHEN JSON_EXTRACT(legal_cases.agreement_checklist_data, '$.indication_checklist') IS NOT NULL AND {$indicatedExpr} >= ? AND {$indicatedExpr} <= ? THEN 1 ELSE 0 END), 0) as converted_indications_count",
+                [$dateRange['start'], $dateRange['end']]
+            );
+        } else {
+            $query->selectRaw('COUNT(*) as total_indicated')
+                ->selectRaw(
+                    "COALESCE(SUM(CASE WHEN legal_cases.status IN ({$statusPlaceholders}) THEN 1 ELSE 0 END), 0) as agreements_count",
+                    $agreementStatuses
+                )->selectRaw(
+                    "COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as contra_indicated_count",
+                    [LegalCase::STATUS_CONTRA_INDICATED]
+                )->selectRaw(
+                    "COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as failed_deal_count",
+                    [LegalCase::STATUS_FAILED_DEAL]
+                )->selectRaw(
+                    "COALESCE(SUM(CASE WHEN JSON_EXTRACT(legal_cases.agreement_checklist_data, '$.indication_checklist') IS NOT NULL THEN 1 ELSE 0 END), 0) as converted_indications_count"
+                );
+        }
+
         return $query
-            ->selectRaw('legal_cases.indicator_user_id as entity_id')
-            ->selectRaw("COALESCE(indicators.name, 'Indicador indisponivel') as entity_name")
-            ->selectRaw('COUNT(*) as total_indicated')
-            ->selectRaw(
-                "COALESCE(SUM(CASE WHEN legal_cases.status IN ({$statusPlaceholders}) THEN 1 ELSE 0 END), 0) as agreements_count",
-                $agreementStatuses
-            )
-            ->selectRaw(
-                "COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as contra_indicated_count",
-                [LegalCase::STATUS_CONTRA_INDICATED]
-            )
-            ->selectRaw(
-                "COALESCE(SUM(CASE WHEN legal_cases.status = ? THEN 1 ELSE 0 END), 0) as failed_deal_count",
-                [LegalCase::STATUS_FAILED_DEAL]
-            )
-            ->selectRaw(
-                "COALESCE(SUM(CASE WHEN JSON_EXTRACT(legal_cases.agreement_checklist_data, '$.indication_checklist') IS NOT NULL THEN 1 ELSE 0 END), 0) as converted_indications_count"
-            )
             ->groupBy('legal_cases.indicator_user_id', 'indicators.name')
             ->orderByDesc('agreements_count')
             ->orderByDesc('total_indicated')
@@ -420,14 +443,10 @@ class DashboardController extends Controller
                 $this->applySharedCaseJoinFilters($join, $request, $dateRange, 'legal_cases', 'created_at');
             });
 
-        if ($user->role === 'operador') {
-            $lawyersQuery->where('users.id', $user->id);
-        } else {
-            $lawyersQuery->whereIn('users.role', self::TEAM_ROLES);
+        $lawyersQuery->whereIn('users.role', self::TEAM_ROLES);
 
-            if ($responsibleFilter['has_filter']) {
-                $lawyersQuery->whereIn('users.id', $responsibleFilter['ids']);
-            }
+        if ($responsibleFilter['has_filter']) {
+            $lawyersQuery->whereIn('users.id', $responsibleFilter['ids']);
         }
 
         return $lawyersQuery

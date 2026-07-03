@@ -18,6 +18,7 @@ import LawyerDetailModal from '../components/LawyerDetailModal';
 import CasesListModal from '../components/CasesListModal';
 import TopIndicatorsPanel from '../components/TopIndicatorsPanel';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
+import SingleSelect from '../components/SingleSelect';
 import {
     FaArrowRight,
     FaBriefcase,
@@ -690,8 +691,8 @@ const DashboardPage = () => {
                                                                 } else {
                                                                     p.append('lawyer_ids', item.id);
                                                                 }
-                                                                p.append('statuses', 'closed_deal');
-                                                                p.append('statuses', 'awaiting_draft');
+                                                                ['awaiting_draft', 'closed_deal', 'closed_in_hearing', 'pending_payment', 'pending_obf', 'pending_livelo_ourocap', 'deal_completed'].forEach(s => p.append('statuses', s));
+                                                                p.append('date_field', 'agreement_closed_at');
                                                                 if (dashboardStartDate) p.append('date_from', dashboardStartDate);
                                                                 if (dashboardEndDate) p.append('date_to', dashboardEndDate);
                                                                 return `/cases?${p.toString()}`;
@@ -852,14 +853,15 @@ const DashboardPage = () => {
                                     <FaBuilding />
                                     <span>Cliente</span>
                                 </label>
-                                <select
-                                    className={styles.filterControl}
+                                <SingleSelect
+                                    options={clients}
                                     value={selectedClient}
-                                    onChange={(e) => setSelectedClient(e.target.value)}
-                                >
-                                    <option value="">Todos</option>
-                                    {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-                                </select>
+                                    onChange={setSelectedClient}
+                                    emptyOptionLabel="Todos"
+                                    searchPlaceholder="Buscar cliente"
+                                    emptyMessage="Nenhum cliente encontrado."
+                                    ariaLabel="Filtro de cliente"
+                                />
                             </div>
 
                             <div className={styles.filterField}>
@@ -898,16 +900,15 @@ const DashboardPage = () => {
                                     <FaFlag />
                                     <span>Status</span>
                                 </label>
-                                <select
-                                    className={styles.filterControl}
+                                <SingleSelect
+                                    options={LEGAL_CASE_STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.name }))}
                                     value={selectedStatus}
-                                    onChange={(e) => setSelectedStatus(e.target.value)}
-                                >
-                                    <option value="">Todos</option>
-                                    {LEGAL_CASE_STATUS_OPTIONS.map((statusOption) => (
-                                        <option key={statusOption.value} value={statusOption.value}>{statusOption.name}</option>
-                                    ))}
-                                </select>
+                                    onChange={setSelectedStatus}
+                                    emptyOptionLabel="Todos"
+                                    searchPlaceholder="Buscar status"
+                                    emptyMessage="Nenhum status encontrado."
+                                    ariaLabel="Filtro de status"
+                                />
                             </div>
 
                             <div className={styles.filterField}>
@@ -1115,7 +1116,7 @@ const DashboardPage = () => {
                         </article>
                     </section>
 
-                    {isManager && (
+                    {(isManager || isOperator) && (
                         <section className={styles.teamPerformanceSection}>
                             <div className={styles.teamPerformanceSectionHeader}>
                                 <div>

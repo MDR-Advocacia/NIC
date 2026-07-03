@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import AddDepartmentModal from '../components/AddDepartmentModal';
+import SingleSelect from '../components/SingleSelect';
 import { useToast } from '../context/ToastContext';
 
 const AREAS_LIST = ["Recuperação de Crédito", "Contencioso Passivo", "Atendente"];
@@ -400,11 +401,16 @@ const UserManagementPage = () => {
                             <FaBan />
                             Status
                         </span>
-                        <select name="status" className={styles.filterControl} value={filters.status} onChange={handleFilterChange}>
-                            <option value="">Todos os status</option>
-                            <option value="ativo">Ativo</option>
-                            <option value="inativo">Inativo</option>
-                        </select>
+                        <SingleSelect
+                            options={[
+                                { value: 'ativo', label: 'Ativo' },
+                                { value: 'inativo', label: 'Inativo' },
+                            ]}
+                            value={filters.status}
+                            onChange={(v) => setFilters((prev) => ({ ...prev, status: v }))}
+                            emptyOptionLabel="Todos os status"
+                            ariaLabel="Filtro de status"
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -412,13 +418,18 @@ const UserManagementPage = () => {
                             <FaUserTag />
                             Função
                         </span>
-                        <select name="role" className={styles.filterControl} value={filters.role} onChange={handleFilterChange}>
-                            <option value="">Todas as funções</option>
-                            <option value="administrador">Administrador</option>
-                            <option value="supervisor">Supervisor</option>
-                            <option value="operador">Operador</option>
-                            <option value="indicador">Indicador</option>
-                        </select>
+                        <SingleSelect
+                            options={[
+                                { value: 'administrador', label: 'Administrador' },
+                                { value: 'supervisor', label: 'Supervisor' },
+                                { value: 'operador', label: 'Operador' },
+                                { value: 'indicador', label: 'Indicador' },
+                            ]}
+                            value={filters.role}
+                            onChange={(v) => setFilters((prev) => ({ ...prev, role: v }))}
+                            emptyOptionLabel="Todas as funções"
+                            ariaLabel="Filtro de função"
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -426,10 +437,15 @@ const UserManagementPage = () => {
                             <FaBuilding />
                             Departamento
                         </span>
-                        <select name="department_id" className={styles.filterControl} value={filters.department_id} onChange={handleFilterChange}>
-                            <option value="">Todos os departamentos</option>
-                            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                        </select>
+                        <SingleSelect
+                            options={departments}
+                            value={filters.department_id}
+                            onChange={(v) => setFilters((prev) => ({ ...prev, department_id: v }))}
+                            emptyOptionLabel="Todos os departamentos"
+                            searchPlaceholder="Buscar departamento"
+                            emptyMessage="Nenhum departamento encontrado."
+                            ariaLabel="Filtro de departamento"
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -437,10 +453,13 @@ const UserManagementPage = () => {
                             <FaUserTag />
                             Área
                         </span>
-                        <select name="area" className={styles.filterControl} value={filterArea} onChange={handleFilterChange}>
-                            <option value="">Todas as áreas</option>
-                            {AREAS_LIST.map(area => (<option key={area} value={area}>{area}</option>))}
-                        </select>
+                        <SingleSelect
+                            options={AREAS_LIST.map((area) => ({ value: area, label: area }))}
+                            value={filterArea}
+                            onChange={setFilterArea}
+                            emptyOptionLabel="Todas as áreas"
+                            ariaLabel="Filtro de área"
+                        />
                     </label>
                 </div>
 

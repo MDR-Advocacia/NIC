@@ -88,7 +88,7 @@ const SmartFilterPresets = ({
     const handleToggleFavorite = async (e, presetId) => {
         e.stopPropagation();
         try {
-            await apiClient.patch(`/filter-presets/${presetId}/favorite`);
+            await apiClient.post(`/filter-presets/${presetId}/toggle-favorite`);
             await fetchPresets();
         } catch (e) {
             console.error('Erro ao favoritar:', e);
@@ -98,7 +98,7 @@ const SmartFilterPresets = ({
     const handleToggleGlobal = async (e, presetId) => {
         e.stopPropagation();
         try {
-            await apiClient.patch(`/filter-presets/${presetId}/global`);
+            await apiClient.post(`/filter-presets/${presetId}/toggle-global`);
             await fetchPresets();
         } catch (e) {
             console.error('Erro ao alterar visibilidade:', e);

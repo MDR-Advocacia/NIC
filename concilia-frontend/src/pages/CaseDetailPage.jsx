@@ -7,13 +7,13 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import styles from '../styles/CaseDetail.module.css';
 import DetailKpiCard from '../components/DetailKpiCard';
-import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, FaMapMarkerAlt, FaGavel, FaUserTie, FaRedo } from 'react-icons/fa';
+import { FaDollarSign, FaHandshake, FaTasks, FaExclamationTriangle, FaFilePdf, FaMapMarkerAlt, FaGavel, FaUserTie, FaRedo, FaPencilAlt, FaCheck, FaTimes } from 'react-icons/fa';
 import { ImSpinner2 } from 'react-icons/im';
 import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
 import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
-import { isIndicatorRole } from '../constants/access';
+import { isIndicatorRole, isManagerRole } from '../constants/access';
 import { useToast } from '../context/ToastContext';
 import FormalizeAgreementModal from '../components/FormalizeAgreementModal';
 import {
@@ -48,6 +48,12 @@ const CaseDetailPage = () => {
     const [isAbusiveLawyer, setIsAbusiveLawyer] = useState(false);
     const [showFormalizeModal, setShowFormalizeModal] = useState(false);
     const [isFormalizing, setIsFormalizing] = useState(false);
+
+    const canChangeResponsible = isManagerRole(user?.role);
+    const [operators, setOperators] = useState([]);
+    const [editingResponsible, setEditingResponsible] = useState(false);
+    const [selectedOperatorId, setSelectedOperatorId] = useState('');
+    const [isSavingResponsible, setIsSavingResponsible] = useState(false);
 
     useEffect(() => {
         const fetchAllData = async () => {
@@ -133,7 +139,44 @@ const CaseDetailPage = () => {
 
         fetchAllData();
     }, [caseId, token]);
-    
+
+    useEffect(() => {
+        if (!canChangeResponsible || !token) return;
+        apiClient.get('/users/operators', { headers: { Authorization: `Bearer ${token}` } })
+            .then(res => setOperators(Array.isArray(res.data) ? res.data : []))
+            .catch(() => {});
+    }, [canChangeResponsible, token]);
+
+    const handleStartEditResponsible = () => {
+        setSelectedOperatorId(legalCase?.lawyer?.id || legalCase?.user_id || '');
+        setEditingResponsible(true);
+    };
+
+    const handleCancelEditResponsible = () => {
+        setEditingResponsible(false);
+        setSelectedOperatorId('');
+    };
+
+    const handleSaveResponsible = async () => {
+        if (!selectedOperatorId) return;
+        setIsSavingResponsible(true);
+        try {
+            await apiClient.put(`/cases/${legalCase.id}`, {
+                lawyer_id: parseInt(selectedOperatorId, 10),
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            const updated = await apiClient.get(`/cases/${caseId}`, { headers: { Authorization: `Bearer ${token}` } });
+            let caseData = updated.data;
+            if (caseData && caseData.data && !caseData.id) caseData = caseData.data;
+            setLegalCase(caseData);
+            setEditingResponsible(false);
+            toast.success('Responsável alterado com sucesso!');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Erro ao alterar responsável.');
+        } finally {
+            setIsSavingResponsible(false);
+        }
+    };
+
     const handleSendMessage = async (content) => {
         if (!content.trim() || !conversation) {
             toast.error('Não há uma conversa vinculada.');
@@ -271,8 +314,8 @@ const CaseDetailPage = () => {
     };
 
     const getResponsibleName = (caseData) => {
-        const responsibleData = caseData?.agreement_checklist_data?.indication_checklist?.assigned_operator
-            || caseData?.lawyer;
+        const responsibleData = caseData?.lawyer
+            || caseData?.agreement_checklist_data?.indication_checklist?.assigned_operator;
 
         if (!responsibleData) {
             return 'Sem responsavel';
@@ -355,7 +398,7 @@ const CaseDetailPage = () => {
                             }}
                             onClick={() => setShowFormalizeModal(true)}
                         >
-                            <FaHandshake /> Formalizar Acordo
+                            <FaHandshake /> Acordo em audiência
                         </button>
                     )}
                     <button className={styles.pdfButton} onClick={handleGenerateAgreement} disabled={isGeneratingPdf || !hasAgreementTerms}>
@@ -439,7 +482,50 @@ const CaseDetailPage = () => {
                         <h3><FaGavel style={{marginRight:'8px', color:'#718096'}}/> Dados do Processo</h3>
                         <div className={styles.infoGrid}>
                             <div className={styles.infoItem}><label>Banco</label><p>{legalCase.client?.name || 'Não vinculado'}</p></div>
-                            <div className={styles.infoItem}><label>Responsavel pelo Caso</label><p>{getResponsibleName(legalCase)}</p></div>
+                            <div className={styles.infoItem}>
+                                <label>Responsável pelo Caso</label>
+                                {editingResponsible ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <select
+                                            value={selectedOperatorId}
+                                            onChange={(e) => setSelectedOperatorId(e.target.value)}
+                                            style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e0', fontSize: '0.9rem', flex: 1 }}
+                                        >
+                                            <option value="">Selecione...</option>
+                                            {operators.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
+                                        </select>
+                                        <button
+                                            onClick={handleSaveResponsible}
+                                            disabled={!selectedOperatorId || isSavingResponsible}
+                                            style={{ background: '#48bb78', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                            title="Salvar"
+                                        >
+                                            <FaCheck size={12} />
+                                        </button>
+                                        <button
+                                            onClick={handleCancelEditResponsible}
+                                            disabled={isSavingResponsible}
+                                            style={{ background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                            title="Cancelar"
+                                        >
+                                            <FaTimes size={12} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <p style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {getResponsibleName(legalCase)}
+                                        {canChangeResponsible && (
+                                            <button
+                                                onClick={handleStartEditResponsible}
+                                                style={{ background: 'none', border: 'none', color: '#4299e1', cursor: 'pointer', padding: '2px', display: 'inline-flex', alignItems: 'center' }}
+                                                title="Alterar responsável"
+                                            >
+                                                <FaPencilAlt size={12} />
+                                            </button>
+                                        )}
+                                    </p>
+                                )}
+                            </div>
                             <div className={styles.infoItem}><label>Indicador</label><p>{getIndicatorName(legalCase)}</p></div>
                             {legalCase.status === 'contra_indicated' && (
                                 <div className={styles.infoItem}><label>Contraindicado por</label><p>{contraIndicatedByName}</p></div>

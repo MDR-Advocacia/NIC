@@ -17,6 +17,7 @@ import ContraIndicationReasonModal from '../components/ContraIndicationReasonMod
 import FailedDealReasonModal from '../components/FailedDealReasonModal';
 import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
+import SingleSelect from '../components/SingleSelect';
 import SmartFilterPresets from '../components/SmartFilterPresets';
 import ConfirmModal from '../components/ConfirmModal';
 import styles from '../styles/CaseManagement.module.css';
@@ -61,6 +62,7 @@ const INITIAL_FILTERS = {
     indicator_user_ids: [],
     date_from: '',
     date_to: '',
+    date_field: '',
 };
 
 const extractMultipleCaseNumberTerms = (value) => {
@@ -126,7 +128,7 @@ const getDisplayName = (value, fallback = '-') => {
 };
 
 const getResponsibleName = (legalCase) => getDisplayName(
-    legalCase?.agreement_checklist_data?.indication_checklist?.assigned_operator || legalCase?.lawyer,
+    legalCase?.lawyer || legalCase?.agreement_checklist_data?.indication_checklist?.assigned_operator,
     'Sem operador'
 );
 
@@ -233,6 +235,7 @@ const CaseManagementPage = () => {
         const urlTagSingle = searchParams.get('tag');
         const urlDateFrom = searchParams.get('date_from');
         const urlDateTo = searchParams.get('date_to');
+        const urlDateField = searchParams.get('date_field');
         const urlIndicatorIds = searchParams.getAll('indicator_user_ids');
         const urlLawyerIds = searchParams.getAll('lawyer_ids');
 
@@ -245,6 +248,7 @@ const CaseManagementPage = () => {
         else if (urlTagSingle) initial.tags = [urlTagSingle];
         if (urlDateFrom) initial.date_from = urlDateFrom;
         if (urlDateTo) initial.date_to = urlDateTo;
+        if (urlDateField) initial.date_field = urlDateField;
         if (urlIndicatorIds.length > 0) initial.indicator_user_ids = urlIndicatorIds;
         if (urlLawyerIds.length > 0) initial.lawyer_ids = urlLawyerIds;
 
@@ -797,7 +801,13 @@ const CaseManagementPage = () => {
         const formatDateBR = (d) => d ? d.split('-').reverse().join('/') : '';
         const fromLabel = formatDateBR(filters.date_from);
         const toLabel = formatDateBR(filters.date_to);
-        let dateLabel = 'Período: ';
+        const dateFieldLabels = {
+            created_at: 'criação do caso',
+            indicated_at: 'data da indicação',
+            agreement_closed_at: 'fechamento do acordo',
+        };
+        const dateFieldLabel = dateFieldLabels[filters.date_field] || dateFieldLabels.created_at;
+        let dateLabel = `Período (${dateFieldLabel}): `;
         if (fromLabel && toLabel) {
             dateLabel += `${fromLabel} a ${toLabel}`;
         } else if (fromLabel) {
@@ -1014,14 +1024,13 @@ const CaseManagementPage = () => {
                             <FaExclamationCircle />
                             Prioridade
                         </span>
-                        <select className={styles.filterControl} name="priority" value={filters.priority || ''} onChange={handleFilterChange}>
-                            <option value="">Todas as prioridades</option>
-                            {PRIORITY_OPTIONS.map((priorityOption) => (
-                                <option key={priorityOption.value} value={priorityOption.value}>
-                                    {priorityOption.name}
-                                </option>
-                            ))}
-                        </select>
+                        <SingleSelect
+                            options={PRIORITY_OPTIONS.map((p) => ({ value: p.value, label: p.name }))}
+                            value={filters.priority || ''}
+                            onChange={(v) => setFilters((prev) => ({ ...prev, priority: v }))}
+                            emptyOptionLabel="Todas as prioridades"
+                            ariaLabel="Filtro de prioridade"
+                        />
                     </label>
 
                     <label className={styles.filterField}>
@@ -1066,6 +1075,23 @@ const CaseManagementPage = () => {
                             emptyMessage="Nenhum indicador encontrado."
                             summaryPluralLabel="indicadores"
                             ariaLabel="Filtro de indicadores"
+                        />
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaCalendarAlt />
+                            Data referente a
+                        </span>
+                        <SingleSelect
+                            options={[
+                                { value: 'created_at', label: 'Criação do caso' },
+                                { value: 'indicated_at', label: 'Data da indicação' },
+                                { value: 'agreement_closed_at', label: 'Fechamento do acordo' },
+                            ]}
+                            value={filters.date_field || 'created_at'}
+                            onChange={(v) => setFilters((prev) => ({ ...prev, date_field: v }))}
+                            ariaLabel="Data referente a"
                         />
                     </label>
 

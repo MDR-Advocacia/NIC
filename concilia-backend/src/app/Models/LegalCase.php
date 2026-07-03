@@ -43,6 +43,11 @@ class LegalCase extends Model
     public const AGREEMENT_METRIC_STATUSES = [
         self::STATUS_AWAITING_DRAFT,
         self::STATUS_CLOSED_DEAL,
+        self::STATUS_CLOSED_IN_HEARING,
+        self::STATUS_PENDING_PAYMENT,
+        self::STATUS_PENDING_OBF,
+        self::STATUS_PENDING_LIVELO_OUROCAP,
+        self::STATUS_DEAL_COMPLETED,
     ];
 
     public const STATUSES = [
@@ -76,6 +81,7 @@ class LegalCase extends Model
         'client_id',
         'user_id',
         'indicator_user_id',
+        'indicated_at',
         'opposing_party', // Mantemos string para compatibilidade ou texto livre
         'plaintiff_id',   // NOVO: ID do Autor
         'defendant',      // Mantemos string
@@ -134,6 +140,7 @@ class LegalCase extends Model
         'agreement_closed_at' => 'date',
         'status_started_at' => 'datetime',
         'contra_indicated_at' => 'datetime',
+        'indicated_at' => 'datetime',
         'reanalysis_requested_at' => 'datetime',
         'hearing_date' => 'date',
         'has_obligation' => 'boolean',

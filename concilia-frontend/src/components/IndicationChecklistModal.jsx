@@ -4,6 +4,32 @@ import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/IndicationChecklistModal.module.css';
 
+const FIELD_MAX_LENGTHS = {
+  materia_notes: 2000,
+  litigante_habitual_notes: 2000,
+  analise_subsidio_notes: 4000,
+  pcond_portal_value: 2000,
+  pcond_processual_value: 4000,
+};
+
+const CharCounter = ({ value, max }) => {
+  const length = (value || '').length;
+  const nearLimit = length >= max * 0.9;
+  return (
+    <span
+      style={{
+        display: 'block',
+        textAlign: 'right',
+        fontSize: '0.75rem',
+        marginTop: '2px',
+        color: nearLimit ? '#dc2626' : '#9ca3af',
+      }}
+    >
+      {length}/{max}
+    </span>
+  );
+};
+
 const createDefaultFormData = () => ({
   responsible_user_id: '',
   materia: {
@@ -550,7 +576,9 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                     placeholder="Inclua observações adicionais, se necessário"
                     rows="3"
                     className={styles.textarea}
+                    maxLength={FIELD_MAX_LENGTHS.litigante_habitual_notes}
                   />
+                  <CharCounter value={formData.litigante_habitual.notes} max={FIELD_MAX_LENGTHS.litigante_habitual_notes} />
                 </div>
               </div>
             </section>
@@ -585,7 +613,9 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                     placeholder="Observações complementares da matéria"
                     rows="4"
                     className={styles.textarea}
+                    maxLength={FIELD_MAX_LENGTHS.materia_notes}
                   />
+                  <CharCounter value={formData.materia.notes} max={FIELD_MAX_LENGTHS.materia_notes} />
                 </div>
 
                 <div className={styles.fieldCard}>
@@ -642,7 +672,9 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                     placeholder="Informe o PCOND do Portal BB"
                     className={styles.input}
                     required
+                    maxLength={FIELD_MAX_LENGTHS.pcond_portal_value}
                   />
+                  <CharCounter value={formData.pcond_portal.value} max={FIELD_MAX_LENGTHS.pcond_portal_value} />
                 </div>
               </div>
             </section>
@@ -669,7 +701,9 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                     rows="5"
                     className={styles.textarea}
                     required
+                    maxLength={FIELD_MAX_LENGTHS.analise_subsidio_notes}
                   />
+                  <CharCounter value={formData.analise_subsidio.notes} max={FIELD_MAX_LENGTHS.analise_subsidio_notes} />
                 </div>
 
                 <div className={`${styles.fieldCard} ${styles.fullSpan}`}>
@@ -682,7 +716,9 @@ const IndicationChecklistModal = ({ isOpen, legalCase, onClose, onSuccess }) => 
                     rows="5"
                     className={styles.textarea}
                     required
+                    maxLength={FIELD_MAX_LENGTHS.pcond_processual_value}
                   />
+                  <CharCounter value={formData.pcond_processual.value} max={FIELD_MAX_LENGTHS.pcond_processual_value} />
                 </div>
               </div>
             </section>
