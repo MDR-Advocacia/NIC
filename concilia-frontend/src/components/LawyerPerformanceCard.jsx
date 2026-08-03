@@ -2,7 +2,7 @@ import React from 'react';
 import styles from '../styles/LawyerPerformanceCard.module.css';
 import { FaTrophy } from 'react-icons/fa';
 import MetricInfoHint from './MetricInfoHint';
-import { AGREEMENT_COUNT_INFO_TEXT } from '../constants/dashboardMetrics';
+import { TEAM_RANKING_AGREEMENTS_INFO_TEXT, TEAM_RANKING_CONVERSION_INFO_TEXT } from '../constants/dashboardMetrics';
 
 const SCORE_INFO_TEXT = 'Score = (Acordos Fechados × 10) + (Economia Gerada ÷ 1.000). Quanto maior a economia e o número de acordos, maior o score.';
 
@@ -43,13 +43,16 @@ const LawyerPerformanceCard = ({ lawyer, rank, onViewDetails }) => {
                         <span className={styles.valueGreen}>{lawyer.performance.economy}</span>
                     </div>
                     <div className={styles.metric}>
-                        <span>Conversão:</span>
+                        <span className={styles.metricLabelWithInfo}>
+                            <span>Conversão:</span>
+                            <MetricInfoHint text={TEAM_RANKING_CONVERSION_INFO_TEXT} />
+                        </span>
                         <span className={styles.valueBlue}>{lawyer.performance.conversion}%</span>
                     </div>
                     <div className={styles.metric}>
                         <span className={styles.metricLabelWithInfo}>
                             <span>Acordos:</span>
-                            <MetricInfoHint text={AGREEMENT_COUNT_INFO_TEXT} />
+                            <MetricInfoHint text={TEAM_RANKING_AGREEMENTS_INFO_TEXT} />
                         </span>
                         <span>{deals}</span>
                     </div>

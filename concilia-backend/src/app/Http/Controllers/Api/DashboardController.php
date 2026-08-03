@@ -415,28 +415,13 @@ class DashboardController extends Controller
             return [];
         }
 
+        // Carteira do período: casos com alçada criados no range (total e tratados)
         $lawyersQuery = User::query()
             ->select('users.id', 'users.name')
             ->selectRaw('COUNT(legal_cases.id) as total_cases')
             ->selectRaw(
                 'COALESCE(SUM(CASE WHEN legal_cases.status <> ? THEN 1 ELSE 0 END), 0) as worked_cases',
                 [LegalCase::STATUS_INITIAL_ANALYSIS]
-            )
-            ->selectRaw(
-                "COALESCE(SUM(CASE WHEN {$this->agreementMetricStatusCaseSql('legal_cases.status')} THEN 1 ELSE 0 END), 0) as closed_deals",
-                LegalCase::AGREEMENT_METRIC_STATUSES
-            )
-            ->selectRaw(
-                "COALESCE(SUM(CASE WHEN {$this->agreementMetricStatusCaseSql('legal_cases.status')} THEN COALESCE(legal_cases.original_value, 0) - COALESCE(legal_cases.agreement_value, 0) ELSE 0 END), 0) as economy",
-                LegalCase::AGREEMENT_METRIC_STATUSES
-            )
-            ->selectRaw(
-                "COALESCE(SUM(CASE WHEN " . $this->agreementMetricStatusCaseSql('legal_cases.status') . " AND COALESCE(legal_cases.livelo_points, 0) > 0 THEN 1 ELSE 0 END), 0) as livelo_deals",
-                LegalCase::AGREEMENT_METRIC_STATUSES
-            )
-            ->selectRaw(
-                "COALESCE(SUM(CASE WHEN " . $this->agreementMetricStatusCaseSql('legal_cases.status') . " AND COALESCE(legal_cases.ourocap_value, 0) > 0 THEN 1 ELSE 0 END), 0) as ourocap_deals",
-                LegalCase::AGREEMENT_METRIC_STATUSES
             )
             ->leftJoin('legal_cases', function (JoinClause $join) use ($request, $dateRange) {
                 $join->on('legal_cases.user_id', '=', 'users.id');
@@ -449,14 +434,36 @@ class DashboardController extends Controller
             $lawyersQuery->whereIn('users.id', $responsibleFilter['ids']);
         }
 
+        // Produção do período: acordos pela data de fechamento (mesma base do "Desempenho por responsável").
+        // Montada sem a restrição por papel para que operadores vejam o ranking completo da equipe.
+        $closingsQuery = LegalCase::query();
+        $this->applySharedCaseFilters($closingsQuery, $request, $dateRange, 'agreement_closed_at');
+        $closingsQuery->whereIn($this->qualifyLegalCaseColumn('status'), LegalCase::AGREEMENT_METRIC_STATUSES)
+            ->whereNotNull($this->qualifyLegalCaseColumn('agreement_closed_at'));
+
+        if ($responsibleFilter['has_filter'] && count($responsibleFilter['ids']) > 0) {
+            $closingsQuery->whereIn($this->qualifyLegalCaseColumn('user_id'), $responsibleFilter['ids']);
+        }
+
+        $closingRows = $closingsQuery
+            ->selectRaw('legal_cases.user_id as entity_id')
+            ->selectRaw('COUNT(*) as closed_deals')
+            ->selectRaw('COALESCE(SUM(COALESCE(legal_cases.original_value, 0) - COALESCE(legal_cases.agreement_value, 0)), 0) as economy')
+            ->selectRaw('COALESCE(SUM(CASE WHEN COALESCE(legal_cases.livelo_points, 0) > 0 THEN 1 ELSE 0 END), 0) as livelo_deals')
+            ->selectRaw('COALESCE(SUM(CASE WHEN COALESCE(legal_cases.ourocap_value, 0) > 0 THEN 1 ELSE 0 END), 0) as ourocap_deals')
+            ->groupBy('legal_cases.user_id')
+            ->get()
+            ->keyBy(fn ($row) => (int) ($row->entity_id ?? 0));
+
         return $lawyersQuery
             ->groupBy('users.id', 'users.name')
             ->get()
-            ->map(function (User $lawyer) {
+            ->map(function (User $lawyer) use ($closingRows) {
                 $totalCases = (int) ($lawyer->total_cases ?? 0);
                 $workedCases = (int) ($lawyer->worked_cases ?? 0);
-                $closedDeals = (int) ($lawyer->closed_deals ?? 0);
-                $economy = (float) ($lawyer->economy ?? 0);
+                $closing = $closingRows->get((int) $lawyer->id);
+                $closedDeals = (int) ($closing->closed_deals ?? 0);
+                $economy = (float) ($closing->economy ?? 0);
                 $conversionRate = $workedCases > 0 ? ($closedDeals / $workedCases) * 100 : 0;
                 $score = ($closedDeals * 10) + ($economy / 1000);
                 $productsCount = (int) ceil($closedDeals * 0.4);
@@ -475,8 +482,8 @@ class DashboardController extends Controller
                     'products_count' => $productsCount,
                     'products_proposed_value' => $productsValue,
                     'products_economy' => $productsEconomy,
-                    'livelo_deals' => (int) ($lawyer->livelo_deals ?? 0),
-                    'ourocap_deals' => (int) ($lawyer->ourocap_deals ?? 0),
+                    'livelo_deals' => (int) ($closing->livelo_deals ?? 0),
+                    'ourocap_deals' => (int) ($closing->ourocap_deals ?? 0),
                 ];
             })
             ->sortByDesc('score')

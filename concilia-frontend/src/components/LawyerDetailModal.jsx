@@ -3,7 +3,7 @@ import styles from '../styles/LawyerDetailModal.module.css';
 import DetailKpiCard from './DetailKpiCard';
 import { FaTimes } from 'react-icons/fa';
 import MetricInfoHint from './MetricInfoHint';
-import { AGREEMENT_COUNT_INFO_TEXT } from '../constants/dashboardMetrics';
+import { TEAM_RANKING_AGREEMENTS_INFO_TEXT } from '../constants/dashboardMetrics';
 
 const LawyerDetailModal = ({ isOpen, onClose, lawyer }) => {
 
@@ -84,7 +84,7 @@ const LawyerDetailModal = ({ isOpen, onClose, lawyer }) => {
                         title={(
                             <span className={styles.titleWithInfo}>
                                 <span>Acordos Fechados</span>
-                                <MetricInfoHint text={AGREEMENT_COUNT_INFO_TEXT} />
+                                <MetricInfoHint text={TEAM_RANKING_AGREEMENTS_INFO_TEXT} />
                             </span>
                         )}
                         value={dealsCount}
