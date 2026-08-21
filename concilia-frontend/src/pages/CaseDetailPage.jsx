@@ -13,6 +13,7 @@ import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
 import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
+import { getProceduralPhaseDetails } from '../constants/proceduralPhase';
 import { isIndicatorRole, isManagerRole } from '../constants/access';
 import { useToast } from '../context/ToastContext';
 import FormalizeAgreementModal from '../components/FormalizeAgreementModal';
@@ -387,6 +388,15 @@ const CaseDetailPage = () => {
                     <div className={styles.tags}>
                         <span className={styles.tag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>
                         <span className={styles.tag} style={{ backgroundColor: currentPriority.color, color: currentPriority.textColor }}>{currentPriority.name}</span>
+                        {(() => {
+                            const phase = getProceduralPhaseDetails(legalCase.procedural_phase);
+                            if (!phase) return null;
+                            return (
+                                <span className={styles.tag} style={{ backgroundColor: phase.background, color: phase.color }} title="Fase processual informada pelo banco">
+                                    {phase.label}
+                                </span>
+                            );
+                        })()}
                     </div>
                     {isIndicator && legalCase.status !== 'closed_deal' && (
                         <button

@@ -40,6 +40,13 @@ class LegalCase extends Model
     public const STATUS_PENDING_LIVELO_OUROCAP = 'pending_livelo_ourocap';
     public const STATUS_DEAL_COMPLETED = 'deal_completed';
 
+    public const PROCEDURAL_PHASES = [
+        'inicial',
+        'sentenca',
+        'recurso',
+        'cumprimento',
+    ];
+
     public const AGREEMENT_METRIC_STATUSES = [
         self::STATUS_AWAITING_DRAFT,
         self::STATUS_CLOSED_DEAL,
@@ -117,6 +124,7 @@ class LegalCase extends Model
         'state',
         'city', 
         'special_court',
+        'procedural_phase',
         'opposing_lawyer',
         'opposing_contact',
         'tags',

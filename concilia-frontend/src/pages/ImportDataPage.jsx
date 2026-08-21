@@ -68,6 +68,9 @@ const columnMapping = {
   Vara: 'special_court',
   Cidade: 'city',
   UF: 'state',
+  'Fase Processual': 'procedural_phase',
+  'Fase processual': 'procedural_phase',
+  TX_EST_PRC: 'procedural_phase',
   'Juizado Especial': 'special_court',
   'Valor da Causa': 'cause_value',
   'Valor Acordo': 'agreement_value',
@@ -117,6 +120,7 @@ const templateHeaders = [
   'UF',
   'Valor da Causa',
   'Valor da PCOND',
+  'Fase Processual',
   'Prioridade',
   'Obs',
 ];
@@ -136,6 +140,7 @@ const templateExampleRow = [
   'CE',
   '10000,00',
   '3500,00',
+  'Inicial',
   'media',
   'Observação de exemplo',
 ];
@@ -339,6 +344,7 @@ const mapWeeklyBankSpreadsheetRow = (headers, row) => {
     city: rowByHeader.Comarca,
     state: rowByHeader['UF da Comarca'],
     special_court: pickFirstFilledValue(rowByHeader.NM_CMPT_ORG_TST, rowByHeader.NM_ORG_TST),
+    procedural_phase: normalizeValue(rowByHeader.TX_EST_PRC),
     cause_value: rowByHeader.VL_PRC,
     original_value: pickFirstFilledValue(
       rowByHeader.VL_PRM_FNCO1,

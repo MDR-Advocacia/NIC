@@ -276,7 +276,8 @@ class LegalCaseController extends Controller
             'state' => 'nullable|string',
             'city' => 'nullable|string',
             'special_court' => 'nullable|string',
-            
+            'procedural_phase' => 'nullable|string|in:inicial,sentenca,recurso,cumprimento',
+
             'tags' => 'nullable|array',
             'tags.*.text' => 'required|string|max:100',
             'tags.*.color' => 'nullable|string|max:20',
@@ -384,7 +385,8 @@ class LegalCaseController extends Controller
             'state' => 'nullable|string|max:2',
             'city' => 'nullable|string|max:255',
             'special_court' => 'nullable|string',
-            
+            'procedural_phase' => 'nullable|string|in:inicial,sentenca,recurso,cumprimento',
+
             'opposing_lawyer' => 'nullable|string|max:255',
             'opposing_contact' => 'nullable|string|max:255',
             
@@ -979,6 +981,7 @@ class LegalCaseController extends Controller
             'city' => 'Cidade',
             'state' => 'UF',
             'special_court' => 'Juizado Especial',
+            'procedural_phase' => 'Fase Processual',
             'cause_value' => 'Valor da Causa',
             'original_value' => 'Valor de Alçada',
             'agreement_value' => 'Proposta Inicial',
@@ -1097,6 +1100,7 @@ class LegalCaseController extends Controller
                     'city' => 'nullable|string|max:255',
                     'state' => 'nullable|string|max:2',
                     'special_court' => 'nullable|string',
+                    'procedural_phase' => 'nullable|string|in:inicial,sentenca,recurso,cumprimento',
                     'cause_value' => 'nullable|numeric',
                     'original_value' => 'required|numeric',
                     'has_alcada' => 'nullable|boolean',
@@ -1324,6 +1328,7 @@ class LegalCaseController extends Controller
                     'internal_number' => 'nullable|string|max:255',
                     'start_date' => 'nullable|date',
                     'comarca' => 'nullable|string|max:255',
+                    'procedural_phase' => 'nullable|string|in:inicial,sentenca,recurso,cumprimento',
                     'cause_value' => 'nullable|numeric',
                     'original_value' => 'nullable|numeric',
                     'agreement_value' => 'nullable|numeric',
@@ -1666,6 +1671,13 @@ class LegalCaseController extends Controller
             $caseData['case_number'] = $this->normalizeImportedCaseNumber((string) $caseData['case_number']);
         }
 
+        if (array_key_exists('procedural_phase', $caseData)) {
+            $caseData['procedural_phase'] = $this->normalizeProceduralPhase($caseData['procedural_phase']);
+            if ($caseData['procedural_phase'] === null) {
+                unset($caseData['procedural_phase']);
+            }
+        }
+
         if (
             (empty($caseData['original_value']) || $caseData['original_value'] === '0')
             && !empty($caseData['portal_agreement_offers'])
@@ -1910,6 +1922,7 @@ class LegalCaseController extends Controller
             'state' => $caseData['state'] ?? $existingCase?->state,
             'city' => $caseData['city'] ?? $existingCase?->city,
             'special_court' => $caseData['special_court'] ?? $existingCase?->special_court ?? 'Não',
+            'procedural_phase' => $caseData['procedural_phase'] ?? $existingCase?->procedural_phase,
             'opposing_lawyer' => $caseData['opposing_lawyer'] ?? $existingCase?->opposing_lawyer,
             'opposing_contact' => $caseData['opposing_contact'] ?? $existingCase?->opposing_contact,
             'tags' => $existingCase?->tags,
@@ -2526,6 +2539,27 @@ class LegalCaseController extends Controller
     private function normalizedCaseNumberSql(string $column = 'case_number'): string
     {
         return "REPLACE(REPLACE(REPLACE(REPLACE({$column}, '.', ''), '-', ''), '/', ''), ' ', '')";
+    }
+
+    private function normalizeProceduralPhase(mixed $value): ?string
+    {
+        $normalized = mb_strtolower(trim((string) $value));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $normalized = strtr($normalized, [
+            'ç' => 'c', 'ã' => 'a', 'á' => 'a', 'à' => 'a', 'é' => 'e', 'ê' => 'e', 'í' => 'i',
+        ]);
+
+        return match (true) {
+            str_contains($normalized, 'inicial') => 'inicial',
+            str_contains($normalized, 'sentenc') => 'sentenca',
+            str_contains($normalized, 'recurso') => 'recurso',
+            str_contains($normalized, 'cumprimento') => 'cumprimento',
+            default => null,
+        };
     }
 
     private function normalizeImportedCaseNumber(string $caseNumber): string
