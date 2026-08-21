@@ -27,7 +27,6 @@ import {
 } from '../constants/settlementBenefit';
 import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
 import { getLegalCaseStatusDetails, LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
-import { PROCEDURAL_PHASE_OPTIONS } from '../constants/proceduralPhase';
 import { normalizeUserRole } from '../constants/access';
 import { useToast } from '../context/ToastContext';
 
@@ -608,15 +607,6 @@ const DetailsTab = ({
                             <option value="Sim">Sim</option>
                         </select>
                     </div>
-                    <div className={styles.formGroup}>
-                        <label className={styles.label}>Fase Processual</label>
-                        <select className={styles.select} name="procedural_phase" value={formData.procedural_phase || ''} onChange={handleChange}>
-                            <option value="">Não informada</option>
-                            {PROCEDURAL_PHASE_OPTIONS.map((phase) => (
-                                <option key={phase.value} value={phase.value}>{phase.label}</option>
-                            ))}
-                        </select>
-                    </div>
                 </div>
             </div>
 
@@ -899,7 +889,6 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 internal_number: legalCase.internal_number || '',
                 city: legalCase.city || '',
                 special_court: legalCase.special_court || 'Não',
-                procedural_phase: legalCase.procedural_phase || '',
                 ourocap_value: legalCase.ourocap_value || '',
                 livelo_points: legalCase.livelo_points || '',
                 updated_condemnation_value: legalCase.updated_condemnation_value || '',

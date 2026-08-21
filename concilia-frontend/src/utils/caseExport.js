@@ -5,7 +5,6 @@ import {
     getLegalCaseStatusDetails,
     isTerminalLegalCaseStatus,
 } from '../constants/legalCaseStatus';
-import { getProceduralPhaseLabel } from '../constants/proceduralPhase';
 
 const MAX_EXPORT_PAGE_SIZE = 200;
 const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -21,7 +20,6 @@ const EXPORT_COLUMNS = [
     { header: 'Numero do processo', getValue: (legalCase) => legalCase?.case_number || '' },
     { header: 'Cliente', getValue: (legalCase) => getDisplayValue(legalCase?.client, '') },
     { header: 'Comarca', getValue: (legalCase) => legalCase?.comarca || '' },
-    { header: 'Fase processual', getValue: (legalCase) => getProceduralPhaseLabel(legalCase?.procedural_phase) },
     { header: 'Autor', getValue: (legalCase) => legalCase?.opposing_party || legalCase?.plaintiff || '' },
     { header: 'Reu', getValue: (legalCase) => legalCase?.defendant || '' },
     { header: 'Causa de pedir', getValue: (legalCase) => getActionObjectName(legalCase) },
