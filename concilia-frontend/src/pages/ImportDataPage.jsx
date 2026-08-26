@@ -16,7 +16,7 @@ import styles from '../styles/ImportDataPage.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 
-const MAX_IMPORT_BATCH_ROWS = 500;
+const MAX_IMPORT_BATCH_ROWS = 100;
 const MAX_IMPORT_BATCH_PAYLOAD_BYTES = 900 * 1024;
 const MAX_IMPORT_FILE_SIZE_BYTES = 1024 * 1024;
 
