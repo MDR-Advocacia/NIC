@@ -1,6 +1,7 @@
 import React from 'react';
 import { FaHandshake, FaTimes } from 'react-icons/fa';
 import styles from '../styles/Pipeline.module.css';
+import AgreementComplianceFields from './AgreementComplianceFields';
 
 const AgreementFieldsModal = ({
   caseNumber,
@@ -8,6 +9,13 @@ const AgreementFieldsModal = ({
   onValueChange,
   agreementClosedAt,
   onDateChange,
+  fraudAnswer,
+  onFraudAnswerChange,
+  portalConfirmed,
+  onPortalConfirmedChange,
+  opinionFile,
+  onOpinionFileChange,
+  hasExistingOpinion = false,
   error,
   isSubmitting = false,
   onCancel,
@@ -71,6 +79,18 @@ const AgreementFieldsModal = ({
             required
           />
         </div>
+
+        <AgreementComplianceFields
+          fraudAnswer={fraudAnswer}
+          onFraudAnswerChange={onFraudAnswerChange}
+          portalConfirmed={portalConfirmed}
+          onPortalConfirmedChange={onPortalConfirmedChange}
+          file={opinionFile}
+          onFileChange={onOpinionFileChange}
+          hasExistingOpinion={hasExistingOpinion}
+          disabled={isSubmitting}
+          idPrefix="pipeline-compliance"
+        />
 
         {error && <p className={styles.error}>{error}</p>}
 

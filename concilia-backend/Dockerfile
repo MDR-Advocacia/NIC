@@ -9,6 +9,12 @@ RUN apt-get update && apt-get install -y \
 # Instalar o Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Limites de upload (parecer juridico e importacoes)
+RUN { \
+        echo "upload_max_filesize=12M"; \
+        echo "post_max_size=14M"; \
+    } > /usr/local/etc/php/conf.d/uploads.ini
+
 # --- AJUSTE AQUI: Usar /var/www/html que é o padrão do Nginx ---
 WORKDIR /var/www/html
 

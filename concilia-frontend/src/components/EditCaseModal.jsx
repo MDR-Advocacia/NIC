@@ -27,6 +27,8 @@ import {
 } from '../constants/settlementBenefit';
 import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
 import { getLegalCaseStatusDetails, LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
+import AgreementComplianceFields from './AgreementComplianceFields';
+import { uploadLegalOpinion, validateComplianceBeforeClose } from '../utils/legalOpinion';
 import { normalizeUserRole } from '../constants/access';
 import { useToast } from '../context/ToastContext';
 
@@ -704,6 +706,21 @@ const DetailsTab = ({
                         <label className={styles.label}>Data do Fechamento do Acordo</label>
                         <input className={styles.input} type="date" name="agreement_closed_at" value={formData.agreement_closed_at || ''} onChange={handleChange} />
                     </div>
+                    {isClosingTransition && (
+                        <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+                            <AgreementComplianceFields
+                                fraudAnswer={fraudAnswer}
+                                onFraudAnswerChange={setFraudAnswer}
+                                portalConfirmed={portalConfirmed}
+                                onPortalConfirmedChange={setPortalConfirmed}
+                                file={opinionFile}
+                                onFileChange={setOpinionFile}
+                                hasExistingOpinion={Boolean(legalCase?.legal_opinion_attachment)}
+                                disabled={isSubmitting}
+                                idPrefix="edit-modal-compliance"
+                            />
+                        </div>
+                    )}
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Benefício Complementar</label>
                         <select className={styles.select} value={settlementBenefitType} onChange={handleSettlementBenefitTypeChange}>
@@ -810,6 +827,9 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('details');
+    const [fraudAnswer, setFraudAnswer] = useState('');
+    const [portalConfirmed, setPortalConfirmed] = useState(false);
+    const [opinionFile, setOpinionFile] = useState(null);
     const [newTagText, setNewTagText] = useState('');
     const [newTagColor, setNewTagColor] = useState('#EF4444');
     const [savedTags, setSavedTags] = useState([]);
@@ -831,6 +851,15 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
     const [showPlaintiffDropdown, setShowPlaintiffDropdown] = useState(false);
 
     const [defendantSearchTerm, setDefendantSearchTerm] = useState('');
+
+    const isClosingTransition = (formData.status === 'closed_deal' || formData.status === 'closed_in_hearing')
+        && !['closed_deal', 'closed_in_hearing'].includes(legalCase?.status);
+
+    useEffect(() => {
+        setFraudAnswer('');
+        setPortalConfirmed(false);
+        setOpinionFile(null);
+    }, [legalCase?.id]);
     const [showDefendantDropdown, setShowDefendantDropdown] = useState(false);
     
     // Controle dos Modais de Motivo (status que exigem justificativa)
@@ -1110,10 +1139,36 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                     setIsSubmitting(false);
                     return;
                 }
+                if (isClosingTransition) {
+                    const complianceError = validateComplianceBeforeClose({
+                        fraudAnswer,
+                        portalConfirmed,
+                        file: opinionFile,
+                        hasExistingOpinion: Boolean(legalCase?.legal_opinion_attachment),
+                    });
+                    if (complianceError) {
+                        setError(complianceError);
+                        setIsSubmitting(false);
+                        return;
+                    }
+                    if (fraudAnswer === 'sim' && opinionFile) {
+                        try {
+                            await uploadLegalOpinion(legalCase.id, opinionFile, token);
+                        } catch (uploadErr) {
+                            const uploadBackendError = Object.values(uploadErr.response?.data?.errors || {})[0]?.[0];
+                            setError(uploadBackendError || uploadErr.response?.data?.message || 'Não foi possível anexar o parecer jurídico.');
+                            setIsSubmitting(false);
+                            return;
+                        }
+                    }
+                }
             }
 
             const payload = {
                 ...formData,
+                ...(isClosingTransition && (fraudAnswer === 'sim' || fraudAnswer === 'nao')
+                    ? { agreement_fraud_insurance: fraudAnswer === 'sim' }
+                    : {}),
                 contra_indication_reason: String(formData.contra_indication_reason || '').trim(),
                 failed_deal_reason: String(formData.failed_deal_reason || '').trim(),
                 tags: normalizeCaseTags(formData.tags),

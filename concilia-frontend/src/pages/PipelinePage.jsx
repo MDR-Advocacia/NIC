@@ -14,6 +14,7 @@ import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import AgreementFieldsModal from '../components/AgreementFieldsModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import SingleSelect from '../components/SingleSelect';
+import { uploadLegalOpinion, validateComplianceBeforeClose } from '../utils/legalOpinion';
 import { 
     DndContext, 
     PointerSensor, 
@@ -162,6 +163,9 @@ const PipelinePage = () => {
     const [reanalysisError, setReanalysisError] = useState('');
     const [isSavingReanalysis, setIsSavingReanalysis] = useState(false);
     const [agreementPrompt, setAgreementPrompt] = useState(null);
+    const [fraudAnswer, setFraudAnswer] = useState('');
+    const [portalConfirmed, setPortalConfirmed] = useState(false);
+    const [opinionFile, setOpinionFile] = useState(null);
     const [agreementValue, setAgreementValue] = useState('');
     const [agreementClosedAt, setAgreementClosedAt] = useState('');
     const [agreementError, setAgreementError] = useState('');
@@ -661,6 +665,9 @@ const PipelinePage = () => {
         setAgreementPrompt(null);
         setAgreementValue('');
         setAgreementClosedAt('');
+        setFraudAnswer('');
+        setPortalConfirmed(false);
+        setOpinionFile(null);
         setAgreementError('');
         setIsSavingAgreement(false);
         fetchAllData();
@@ -681,18 +688,41 @@ const PipelinePage = () => {
 
         if (!agreementPrompt?.legalCase) return;
 
+        const hasExistingOpinion = Boolean(agreementPrompt.legalCase.legal_opinion_attachment);
+        const complianceError = validateComplianceBeforeClose({
+            fraudAnswer,
+            portalConfirmed,
+            file: opinionFile,
+            hasExistingOpinion,
+        });
+        if (complianceError) {
+            setAgreementError(complianceError);
+            return;
+        }
+
         setIsSavingAgreement(true);
         setAgreementError('');
 
         try {
+            if (fraudAnswer === 'sim' && opinionFile) {
+                await uploadLegalOpinion(agreementPrompt.legalCase.id, opinionFile, token);
+            }
+
             await persistCaseStatusChange(
                 agreementPrompt.legalCase,
                 agreementPrompt.targetStatus,
-                { agreement_value: numericValue, agreement_closed_at: agreementClosedAt }
+                {
+                    agreement_value: numericValue,
+                    agreement_closed_at: agreementClosedAt,
+                    agreement_fraud_insurance: fraudAnswer === 'sim',
+                }
             );
             setAgreementPrompt(null);
             setAgreementValue('');
             setAgreementClosedAt('');
+            setFraudAnswer('');
+            setPortalConfirmed(false);
+            setOpinionFile(null);
         } catch (err) {
             const firstBackendError = Object.values(err.response?.data?.errors || {})[0]?.[0];
             setAgreementError(firstBackendError || err.response?.data?.message || 'Não foi possível salvar os dados do acordo.');
@@ -1170,6 +1200,13 @@ const PipelinePage = () => {
                     onValueChange={setAgreementValue}
                     agreementClosedAt={agreementClosedAt}
                     onDateChange={setAgreementClosedAt}
+                    fraudAnswer={fraudAnswer}
+                    onFraudAnswerChange={setFraudAnswer}
+                    portalConfirmed={portalConfirmed}
+                    onPortalConfirmedChange={setPortalConfirmed}
+                    opinionFile={opinionFile}
+                    onOpinionFileChange={setOpinionFile}
+                    hasExistingOpinion={Boolean(agreementPrompt.legalCase?.legal_opinion_attachment)}
                     error={agreementError}
                     isSubmitting={isSavingAgreement}
                     onCancel={handleCancelAgreement}

@@ -13,6 +13,7 @@ import ChatPreview from '../components/ChatPreview';
 import AgreementChecklist from '../components/AgreementChecklist';
 import IndicationChecklistSummary from '../components/IndicationChecklistSummary';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
+import { downloadLegalOpinion } from '../utils/legalOpinion';
 import { isIndicatorRole, isManagerRole } from '../constants/access';
 import { useToast } from '../context/ToastContext';
 import FormalizeAgreementModal from '../components/FormalizeAgreementModal';
@@ -357,6 +358,15 @@ const CaseDetailPage = () => {
     const currentPriority = PRIORITY_DETAILS[legalCase.priority] || { name: legalCase.priority || 'Normal', color: '#CBD5E0', textColor: '#1A202C' };
     const contraIndicationReason = String(legalCase.contra_indication_reason || '').trim();
     const contraIndicatedByName = getLawyerName(legalCase.contra_indicated_by);
+    const legalOpinion = legalCase.legal_opinion_attachment || null;
+    const handleDownloadLegalOpinion = async () => {
+        try {
+            await downloadLegalOpinion(legalCase.id, legalOpinion?.filename, token);
+        } catch (err) {
+            toast.error('Não foi possível baixar o parecer jurídico.');
+        }
+    };
+
     const reanalysisReason = String(legalCase.reanalysis_reason || '').trim();
     const reanalysisRequestedByName = getLawyerName(legalCase.reanalysis_requested_by);
     const failedDealReason = String(legalCase.failed_deal_reason || '').trim();
@@ -407,6 +417,28 @@ const CaseDetailPage = () => {
                     </button>
                 </div>
             </div>
+
+            {/* PARECER JURÍDICO (GOLPE/SEGURO PRESTAMISTA) */}
+            {legalCase.agreement_fraud_insurance && (
+                <div style={{background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8', padding: '1rem', borderRadius: '6px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
+                    <FaFilePdf size={18} />
+                    <span style={{flex: 1, minWidth: '240px'}}>
+                        <strong>Acordo com matéria de golpe/seguro prestamista.</strong>{' '}
+                        {legalOpinion
+                            ? `Parecer anexado: ${legalOpinion.filename} (${new Date(legalOpinion.created_at).toLocaleDateString('pt-BR')}). Anexo no portal do banco confirmado pelo operador.`
+                            : 'Parecer jurídico ainda não anexado no NIC.'}
+                    </span>
+                    {legalOpinion && (
+                        <button
+                            type="button"
+                            onClick={handleDownloadLegalOpinion}
+                            style={{border: '1px solid #1d4ed8', background: '#fff', color: '#1d4ed8', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600}}
+                        >
+                            Baixar parecer
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* ALERTAS VISUAIS */}
             {isAbusiveLawyer && (

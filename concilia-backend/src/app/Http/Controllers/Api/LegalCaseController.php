@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Services\AuditService;
 use App\Http\Controllers\Controller;
+use App\Models\CaseAttachment;
 use App\Models\CaseTag;
 use App\Models\LegalCase;
 use App\Models\User;
@@ -376,6 +377,7 @@ class LegalCaseController extends Controller
             'original_value' => 'sometimes|required|numeric',
             'agreement_value' => 'nullable|numeric',
             'agreement_closed_at' => 'nullable|date',
+            'agreement_fraud_insurance' => 'nullable|boolean',
             'ourocap_value' => $this->ourocapValidationRules($request, $case),
             'livelo_points' => $this->liveloPointsValidationRules($request, $case),
             'cause_value' => 'nullable|numeric',
@@ -416,6 +418,34 @@ class LegalCaseController extends Controller
                     'message' => 'Informe a data do acordo para fechar o caso.',
                     'errors'  => ['agreement_closed_at' => ['A data do acordo é obrigatória.']],
                 ], 422);
+            }
+
+            $isEnteringClosing = !in_array($case->status, ['closed_deal', 'closed_in_hearing'], true);
+            if ($isEnteringClosing) {
+                $fraudAnswer = array_key_exists('agreement_fraud_insurance', $validatedData)
+                    ? $validatedData['agreement_fraud_insurance']
+                    : $case->agreement_fraud_insurance;
+
+                if ($fraudAnswer === null) {
+                    return response()->json([
+                        'message' => 'Informe se o acordo envolve matéria de golpe ou seguro prestamista.',
+                        'errors'  => ['agreement_fraud_insurance' => ['Responda se o acordo envolve matéria de golpe ou seguro prestamista.']],
+                    ], 422);
+                }
+
+                if ($fraudAnswer) {
+                    $hasLegalOpinion = CaseAttachment::query()
+                        ->where('legal_case_id', $case->id)
+                        ->where('type', CaseAttachment::TYPE_LEGAL_OPINION)
+                        ->exists();
+
+                    if (!$hasLegalOpinion) {
+                        return response()->json([
+                            'message' => 'Anexe o parecer jurídico do caso (matéria de golpe/seguro prestamista) para fechar o acordo.',
+                            'errors'  => ['legal_opinion' => ['O parecer jurídico é obrigatório para acordos de golpe ou seguro prestamista.']],
+                        ], 422);
+                    }
+                }
             }
         }
 
@@ -747,6 +777,77 @@ class LegalCaseController extends Controller
         }
 
         return response()->json($case->fresh($this->caseRelationshipLoads()));
+    }
+
+    public function uploadLegalOpinion(Request $request, LegalCase $case): JsonResponse
+    {
+        $user = Auth::user();
+
+        $request->validate([
+            'file' => 'required|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png',
+            'portal_confirmed' => 'required|accepted',
+        ]);
+
+        $file = $request->file('file');
+
+        CaseAttachment::create([
+            'legal_case_id' => $case->id,
+            'type' => CaseAttachment::TYPE_LEGAL_OPINION,
+            'filename' => mb_substr($file->getClientOriginalName() ?: 'parecer.pdf', 0, 255),
+            'mime_type' => $file->getClientMimeType() ?: 'application/octet-stream',
+            'size' => (int) $file->getSize(),
+            'content' => file_get_contents($file->getRealPath()),
+            'uploaded_by_user_id' => $user?->id,
+        ]);
+
+        $case->update([
+            'agreement_fraud_insurance' => true,
+            'legal_opinion_portal_confirmed' => true,
+        ]);
+
+        $case->histories()->create([
+            'user_id' => $user?->id,
+            'event_type' => 'update',
+            'description' => 'Parecer jurídico (golpe/seguro prestamista) anexado. Operador confirmou anexo no portal do banco.',
+            'old_values' => [],
+            'new_values' => ['legal_opinion_filename' => $file->getClientOriginalName()],
+        ]);
+
+        try {
+            AuditLog::create([
+                'user_id' => $user?->id,
+                'user_name' => $user?->name ?: 'Sistema',
+                'action' => 'Anexo de Parecer Juridico',
+                'details' => "Anexou parecer juridico ao caso #{$case->case_number} ({$file->getClientOriginalName()})",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erro AuditLog parecer: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => 'Parecer anexado com sucesso.',
+            'case' => $case->fresh($this->caseRelationshipLoads()),
+        ]);
+    }
+
+    public function downloadLegalOpinion(LegalCase $case)
+    {
+        $attachment = CaseAttachment::query()
+            ->where('legal_case_id', $case->id)
+            ->where('type', CaseAttachment::TYPE_LEGAL_OPINION)
+            ->latest('id')
+            ->first();
+
+        if (!$attachment) {
+            return response()->json(['message' => 'Nenhum parecer anexado a este caso.'], 404);
+        }
+
+        return response($attachment->getRawOriginal('content'), 200, [
+            'Content-Type' => $attachment->mime_type,
+            'Content-Disposition' => 'attachment; filename="' . str_replace('"', '', $attachment->filename) . '"',
+            'Content-Length' => (string) $attachment->size,
+        ]);
     }
 
     public function requestReanalysis(Request $request, LegalCase $case): JsonResponse
@@ -2815,6 +2916,8 @@ class LegalCaseController extends Controller
         if ($this->legalCasesTableHasIndicatorUserId()) {
             $relationships[] = 'indicator';
         }
+
+        $relationships[] = 'legalOpinionAttachment';
 
         return array_values(array_unique(array_merge($relationships, $extraRelationships)));
     }

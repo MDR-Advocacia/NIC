@@ -108,6 +108,8 @@ class LegalCase extends Model
         'has_alcada',
         'agreement_value',
         'agreement_closed_at',
+        'agreement_fraud_insurance',
+        'legal_opinion_portal_confirmed',
         'ourocap_value',
         'livelo_points',
         'cause_value',
@@ -136,6 +138,8 @@ class LegalCase extends Model
         'tags' => 'array',
         'agreement_checklist_data' => 'array',
         'has_alcada' => 'boolean',
+        'agreement_fraud_insurance' => 'boolean',
+        'legal_opinion_portal_confirmed' => 'boolean',
         'livelo_points' => 'integer',
         'agreement_closed_at' => 'date',
         'status_started_at' => 'datetime',
@@ -246,5 +250,18 @@ class LegalCase extends Model
     public function failedDealBy()
     {
         return $this->belongsTo(User::class, 'failed_deal_by_user_id');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(CaseAttachment::class);
+    }
+
+    public function legalOpinionAttachment()
+    {
+        return $this->hasOne(CaseAttachment::class)
+            ->select(['id', 'legal_case_id', 'type', 'filename', 'mime_type', 'size', 'uploaded_by_user_id', 'created_at'])
+            ->where('type', CaseAttachment::TYPE_LEGAL_OPINION)
+            ->latest('id');
     }
 }
