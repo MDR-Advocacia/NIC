@@ -260,10 +260,20 @@ const DetailsTab = ({
     setNewTagText, 
     newTagColor, 
     setNewTagColor, 
-    clients, 
-    lawyers, 
+    clients,
+    lawyers,
     handleChecklistChange,
-    
+
+    // Props Compliance (golpe/seguro prestamista)
+    isClosingTransition,
+    fraudAnswer,
+    setFraudAnswer,
+    portalConfirmed,
+    setPortalConfirmed,
+    opinionFile,
+    setOpinionFile,
+    isSubmitting,
+
     // Props Advogado
     opposingLawyersList,
     lawyerSearchTerm,
@@ -1250,7 +1260,17 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     clients={clients} 
                                     lawyers={lawyers}
                                     handleChecklistChange={handleChecklistChange}
-                                    
+
+                                    // Props Compliance (golpe/seguro prestamista)
+                                    isClosingTransition={isClosingTransition}
+                                    fraudAnswer={fraudAnswer}
+                                    setFraudAnswer={setFraudAnswer}
+                                    portalConfirmed={portalConfirmed}
+                                    setPortalConfirmed={setPortalConfirmed}
+                                    opinionFile={opinionFile}
+                                    setOpinionFile={setOpinionFile}
+                                    isSubmitting={isSubmitting}
+
                                     // Props Advogado
                                     opposingLawyersList={opposingLawyersList}
                                     lawyerSearchTerm={lawyerSearchTerm}
