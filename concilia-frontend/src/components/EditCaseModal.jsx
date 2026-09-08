@@ -265,7 +265,7 @@ const DetailsTab = ({
     handleChecklistChange,
 
     // Props Compliance (golpe/seguro prestamista)
-    isClosingTransition,
+    isCompletingTransition,
     fraudAnswer,
     setFraudAnswer,
     portalConfirmed,
@@ -716,7 +716,7 @@ const DetailsTab = ({
                         <label className={styles.label}>Data do Fechamento do Acordo</label>
                         <input className={styles.input} type="date" name="agreement_closed_at" value={formData.agreement_closed_at || ''} onChange={handleChange} />
                     </div>
-                    {isClosingTransition && (
+                    {isCompletingTransition && (
                         <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
                             <AgreementComplianceFields
                                 fraudAnswer={fraudAnswer}
@@ -862,8 +862,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
 
     const [defendantSearchTerm, setDefendantSearchTerm] = useState('');
 
-    const isClosingTransition = (formData.status === 'closed_deal' || formData.status === 'closed_in_hearing')
-        && !['closed_deal', 'closed_in_hearing'].includes(legalCase?.status);
+    const isCompletingTransition = formData.status === 'deal_completed' && legalCase?.status !== 'deal_completed';
 
     useEffect(() => {
         setFraudAnswer('');
@@ -1149,34 +1148,35 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                     setIsSubmitting(false);
                     return;
                 }
-                if (isClosingTransition) {
-                    const complianceError = validateComplianceBeforeClose({
-                        fraudAnswer,
-                        portalConfirmed,
-                        file: opinionFile,
-                        hasExistingOpinion: Boolean(legalCase?.legal_opinion_attachment),
-                    });
-                    if (complianceError) {
-                        setError(complianceError);
+            }
+
+            if (isCompletingTransition) {
+                const complianceError = validateComplianceBeforeClose({
+                    fraudAnswer,
+                    portalConfirmed,
+                    file: opinionFile,
+                    hasExistingOpinion: Boolean(legalCase?.legal_opinion_attachment),
+                });
+                if (complianceError) {
+                    setError(complianceError);
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (fraudAnswer === 'sim' && opinionFile) {
+                    try {
+                        await uploadLegalOpinion(legalCase.id, opinionFile, token);
+                    } catch (uploadErr) {
+                        const uploadBackendError = Object.values(uploadErr.response?.data?.errors || {})[0]?.[0];
+                        setError(uploadBackendError || uploadErr.response?.data?.message || 'Não foi possível anexar o parecer jurídico.');
                         setIsSubmitting(false);
                         return;
-                    }
-                    if (fraudAnswer === 'sim' && opinionFile) {
-                        try {
-                            await uploadLegalOpinion(legalCase.id, opinionFile, token);
-                        } catch (uploadErr) {
-                            const uploadBackendError = Object.values(uploadErr.response?.data?.errors || {})[0]?.[0];
-                            setError(uploadBackendError || uploadErr.response?.data?.message || 'Não foi possível anexar o parecer jurídico.');
-                            setIsSubmitting(false);
-                            return;
-                        }
                     }
                 }
             }
 
             const payload = {
                 ...formData,
-                ...(isClosingTransition && (fraudAnswer === 'sim' || fraudAnswer === 'nao')
+                ...(isCompletingTransition && (fraudAnswer === 'sim' || fraudAnswer === 'nao')
                     ? { agreement_fraud_insurance: fraudAnswer === 'sim' }
                     : {}),
                 contra_indication_reason: String(formData.contra_indication_reason || '').trim(),
@@ -1262,7 +1262,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                                     handleChecklistChange={handleChecklistChange}
 
                                     // Props Compliance (golpe/seguro prestamista)
-                                    isClosingTransition={isClosingTransition}
+                                    isCompletingTransition={isCompletingTransition}
                                     fraudAnswer={fraudAnswer}
                                     setFraudAnswer={setFraudAnswer}
                                     portalConfirmed={portalConfirmed}

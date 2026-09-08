@@ -420,31 +420,31 @@ class LegalCaseController extends Controller
                 ], 422);
             }
 
-            $isEnteringClosing = !in_array($case->status, ['closed_deal', 'closed_in_hearing'], true);
-            if ($isEnteringClosing) {
-                $fraudAnswer = array_key_exists('agreement_fraud_insurance', $validatedData)
-                    ? $validatedData['agreement_fraud_insurance']
-                    : $case->agreement_fraud_insurance;
+        }
 
-                if ($fraudAnswer === null) {
+        if ($resultingStatus === LegalCase::STATUS_DEAL_COMPLETED && $case->status !== LegalCase::STATUS_DEAL_COMPLETED) {
+            $fraudAnswer = array_key_exists('agreement_fraud_insurance', $validatedData)
+                ? $validatedData['agreement_fraud_insurance']
+                : $case->agreement_fraud_insurance;
+
+            if ($fraudAnswer === null) {
+                return response()->json([
+                    'message' => 'Informe se o acordo envolve matéria de golpe ou seguro prestamista para concluir o acordo.',
+                    'errors'  => ['agreement_fraud_insurance' => ['Responda se o acordo envolve matéria de golpe ou seguro prestamista.']],
+                ], 422);
+            }
+
+            if ($fraudAnswer) {
+                $hasLegalOpinion = CaseAttachment::query()
+                    ->where('legal_case_id', $case->id)
+                    ->where('type', CaseAttachment::TYPE_LEGAL_OPINION)
+                    ->exists();
+
+                if (!$hasLegalOpinion) {
                     return response()->json([
-                        'message' => 'Informe se o acordo envolve matéria de golpe ou seguro prestamista.',
-                        'errors'  => ['agreement_fraud_insurance' => ['Responda se o acordo envolve matéria de golpe ou seguro prestamista.']],
+                        'message' => 'Anexe o parecer jurídico do caso (matéria de golpe/seguro prestamista) para concluir o acordo.',
+                        'errors'  => ['legal_opinion' => ['O parecer jurídico é obrigatório para acordos de golpe ou seguro prestamista.']],
                     ], 422);
-                }
-
-                if ($fraudAnswer) {
-                    $hasLegalOpinion = CaseAttachment::query()
-                        ->where('legal_case_id', $case->id)
-                        ->where('type', CaseAttachment::TYPE_LEGAL_OPINION)
-                        ->exists();
-
-                    if (!$hasLegalOpinion) {
-                        return response()->json([
-                            'message' => 'Anexe o parecer jurídico do caso (matéria de golpe/seguro prestamista) para fechar o acordo.',
-                            'errors'  => ['legal_opinion' => ['O parecer jurídico é obrigatório para acordos de golpe ou seguro prestamista.']],
-                        ], 422);
-                    }
                 }
             }
         }
@@ -1571,6 +1571,31 @@ class LegalCaseController extends Controller
             throw ValidationException::withMessages([
                 'failed_deal_reason_id' => 'Selecione o motivo do acordo frustrado.',
             ]);
+        }
+
+        if ($action === 'update_status' && $value === LegalCase::STATUS_DEAL_COMPLETED) {
+            $pendingCompliance = LegalCase::query()
+                ->whereIn('id', $caseIds)
+                ->where('status', '<>', LegalCase::STATUS_DEAL_COMPLETED)
+                ->where(function ($query) {
+                    $query->whereNull('agreement_fraud_insurance')
+                        ->orWhere(function ($fraudQuery) {
+                            $fraudQuery->where('agreement_fraud_insurance', true)
+                                ->whereDoesntHave('attachments', function ($attachmentQuery) {
+                                    $attachmentQuery->where('type', CaseAttachment::TYPE_LEGAL_OPINION);
+                                });
+                        });
+                })
+                ->pluck('case_number');
+
+            if ($pendingCompliance->isNotEmpty()) {
+                $sample = $pendingCompliance->take(5)->implode(', ');
+                $suffix = $pendingCompliance->count() > 5 ? '…' : '';
+
+                throw ValidationException::withMessages([
+                    'value' => "Antes de concluir em lote, informe pela edição individual se o acordo envolve golpe/seguro prestamista (e anexe o parecer quando envolver): {$sample}{$suffix}",
+                ]);
+            }
         }
 
         DB::beginTransaction();
