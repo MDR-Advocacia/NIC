@@ -1747,10 +1747,11 @@ class LegalCaseController extends Controller
                     break;
 
                 case 'delete':
-                    // Captura os números para o log antes de deletar
-                    $deletedNumbers = $query->limit(5)->pluck('case_number')->toArray();
+                    // Captura os números para o log antes de deletar.
+                    // clone: o limit(5) não pode contaminar a query do delete.
+                    $deletedNumbers = (clone $query)->limit(5)->pluck('case_number')->toArray();
                     $deletedString = implode(', ', $deletedNumbers) . ($count > 5 ? '...' : '');
-                    
+
                     $query->delete();
                     $logDetails = "Excluiu {$count} processos (Ex: {$deletedString})";
                     break;
@@ -2667,6 +2668,12 @@ class LegalCaseController extends Controller
 
     private function formatCnJCaseNumber(string $cleanNumber): string
     {
+        // CNJ tem sempre 20 dígitos; 19 indica zero à esquerda perdido
+        // (célula numérica no Excel). Restaura antes de formatar.
+        if (strlen($cleanNumber) === 19) {
+            $cleanNumber = '0' . $cleanNumber;
+        }
+
         if (strlen($cleanNumber) === 20) {
             return preg_replace(
                 "/(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{4})/",
