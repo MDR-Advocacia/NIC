@@ -830,6 +830,7 @@ class DashboardController extends Controller
         string $table = 'legal_cases',
         string $dateColumn = 'created_at'
     ): void {
+        $join->whereNull("{$table}.deleted_at");
         $join->where("{$table}.has_alcada", '=', true);
 
         if ($request->filled('client_id')) {

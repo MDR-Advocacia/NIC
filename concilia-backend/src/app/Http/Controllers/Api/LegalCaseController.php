@@ -6,6 +6,7 @@ use App\Services\AuditService;
 use App\Http\Controllers\Controller;
 use App\Models\CaseAttachment;
 use App\Models\CaseTag;
+use App\Models\ImportBatch;
 use App\Models\LegalCase;
 use App\Models\User;
 use App\Models\AuditLog;
@@ -240,7 +241,7 @@ class LegalCaseController extends Controller
         $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
 
         $validatedData = $request->validate([
-            'case_number' => 'required|string|max:255',
+            'case_number' => ['required', 'string', 'max:255', 'regex:/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/'],
             'start_date' => 'nullable|date',
             'client_id' => 'required|exists:clients,id',
             'user_id' => ['required', 'integer', $this->activeOperatorUserExistsRule()],
@@ -1046,11 +1047,27 @@ class LegalCaseController extends Controller
         $validatedData = $request->validate([
             'client_id' => 'required|exists:clients,id',
             'cases' => 'required|array|min:1',
+            'import_id' => 'nullable|string|max:36',
+            'file_name' => 'nullable|string|max:255',
         ]);
 
         $casesToImport = $validatedData['cases'];
         $clientId = $validatedData['client_id'];
         $clientName = $this->getImportClientName($clientId);
+
+        $importBatchId = $validatedData['import_id'] ?? null;
+        if ($importBatchId) {
+            ImportBatch::firstOrCreate(
+                ['id' => $importBatchId],
+                [
+                    'user_id' => Auth::id(),
+                    'user_name' => Auth::user()?->name,
+                    'file_name' => $validatedData['file_name'] ?? null,
+                    'client_id' => $clientId,
+                ]
+            );
+        }
+
         $successCount = 0;
         $createdCount = 0;
         $updatedCount = 0;
@@ -1101,6 +1118,16 @@ class LegalCaseController extends Controller
                 if ($this->shouldIgnoreImportedCaseRow($caseData)) {
                     continue;
                 }
+
+                if (!$this->isValidCnjCaseNumber($caseData['case_number'] ?? '')) {
+                    $errors[] = [
+                        'line' => 'Registro ' . ($index + 1),
+                        'errors' => ['Número do Processo fora do padrão CNJ (0000000-00.0000.0.00.0000): "' . ($caseData['case_number'] ?? '') . '". Formate a coluna de números como TEXTO na planilha e reenvie.'],
+                    ];
+                    continue;
+                }
+
+                $caseData['import_batch_id'] = $importBatchId;
 
                 $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
                 if (empty($caseData['original_value'])) {
@@ -1258,6 +1285,15 @@ class LegalCaseController extends Controller
             }
 
             DB::commit();
+
+            if ($importBatchId) {
+                ImportBatch::where('id', $importBatchId)->update([
+                    'created_count' => DB::raw('created_count + ' . (int) $createdCount),
+                    'updated_count' => DB::raw('updated_count + ' . (int) $updatedCount),
+                    'updated_at' => now(),
+                ]);
+            }
+
             return response()->json([
                 'message' => "Importação concluída! {$successCount} processos processados.",
                 'success_count' => $successCount,
@@ -1270,6 +1306,73 @@ class LegalCaseController extends Controller
             DB::rollBack();
             return response()->json(['message' => 'Erro interno crítico no servidor.', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    public function listImportBatches(): JsonResponse
+    {
+        if (!in_array(Auth::user()?->role, ['administrador', 'supervisor'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $batches = ImportBatch::query()
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get()
+            ->map(function (ImportBatch $batch) {
+                $remaining = LegalCase::where('import_batch_id', $batch->id)->count();
+
+                return [
+                    'id' => $batch->id,
+                    'user_name' => $batch->user_name,
+                    'file_name' => $batch->file_name,
+                    'created_count' => (int) $batch->created_count,
+                    'updated_count' => (int) $batch->updated_count,
+                    'remaining_count' => $remaining,
+                    'undone_at' => $batch->undone_at?->toIso8601String(),
+                    'created_at' => $batch->created_at?->toIso8601String(),
+                ];
+            });
+
+        return response()->json($batches);
+    }
+
+    public function undoImportBatch(Request $request, string $batchId): JsonResponse
+    {
+        if (!in_array(Auth::user()?->role, ['administrador', 'supervisor'], true)) {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $batch = ImportBatch::find($batchId);
+        if (!$batch) {
+            return response()->json(['message' => 'Importação não encontrada.'], 404);
+        }
+
+        if ($batch->undone_at) {
+            return response()->json(['message' => 'Essa importação já foi desfeita.'], 422);
+        }
+
+        // Remove (soft delete) apenas os casos CRIADOS por este lote.
+        // Atualizações feitas em casos pré-existentes não são revertidas.
+        $deletedCount = LegalCase::where('import_batch_id', $batchId)->delete();
+
+        $batch->update(['undone_at' => now()]);
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                'action' => 'Importação Desfeita',
+                'details' => "Desfez a importação {$batchId}" . ($batch->file_name ? " ({$batch->file_name})" : '') . " — {$deletedCount} casos criados por ela foram removidos.",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erro AuditLog undo import: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => "Importação desfeita. {$deletedCount} casos criados por ela foram removidos.",
+            'deleted_count' => $deletedCount,
+        ]);
     }
 
     /**
@@ -1320,6 +1423,14 @@ class LegalCaseController extends Controller
                 $caseData = $this->sanitizeImportCaseData($caseData);
 
                 if ($this->shouldIgnoreImportedCaseRow($caseData)) {
+                    continue;
+                }
+
+                if (!$this->isValidCnjCaseNumber($caseData['case_number'] ?? '')) {
+                    $errors[] = [
+                        'line' => 'Registro ' . ($index + 1),
+                        'errors' => ['Número do Processo fora do padrão CNJ (0000000-00.0000.0.00.0000): "' . ($caseData['case_number'] ?? '') . '". Formate a coluna de números como TEXTO na planilha e reenvie.'],
+                    ];
                     continue;
                 }
 
@@ -2043,6 +2154,7 @@ class LegalCaseController extends Controller
             'agreement_probability' => $caseData['agreement_probability'] ?? $existingCase?->agreement_probability,
             'agreement_checklist_data' => $existingCase?->agreement_checklist_data,
             'start_date' => $caseData['start_date'] ?? $existingCase?->start_date,
+            'import_batch_id' => $existingCase ? $existingCase->import_batch_id : ($caseData['import_batch_id'] ?? null),
         ];
 
         return array_filter(
@@ -2653,6 +2765,11 @@ class LegalCaseController extends Controller
     private function normalizedCaseNumberSql(string $column = 'case_number'): string
     {
         return "REPLACE(REPLACE(REPLACE(REPLACE({$column}, '.', ''), '-', ''), '/', ''), ' ', '')";
+    }
+
+    private function isValidCnjCaseNumber(?string $caseNumber): bool
+    {
+        return (bool) preg_match('/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/', (string) $caseNumber);
     }
 
     private function normalizeImportedCaseNumber(string $caseNumber): string

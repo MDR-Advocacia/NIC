@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class LegalCase extends Model
 {
     use HasFactory;
+    use SoftDeletes;
+
     protected $table = 'legal_cases';
 
     protected static function booted(): void
@@ -131,7 +134,8 @@ class LegalCase extends Model
         'has_obligation',
         'obligation_description',
         'formalized_by_user_id',
-        'formalized_at'
+        'formalized_at',
+        'import_batch_id'
     ];
 
     protected $casts = [

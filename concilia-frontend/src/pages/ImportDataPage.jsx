@@ -452,6 +452,46 @@ const ImportDataPage = () => {
   const [filterCode, setFilterCode] = useState('');
   const [selectedRowIds, setSelectedRowIds] = useState([]);
   const [uploadProgress, setUploadProgress] = useState('');
+  const [importBatches, setImportBatches] = useState([]);
+  const [undoingBatchId, setUndoingBatchId] = useState(null);
+
+  const fetchImportBatches = async () => {
+    if (!token) return;
+    try {
+      const response = await apiClient.get('/import-batches', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setImportBatches(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      // Perfis sem permissão (403) simplesmente não veem a seção.
+      setImportBatches([]);
+    }
+  };
+
+  const handleUndoImportBatch = async (batch) => {
+    const confirmed = window.confirm(
+      `Desfazer a importação${batch.file_name ? ` de "${batch.file_name}"` : ''}?\n\nOs ${batch.remaining_count} processos criados por ela serão removidos do NIC. Atualizações feitas em processos que já existiam não são revertidas.`
+    );
+    if (!confirmed) return;
+
+    setUndoingBatchId(batch.id);
+    try {
+      const response = await apiClient.post(`/import-batches/${batch.id}/undo`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      window.alert(response.data?.message || 'Importação desfeita.');
+      fetchImportBatches();
+    } catch (err) {
+      window.alert(err.response?.data?.message || 'Não foi possível desfazer a importação.');
+    } finally {
+      setUndoingBatchId(null);
+    }
+  };
+
+  useEffect(() => {
+    fetchImportBatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -693,6 +733,9 @@ const ImportDataPage = () => {
 
     try {
       const rowBatches = buildImportBatches(rowsToSend, selectedClient);
+      const importId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `imp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
       let workingRows = [...rows];
       let totalSuccess = 0;
@@ -729,6 +772,8 @@ const ImportDataPage = () => {
             {
               client_id: selectedClient,
               cases: batch.map((row) => row.data),
+              import_id: importId,
+              file_name: sourceFileName || null,
             },
             {
               headers: { Authorization: `Bearer ${token}` },
@@ -822,6 +867,7 @@ const ImportDataPage = () => {
     } finally {
       setIsUploading(false);
       setUploadProgress('');
+      fetchImportBatches();
     }
   };
 
@@ -1070,6 +1116,68 @@ const ImportDataPage = () => {
           </button>
         </article>
       </section>
+
+      {importBatches.length > 0 && (
+        <section className={styles.summaryCard}>
+          <div className={styles.cardHeader}>
+            <div>
+              <h2>Importações recentes</h2>
+              <p>Desfazer uma importação remove os processos criados por ela (atualizações em processos que já existiam não são revertidas).</p>
+            </div>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: '#6b7280', borderBottom: '1px solid #e5e7eb' }}>
+                  <th style={{ padding: '8px 10px' }}>Quando</th>
+                  <th style={{ padding: '8px 10px' }}>Arquivo</th>
+                  <th style={{ padding: '8px 10px' }}>Quem</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'right' }}>Criados</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'right' }}>Atualizados</th>
+                  <th style={{ padding: '8px 10px' }}>Status</th>
+                  <th style={{ padding: '8px 10px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {importBatches.map((batch) => (
+                  <tr key={batch.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                      {batch.created_at ? new Date(batch.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                    </td>
+                    <td style={{ padding: '8px 10px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={batch.file_name || ''}>
+                      {batch.file_name || '—'}
+                    </td>
+                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{batch.user_name || '—'}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>{batch.created_count}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>{batch.updated_count}</td>
+                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                      {batch.undone_at
+                        ? <span style={{ color: '#b91c1c', fontWeight: 600 }}>Desfeita</span>
+                        : <span style={{ color: '#047857', fontWeight: 600 }}>Ativa</span>}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                      {!batch.undone_at && batch.remaining_count > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleUndoImportBatch(batch)}
+                          disabled={undoingBatchId === batch.id}
+                          style={{
+                            border: '1px solid #dc2626', background: '#fff', color: '#dc2626',
+                            padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600,
+                          }}
+                        >
+                          {undoingBatchId === batch.id ? 'Desfazendo...' : `Desfazer (${batch.remaining_count})`}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {summary && (
         <section className={styles.summaryCard}>

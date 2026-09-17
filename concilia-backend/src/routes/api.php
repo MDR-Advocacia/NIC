@@ -72,6 +72,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/cases/export', [LegalCaseController::class, 'export']);
     Route::post('/cases/import', [LegalCaseController::class, 'bulkStore']);
+    Route::get('/import-batches', [LegalCaseController::class, 'listImportBatches']);
+    Route::post('/import-batches/{batchId}/undo', [LegalCaseController::class, 'undoImportBatch']);
     Route::post('/cases/{case}/legal-opinion', [LegalCaseController::class, 'uploadLegalOpinion']);
     Route::get('/cases/{case}/legal-opinion', [LegalCaseController::class, 'downloadLegalOpinion']);
     Route::post('/cases/sync-alcada', [LegalCaseController::class, 'syncAlcada']);
