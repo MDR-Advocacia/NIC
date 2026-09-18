@@ -241,7 +241,11 @@ class LegalCaseController extends Controller
         $request->merge(['tags' => CaseTag::normalizeCollection($request->input('tags', []))]);
 
         $validatedData = $request->validate([
-            'case_number' => ['required', 'string', 'max:255', 'regex:/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/'],
+            'case_number' => ['required', 'string', 'max:255', function ($attribute, $value, $fail) {
+                if (!$this->isValidCnjCaseNumber($value)) {
+                    $fail('O número do processo é inválido: formato ou dígito verificador fora do padrão CNJ (0000000-00.0000.0.00.0000).');
+                }
+            }],
             'start_date' => 'nullable|date',
             'client_id' => 'required|exists:clients,id',
             'user_id' => ['required', 'integer', $this->activeOperatorUserExistsRule()],
@@ -2769,7 +2773,16 @@ class LegalCaseController extends Controller
 
     private function isValidCnjCaseNumber(?string $caseNumber): bool
     {
-        return (bool) preg_match('/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/', (string) $caseNumber);
+        if (!preg_match('/^(\d{7})-(\d{2})\.(\d{4})\.(\d)\.(\d{2})\.(\d{4})$/', (string) $caseNumber, $matches)) {
+            return false;
+        }
+
+        // Dígito verificador CNJ (módulo 97, Resolução CNJ 65/2008):
+        // pega números com dígitos corrompidos mesmo em formato correto
+        // (ex.: truncamento de float do Excel nos últimos dígitos).
+        $base = $matches[1] . $matches[3] . $matches[4] . $matches[5] . $matches[6] . '00';
+
+        return (98 - (int) bcmod($base, '97')) === (int) $matches[2];
     }
 
     private function normalizeImportedCaseNumber(string $caseNumber): string
