@@ -295,7 +295,25 @@ class LegalCaseController extends Controller
         $validatedData = $this->applyContraIndicationPayload($validatedData);
         $validatedData = $this->applyFailedDealPayload($validatedData);
 
-        $case = LegalCase::create($validatedData);
+        $existingCase = $this->findExistingCaseForImport($validatedData['case_number']);
+        if ($existingCase && !$existingCase->trashed()) {
+            $duplicateMessage = "Já existe um processo cadastrado com esse número (caso #{$existingCase->id}).";
+
+            return response()->json([
+                'message' => $duplicateMessage,
+                'errors' => ['case_number' => [$duplicateMessage]],
+            ], 422);
+        }
+
+        $wasRestored = false;
+        if ($existingCase) {
+            $wasRestored = $this->restoreTrashedCase($existingCase, 'um cadastro manual');
+            $existingCase->fill($validatedData);
+            $existingCase->save();
+            $case = $existingCase;
+        } else {
+            $case = LegalCase::create($validatedData);
+        }
         $this->syncCaseTagCatalog($validatedData['tags'] ?? []);
 
         // --- NOVO: LOG DE AUDITORIA (BLINDADO) ---
@@ -303,8 +321,10 @@ class LegalCaseController extends Controller
             AuditLog::create([
                 'user_id' => auth()->id(),
                 'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
-                'action' => 'Criação de Caso',
-                'details' => "Criou o caso nº {$case->case_number} em '{$case->status}'",
+                'action' => $wasRestored ? 'Restauração de Caso' : 'Criação de Caso',
+                'details' => $wasRestored
+                    ? "Restaurou pelo cadastro manual o caso nº {$case->case_number} (havia sido excluído), agora em '{$case->status}'"
+                    : "Criou o caso nº {$case->case_number} em '{$case->status}'",
                 'ip_address' => $request->ip(),
             ]);
         } catch (\Exception $e) {
@@ -357,7 +377,29 @@ class LegalCaseController extends Controller
         $oldStatus = $case->status;
 
         $validatedData = $request->validate([
-            'case_number' => 'sometimes|required|string|max:255',
+            'case_number' => ['sometimes', 'required', 'string', 'max:255', function ($attribute, $value, $fail) use ($case) {
+                // Só valida quando o número muda: há casos legados com dígito
+                // verificador inválido que precisam continuar editáveis.
+                if ($value === $case->case_number) {
+                    return;
+                }
+
+                if (!$this->isValidCnjCaseNumber($value)) {
+                    $fail('O número do processo é inválido: formato ou dígito verificador fora do padrão CNJ (0000000-00.0000.0.00.0000).');
+                    return;
+                }
+
+                $conflict = LegalCase::withTrashed()
+                    ->where('case_number', $value)
+                    ->where('id', '<>', $case->id)
+                    ->first();
+
+                if ($conflict) {
+                    $fail($conflict->trashed()
+                        ? "Esse número pertence a um processo excluído (caso #{$conflict->id}) e não pode ser reutilizado."
+                        : "Já existe outro processo cadastrado com esse número (caso #{$conflict->id}).");
+                }
+            }],
             'start_date' => 'nullable|date',
             'client_id' => 'sometimes|required|exists:clients,id',
             'user_id' => ['sometimes', 'nullable', 'integer', $this->activeOperatorUserExistsRule()],
@@ -1072,6 +1114,7 @@ class LegalCaseController extends Controller
             );
         }
 
+        $restoredNumbers = [];
         $successCount = 0;
         $createdCount = 0;
         $updatedCount = 0;
@@ -1134,6 +1177,9 @@ class LegalCaseController extends Controller
                 $caseData['import_batch_id'] = $importBatchId;
 
                 $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
+                if ($existingCase && $this->restoreTrashedCase($existingCase, 'uma planilha importada')) {
+                    $restoredNumbers[] = $existingCase->case_number;
+                }
                 if (empty($caseData['original_value'])) {
                     $caseData['original_value'] = $existingCase?->original_value ?? 0;
                 }
@@ -1165,7 +1211,7 @@ class LegalCaseController extends Controller
                         } catch (\Exception $e) {
                             $errors[] = [
                                 'line' => "Registro " . ($index + 1),
-                                'errors' => ["Erro técnico ao salvar (Verifique dados inválidos ou caracteres especiais): " . $e->getMessage()]
+                                'errors' => [$this->describeCaseSaveException($e)]
                             ];
                         }
                     }
@@ -1271,7 +1317,7 @@ class LegalCaseController extends Controller
                     } catch (\Exception $e) {
                          $errors[] = [
                             'line' => "Registro " . ($index + 1), 
-                            'errors' => ["Erro técnico ao salvar (Verifique dados inválidos ou caracteres especiais): " . $e->getMessage()]
+                            'errors' => [$this->describeCaseSaveException($e)]
                         ];
                     }
                 }
@@ -1289,6 +1335,22 @@ class LegalCaseController extends Controller
             }
 
             DB::commit();
+
+            if (!empty($restoredNumbers)) {
+                try {
+                    AuditLog::create([
+                        'user_id' => auth()->id(),
+                        'user_name' => auth()->user() ? auth()->user()->name : 'Sistema',
+                        'action' => 'Importação restaurou processos',
+                        'details' => 'Restaurou ' . count($restoredNumbers) . ' processo(s) excluído(s) que voltaram a constar na planilha: '
+                            . implode(', ', array_slice($restoredNumbers, 0, 10))
+                            . (count($restoredNumbers) > 10 ? '...' : ''),
+                        'ip_address' => $request->ip(),
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Erro AuditLog restore on import: ' . $e->getMessage());
+                }
+            }
 
             if ($importBatchId) {
                 ImportBatch::where('id', $importBatchId)->update([
@@ -1439,6 +1501,9 @@ class LegalCaseController extends Controller
                 }
 
                 $existingCase = $this->findExistingCaseForImport($caseData['case_number'] ?? null);
+                if ($existingCase) {
+                    $this->restoreTrashedCase($existingCase, 'uma sincronização de alçada');
+                }
                 // Para sync de alçada, SEMPRE recalcular original_value do portal_agreement_offers
                 if (!empty($caseData['portal_agreement_offers'])) {
                     $pendingValue = $this->extractCurrentPortalAgreementValue(
@@ -1484,7 +1549,7 @@ class LegalCaseController extends Controller
                         } catch (\Exception $e) {
                             $errors[] = [
                                 'line' => "Registro " . ($index + 1),
-                                'errors' => ["Erro ao salvar: " . $e->getMessage()]
+                                'errors' => [$this->describeCaseSaveException($e)]
                             ];
                         }
                     }
@@ -1575,7 +1640,7 @@ class LegalCaseController extends Controller
                     } catch (\Exception $e) {
                         $errors[] = [
                             'line' => "Registro " . ($index + 1),
-                            'errors' => ["Erro ao salvar: " . $e->getMessage()]
+                            'errors' => [$this->describeCaseSaveException($e)]
                         ];
                     }
                 }
@@ -2067,7 +2132,9 @@ class LegalCaseController extends Controller
             $formattedCaseNumber,
         ])));
 
-        return LegalCase::query()
+        // withTrashed: case_number tem índice único, então um processo excluído
+        // (soft delete) ainda ocupa o número e precisa ser restaurado, não recriado.
+        return LegalCase::withTrashed()
             ->where(function ($query) use ($candidates, $cleanCaseNumber) {
                 if (!empty($candidates)) {
                     $query->whereIn('case_number', $candidates);
@@ -2080,8 +2147,38 @@ class LegalCaseController extends Controller
                     );
                 }
             })
+            ->orderByRaw('deleted_at IS NOT NULL')
             ->orderBy('id')
             ->first();
+    }
+
+    private function restoreTrashedCase(LegalCase $case, string $origin): bool
+    {
+        if (!$case->trashed()) {
+            return false;
+        }
+
+        $deletedAt = $case->deleted_at;
+        $case->restore();
+
+        $case->histories()->create([
+            'user_id' => Auth::id(),
+            'event_type' => 'update',
+            'description' => "Processo restaurado automaticamente: havia sido excluído e voltou a constar em {$origin}.",
+            'old_values' => ['deleted_at' => $deletedAt?->toDateTimeString()],
+            'new_values' => ['deleted_at' => null],
+        ]);
+
+        return true;
+    }
+
+    private function describeCaseSaveException(\Throwable $e): string
+    {
+        if ($e instanceof \Illuminate\Database\QueryException && (int) ($e->errorInfo[1] ?? 0) === 1062) {
+            return 'Já existe um processo com esse número no NIC. Recarregue a tela e tente de novo; se o erro continuar, avise a TI.';
+        }
+
+        return 'Erro técnico ao salvar (verifique dados inválidos ou caracteres especiais): ' . $e->getMessage();
     }
 
     private function normalizeImportDate(mixed $dateValue): ?string
