@@ -33,6 +33,7 @@ const EXPORT_COLUMNS = [
     { header: 'Valor de alcada', getValue: (legalCase) => getNumericValue(legalCase?.original_value) },
     { header: 'Valor de acordo', getValue: (legalCase) => getNumericValue(legalCase?.agreement_value) },
     { header: 'Ourocap', getValue: (legalCase) => getNumericValue(legalCase?.ourocap_value) },
+    { header: 'Livelo (pontos)', getValue: (legalCase) => getNumericValue(legalCase?.livelo_points) },
     { header: 'Economia', getValue: (legalCase) => getEconomyValue(legalCase) },
     { header: 'Etiquetas', getValue: (legalCase) => normalizeCaseTags(legalCase?.tags).map((tag) => tag.text).join(', ') },
     { header: 'Data do acordo', getValue: (legalCase) => formatDate(legalCase?.agreement_closed_at) },
