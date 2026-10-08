@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
@@ -47,6 +48,56 @@ const getTagTextColor = (backgroundColor) => {
   const brightness = ((red * 299) + (green * 587) + (blue * 114)) / 1000;
 
   return brightness > 150 ? '#111827' : '#ffffff';
+};
+
+const copyText = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback para navegador sem acesso à área de transferência
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  }
+};
+
+const CopyCaseNumberButton = ({ caseNumber }) => {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  if (!caseNumber) return null;
+
+  return (
+    <button
+      type="button"
+      className={`${styles.copyButton} ${copied ? styles.copyButtonDone : ''}`}
+      title={copied ? 'Copiado!' : 'Copiar número do processo'}
+      aria-label={copied ? 'Número copiado' : `Copiar o número ${caseNumber}`}
+      // Não inicia o arraste do card nem abre o caso
+      onPointerDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+      onClick={async (event) => {
+        event.stopPropagation();
+        if (await copyText(caseNumber)) {
+          setCopied(true);
+          clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(() => setCopied(false), 1500);
+        }
+      }}
+    >
+      {copied ? <Check size={14} strokeWidth={2.5} /> : <Copy size={14} />}
+    </button>
+  );
 };
 
 const CaseCardBody = ({
@@ -103,7 +154,10 @@ const CaseCardBody = ({
             </div>
           )}
 
-          <span className={styles.caseNumber}>{legalCase.case_number}</span>
+          <div className={styles.caseNumberRow}>
+            <span className={styles.caseNumber}>{legalCase.case_number}</span>
+            <CopyCaseNumberButton caseNumber={legalCase.case_number} />
+          </div>
         </div>
 
         {caseTags.length > 0 && (

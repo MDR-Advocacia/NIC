@@ -137,6 +137,48 @@
     color: var(--text-primary);
 }
 
+.caseNumberRow {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.caseNumberRow .caseNumber {
+    flex: 1;
+    width: auto;
+}
+
+.copyButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.copyButton:hover,
+.copyButton:focus-visible {
+    border-color: var(--border-color-light);
+    background: var(--bg-card);
+    color: var(--accent-primary);
+    outline: none;
+}
+
+.copyButtonDone,
+.copyButtonDone:hover {
+    color: var(--success-primary, #16a34a);
+}
+
 .tagsStrip {
     display: flex;
     flex-wrap: wrap;
