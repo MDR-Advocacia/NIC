@@ -6,6 +6,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import PipelineColumn from '../components/PipelineColumn';
+import CaseCard from '../components/CaseCard';
 import EditCaseModal from '../components/EditCaseModal';
 import TagMultiSelect from '../components/TagMultiSelect';
 import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
@@ -14,10 +15,12 @@ import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import AgreementFieldsModal from '../components/AgreementFieldsModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import SingleSelect from '../components/SingleSelect';
+import PipelineNumbers from '../components/PipelineNumbers';
 import { PROCEDURAL_PHASE_FILTER_OPTIONS, getProceduralPhaseFilterLabel } from '../constants/proceduralPhase';
 import { CONTRA_RECURRENT_FILTER_OPTIONS } from '../utils/contraRecurrence';
 import { 
-    DndContext, 
+    DndContext,
+    DragOverlay,
     PointerSensor, 
     useSensor, 
     useSensors,
@@ -155,6 +158,7 @@ const PipelinePage = () => {
     const [debouncedActionObject, setDebouncedActionObject] = useState('');
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
     const [keepingContraCaseId, setKeepingContraCaseId] = useState(null);
+    const [draggedCase, setDraggedCase] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
     const [contraIndicationPrompt, setContraIndicationPrompt] = useState(null);
     const [contraIndicationReason, setContraIndicationReason] = useState('');
@@ -932,7 +936,20 @@ const PipelinePage = () => {
         </div>
     );
 
-    if (loading && !pipelineData) return <p>Carregando pipeline...</p>;
+    const boardSkeleton = (
+        <div className={styles.boardSkeleton} aria-busy="true" aria-label="Carregando pipeline">
+            {Array.from({ length: 5 }).map((_, columnIndex) => (
+                <div key={columnIndex} className={styles.skeletonColumn}>
+                    <div className={styles.skeletonBlock} style={{ height: 28, width: '60%' }} />
+                    {Array.from({ length: 3 }).map((__, cardIndex) => (
+                        <div key={cardIndex} className={styles.skeletonBlock} style={{ height: 120 }} />
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
+
+    if (loading && !pipelineData) return boardSkeleton;
     if (error) return <p style={{ color: 'red' }}>{error}</p>;
 
     return (
@@ -1242,16 +1259,39 @@ const PipelinePage = () => {
                 />
             )}
 
+            {pipelineData?.grouped && (
+                <PipelineNumbers
+                    grouped={pipelineData.grouped}
+                    view={pipelineView}
+                    showDelayedOnly={showDelayedOnly}
+                    onToggleDelayed={() => setShowDelayedOnly((value) => !value)}
+                    recurrentFilterActive={Boolean(contraRecurrentFilter)}
+                    onToggleRecurrent={isIndicator ? undefined : () => handleFilterChange('contra_recurrent', contraRecurrentFilter ? '' : '1')}
+                />
+            )}
+
             {isIndicator ? (
                 boardContent
             ) : (
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCorners}
+                    onDragStart={(event) => setDraggedCase(event.active?.data?.current?.caseData || null)}
                     onDragOver={handleDragOver}
-                    onDragEnd={handleDragEnd}
+                    onDragEnd={(event) => {
+                        setDraggedCase(null);
+                        handleDragEnd(event);
+                    }}
+                    onDragCancel={() => setDraggedCase(null)}
                 >
                     {boardContent}
+                    <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}>
+                        {draggedCase ? (
+                            <div className={styles.dragOverlayCard}>
+                                <CaseCard legalCase={draggedCase} enableDrag={false} onClick={() => {}} />
+                            </div>
+                        ) : null}
+                    </DragOverlay>
                 </DndContext>
             )}
         </div>

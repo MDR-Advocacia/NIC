@@ -3,20 +3,32 @@
 
 .card {
     background: var(--surface-card-elevated);
-    padding: 1rem;
-    border-radius: 8px;
+    padding: 0.85rem 0.9rem;
+    border-radius: 16px;
     width: 100%;
     box-sizing: border-box;
     color: var(--text-primary);
-    cursor: pointer; 
-    border-left: 5px solid var(--text-secondary); 
+    cursor: pointer;
+    border: 1px solid var(--border-color-light);
+    border-left: 4px solid var(--text-secondary);
     transition: border-color 0.3s, transform 0.2s ease-out, box-shadow 0.2s;
-    box-shadow: var(--card-shadow);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    animation: cardEnter 0.22s ease-out;
 }
 
 .card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--card-shadow-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+@keyframes cardEnter {
+    from { opacity: 0; transform: translateY(6px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card { animation: none; transition: none; }
+    .card:hover { transform: none; }
 }
 
 .priorityAlta { border-left-color: var(--danger-primary); }
@@ -70,12 +82,11 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    margin-bottom: 1rem;
     cursor: grab;
-    background-color: var(--border-color-dark); 
-    padding: 0.5rem 0.75rem;
-    margin: -0.5rem -0.5rem 1rem -0.5rem;
-    border-radius: 6px 6px 0 0;
+    background-color: var(--surface-card-sunken);
+    padding: 0.45rem 0.65rem;
+    margin: -0.35rem -0.4rem 0.8rem -0.4rem;
+    border-radius: 11px;
     user-select: none;
     transition: background-color 0.2s ease-out;
     border-bottom: 1px solid var(--border-color-light);
@@ -99,8 +110,9 @@
 }
 
 .caseNumber { 
-    font-weight: bold; 
-    font-size: 1.1rem; 
+    font-weight: 800;
+    font-size: 0.98rem;
+    font-variant-numeric: tabular-nums;
     display: flex;
     align-items: center;
     width: 100%;

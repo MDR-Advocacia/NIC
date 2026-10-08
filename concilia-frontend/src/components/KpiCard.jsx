@@ -1,8 +1,8 @@
 // src/components/KpiCard.jsx
-// ATUALIZADO com a animação CountUp
+// Número animado com NumberFlow (mesmo componente dos números do Flow)
 
-import React from 'react';
-import CountUp from 'react-countup'; // Importando a biblioteca
+import React, { useEffect, useState } from 'react';
+import NumberFlow from '@number-flow/react';
 import styles from '../styles/Dashboard.module.css';
 import MetricInfoHint from './MetricInfoHint';
 
@@ -53,6 +53,13 @@ const KpiCard = ({ title, value, description, infoTooltip }) => {
     // Analisa o valor para extrair as partes
     const { prefix, endValue, suffix, decimals, isNaN } = parseValue(value);
 
+    // Começa do zero e anima até o valor na montagem, como o contador anterior
+    const [displayValue, setDisplayValue] = useState(0);
+    useEffect(() => {
+        const frame = requestAnimationFrame(() => setDisplayValue(isNaN ? 0 : endValue));
+        return () => cancelAnimationFrame(frame);
+    }, [endValue, isNaN]);
+
     return (
         <div className={styles.kpiCard}>
             <div className={styles.kpiTitleRow}>
@@ -60,22 +67,19 @@ const KpiCard = ({ title, value, description, infoTooltip }) => {
                 {infoTooltip && <MetricInfoHint text={infoTooltip} />}
             </div>
             
-            {/* Usamos o CountUp aqui.
-              Se o valor não for um número (isNaN), ele apenas mostra o texto original.
-            */}
+            {/* Se o valor não for um número (ex.: "N/A"), mostra o texto original */}
             <p className={styles.kpiValue}>
                 {isNaN ? (
                     value 
                 ) : (
-                    <CountUp
-                        start={0}
-                        end={endValue}
-                        duration={1.5} // Duração da animação em segundos
-                        prefix={prefix}
-                        suffix={suffix}
-                        decimals={decimals}
-                        decimal=","
-                        separator="."
+                    <NumberFlow
+                        value={displayValue}
+                        locales="pt-BR"
+                        prefix={prefix || undefined}
+                        suffix={suffix || undefined}
+                        format={{ minimumFractionDigits: decimals, maximumFractionDigits: decimals }}
+                        transformTiming={{ duration: 900, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}
+                        spinTiming={{ duration: 900, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}
                     />
                 )}
             </p>

@@ -871,17 +871,14 @@
   --pipeline-visible-card-count: 5;
   --pipeline-estimated-card-height: 168px;
   --pipeline-column-extra-space: 170px;
-  --pipeline-column-width: 320px;
+  --pipeline-column-width: 312px;
   height: clamp(460px, calc(100vh - 255px), 780px);
   min-height: 460px;
   box-sizing: border-box;
-  padding: 1rem 1rem 1.25rem;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-color-light);
-  border-radius: 12px;
-  box-shadow: var(--card-shadow);
+  padding: 0.25rem 0.25rem 1rem;
   overflow-x: auto;
   overflow-y: hidden;
+  scroll-snap-type: x proximity;
   scrollbar-gutter: stable both-edges;
 }
 
@@ -901,9 +898,8 @@
 }
 
 .pipelineColumn {
-  background-color: var(--pipeline-column-bg);
-  padding: 1rem;
-  border-radius: 10px;
+  background-color: var(--bg-card);
+  border-radius: 24px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -911,15 +907,63 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--pipeline-column-border);
-  box-shadow: 0 0 0 10px var(--bg-card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(6px);
+  scroll-snap-align: start;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.pipelineColumnDragging {
+  border-style: dashed;
+}
+
+.pipelineColumnDropTarget {
+  transform: scale(1.01);
+  border-color: var(--accent-primary);
+  border-style: solid;
+  background-color: var(--accent-pill-bg, rgba(37, 99, 235, 0.06));
+  box-shadow: 0 0 0 4px var(--focus-ring, rgba(37, 99, 235, 0.2));
 }
 
 .pipelineColumnHeader {
-  border-bottom: 2px solid var(--pipeline-column-border);
-  padding-bottom: 0.65rem;
-  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--pipeline-column-border);
   color: var(--pipeline-column-heading);
-  font-size: 1rem;
+}
+
+.pipelineColumnTitle {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.pipelineColumnCount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.pipelineColumnCountValue {
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.pipelineColumnCountLabel {
+  margin-top: 0.15rem;
+  color: var(--text-secondary);
+  font-size: 0.66rem;
 }
 
 .pipelineColumnBody {
@@ -927,17 +971,64 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0.75rem 0.35rem 1rem 0;
+  padding: 0.75rem 0.5rem 1rem 0.75rem;
   scrollbar-gutter: stable;
 }
 
 .pipelineEmptyState {
+  margin: 0.25rem 0 0;
+  padding: 1.25rem 1rem;
+  border: 1px dashed var(--pipeline-column-border);
+  border-radius: 16px;
   color: var(--pipeline-column-empty);
+  font-size: 0.8rem;
   text-align: center;
-  margin-top: 2rem;
+}
+
+.dragOverlayCard {
+  transform: rotate(-2deg) scale(1.04);
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28), 0 0 0 2px var(--accent-primary);
+  cursor: grabbing;
+}
+
+.boardSkeleton {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 312px;
+  gap: 1rem;
+  height: clamp(460px, calc(100vh - 255px), 780px);
+  overflow: hidden;
+}
+
+.skeletonColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color-light);
+  border-radius: 24px;
+  background: var(--bg-card);
+}
+
+.skeletonBlock {
+  border-radius: 14px;
+  background: linear-gradient(90deg, var(--surface-card-sunken) 25%, var(--border-color-light) 50%, var(--surface-card-sunken) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonBlock { animation: none; }
+  .pipelineColumn { transition: none; }
 }
 
 .pipelineColumnBody::-webkit-scrollbar {
