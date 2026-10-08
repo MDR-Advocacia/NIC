@@ -23,6 +23,8 @@ class LegalCase extends Model
                 $legalCase->procedural_phase_updated_at = $legalCase->procedural_phase ? now() : null;
             }
 
+            $legalCase->trackContraIndicationRecurrence();
+
             if (!$legalCase->exists && empty($legalCase->status_started_at)) {
                 $legalCase->status_started_at = now();
             } elseif ($legalCase->exists && $legalCase->isDirty('status')) {
@@ -73,6 +75,78 @@ class LegalCase extends Model
         self::STATUS_CLOSED_DEAL,
         self::STATUS_FAILED_DEAL,
     ];
+
+    // Etapas em que o caso já está sendo trabalhado: a mudança de status em lote não tira o caso
+    // delas para o início da fila (só a edição individual).
+    public const NEGOTIATION_STATUSES = [
+        self::STATUS_PROPOSAL_SENT,
+        self::STATUS_IN_NEGOTIATION,
+    ];
+
+    public const QUEUE_STATUSES = [
+        self::STATUS_INITIAL_ANALYSIS,
+        self::STATUS_INDICATIONS,
+        self::STATUS_CONTRA_INDICATED,
+    ];
+
+    /**
+     * Mudança em lote que desfaria trabalho avançado: tirar um acordo das etapas de acordo,
+     * ou devolver um caso em negociação para a fila de análise.
+     */
+    public static function isBlockedBatchStatusChange(?string $fromStatus, ?string $toStatus): bool
+    {
+        if ($fromStatus === null || $toStatus === null || $fromStatus === $toStatus) {
+            return false;
+        }
+
+        if (in_array($fromStatus, self::AGREEMENT_METRIC_STATUSES, true)) {
+            return !in_array($toStatus, self::AGREEMENT_METRIC_STATUSES, true);
+        }
+
+        return in_array($fromStatus, self::NEGOTIATION_STATUSES, true)
+            && in_array($toStatus, self::QUEUE_STATUSES, true);
+    }
+
+    public static function resolveContraIndicationReasonText(?string $reasonText, mixed $reasonId): ?string
+    {
+        $reasonText = trim((string) $reasonText);
+        if ($reasonText !== '') {
+            return $reasonText;
+        }
+
+        return $reasonId ? ContraIndicationReason::whereKey($reasonId)->value('name') : null;
+    }
+
+    /**
+     * Conta cada nova contraindicação e guarda a última (motivo, data e autor), que continuam
+     * disponíveis depois que o caso volta para a fila e os campos contra_indication_* são limpos.
+     */
+    private function trackContraIndicationRecurrence(): void
+    {
+        if ($this->status !== self::STATUS_CONTRA_INDICATED) {
+            return;
+        }
+
+        $becameContraIndicated = !$this->exists
+            || ($this->isDirty('status') && $this->getOriginal('status') !== self::STATUS_CONTRA_INDICATED);
+        $reasonChanged = $this->isDirty(['contra_indication_reason', 'contra_indication_reason_id']);
+
+        if (!$becameContraIndicated && !$reasonChanged) {
+            return;
+        }
+
+        if ($becameContraIndicated) {
+            $this->contra_indication_count = (int) $this->contra_indication_count + 1;
+        }
+
+        $this->last_contra_indication_reason = self::resolveContraIndicationReasonText(
+            $this->contra_indication_reason,
+            $this->contra_indication_reason_id
+        );
+        $this->last_contra_indication_reason_id = $this->contra_indication_reason_id;
+        $this->last_contra_indicated_at = $this->contra_indicated_at ?: now();
+        $this->last_contra_indicated_by_name = User::whereKey($this->contra_indicated_by_user_id ?: auth()->id())->value('name');
+    }
 
     // Fases processuais da planilha semanal do banco (coluna TX_EST_PRC)
     public const PROCEDURAL_PHASES = ['Inicial', 'Sentença', 'Recurso', 'Cumprimento'];
@@ -172,6 +246,11 @@ class LegalCase extends Model
         'import_batch_id',
         'procedural_phase',
         'procedural_phase_updated_at',
+        'contra_indication_count',
+        'last_contra_indication_reason',
+        'last_contra_indication_reason_id',
+        'last_contra_indicated_at',
+        'last_contra_indicated_by_name',
     ];
 
     protected $casts = [
@@ -190,6 +269,8 @@ class LegalCase extends Model
         'has_obligation' => 'boolean',
         'formalized_at' => 'datetime',
         'procedural_phase_updated_at' => 'datetime',
+        'contra_indication_count' => 'integer',
+        'last_contra_indicated_at' => 'datetime',
     ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool

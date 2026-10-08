@@ -209,6 +209,69 @@
     -webkit-box-orient: vertical;
 }
 
+.recurrenceBox {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    background: var(--warning-soft, rgba(245, 158, 11, 0.12));
+    border: 1px solid var(--warning-soft-strong, rgba(245, 158, 11, 0.35));
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.recurrenceHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--warning-text, #b45309);
+}
+
+.recurrenceHeader svg {
+    flex: 0 0 auto;
+}
+
+.recurrenceReason {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.recurrenceMeta {
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+}
+
+.keepContraButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    margin-top: 0.25rem;
+    padding: 0.45rem 0.7rem;
+    border: none;
+    border-radius: 6px;
+    background: var(--danger-primary);
+    color: var(--danger-contrast, #ffffff);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.keepContraButton:hover:not(:disabled) {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+
+.keepContraButton:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
 .reanalysisReason {
     background: var(--accent-pill-bg);
     border-color: var(--accent-border-soft);

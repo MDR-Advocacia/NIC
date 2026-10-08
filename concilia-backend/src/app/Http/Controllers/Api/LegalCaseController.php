@@ -101,6 +101,11 @@ class LegalCaseController extends Controller
             $query->where('priority', $request->input('priority'));
         }
 
+        // Filtro de reincidência: casos que já foram contraindicados antes
+        if ($request->boolean('contra_recurrent')) {
+            $query->where('contra_indication_count', '>', 0);
+        }
+
         // Filtro por Fase processual ('sem_fase' = casos sem fase informada)
         if ($request->filled('procedural_phase')) {
             $phaseFilter = (string) $request->input('procedural_phase');
@@ -1711,7 +1716,7 @@ class LegalCaseController extends Controller
         $validated = $request->validate([
             'case_ids' => 'required|array',
             'case_ids.*' => 'exists:legal_cases,id',
-            'action' => 'required|string|in:update_status,update_priority,transfer_user,add_tag,update_opposing_lawyer,delete',
+            'action' => 'required|string|in:update_status,update_priority,transfer_user,add_tag,update_opposing_lawyer,delete,keep_contra_indication',
             'value' => 'nullable', 
             'contra_indication_reason' => 'nullable|string|max:4000',
             'contra_indication_reason_id' => 'nullable|exists:contra_indication_reasons,id',
@@ -1796,6 +1801,7 @@ class LegalCaseController extends Controller
             $query = LegalCase::whereIn('id', $caseIds);
             $count = $query->count();
             $logDetails = "";
+            $skippedCases = [];
 
             switch ($action) {
                 case 'update_status':
@@ -1816,6 +1822,19 @@ class LegalCaseController extends Controller
                             'failed_deal_by_user_id',
                         ]);
 
+                    // Trava: o lote não tira acordos das etapas de acordo nem devolve casos em negociação
+                    // para a fila; esses só mudam pela edição individual.
+                    [$blockedCases, $casesToUpdate] = $casesToUpdate->partition(
+                        fn (LegalCase $caseToUpdate) => LegalCase::isBlockedBatchStatusChange($caseToUpdate->status, $value)
+                    );
+                    foreach ($blockedCases as $blockedCase) {
+                        $skippedCases[] = [
+                            'case_number' => $blockedCase->case_number,
+                            'status' => $blockedCase->status,
+                            'reason' => 'Em negociação ou com acordo: altere pela edição individual.',
+                        ];
+                    }
+
                     $changedCaseIds = $casesToUpdate->pluck('id')->all();
                     $count = count($changedCaseIds);
 
@@ -1831,6 +1850,11 @@ class LegalCaseController extends Controller
                             $statusUpdatePayload['contra_indication_reason_id'] = $contraIndicationReasonId;
                             $statusUpdatePayload['contra_indicated_at'] = $statusStartedAt;
                             $statusUpdatePayload['contra_indicated_by_user_id'] = Auth::id();
+                            $statusUpdatePayload['contra_indication_count'] = DB::raw('contra_indication_count + 1');
+                            $statusUpdatePayload['last_contra_indication_reason'] = LegalCase::resolveContraIndicationReasonText($contraIndicationReason, $contraIndicationReasonId);
+                            $statusUpdatePayload['last_contra_indication_reason_id'] = $contraIndicationReasonId;
+                            $statusUpdatePayload['last_contra_indicated_at'] = $statusStartedAt;
+                            $statusUpdatePayload['last_contra_indicated_by_name'] = Auth::user()?->name;
                         } else {
                             $statusUpdatePayload['contra_indication_reason'] = null;
                             $statusUpdatePayload['contra_indication_reason_id'] = null;
@@ -1890,6 +1914,18 @@ class LegalCaseController extends Controller
                     $logDetails = "Alterou status de {$count} processos para '{$value}'";
                     if ($value === LegalCase::STATUS_CONTRA_INDICATED) {
                         $logDetails .= " com justificativa de contraindicação";
+                    }
+                    if (!empty($skippedCases)) {
+                        $logDetails .= '; ' . count($skippedCases) . ' em negociação/acordo mantidos: '
+                            . implode(', ', array_slice(array_column($skippedCases, 'case_number'), 0, 10));
+                    }
+                    break;
+
+                case 'keep_contra_indication':
+                    [$count, $skippedCases] = $this->keepContraIndicationForCases($caseIds);
+                    $logDetails = "Manteve a contraindicação anterior de {$count} processos";
+                    if (!empty($skippedCases)) {
+                        $logDetails .= '; ' . count($skippedCases) . ' não alterados';
                     }
                     break;
 
@@ -1964,12 +2000,123 @@ class LegalCaseController extends Controller
             }
 
             DB::commit();
-            return response()->json(['message' => 'Lote processado com sucesso.', 'affected_count' => $count]);
+            return response()->json([
+                'message' => 'Lote processado com sucesso.',
+                'affected_count' => $count,
+                'skipped_count' => count($skippedCases),
+                'skipped' => $skippedCases,
+            ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Erro ao processar lote: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * "Manter contraindicação" de um caso só: reaplica o motivo da contraindicação anterior.
+     */
+    public function keepContraIndication(Request $request, LegalCase $case): JsonResponse
+    {
+        $this->authorize('update', $case);
+
+        if (Auth::user()?->role === 'indicador') {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        [$updated, $skipped] = DB::transaction(fn () => $this->keepContraIndicationForCases([$case->id]));
+
+        if ($updated === 0) {
+            return response()->json(['message' => $skipped[0]['reason'] ?? 'Não foi possível manter a contraindicação.'], 422);
+        }
+
+        try {
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user()?->name ?? 'Sistema',
+                'action' => 'Contraindicação mantida',
+                'details' => "Manteve a contraindicação anterior do caso nº {$case->case_number}",
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erro AuditLog keepContraIndication: ' . $e->getMessage());
+        }
+
+        return response()->json(LegalCase::with($this->caseRelationshipLoads())->find($case->id));
+    }
+
+    /**
+     * Reaplica a última contraindicação (mesmo motivo) aos casos que voltaram para a fila.
+     * Retorna [quantidade atualizada, casos pulados com o motivo].
+     */
+    private function keepContraIndicationForCases(array $caseIds): array
+    {
+        $now = Carbon::now();
+        $updated = 0;
+        $skipped = [];
+        $historyRows = [];
+
+        $cases = LegalCase::whereIn('id', $caseIds)->get([
+            'id', 'case_number', 'status', 'contra_indication_count',
+            'last_contra_indication_reason', 'last_contra_indication_reason_id',
+        ]);
+
+        foreach ($cases as $case) {
+            $skipReason = null;
+            if ($case->status === LegalCase::STATUS_CONTRA_INDICATED) {
+                $skipReason = 'Já está contraindicado.';
+            } elseif ((int) $case->contra_indication_count === 0) {
+                $skipReason = 'Nunca foi contraindicado antes.';
+            } elseif (trim((string) $case->last_contra_indication_reason) === '' && empty($case->last_contra_indication_reason_id)) {
+                $skipReason = 'A contraindicação anterior não tem motivo registrado: contraindique informando o motivo.';
+            } elseif (LegalCase::isBlockedBatchStatusChange($case->status, LegalCase::STATUS_CONTRA_INDICATED)) {
+                $skipReason = 'Em negociação ou com acordo: altere pela edição individual.';
+            }
+
+            if ($skipReason !== null) {
+                $skipped[] = ['case_number' => $case->case_number, 'status' => $case->status, 'reason' => $skipReason];
+                continue;
+            }
+
+            LegalCase::whereKey($case->id)->update([
+                'status' => LegalCase::STATUS_CONTRA_INDICATED,
+                'status_started_at' => $now,
+                'updated_at' => $now,
+                'contra_indication_reason' => $case->last_contra_indication_reason,
+                'contra_indication_reason_id' => $case->last_contra_indication_reason_id,
+                'contra_indicated_at' => $now,
+                'contra_indicated_by_user_id' => Auth::id(),
+                'failed_deal_reason' => null,
+                'failed_deal_reason_id' => null,
+                'failed_deal_at' => null,
+                'failed_deal_by_user_id' => null,
+                'contra_indication_count' => DB::raw('contra_indication_count + 1'),
+                'last_contra_indicated_at' => $now,
+                'last_contra_indicated_by_name' => Auth::user()?->name,
+            ]);
+
+            $historyRows[] = [
+                'legal_case_id' => $case->id,
+                'user_id' => Auth::id(),
+                'event_type' => 'update',
+                'description' => 'Contraindicação mantida: motivo da contraindicação anterior reaplicado.',
+                'old_values' => json_encode(['status' => $case->status]),
+                'new_values' => json_encode([
+                    'status' => LegalCase::STATUS_CONTRA_INDICATED,
+                    'contra_indication_reason' => $case->last_contra_indication_reason,
+                    'contra_indication_reason_id' => $case->last_contra_indication_reason_id,
+                ]),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            $updated++;
+        }
+
+        if (!empty($historyRows)) {
+            DB::table('case_histories')->insert($historyRows);
+        }
+
+        return [$updated, $skipped];
     }
 
     private function sanitizeImportCaseData(array $caseData): array

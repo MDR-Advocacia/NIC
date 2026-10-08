@@ -2,10 +2,11 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
-import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle, FaRedo, FaBalanceScale } from 'react-icons/fa';
+import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle, FaRedo, FaBalanceScale, FaHistory, FaBan } from 'react-icons/fa';
 import { normalizeCaseTags } from '../constants/caseTags';
 import { isTerminalLegalCaseStatus } from '../constants/legalCaseStatus';
 import { getProceduralPhaseDetails } from '../constants/proceduralPhase';
+import { getContraRecurrence } from '../utils/contraRecurrence';
 
 const getDisplayValue = (value, fallback = 'Nao informado') => {
   if (value === null || value === undefined) return fallback;
@@ -59,6 +60,9 @@ const CaseCardBody = ({
   onIndicate,
   canRequestReanalysis = false,
   onRequestReanalysis,
+  canKeepContraIndication = false,
+  onKeepContraIndication,
+  isKeepingContraIndication = false,
 }) => {
   const lastUpdate = new Date(legalCase.updated_at);
   const today = new Date();
@@ -72,6 +76,8 @@ const CaseCardBody = ({
   const contraIndicationReason = String(legalCase.contra_indication_reason || '').trim();
   const reanalysisReason = String(legalCase.reanalysis_reason || '').trim();
   const proceduralPhase = getProceduralPhaseDetails(legalCase.procedural_phase);
+  const contraRecurrence = getContraRecurrence(legalCase);
+  const isContraIndicatedNow = legalCase.status === 'contra_indicated';
 
   let economyPercentage = null;
   const originalValue = parseFloat(legalCase.original_value);
@@ -150,10 +156,53 @@ const CaseCardBody = ({
             <div className={styles.infoRow}><FaUser /><span>Indicador: {indicatorName}</span></div>
           )}
 
-          {legalCase.status === 'contra_indicated' && contraIndicationReason && (
+          {isContraIndicatedNow && contraIndicationReason && (
             <div className={styles.contraReason} title={contraIndicationReason}>
               <FaExclamationTriangle />
-              <span>Motivo: {contraIndicationReason}</span>
+              <span>
+                Motivo: {contraIndicationReason}
+                {contraRecurrence && contraRecurrence.count > 1 && ` · ${contraRecurrence.count}ª contraindicação`}
+              </span>
+            </div>
+          )}
+
+          {contraRecurrence && !isContraIndicatedNow && (
+            <div
+              className={styles.recurrenceBox}
+              title={contraRecurrence.reason ? `Último motivo: ${contraRecurrence.reason}` : 'Motivo anterior não registrado'}
+            >
+              <div className={styles.recurrenceHeader}>
+                <FaHistory />
+                <strong>
+                  Já contraindicado {contraRecurrence.count === 1 ? '1 vez' : `${contraRecurrence.count} vezes`}
+                </strong>
+              </div>
+              <span className={styles.recurrenceReason}>
+                {contraRecurrence.reason ? `Último motivo: ${contraRecurrence.reason}` : 'Motivo anterior não registrado'}
+              </span>
+              {(contraRecurrence.date || contraRecurrence.by) && (
+                <span className={styles.recurrenceMeta}>
+                  {[contraRecurrence.date && `em ${contraRecurrence.date}`, contraRecurrence.by && `por ${contraRecurrence.by}`].filter(Boolean).join(' ')}
+                </span>
+              )}
+              {canKeepContraIndication && contraRecurrence.hasReason && (
+                <button
+                  type="button"
+                  className={styles.keepContraButton}
+                  disabled={isKeepingContraIndication}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (onKeepContraIndication) {
+                      onKeepContraIndication(legalCase);
+                    }
+                  }}
+                  title="Nada mudou no processo: contraindicar de novo com o mesmo motivo"
+                >
+                  <FaBan />
+                  {isKeepingContraIndication ? 'Mantendo...' : 'Manter contraindicação'}
+                </button>
+              )}
             </div>
           )}
 

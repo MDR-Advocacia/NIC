@@ -8,7 +8,7 @@ import {
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
     FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag, FaFileExport, FaCalendarAlt, FaFilter,
-    FaChevronDown, FaEyeSlash, FaArchive, FaBalanceScale
+    FaChevronDown, FaEyeSlash, FaArchive, FaBalanceScale, FaHistory, FaBan
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
@@ -37,6 +37,11 @@ import {
     getProceduralPhaseFilterLabel,
 } from '../constants/proceduralPhase';
 import { downloadCasesWorkbook, fetchAllCasesForExport } from '../utils/caseExport';
+import {
+    CONTRA_RECURRENT_FILTER_OPTIONS,
+    formatSkippedCasesMessage,
+    getContraRecurrence,
+} from '../utils/contraRecurrence';
 import { useToast } from '../context/ToastContext';
 
 // --- COMPONENTES AUXILIARES ---
@@ -63,6 +68,7 @@ const INITIAL_FILTERS = {
     statuses: [],
     priority: '',
     procedural_phase: '',
+    contra_recurrent: '',
     tags: [],
     lawyer_ids: [],
     indicator_user_ids: [],
@@ -117,6 +123,28 @@ const formatProcessCount = (count) => `${count} ${count === 1 ? 'processo' : 'pr
 const StatusTag = ({ status }) => {
     const currentStatus = getLegalCaseStatusDetails(status);
     return <span className={styles.statusTag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>;
+};
+
+const ContraRecurrenceLine = ({ legalCase }) => {
+    const recurrence = getContraRecurrence(legalCase);
+    if (!recurrence || legalCase?.status === CONTRA_INDICATED_STATUS) return null;
+
+    const details = [
+        recurrence.reason ? `Último motivo: ${recurrence.reason}` : 'Motivo anterior não registrado',
+        recurrence.date && `em ${recurrence.date}`,
+        recurrence.by && `por ${recurrence.by}`,
+    ].filter(Boolean).join(' ');
+
+    return (
+        <div
+            className={styles.subText}
+            title={details}
+            style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--warning-text, #b45309)', fontWeight: 600 }}
+        >
+            <FaHistory style={{ marginRight: '0.3rem', verticalAlign: '-2px' }} />
+            Já contraindicado {recurrence.count}x · {recurrence.reason || 'sem motivo registrado'}
+        </div>
+    );
 };
 
 const ProceduralPhaseTag = ({ phase }) => {
@@ -252,6 +280,7 @@ const CaseManagementPage = () => {
         const urlActionObject = searchParams.get('action_object');
         const urlPriority = searchParams.get('priority');
         const urlProceduralPhase = searchParams.get('procedural_phase');
+        const urlContraRecurrent = searchParams.get('contra_recurrent');
         const urlTags = searchParams.getAll('tags');
         const urlTagSingle = searchParams.get('tag');
         const urlDateFrom = searchParams.get('date_from');
@@ -266,6 +295,7 @@ const CaseManagementPage = () => {
         if (urlActionObject) initial.action_object = urlActionObject;
         if (urlPriority) initial.priority = urlPriority;
         if (urlProceduralPhase) initial.procedural_phase = urlProceduralPhase;
+        if (urlContraRecurrent) initial.contra_recurrent = urlContraRecurrent;
         if (urlTags.length > 0) initial.tags = urlTags;
         else if (urlTagSingle) initial.tags = [urlTagSingle];
         if (urlDateFrom) initial.date_from = urlDateFrom;
@@ -494,7 +524,8 @@ const CaseManagementPage = () => {
 
     const executeBatchUpdate = async (action, value, options = {}) => {
         const isUnassignTransfer = action === 'transfer_user' && value === UNASSIGNED_RESPONSIBLE_VALUE;
-        if ((!value || value === '') && action !== 'delete' && !isUnassignTransfer) return;
+        const isKeepContraAction = action === 'keep_contra_indication';
+        if ((!value || value === '') && action !== 'delete' && !isUnassignTransfer && !isKeepContraAction) return;
 
         const isContraIndicationStatus = action === 'update_status' && value === CONTRA_INDICATED_STATUS;
         const normalizedContraReason = String(options.contraIndicationReason || '').trim();
@@ -516,7 +547,9 @@ const CaseManagementPage = () => {
             return;
         }
 
-        const confirmMessage = action === 'delete'
+        const confirmMessage = isKeepContraAction
+            ? `Manter a contraindicação de ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo' : 'processos'}?\n\nCada um volta para Contraindicado com o mesmo motivo da última contraindicação. Os que nunca foram contraindicados ou estão em negociação/acordo ficam como estão.`
+            : action === 'delete'
             ? `Tem certeza que deseja excluir ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?\n\nEssa ação não pode ser desfeita e removerá os casos definitivamente.`
             : `Aplicar alteração em ${selectedCaseIds.length} ${selectedCaseIds.length === 1 ? 'processo selecionado' : 'processos selecionados'}?`;
 
@@ -538,9 +571,17 @@ const CaseManagementPage = () => {
                 payload.failed_deal_reason = normalizedFailedDealReason;
             }
 
-            await apiClient.post('/cases/batch-update', payload, { headers: { Authorization: `Bearer ${token}` } });
+            const { data: batchResult } = await apiClient.post('/cases/batch-update', payload, { headers: { Authorization: `Bearer ${token}` } });
 
-            toast.success('Ação em lote concluída!');
+            const affectedCount = Number(batchResult?.affected_count ?? 0);
+            const skippedMessage = formatSkippedCasesMessage(batchResult?.skipped);
+            if (skippedMessage) {
+                toast.warning(`${affectedCount} ${affectedCount === 1 ? 'processo alterado' : 'processos alterados'}. ${skippedMessage}`, 15000);
+            } else {
+                toast.success(isKeepContraAction
+                    ? `Contraindicação mantida em ${affectedCount} ${affectedCount === 1 ? 'processo' : 'processos'}.`
+                    : 'Ação em lote concluída!');
+            }
             setSelectedCaseIds([]);
             setBatchActionType(null);
             setBatchContraIndicationPrompt(false);
@@ -802,6 +843,13 @@ const CaseManagementPage = () => {
         activeFilterChips.push({
             key: 'procedural_phase',
             label: `Fase: ${getProceduralPhaseFilterLabel(filters.procedural_phase)}`,
+        });
+    }
+
+    if (filters.contra_recurrent) {
+        activeFilterChips.push({
+            key: 'contra_recurrent',
+            label: 'Já contraindicados antes',
         });
     }
 
@@ -1078,6 +1126,20 @@ const CaseManagementPage = () => {
 
                     <label className={styles.filterField}>
                         <span className={styles.filterLabel}>
+                            <FaHistory />
+                            Reincidência
+                        </span>
+                        <SingleSelect
+                            options={CONTRA_RECURRENT_FILTER_OPTIONS}
+                            value={filters.contra_recurrent || ''}
+                            onChange={(v) => setFilters((prev) => ({ ...prev, contra_recurrent: v }))}
+                            emptyOptionLabel="Todos os casos"
+                            ariaLabel="Filtro de reincidência de contraindicação"
+                        />
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
                             <FaTag />
                             Etiquetas
                         </span>
@@ -1335,6 +1397,7 @@ const CaseManagementPage = () => {
                                                             Reanálise: {legalCase.reanalysis_reason}
                                                         </div>
                                                     )}
+                                                    <ContraRecurrenceLine legalCase={legalCase} />
                                                     <PriorityTag priority={legalCase.priority} />
                                                     <ProceduralPhaseTag phase={legalCase.procedural_phase} />
                                                 </td>
@@ -1469,6 +1532,14 @@ const CaseManagementPage = () => {
                                 </button>
                                 <button className={`${styles.batchBtn} ${styles.btnSuccess}`} onClick={() => setBatchActionType('lawyer')}>
                                     <FaUserTag /> Transferir
+                                </button>
+                                <button
+                                    className={`${styles.batchBtn} ${styles.btnDanger}`}
+                                    onClick={() => executeBatchUpdate('keep_contra_indication')}
+                                    disabled={isBatchProcessing}
+                                    title="Para casos que já foram contraindicados: contraindica de novo com o mesmo motivo da última vez"
+                                >
+                                    <FaBan /> Manter contraindicação
                                 </button>
                                 
                                 <button

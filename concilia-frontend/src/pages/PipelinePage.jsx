@@ -15,6 +15,7 @@ import AgreementFieldsModal from '../components/AgreementFieldsModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import SingleSelect from '../components/SingleSelect';
 import { PROCEDURAL_PHASE_FILTER_OPTIONS, getProceduralPhaseFilterLabel } from '../constants/proceduralPhase';
+import { CONTRA_RECURRENT_FILTER_OPTIONS } from '../utils/contraRecurrence';
 import { 
     DndContext, 
     PointerSensor, 
@@ -41,6 +42,7 @@ import {
     FaFileExport,
     FaInfoCircle,
     FaBalanceScale,
+    FaHistory,
 } from 'react-icons/fa';
 import {
     LEGAL_CASE_STATUS_DETAILS,
@@ -73,6 +75,7 @@ const INITIAL_FILTERS = {
     indicator_user_id: '',
     priority: '',
     procedural_phase: '',
+    contra_recurrent: '',
     tags: [],
 };
 
@@ -151,6 +154,7 @@ const PipelinePage = () => {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [debouncedActionObject, setDebouncedActionObject] = useState('');
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
+    const [keepingContraCaseId, setKeepingContraCaseId] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
     const [contraIndicationPrompt, setContraIndicationPrompt] = useState(null);
     const [contraIndicationReason, setContraIndicationReason] = useState('');
@@ -180,6 +184,7 @@ const PipelinePage = () => {
     const indicatorFilter = canChooseIndicator ? (filters.indicator_user_id || '') : '';
     const priorityFilter = filters.priority || '';
     const proceduralPhaseFilter = filters.procedural_phase || '';
+    const contraRecurrentFilter = filters.contra_recurrent || '';
     const tagFilters = Array.isArray(filters.tags) ? filters.tags : [];
     const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
     const selectedLawyerNames = selectedLawyerIds
@@ -224,6 +229,7 @@ const PipelinePage = () => {
         selectedIndicatorName ? `Indicador: ${selectedIndicatorName}` : null,
         filters.priority ? priorityLabelMap[filters.priority] : null,
         proceduralPhaseFilter ? `Fase: ${getProceduralPhaseFilterLabel(proceduralPhaseFilter)}` : null,
+        contraRecurrentFilter ? 'Já contraindicados antes' : null,
         selectedTagLabel,
         showDelayedOnly ? 'Apenas atrasados (+5 dias)' : null,
     ].filter(Boolean);
@@ -359,6 +365,7 @@ const PipelinePage = () => {
                 indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
                 procedural_phase: proceduralPhaseFilter,
+                contra_recurrent: contraRecurrentFilter,
                 tags: tagFilters,
             };
 
@@ -439,7 +446,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, proceduralPhaseFilter, tagFilters, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator, pipelineView]);
+    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, proceduralPhaseFilter, contraRecurrentFilter, tagFilters, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator, pipelineView]);
 
     useEffect(() => {
         fetchAllData();
@@ -832,6 +839,25 @@ const PipelinePage = () => {
         }
     };
 
+    const handleKeepContraIndication = async (legalCase) => {
+        if (!legalCase?.id || keepingContraCaseId) {
+            return;
+        }
+
+        setKeepingContraCaseId(legalCase.id);
+        try {
+            await apiClient.post(`/cases/${legalCase.id}/keep-contra-indication`, {}, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            toast.success(`Contraindicação mantida em ${legalCase.case_number}.`);
+            await fetchAllData();
+        } catch (err) {
+            toast.error(err?.response?.data?.message || 'Não foi possível manter a contraindicação.');
+        } finally {
+            setKeepingContraCaseId(null);
+        }
+    };
+
     const handleExportPipelineCases = async () => {
         if (!token || isExporting) {
             return;
@@ -848,6 +874,7 @@ const PipelinePage = () => {
                 indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
                 procedural_phase: proceduralPhaseFilter,
+                contra_recurrent: contraRecurrentFilter,
                 tags: tagFilters,
                 sort_by: 'updated_at',
                 sort_order: 'desc',
@@ -896,6 +923,9 @@ const PipelinePage = () => {
                         onIndicateCase={handleOpenIndicationModal}
                         canRequestReanalysis={pipelineView === 'pre' && isIndicator}
                         onRequestReanalysis={handleOpenReanalysisModal}
+                        canKeepContraIndication={pipelineView === 'pre' && !isIndicator}
+                        onKeepContraIndication={handleKeepContraIndication}
+                        keepingContraCaseId={keepingContraCaseId}
                     />
                 ))}
             </div>
@@ -1057,6 +1087,20 @@ const PipelinePage = () => {
                             onChange={(v) => handleFilterChange('procedural_phase', v)}
                             emptyOptionLabel="Todas"
                             ariaLabel="Filtro de fase processual"
+                        />
+                    </div>
+
+                    <div className={styles.filterField}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaHistory />
+                            <span>Reincidência</span>
+                        </label>
+                        <SingleSelect
+                            options={CONTRA_RECURRENT_FILTER_OPTIONS}
+                            value={contraRecurrentFilter}
+                            onChange={(v) => handleFilterChange('contra_recurrent', v)}
+                            emptyOptionLabel="Todos os casos"
+                            ariaLabel="Filtro de reincidência de contraindicação"
                         />
                     </div>
 
