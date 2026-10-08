@@ -28,7 +28,8 @@ import {
 import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
 import { getLegalCaseStatusDetails, LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 import AgreementComplianceFields from './AgreementComplianceFields';
-import { PROCEDURAL_PHASES } from '../constants/proceduralPhase';
+import { PROCEDURAL_PHASES, getProceduralPhaseDetails } from '../constants/proceduralPhase';
+import { getContraRecurrence } from '../utils/contraRecurrence';
 import { uploadLegalOpinion, validateComplianceBeforeClose } from '../utils/legalOpinion';
 import { normalizeUserRole } from '../constants/access';
 import { useToast } from '../context/ToastContext';
@@ -45,6 +46,7 @@ const IconPlus = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="non
 const IconSearch = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
 
 const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
+const HEADER_PRIORITY_LABELS = { alta: 'alta', media: 'média', baixa: 'baixa' };
 
 const parseDateValue = (value) => {
     if (!value) return null;
@@ -352,12 +354,12 @@ const DetailsTab = ({
     // Estilos Dropdown
     const dropdownStyle = {
         position: 'absolute', top: '100%', left: 0, right: 0, 
-        backgroundColor: '#2d3748', border: '1px solid #4a5568', 
+        backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color-light)', borderRadius: '12px', 
         zIndex: 50, listStyle: 'none', padding: 0, margin: 0, 
-        maxHeight: '200px', overflowY: 'auto', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
+        maxHeight: '200px', overflowY: 'auto', boxShadow: '0 16px 32px rgba(15, 23, 42, 0.18)',
         borderRadius: '0 0 6px 6px'
     };
-    const itemStyle = { padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #4a5568', color: '#f7fafc' };
+    const itemStyle = { padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-color-light)', color: 'var(--text-primary)' };
 
     return (
         <>
@@ -394,7 +396,7 @@ const DetailsTab = ({
                                 readOnly
                                 rows={3}
                                 maxLength={4000}
-                                style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
+                                style={{ backgroundColor: 'var(--surface-card-sunken)', color: 'var(--text-secondary)', cursor: 'not-allowed' }}
                             />
                         </div>
                     )}
@@ -408,7 +410,7 @@ const DetailsTab = ({
                                 readOnly
                                 rows={3}
                                 maxLength={4000}
-                                style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
+                                style={{ backgroundColor: 'var(--surface-card-sunken)', color: 'var(--text-secondary)', cursor: 'not-allowed' }}
                             />
                         </div>
                     )}
@@ -435,12 +437,12 @@ const DetailsTab = ({
                                     <ul style={dropdownStyle}>
                                         {filteredActionObjects.map(actionObject => (
                                             <li key={actionObject.id} style={itemStyle} onClick={() => handleSelectActionObject(actionObject)}
-                                                onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
+                                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--surface-card-sunken)'}
                                                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}>
                                                 <strong>{actionObject.name}</strong>
                                             </li>
                                         ))}
-                                        <li style={{ ...itemStyle, backgroundColor: '#2a4365', color: '#90cdf4', fontWeight: 'bold' }}
+                                        <li style={{ ...itemStyle, backgroundColor: 'var(--accent-pill-bg, rgba(37, 99, 235, 0.08))', color: 'var(--accent-primary)', fontWeight: 'bold' }}
                                             onClick={handleCreateActionObject}>
                                             <IconPlus /> Cadastrar Novo: "{actionObjectSearchTerm}"
                                         </li>
@@ -451,7 +453,7 @@ const DetailsTab = ({
                             <button type="button" onClick={handleOpenActionObjectListModal} title="Buscar e gerenciar causas de pedir"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: '#4a5568', color: 'white', border: 'none',
+                                    background: 'var(--surface-card-sunken)', color: 'var(--text-primary)', border: '1px solid var(--border-color-light)',
                                     borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
                                 }}>
                                 <IconSearch />
@@ -459,7 +461,7 @@ const DetailsTab = ({
                             <button type="button" onClick={handleCreateActionObject} title="Cadastrar nova causa de pedir"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: '#3182ce', color: 'white', border: 'none',
+                                    background: 'var(--accent-primary)', color: '#ffffff', border: 'none',
                                     borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
                                 }}>
                                 <IconPlus />
@@ -503,12 +505,12 @@ const DetailsTab = ({
                                     <ul style={dropdownStyle}>
                                         {filteredPlaintiffs.map(p => (
                                             <li key={p.id} style={itemStyle} onClick={() => handleSelectPlaintiff(p)}
-                                                onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
+                                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--surface-card-sunken)'}
                                                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}>
                                                 <strong>{p.name}</strong> <small>({p.cpf_cnpj || 'S/ CPF'})</small>
                                             </li>
                                         ))}
-                                        <li style={{ ...itemStyle, backgroundColor: '#2a4365', color: '#90cdf4', fontWeight: 'bold' }}
+                                        <li style={{ ...itemStyle, backgroundColor: 'var(--accent-pill-bg, rgba(37, 99, 235, 0.08))', color: 'var(--accent-primary)', fontWeight: 'bold' }}
                                             onClick={handleCreatePlaintiff}>
                                             <IconPlus /> Cadastrar Novo: "{plaintiffSearchTerm}"
                                         </li>
@@ -519,7 +521,7 @@ const DetailsTab = ({
                             <button type="button" onClick={handleCreatePlaintiff} title="Cadastrar Autor"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: '#3182ce', color: 'white', border: 'none',
+                                    background: 'var(--accent-primary)', color: '#ffffff', border: 'none',
                                     borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
                                 }}
                             >
@@ -552,12 +554,12 @@ const DetailsTab = ({
                                     <ul style={dropdownStyle}>
                                         {filteredDefendants.map(d => (
                                             <li key={d.id} style={itemStyle} onClick={() => handleSelectDefendant(d)}
-                                                onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
+                                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--surface-card-sunken)'}
                                                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}>
                                                 <strong>{d.name}</strong> <small>({d.cnpj || 'S/ CNPJ'})</small>
                                             </li>
                                         ))}
-                                        <li style={{ ...itemStyle, backgroundColor: '#2a4365', color: '#90cdf4', fontWeight: 'bold' }}
+                                        <li style={{ ...itemStyle, backgroundColor: 'var(--accent-pill-bg, rgba(37, 99, 235, 0.08))', color: 'var(--accent-primary)', fontWeight: 'bold' }}
                                             onClick={handleCreateDefendant}>
                                             <IconPlus /> Cadastrar Novo: "{defendantSearchTerm}"
                                         </li>
@@ -568,7 +570,7 @@ const DetailsTab = ({
                             <button type="button" onClick={handleCreateDefendant} title="Cadastrar Réu"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: '#3182ce', color: 'white', border: 'none',
+                                    background: 'var(--accent-primary)', color: '#ffffff', border: 'none',
                                     borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
                                 }}
                             >
@@ -662,15 +664,15 @@ const DetailsTab = ({
                                     <ul style={dropdownStyle}>
                                         {filteredLawyers.map(l => (
                                             <li key={l.id} style={itemStyle} onClick={() => handleSelectLawyer(l)}
-                                                onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
+                                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--surface-card-sunken)'}
                                                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}>
                                                 <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
                                                     {l.is_abusive && <FaExclamationTriangle color="#e53e3e" />}
-                                                    <strong>{l.name}</strong> <small style={{color: '#a0aec0'}}>({l.oab || 'S/ OAB'})</small>
+                                                    <strong>{l.name}</strong> <small style={{color: 'var(--text-secondary)'}}>({l.oab || 'S/ OAB'})</small>
                                                 </div>
                                             </li>
                                         ))}
-                                        <li style={{ ...itemStyle, backgroundColor: '#2a4365', color: '#90cdf4', fontWeight: 'bold' }}
+                                        <li style={{ ...itemStyle, backgroundColor: 'var(--accent-pill-bg, rgba(37, 99, 235, 0.08))', color: 'var(--accent-primary)', fontWeight: 'bold' }}
                                             onClick={handleCreateLawyer}>
                                             <IconPlus /> Cadastrar Novo: "{lawyerSearchTerm}"
                                         </li>
@@ -682,7 +684,7 @@ const DetailsTab = ({
                             <button type="button" onClick={handleOpenListModal} title="Buscar e Gerenciar Litigantes"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: '#4a5568', color: 'white', border: 'none',
+                                    background: 'var(--surface-card-sunken)', color: 'var(--text-primary)', border: '1px solid var(--border-color-light)',
                                     borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
                                 }}>
                                 <IconSearch />
@@ -690,7 +692,7 @@ const DetailsTab = ({
                             <button type="button" onClick={handleCreateLawyer} title="Cadastrar Novo Advogado"
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: '#3182ce', color: 'white', border: 'none',
+                                    background: 'var(--accent-primary)', color: '#ffffff', border: 'none',
                                     borderRadius: '4px', width: '42px', height: '42px', cursor: 'pointer'
                                 }}>
                                 <IconPlus />
@@ -747,7 +749,7 @@ const DetailsTab = ({
                                 <option key={option.value || 'none'} value={option.value}>{option.label}</option>
                             ))}
                         </select>
-                        <small style={{ color: '#a0aec0' }}>Opcional. Pode coexistir com a Proposta Acordo (R$).</small>
+                        <small style={{ color: 'var(--text-secondary)' }}>Opcional. Pode coexistir com a Proposta Acordo (R$).</small>
                     </div>
                     {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
                         <div className={styles.formGroup}>
@@ -1223,6 +1225,8 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
 
     const persistedStatus = legalCase.status || formData.status;
     const statusDetails = getLegalCaseStatusDetails(persistedStatus);
+    const headerPhase = getProceduralPhaseDetails(legalCase.procedural_phase);
+    const headerRecurrence = getContraRecurrence(legalCase);
     const statusStartedAt = formData.status_started_at || legalCase.status_started_at || legalCase.created_at;
     const pendingStatusChange = formData.status && persistedStatus && formData.status !== persistedStatus;
 
@@ -1232,7 +1236,36 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 <div className={`${styles.modalContent} ${styles.large}`} onClick={(e) => e.stopPropagation()}>
                     <div className={styles.modalHeader}>
                         <div className={styles.modalHeaderInfo}>
-                            <h2 className={styles.modalTitle}>Editar Processo #{formData.case_number}</h2>
+                            <div className={styles.modalTitleBlock}>
+                                <span className={styles.modalEyebrow}>Processo</span>
+                                <h2 className={styles.modalTitle}>{formData.case_number}</h2>
+                                <div className={styles.modalChips}>
+                                    <span
+                                        className={styles.modalChip}
+                                        style={{ backgroundColor: statusDetails.color, color: statusDetails.textColor || '#ffffff' }}
+                                    >
+                                        {statusDetails.name}
+                                    </span>
+                                    {headerPhase && (
+                                        <span className={styles.modalChip} style={{ backgroundColor: headerPhase.color, color: '#ffffff' }}>
+                                            Fase: {headerPhase.label}
+                                        </span>
+                                    )}
+                                    {HEADER_PRIORITY_LABELS[legalCase.priority] && (
+                                        <span className={`${styles.modalChip} ${styles.modalChipOutline}`}>
+                                            Prioridade {HEADER_PRIORITY_LABELS[legalCase.priority]}
+                                        </span>
+                                    )}
+                                    {headerRecurrence && (
+                                        <span
+                                            className={`${styles.modalChip} ${styles.modalChipWarning}`}
+                                            title={headerRecurrence.reason ? `Último motivo: ${headerRecurrence.reason}` : 'Motivo anterior não registrado'}
+                                        >
+                                            Já contraindicado {headerRecurrence.count}x
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                             <div className={styles.statusSinceCard}>
                                 <span className={styles.statusSinceLabel}>
                                     <FaClock />
