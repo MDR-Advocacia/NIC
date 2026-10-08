@@ -445,3 +445,216 @@
   }
 }
 
+
+/* =====================================================================
+   Atualização visual (padrão Flow) e passo a passo — 10/2026
+   ===================================================================== */
+
+.header h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Passo a passo: Arquivo → Importação → Triagem */
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border: 1px solid var(--border-color-light);
+  border-radius: 18px;
+  background: var(--bg-card);
+}
+
+.step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  border-right: 1px solid var(--border-color-light);
+  color: var(--text-secondary);
+  transition: background-color 0.2s ease;
+}
+
+.step:last-child {
+  border-right: none;
+}
+
+.stepNumber {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-color-light);
+  border-radius: 999px;
+  background: var(--surface-card-sunken);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.stepText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stepText strong {
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stepText small {
+  overflow: hidden;
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepCurrent {
+  background: var(--accent-pill-bg, rgba(37, 99, 235, 0.06));
+  box-shadow: inset 0 -3px 0 var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.stepCurrent .stepNumber {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  color: #ffffff;
+}
+
+.stepDone {
+  color: var(--text-primary);
+}
+
+.stepDone .stepNumber {
+  border-color: var(--success-primary, #16a34a);
+  background: var(--success-primary, #16a34a);
+  color: #ffffff;
+}
+
+/* Filtro de escritório da planilha semanal */
+.officeFilter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.officeFilter small {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.officeSelect {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color-light);
+  border-radius: 12px;
+  background: var(--bg-input, var(--bg-card));
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.officeSelect:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(37, 99, 235, 0.18));
+}
+
+/* Cartões e títulos */
+.panelCard,
+.summaryCard,
+.sanitationCard {
+  border-radius: 22px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  animation: importFadeUp 0.35s ease-out both;
+}
+
+@keyframes importFadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.cardHeader h2 {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.cardHeader p {
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.filePicker {
+  border-radius: 14px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.filePicker:hover {
+  border-color: var(--accent-primary);
+}
+
+.primaryButton,
+.secondaryButton,
+.exportButton,
+.templateButton {
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.helpBox,
+.exportInfo {
+  border-radius: 14px;
+}
+
+.metricCard {
+  border-radius: 16px;
+}
+
+/* Tabela "Importações recentes" (tinha cores fixas de tema claro) */
+.summaryCard table th {
+  color: var(--text-secondary) !important;
+  border-bottom-color: var(--border-color-light) !important;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.summaryCard table tbody tr {
+  border-bottom-color: var(--border-color-light) !important;
+}
+
+.summaryCard table td {
+  color: var(--text-primary);
+}
+
+.summaryCard table td button {
+  background: transparent !important;
+  border-radius: 10px !important;
+}
+
+@media (max-width: 760px) {
+  .stepper {
+    grid-template-columns: 1fr;
+  }
+
+  .step {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color-light);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panelCard,
+  .summaryCard,
+  .sanitationCard { animation: none; }
+}

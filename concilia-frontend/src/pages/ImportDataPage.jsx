@@ -13,12 +13,20 @@ import {
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import styles from '../styles/ImportDataPage.module.css';
+import WeeklyTriagePanel from '../components/WeeklyTriagePanel';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 
 const MAX_IMPORT_BATCH_ROWS = 100;
 const MAX_IMPORT_BATCH_PAYLOAD_BYTES = 900 * 1024;
-const MAX_IMPORT_FILE_SIZE_BYTES = 1024 * 1024;
+const MAX_IMPORT_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+const MAX_IMPORT_FILE_SIZE_LABEL = '25 MB';
+// Escritório selecionado por padrão no filtro da planilha semanal (coluna NM_RZSC_CLI)
+const DEFAULT_WEEKLY_OFFICE_MATCH = 'MARCOS DELLI';
+// Campos usados só na triagem (não vão para a importação)
+const TRIAGE_FIELDS = ['portal_status', 'portal_obs', 'office_name'];
+const stripTriageFields = (data) =>
+  Object.fromEntries(Object.entries(data || {}).filter(([key]) => !TRIAGE_FIELDS.includes(key)));
 
 const spreadsheetLayouts = {
   GENERIC: 'generic',
@@ -326,6 +334,17 @@ const mapGenericSpreadsheetRow = (headers, row) => {
   return compactMappedRow(mappedRow);
 };
 
+const parseSheetAmount = (value) => {
+  const text = normalizeValue(value).replace(/[^\d,.-]/g, '');
+  if (!text) return Number.NaN;
+  return Number.parseFloat(text.includes(',') ? text.replace(/\./g, '').replace(',', '.') : text);
+};
+
+const ignoreSymbolicAmount = (value) => {
+  const amount = parseSheetAmount(value);
+  return Number.isFinite(amount) && amount > 1 ? value : '';
+};
+
 const mapWeeklyBankSpreadsheetRow = (headers, row) => {
   const rowByHeader = buildSpreadsheetRowByHeader(headers, row);
   const caseType = normalizeValue(rowByHeader['TX_TIP_ACAO']);
@@ -342,21 +361,24 @@ const mapWeeklyBankSpreadsheetRow = (headers, row) => {
   return compactMappedRow({
     case_number: pickFirstFilledValue(rowByHeader.TX_NR_IVT, rowByHeader['Número do Processo']),
     internal_number: pickFirstFilledValue(rowByHeader.NR_PRC1, rowByHeader.NPJ),
-    // NM_RZSC_CLI é o escritório contratado, não a parte autora — o backend
-    // aplica o fallback "Parte autora não informada na planilha do banco".
+    // Autor vem de AUTOR_PRINCIPAL (NM_RZSC_CLI é o escritório contratado, não a parte);
+    // sem autor, o backend aplica "Parte autora não informada na planilha do banco".
+    opposing_party: rowByHeader.AUTOR_PRINCIPAL,
     action_object: actionObject,
     opposing_lawyer: rowByHeader.Advogado_Adverso,
     comarca: rowByHeader.Comarca,
     city: rowByHeader.Comarca,
     state: rowByHeader['UF da Comarca'],
     special_court: pickFirstFilledValue(rowByHeader.NM_CMPT_ORG_TST, rowByHeader.NM_ORG_TST),
-    cause_value: rowByHeader.VL_PRC,
+    // VL_PRC traz valores simbólicos (0,01 / 1,00) em parte das linhas: esses ficam de fora
+    cause_value: ignoreSymbolicAmount(rowByHeader.VL_PRC),
     original_value: pickFirstFilledValue(
       rowByHeader.VL_PRM_FNCO1,
       rowByHeader.VL_CPRP1,
       rowByHeader.VL_ACRD1
     ),
-    pcond_probability: rowByHeader.VL_CPRP1,
+    // A PCOND certa é VL_PCOND_ATZD (bate com a Base Analítica); VL_CPRP1 só como reserva
+    pcond_probability: pickFirstFilledValue(rowByHeader.VL_PCOND_ATZD, rowByHeader.VL_CPRP1),
     agreement_value: rowByHeader.VL_ACRD1,
     description: pickFirstFilledValue(
       rowByHeader.TX_OBS_ACRD1,
@@ -375,6 +397,9 @@ const mapWeeklyBankSpreadsheetRow = (headers, row) => {
     ]),
     polo: rowByHeader.Polo,
     procedural_phase: rowByHeader.TX_EST_PRC,
+    portal_status: rowByHeader.NM_TIP_EST_ACRD1,
+    portal_obs: rowByHeader.TX_OBS_ACRD1,
+    office_name: rowByHeader.NM_RZSC_CLI,
   });
 };
 
@@ -465,6 +490,10 @@ const ImportDataPage = () => {
   const [uploadProgress, setUploadProgress] = useState('');
   const [importBatches, setImportBatches] = useState([]);
   const [undoingBatchId, setUndoingBatchId] = useState(null);
+  const [spreadsheetLayout, setSpreadsheetLayout] = useState(null);
+  const [allParsedRows, setAllParsedRows] = useState([]);
+  const [officeFilter, setOfficeFilter] = useState('');
+  const [isReadingFile, setIsReadingFile] = useState(false);
 
   const fetchImportBatches = async () => {
     if (!token) return;
@@ -597,6 +626,9 @@ const ImportDataPage = () => {
 
   const resetImportState = () => {
     setSourceFileName('');
+    setSpreadsheetLayout(null);
+    setAllParsedRows([]);
+    setOfficeFilter('');
     setRows([]);
     setSummary(null);
     setSelectedRowIds([]);
@@ -631,7 +663,7 @@ const ImportDataPage = () => {
       throw new Error('Nenhuma linha válida de processo foi encontrada no arquivo.');
     }
 
-    return mappedRows;
+    return { rows: mappedRows, layout: detectedLayout };
   };
 
   const parseSpreadsheetFile = async (file) => {
@@ -695,37 +727,83 @@ const ImportDataPage = () => {
     try {
       if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
         throw new Error(
-          `O arquivo excede o limite de 1 MB (${formatFileSize(file.size)}). Divida a planilha antes de importar.`
+          `O arquivo excede o limite de ${MAX_IMPORT_FILE_SIZE_LABEL} (${formatFileSize(file.size)}). Divida a planilha antes de importar.`
         );
       }
 
-      const parsedRows = await parseSpreadsheetFile(file);
-      const draftedRows = parsedRows.map((row, index) => createRowDraft(row, index));
+      // A planilha semanal completa (~12 MB) leva alguns segundos para ser lida no navegador
+      setIsReadingFile(true);
+      setSourceFileName(file.name);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const { rows: parsedRows, layout } = await parseSpreadsheetFile(file);
+
+      // Planilha semanal do banco: já começa filtrada no escritório (Marcos Delli)
+      const defaultOffice = layout === spreadsheetLayouts.WEEKLY_BANK
+        ? (parsedRows.find((row) => String(row.office_name || '').toUpperCase().includes(DEFAULT_WEEKLY_OFFICE_MATCH))?.office_name || '')
+        : '';
 
       setSourceFileName(file.name);
-      setRows(draftedRows);
-      setSummary({
-        status: 'PRONTO_PARA_ENVIO',
-        fileName: file.name,
-        totalRows: draftedRows.length,
-        activeRows: draftedRows.length,
-        successCount: 0,
-        createdCount: 0,
-        updatedCount: 0,
-        errorCount: 0,
-        discardedCount: 0,
-        readyToRetryCount: draftedRows.length,
-        editedCount: 0,
-        message: 'Arquivo carregado com sucesso. Revise e envie quando estiver pronto.',
-      });
+      setSpreadsheetLayout(layout);
+      setAllParsedRows(parsedRows);
+      applyOfficeFilter(parsedRows, defaultOffice, file.name);
       event.target.value = '';
     } catch (error) {
       console.error('Erro ao ler arquivo:', error);
       event.target.value = '';
       resetImportState();
       setPageError(error.message || 'Não foi possível ler o arquivo selecionado.');
+    } finally {
+      setIsReadingFile(false);
     }
   };
+
+  const applyOfficeFilter = (parsedRows, office, fileName = sourceFileName) => {
+    const filteredRows = office
+      ? parsedRows.filter((row) => row.office_name === office)
+      : parsedRows;
+    const draftedRows = filteredRows.map((row, index) => createRowDraft(row, index));
+
+    setOfficeFilter(office);
+    setRows(draftedRows);
+    setSelectedRowIds([]);
+    setFilterCode('');
+    setSummary({
+      status: 'PRONTO_PARA_ENVIO',
+      fileName,
+      totalRows: draftedRows.length,
+      activeRows: draftedRows.length,
+      successCount: 0,
+      createdCount: 0,
+      updatedCount: 0,
+      errorCount: 0,
+      discardedCount: 0,
+      readyToRetryCount: draftedRows.length,
+      editedCount: 0,
+      message: office
+        ? `Arquivo carregado: ${draftedRows.length} de ${parsedRows.length} linhas do escritório selecionado. Revise e envie quando estiver pronto.`
+        : 'Arquivo carregado com sucesso. Revise e envie quando estiver pronto.',
+    });
+  };
+
+  const officeOptions = useMemo(() => {
+    if (spreadsheetLayout !== spreadsheetLayouts.WEEKLY_BANK) return [];
+    const counts = new Map();
+    allParsedRows.forEach((row) => {
+      const office = row.office_name || '';
+      if (office) counts.set(office, (counts.get(office) || 0) + 1);
+    });
+    return [...counts.entries()]
+      .sort((first, second) => second[1] - first[1])
+      .map(([office, count]) => ({ office, count }));
+  }, [allParsedRows, spreadsheetLayout]);
+
+  const isWeeklyLayout = spreadsheetLayout === spreadsheetLayouts.WEEKLY_BANK;
+  const importedRowsData = useMemo(
+    () => rows.filter((row) => row.status === 'imported' && !row.discarded).map((row) => row.data),
+    [rows]
+  );
+  const importFinished = ['CONCLUIDO', 'CONCLUIDO_COM_ERROS'].includes(summary?.status);
+  const currentStep = !rows.length ? 1 : !importFinished ? 2 : 3;
 
   const runImport = async (rowsToSend = pendingRows) => {
     if (!selectedClient) {
@@ -782,7 +860,7 @@ const ImportDataPage = () => {
             '/cases/import',
             {
               client_id: selectedClient,
-              cases: batch.map((row) => row.data),
+              cases: batch.map((row) => stripTriageFields(row.data)),
               import_id: importId,
               file_name: sourceFileName || null,
             },
@@ -1041,12 +1119,35 @@ const ImportDataPage = () => {
         </div>
       )}
 
+      <ol className={styles.stepper} aria-label="Etapas da importação">
+        {[
+          { step: 1, label: 'Arquivo', hint: 'Escolha a planilha' },
+          { step: 2, label: 'Importação', hint: 'Cria e atualiza os processos' },
+          { step: 3, label: 'Triagem', hint: isWeeklyLayout ? 'Status e distribuição automáticos' : 'Só na planilha semanal' },
+        ].map(({ step, label, hint }) => (
+          <li
+            key={step}
+            className={`${styles.step} ${currentStep === step ? styles.stepCurrent : ''} ${currentStep > step ? styles.stepDone : ''}`}
+          >
+            <span className={styles.stepNumber}>{currentStep > step ? '✓' : step}</span>
+            <span className={styles.stepText}>
+              <strong>{label}</strong>
+              <small>{hint}</small>
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      {isWeeklyLayout && importFinished && importedRowsData.length > 0 && (
+        <WeeklyTriagePanel rows={importedRowsData} fileName={sourceFileName} autoStart />
+      )}
+
       <section className={styles.topGrid}>
         <article className={styles.panelCard}>
           <div className={styles.cardHeader}>
             <div>
               <h2>Importador de planilhas</h2>
-              <p>CSV, XLSX e XLS de at&eacute; 1 MB. O importador reconhece os layouts homologados, ignora linhas vazias e atualiza processos existentes pelo n&uacute;mero do processo.</p>
+              <p>CSV, XLSX e XLS de at&eacute; {MAX_IMPORT_FILE_SIZE_LABEL}. A planilha semanal de campanhas pode ser enviada inteira: o NIC filtra o escrit&oacute;rio e faz a triagem depois da importa&ccedil;&atilde;o.</p>
             </div>
             <span className={styles.clientBadge}>{selectedClientName || 'Cliente não definido'}</span>
           </div>
@@ -1070,6 +1171,29 @@ const ImportDataPage = () => {
             </label>
           </div>
 
+          {isWeeklyLayout && officeOptions.length > 0 && (
+            <div className={styles.officeFilter}>
+              <label className={styles.fieldLabel} htmlFor="office-filter">
+                Escrit&oacute;rio (planilha semanal de campanhas)
+              </label>
+              <select
+                id="office-filter"
+                className={styles.officeSelect}
+                value={officeFilter}
+                disabled={isUploading || importFinished}
+                onChange={(event) => applyOfficeFilter(allParsedRows, event.target.value)}
+              >
+                {officeOptions.map(({ office, count }) => (
+                  <option key={office} value={office}>{office} ({count.toLocaleString('pt-BR')})</option>
+                ))}
+                <option value="">Todos os escrit&oacute;rios ({allParsedRows.length.toLocaleString('pt-BR')})</option>
+              </select>
+              <small>
+                {rows.length.toLocaleString('pt-BR')} de {allParsedRows.length.toLocaleString('pt-BR')} linhas ser&atilde;o importadas.
+              </small>
+            </div>
+          )}
+
           <div className={styles.actionRow}>
             <button
               type="button"
@@ -1091,10 +1215,15 @@ const ImportDataPage = () => {
             </button>
           </div>
 
+          {isReadingFile && (
+            <p className={styles.progressText}>
+              Lendo a planilha... arquivos grandes, como a planilha semanal completa, podem levar até meio minuto.
+            </p>
+          )}
           {uploadProgress && <p className={styles.progressText}>{uploadProgress}</p>}
 
           <div className={styles.helpBox}>
-            <strong>Fluxo:</strong> selecione uma planilha homologada de at&eacute; 1 MB, envie e o sistema identifica o layout pelos cabe&ccedil;alhos. Linhas vazias s&atilde;o desconsideradas automaticamente. O envio &eacute; repartido em lotes menores para respeitar o limite da API. Se o processo j&aacute; existir, ele &eacute; atualizado pelo n&uacute;mero do processo; se n&atilde;o existir, &eacute; criado.
+            <strong>Fluxo:</strong> selecione uma planilha homologada de at&eacute; {MAX_IMPORT_FILE_SIZE_LABEL}, envie e o sistema identifica o layout pelos cabe&ccedil;alhos. Linhas vazias s&atilde;o desconsideradas automaticamente. O envio &eacute; repartido em lotes menores para respeitar o limite da API. Se o processo j&aacute; existir, ele &eacute; atualizado pelo n&uacute;mero do processo; se n&atilde;o existir, &eacute; criado.
           </div>
         </article>
 

@@ -72,6 +72,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/cases/export', [LegalCaseController::class, 'export']);
     Route::post('/cases/import', [LegalCaseController::class, 'bulkStore']);
+    Route::post('/cases/weekly-triage', \App\Http\Controllers\Api\WeeklyTriageController::class);
     Route::get('/import-batches', [LegalCaseController::class, 'listImportBatches']);
     Route::post('/import-batches/{batchId}/undo', [LegalCaseController::class, 'undoImportBatch']);
     Route::post('/cases/{case}/legal-opinion', [LegalCaseController::class, 'uploadLegalOpinion']);
