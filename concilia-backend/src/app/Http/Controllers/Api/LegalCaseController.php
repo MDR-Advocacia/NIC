@@ -101,6 +101,16 @@ class LegalCaseController extends Controller
             $query->where('priority', $request->input('priority'));
         }
 
+        // Filtro por Fase processual ('sem_fase' = casos sem fase informada)
+        if ($request->filled('procedural_phase')) {
+            $phaseFilter = (string) $request->input('procedural_phase');
+            if ($phaseFilter === 'sem_fase') {
+                $query->whereNull('procedural_phase');
+            } elseif ($normalizedPhase = LegalCase::normalizeProceduralPhase($phaseFilter)) {
+                $query->where('procedural_phase', $normalizedPhase);
+            }
+        }
+
         if ($request->filled('action_object')) {
             $actionObjectSearch = trim((string) $request->input('action_object'));
 
@@ -290,6 +300,7 @@ class LegalCaseController extends Controller
             'pcond_probability' => 'nullable|numeric|min:0',
             'updated_condemnation_value' => 'nullable|numeric',
             'agreement_checklist_data' => 'nullable|array',
+            'procedural_phase' => ['nullable', Rule::in(LegalCase::PROCEDURAL_PHASES)],
         ]);
 
         $validatedData = $this->applyContraIndicationPayload($validatedData);
@@ -444,6 +455,7 @@ class LegalCaseController extends Controller
             'pcond_probability' => 'nullable|numeric|min:0',
             'updated_condemnation_value' => 'nullable|numeric',
             'agreement_checklist_data' => 'nullable|array',
+            'procedural_phase' => ['sometimes', 'nullable', Rule::in(LegalCase::PROCEDURAL_PHASES)],
         ]);
 
         $validatedData = $this->applyContraIndicationPayload($validatedData, $case);
@@ -521,6 +533,7 @@ class LegalCaseController extends Controller
         if (!empty($changes)) {
             unset($changes['updated_at']);
             unset($changes['status_started_at']);
+            unset($changes['procedural_phase_updated_at']);
             if (!empty($changes)) {
                 $oldValues = Arr::only($originalData, array_keys($changes));
                 $newValues = $changes;
@@ -2005,6 +2018,10 @@ class LegalCaseController extends Controller
             $caseData[$field] = ($value === '' || $value === null) ? null : $value;
         }
 
+        if (array_key_exists('procedural_phase', $caseData)) {
+            $caseData['procedural_phase'] = LegalCase::normalizeProceduralPhase($caseData['procedural_phase']);
+        }
+
         foreach (['opposing_party', 'defendant', 'opposing_lawyer'] as $partyField) {
             if (!empty($caseData[$partyField])) {
                 $caseData[$partyField] = $this->extractPrimaryParticipantName((string) $caseData[$partyField]);
@@ -2255,6 +2272,7 @@ class LegalCaseController extends Controller
             'agreement_probability' => $caseData['agreement_probability'] ?? $existingCase?->agreement_probability,
             'agreement_checklist_data' => $existingCase?->agreement_checklist_data,
             'start_date' => $caseData['start_date'] ?? $existingCase?->start_date,
+            'procedural_phase' => $caseData['procedural_phase'] ?? $existingCase?->procedural_phase,
             'import_batch_id' => $existingCase ? $existingCase->import_batch_id : ($caseData['import_batch_id'] ?? null),
         ];
 
@@ -2266,11 +2284,18 @@ class LegalCaseController extends Controller
 
     private function buildExistingCaseAlcadaImportPayload(array $caseData, LegalCase $existingCase): array
     {
-        return [
+        $payload = [
             'case_number' => $existingCase->case_number,
             'original_value' => $caseData['original_value'] ?? $existingCase->original_value ?? 0,
             'has_alcada' => $caseData['has_alcada'] ?? $existingCase->has_alcada ?? false,
         ];
+
+        // A fase muda com o andamento do processo: a planilha mais recente prevalece
+        if (!empty($caseData['procedural_phase'])) {
+            $payload['procedural_phase'] = $caseData['procedural_phase'];
+        }
+
+        return $payload;
     }
 
     private function resolveImportedHasAlcada(mixed $originalValue, ?LegalCase $existingCase): bool

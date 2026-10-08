@@ -8,7 +8,7 @@ import {
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
     FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag, FaFileExport, FaCalendarAlt, FaFilter,
-    FaChevronDown, FaEyeSlash, FaArchive
+    FaChevronDown, FaEyeSlash, FaArchive, FaBalanceScale
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
@@ -31,6 +31,11 @@ import {
 } from '../constants/legalCaseStatus';
 import { canAccessCaseCreation, isIndicatorRole, normalizeUserRole } from '../constants/access';
 import { formatLiveloPoints } from '../constants/settlementBenefit';
+import {
+    PROCEDURAL_PHASE_FILTER_OPTIONS,
+    getProceduralPhaseDetails,
+    getProceduralPhaseFilterLabel,
+} from '../constants/proceduralPhase';
 import { downloadCasesWorkbook, fetchAllCasesForExport } from '../utils/caseExport';
 import { useToast } from '../context/ToastContext';
 
@@ -57,6 +62,7 @@ const INITIAL_FILTERS = {
     action_object: '',
     statuses: [],
     priority: '',
+    procedural_phase: '',
     tags: [],
     lawyer_ids: [],
     indicator_user_ids: [],
@@ -111,6 +117,20 @@ const formatProcessCount = (count) => `${count} ${count === 1 ? 'processo' : 'pr
 const StatusTag = ({ status }) => {
     const currentStatus = getLegalCaseStatusDetails(status);
     return <span className={styles.statusTag} style={{ backgroundColor: currentStatus.color, color: currentStatus.textColor }}>{currentStatus.name}</span>;
+};
+
+const ProceduralPhaseTag = ({ phase }) => {
+    const details = getProceduralPhaseDetails(phase);
+    if (!details) return null;
+    return (
+        <span
+            className={styles.priorityTag}
+            style={{ backgroundColor: details.color, color: '#ffffff', marginLeft: '0.35rem' }}
+            title="Fase processual informada na planilha do banco"
+        >
+            {details.label}
+        </span>
+    );
 };
 
 const PriorityTag = ({ priority }) => {
@@ -231,6 +251,7 @@ const CaseManagementPage = () => {
         const urlSearch = searchParams.get('search');
         const urlActionObject = searchParams.get('action_object');
         const urlPriority = searchParams.get('priority');
+        const urlProceduralPhase = searchParams.get('procedural_phase');
         const urlTags = searchParams.getAll('tags');
         const urlTagSingle = searchParams.get('tag');
         const urlDateFrom = searchParams.get('date_from');
@@ -244,6 +265,7 @@ const CaseManagementPage = () => {
         if (urlSearch) initial.search = urlSearch;
         if (urlActionObject) initial.action_object = urlActionObject;
         if (urlPriority) initial.priority = urlPriority;
+        if (urlProceduralPhase) initial.procedural_phase = urlProceduralPhase;
         if (urlTags.length > 0) initial.tags = urlTags;
         else if (urlTagSingle) initial.tags = [urlTagSingle];
         if (urlDateFrom) initial.date_from = urlDateFrom;
@@ -776,6 +798,13 @@ const CaseManagementPage = () => {
         });
     }
 
+    if (filters.procedural_phase) {
+        activeFilterChips.push({
+            key: 'procedural_phase',
+            label: `Fase: ${getProceduralPhaseFilterLabel(filters.procedural_phase)}`,
+        });
+    }
+
     if (selectedTagLabel) {
         activeFilterChips.push({
             key: 'tags',
@@ -1030,6 +1059,20 @@ const CaseManagementPage = () => {
                             onChange={(v) => setFilters((prev) => ({ ...prev, priority: v }))}
                             emptyOptionLabel="Todas as prioridades"
                             ariaLabel="Filtro de prioridade"
+                        />
+                    </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaBalanceScale />
+                            Fase processual
+                        </span>
+                        <SingleSelect
+                            options={PROCEDURAL_PHASE_FILTER_OPTIONS}
+                            value={filters.procedural_phase || ''}
+                            onChange={(v) => setFilters((prev) => ({ ...prev, procedural_phase: v }))}
+                            emptyOptionLabel="Todas as fases"
+                            ariaLabel="Filtro de fase processual"
                         />
                     </label>
 
@@ -1293,6 +1336,7 @@ const CaseManagementPage = () => {
                                                         </div>
                                                     )}
                                                     <PriorityTag priority={legalCase.priority} />
+                                                    <ProceduralPhaseTag phase={legalCase.procedural_phase} />
                                                 </td>
                                                 <td>
                                                     <div>{getResponsibleName(legalCase)}</div>

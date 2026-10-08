@@ -139,6 +139,28 @@
     border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
+.phaseRow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.phaseRow svg {
+    min-width: 16px;
+}
+
+.phaseChip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+
 .body {
     display: flex;
     flex-direction: column;

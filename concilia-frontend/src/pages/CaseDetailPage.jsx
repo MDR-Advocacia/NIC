@@ -565,6 +565,7 @@ const CaseDetailPage = () => {
                             {/* Usa helper formatDate */}
                             <div className={styles.infoItem}><label>Distribuição</label><p>{formatDate(legalCase.start_date)}</p></div>
                             <div className={styles.infoItem}><label>Juizado Especial?</label><p>{legalCase.special_court || 'Não'}</p></div>
+                            <div className={styles.infoItem}><label>Fase processual</label><p>{legalCase.procedural_phase || 'Não informada'}</p></div>
                         </div>
                         
                         <div style={{marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0'}}>

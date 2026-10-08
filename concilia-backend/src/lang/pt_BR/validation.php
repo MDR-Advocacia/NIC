@@ -188,6 +188,7 @@ return [
         'cause_value' => 'valor da causa',
         'updated_condemnation_value' => 'valor atualizado da condenação',
         'comarca' => 'comarca',
+        'procedural_phase' => 'fase processual',
         'state' => 'estado',
         'city' => 'cidade',
         'opposing_lawyer' => 'advogado adverso',

@@ -80,6 +80,14 @@ const columnMapping = {
   'Observações Campanhas': 'campaign_observations',
   Prioridade: 'priority',
   Obs: 'description',
+  'Fase Processual': 'procedural_phase',
+  'Fase processual': 'procedural_phase',
+  Fase: 'procedural_phase',
+  'Fase no banco': 'procedural_phase',
+  TX_EST_PRC: 'procedural_phase',
+  // Base Analítica do banco: traz a fase (Inicial, Sentença, Recurso, Cumprimento)
+  'Situação do Processo': 'procedural_phase',
+  'Situacao do Processo': 'procedural_phase',
 };
 
 const fieldLabels = {
@@ -119,6 +127,7 @@ const templateHeaders = [
   'Valor da PCOND',
   'Prioridade',
   'Obs',
+  'Fase Processual',
 ];
 
 const templateExampleRow = [
@@ -138,6 +147,7 @@ const templateExampleRow = [
   '3500,00',
   'media',
   'Observação de exemplo',
+  'Inicial',
 ];
 
 const normalizeHeader = (header) =>
@@ -364,6 +374,7 @@ const mapWeeklyBankSpreadsheetRow = (headers, row) => {
       buildLabeledImportNote('Observação do banco', rowByHeader.TX_OBS_ACRD1),
     ]),
     polo: rowByHeader.Polo,
+    procedural_phase: rowByHeader.TX_EST_PRC,
   });
 };
 

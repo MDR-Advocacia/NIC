@@ -2,9 +2,10 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import styles from '../styles/CaseCard.module.css';
-import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
+import { FaUser, FaLandmark, FaGavel, FaFileAlt, FaClock, FaExclamationTriangle, FaRedo, FaBalanceScale } from 'react-icons/fa';
 import { normalizeCaseTags } from '../constants/caseTags';
 import { isTerminalLegalCaseStatus } from '../constants/legalCaseStatus';
+import { getProceduralPhaseDetails } from '../constants/proceduralPhase';
 
 const getDisplayValue = (value, fallback = 'Nao informado') => {
   if (value === null || value === undefined) return fallback;
@@ -70,6 +71,7 @@ const CaseCardBody = ({
   const caseTags = normalizeCaseTags(legalCase.tags);
   const contraIndicationReason = String(legalCase.contra_indication_reason || '').trim();
   const reanalysisReason = String(legalCase.reanalysis_reason || '').trim();
+  const proceduralPhase = getProceduralPhaseDetails(legalCase.procedural_phase);
 
   let economyPercentage = null;
   const originalValue = parseFloat(legalCase.original_value);
@@ -116,6 +118,18 @@ const CaseCardBody = ({
         )}
 
         <div className={styles.body}>
+          {proceduralPhase && (
+            <div className={styles.phaseRow} title="Fase processual informada na planilha do banco">
+              <FaBalanceScale />
+              <span>Fase:</span>
+              <span
+                className={styles.phaseChip}
+                style={{ backgroundColor: proceduralPhase.color, color: getTagTextColor(proceduralPhase.color) }}
+              >
+                {proceduralPhase.label}
+              </span>
+            </div>
+          )}
           <div className={styles.infoRow}><FaUser /><span>{getDisplayValue(legalCase.opposing_party)}</span></div>
           <div className={styles.infoRow}><FaFileAlt /><span>{getDisplayValue(legalCase.action_object)}</span></div>
 

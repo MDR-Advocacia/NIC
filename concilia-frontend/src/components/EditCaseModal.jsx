@@ -28,6 +28,7 @@ import {
 import { appendCaseTag, normalizeCaseTags, removeCaseTag } from '../constants/caseTags';
 import { getLegalCaseStatusDetails, LEGAL_CASE_STATUS_OPTIONS } from '../constants/legalCaseStatus';
 import AgreementComplianceFields from './AgreementComplianceFields';
+import { PROCEDURAL_PHASES } from '../constants/proceduralPhase';
 import { uploadLegalOpinion, validateComplianceBeforeClose } from '../utils/legalOpinion';
 import { normalizeUserRole } from '../constants/access';
 import { useToast } from '../context/ToastContext';
@@ -87,6 +88,7 @@ const HistoryItem = ({ entry }) => {
         internal_number: 'Nº Interno', city: 'Cidade', action_object: 'Causa de Pedir',
         pcond_probability: 'Valor da PCOND', updated_condemnation_value: 'Condenação Atualizada',
         user_id: 'Responsável do caso',
+        procedural_phase: 'Fase processual',
         indicator_user_id: 'Indicador',
         lawyer_id: 'Responsável do caso',
         contra_indication_reason: 'Motivo da contraindicação',
@@ -617,6 +619,13 @@ const DetailsTab = ({
                         <select className={styles.select} name="special_court" value={formData.special_court || 'Não'} onChange={handleChange}>
                             <option value="Não">Não</option>
                             <option value="Sim">Sim</option>
+                        </select>
+                    </div>
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Fase processual</label>
+                        <select className={styles.select} name="procedural_phase" value={formData.procedural_phase || ''} onChange={handleChange}>
+                            <option value="">Não informada</option>
+                            {PROCEDURAL_PHASES.map((phase) => <option key={phase.value} value={phase.value}>{phase.label}</option>)}
                         </select>
                     </div>
                 </div>
@@ -1194,6 +1203,7 @@ const EditCaseModal = ({ legalCase, onClose, onCaseUpdated, clients, lawyers }) 
                 }),
                 updated_condemnation_value: formData.updated_condemnation_value ? parseFloat(formData.updated_condemnation_value) : null,
                 pcond_probability: formData.pcond_probability ? parseFloat(formData.pcond_probability) : null,
+                procedural_phase: formData.procedural_phase || null,
             };
 
             await apiClient.put(`/cases/${legalCase.id}`, payload, { headers: { Authorization: `Bearer ${token}` } }); 

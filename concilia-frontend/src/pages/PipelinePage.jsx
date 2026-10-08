@@ -14,6 +14,7 @@ import ReanalysisReasonModal from '../components/ReanalysisReasonModal';
 import AgreementFieldsModal from '../components/AgreementFieldsModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import SingleSelect from '../components/SingleSelect';
+import { PROCEDURAL_PHASE_FILTER_OPTIONS, getProceduralPhaseFilterLabel } from '../constants/proceduralPhase';
 import { 
     DndContext, 
     PointerSensor, 
@@ -39,6 +40,7 @@ import {
     FaTag,
     FaFileExport,
     FaInfoCircle,
+    FaBalanceScale,
 } from 'react-icons/fa';
 import {
     LEGAL_CASE_STATUS_DETAILS,
@@ -70,6 +72,7 @@ const INITIAL_FILTERS = {
     lawyer_ids: [],
     indicator_user_id: '',
     priority: '',
+    procedural_phase: '',
     tags: [],
 };
 
@@ -176,6 +179,7 @@ const PipelinePage = () => {
     );
     const indicatorFilter = canChooseIndicator ? (filters.indicator_user_id || '') : '';
     const priorityFilter = filters.priority || '';
+    const proceduralPhaseFilter = filters.procedural_phase || '';
     const tagFilters = Array.isArray(filters.tags) ? filters.tags : [];
     const selectedClientName = clients.find((client) => String(client.id) === String(filters.client_id))?.name;
     const selectedLawyerNames = selectedLawyerIds
@@ -219,6 +223,7 @@ const PipelinePage = () => {
         selectedLawyerFilterLabel ? `Responsáveis: ${selectedLawyerFilterLabel}` : null,
         selectedIndicatorName ? `Indicador: ${selectedIndicatorName}` : null,
         filters.priority ? priorityLabelMap[filters.priority] : null,
+        proceduralPhaseFilter ? `Fase: ${getProceduralPhaseFilterLabel(proceduralPhaseFilter)}` : null,
         selectedTagLabel,
         showDelayedOnly ? 'Apenas atrasados (+5 dias)' : null,
     ].filter(Boolean);
@@ -353,6 +358,7 @@ const PipelinePage = () => {
                 lawyer_ids: selectedLawyerIds,
                 indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
+                procedural_phase: proceduralPhaseFilter,
                 tags: tagFilters,
             };
 
@@ -433,7 +439,7 @@ const PipelinePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, tagFilters, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator, pipelineView]);
+    }, [token, groupCasesByStatus, clientFilter, selectedLawyerIds, indicatorFilter, priorityFilter, proceduralPhaseFilter, tagFilters, debouncedSearch, debouncedActionObject, showDelayedOnly, canChooseIndicator, pipelineView]);
 
     useEffect(() => {
         fetchAllData();
@@ -841,6 +847,7 @@ const PipelinePage = () => {
                 lawyer_ids: selectedLawyerIds,
                 indicator_user_id: indicatorFilter,
                 priority: priorityFilter,
+                procedural_phase: proceduralPhaseFilter,
                 tags: tagFilters,
                 sort_by: 'updated_at',
                 sort_order: 'desc',
@@ -1036,6 +1043,20 @@ const PipelinePage = () => {
                             onChange={(v) => handleFilterChange('priority', v)}
                             emptyOptionLabel="Todas"
                             ariaLabel="Filtro de prioridade"
+                        />
+                    </div>
+
+                    <div className={styles.filterField}>
+                        <label className={styles.filterFieldLabel}>
+                            <FaBalanceScale />
+                            <span>Fase processual</span>
+                        </label>
+                        <SingleSelect
+                            options={PROCEDURAL_PHASE_FILTER_OPTIONS}
+                            value={proceduralPhaseFilter}
+                            onChange={(v) => handleFilterChange('procedural_phase', v)}
+                            emptyOptionLabel="Todas"
+                            ariaLabel="Filtro de fase processual"
                         />
                     </div>
 

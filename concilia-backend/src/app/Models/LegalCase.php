@@ -19,6 +19,10 @@ class LegalCase extends Model
         static::saving(function (self $legalCase) {
             $legalCase->has_alcada = $legalCase->resolveHasAlcadaFromOriginalValue();
 
+            if ($legalCase->isDirty('procedural_phase') && !$legalCase->isDirty('procedural_phase_updated_at')) {
+                $legalCase->procedural_phase_updated_at = $legalCase->procedural_phase ? now() : null;
+            }
+
             if (!$legalCase->exists && empty($legalCase->status_started_at)) {
                 $legalCase->status_started_at = now();
             } elseif ($legalCase->exists && $legalCase->isDirty('status')) {
@@ -69,6 +73,36 @@ class LegalCase extends Model
         self::STATUS_CLOSED_DEAL,
         self::STATUS_FAILED_DEAL,
     ];
+
+    // Fases processuais da planilha semanal do banco (coluna TX_EST_PRC)
+    public const PROCEDURAL_PHASES = ['Inicial', 'Sentença', 'Recurso', 'Cumprimento'];
+
+    /**
+     * Normaliza a fase vinda de planilha ou formulário para um dos valores de PROCEDURAL_PHASES
+     * (ignora caixa e acentos). Retorna null para vazio ou valor desconhecido.
+     */
+    public static function normalizeProceduralPhase(mixed $value): ?string
+    {
+        if ($value === null || !is_scalar($value)) {
+            return null;
+        }
+
+        $comparable = mb_strtolower(trim((string) $value));
+        if ($comparable === '') {
+            return null;
+        }
+
+        $comparable = strtr($comparable, ['ç' => 'c', 'ã' => 'a', 'á' => 'a', 'â' => 'a', 'é' => 'e', 'ê' => 'e', 'í' => 'i', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ú' => 'u']);
+
+        foreach (self::PROCEDURAL_PHASES as $phase) {
+            $phaseComparable = strtr(mb_strtolower($phase), ['ç' => 'c', 'ê' => 'e']);
+            if ($comparable === $phaseComparable) {
+                return $phase;
+            }
+        }
+
+        return null;
+    }
 
     /**
      * Get the history records for the legal case.
@@ -135,7 +169,9 @@ class LegalCase extends Model
         'obligation_description',
         'formalized_by_user_id',
         'formalized_at',
-        'import_batch_id'
+        'import_batch_id',
+        'procedural_phase',
+        'procedural_phase_updated_at',
     ];
 
     protected $casts = [
@@ -153,6 +189,7 @@ class LegalCase extends Model
         'hearing_date' => 'date',
         'has_obligation' => 'boolean',
         'formalized_at' => 'datetime',
+        'procedural_phase_updated_at' => 'datetime',
     ];
 
     private function resolveHasAlcadaFromOriginalValue(): bool
