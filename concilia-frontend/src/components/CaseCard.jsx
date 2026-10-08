@@ -63,6 +63,7 @@ const CaseCardBody = ({
   canKeepContraIndication = false,
   onKeepContraIndication,
   isKeepingContraIndication = false,
+  isOpening = false,
 }) => {
   const lastUpdate = new Date(legalCase.updated_at);
   const today = new Date();
@@ -90,7 +91,7 @@ const CaseCardBody = ({
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <div
-        className={`${styles.card} ${isDelayed ? styles.cardDelayed : ''}`}
+        className={`${styles.card} ${isDelayed ? styles.cardDelayed : ''} ${isOpening ? styles.cardOpening : ''}`}
         onClick={onClick}
       >
         <div className={`${styles.header} ${isDelayed ? styles.headerDelayed : ''}`} {...listeners}>

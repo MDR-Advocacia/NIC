@@ -43,11 +43,16 @@ class LegalCaseController extends Controller
     {
         $this->authorize('viewAny', LegalCase::class);
 
-        try {
-            AuditService::log('view_pipeline', 'O usuário acessou o pipeline de acordos.');
-        } catch (\Exception $e) {}
-        
+        if ((int) $request->input('page', 1) <= 1) {
+            try {
+                AuditService::log('view_pipeline', 'O usuário acessou o pipeline de acordos.');
+            } catch (\Exception $e) {}
+        }
+
         $user = Auth::user();
+        // view=board: versão enxuta para os cards do pipeline (só o que o card e o arrastar usam).
+        // O caso completo é buscado em GET /cases/{id} quando o card é aberto.
+        $isBoardView = $request->input('view') === 'board';
         $indicatorFilterRequested = $request->filled('indicator_user_id');
 
         if ($indicatorFilterRequested && !$this->legalCasesTableHasIndicatorUserId()) {
@@ -56,7 +61,11 @@ class LegalCaseController extends Controller
         
         // Começa a query base, carregando todos os relacionamentos importantes
         $query = LegalCase::whereNull('archived_at')
-            ->with($this->caseRelationshipLoads());
+            ->with($isBoardView ? $this->boardRelationshipLoads() : $this->caseRelationshipLoads());
+
+        if ($isBoardView) {
+            $query->select($this->boardColumns());
+        }
 
         // --- FILTRO POR SCOPE (ALÇADA) ---
         $scope = $request->input('scope', 'pipeline');
@@ -184,7 +193,8 @@ class LegalCaseController extends Controller
 
         // --- PAGINAÇÃO ---
         $perPage = (int) $request->input('per_page', 50);
-        if ($perPage > 200) $perPage = 200;
+        $maxPerPage = $isBoardView ? 1000 : 200;
+        if ($perPage > $maxPerPage) $perPage = $maxPerPage;
         if ($perPage < 1) $perPage = 50;
 
         $paginatedCases = $query->paginate($perPage);
@@ -382,7 +392,10 @@ class LegalCaseController extends Controller
         }
 
         $request->merge($this->resolveActionObjectPayload($request->all()));
-        $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
+        // Atualização parcial (ex.: arrastar card) pode não trazer Ourocap/Livelo: aí não mexe neles
+        if ($request->hasAny(['ourocap_value', 'livelo_points'])) {
+            $request->merge($this->normalizeSettlementBenefitPayload($request->all()));
+        }
         $request->merge($this->resolveAgreementClosedAtPayload($request->all(), $case));
 
         if (array_key_exists('tags', $request->all())) {
@@ -3325,6 +3338,46 @@ class LegalCaseController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Colunas do caso usadas pelo card do pipeline e pelo arrastar entre colunas
+     * (o PUT do arrastar reenvia o que tiver no card, por isso Ourocap/Livelo e data do acordo vêm junto).
+     */
+    private function boardColumns(): array
+    {
+        $columns = [
+            'id', 'case_number', 'internal_number', 'client_id', 'user_id', 'status', 'priority', 'tags',
+            'opposing_party', 'action_object', 'action_object_id', 'original_value', 'agreement_value',
+            'agreement_closed_at', 'cause_value', 'ourocap_value', 'livelo_points', 'has_alcada', 'archived_at',
+            'contra_indication_reason', 'contra_indication_reason_id', 'failed_deal_reason', 'failed_deal_reason_id',
+            'reanalysis_reason', 'agreement_checklist_data', 'procedural_phase',
+            'contra_indication_count', 'last_contra_indication_reason', 'last_contra_indication_reason_id',
+            'last_contra_indicated_at', 'last_contra_indicated_by_name',
+            'status_started_at', 'created_at', 'updated_at',
+        ];
+
+        if ($this->legalCasesTableHasIndicatorUserId()) {
+            $columns[] = 'indicator_user_id';
+        }
+
+        return array_map(static fn ($column) => "legal_cases.{$column}", $columns);
+    }
+
+    private function boardRelationshipLoads(): array
+    {
+        // Só id e nome: o usuário completo tem campo criptografado (Chatwoot) que pesa ao serializar
+        $relationships = [
+            'client:id,name',
+            'lawyer' => fn ($query) => $query->select('id', 'name')->setEagerLoads([]),
+            'actionObject:id,name',
+        ];
+
+        if ($this->legalCasesTableHasIndicatorUserId()) {
+            $relationships['indicator'] = fn ($query) => $query->select('id', 'name')->setEagerLoads([]);
+        }
+
+        return $relationships;
     }
 
     private function caseRelationshipLoads(array $extraRelationships = []): array

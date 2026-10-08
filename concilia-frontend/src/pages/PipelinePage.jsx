@@ -68,7 +68,8 @@ import {
     sortCasesByUpdatedAtDesc,
 } from '../utils/caseExport';
 
-const MAX_API_PAGE_SIZE = 200;
+// view=board devolve a versão enxuta dos casos (só o que o card usa) e aceita páginas de até 1000
+const BOARD_PAGE_SIZE = 1000;
 const REANALYSIS_STATUSES = ['contra_indicated', 'failed_deal'];
 const INITIAL_FILTERS = {
     search: '',
@@ -103,33 +104,33 @@ const buildQueryParams = (params = {}) => {
     return query;
 };
 
+// Busca a primeira página e depois as demais em paralelo (antes eram sequenciais)
 const fetchAllPaginatedResults = async (endpoint, token, params = {}) => {
-    const items = [];
-    let currentPage = 1;
-    let lastPage = 1;
-
-    do {
+    const fetchPage = async (page) => {
         const query = buildQueryParams({
             ...params,
-            page: currentPage,
-            per_page: MAX_API_PAGE_SIZE,
+            page,
+            per_page: BOARD_PAGE_SIZE,
         });
 
         const response = await apiClient.get(`${endpoint}?${query.toString()}`, {
             headers: { Authorization: `Bearer ${token}` },
         });
 
-        const payload = response.data;
-        if (Array.isArray(payload)) {
-            return payload;
-        }
+        return response.data;
+    };
 
-        items.push(...(Array.isArray(payload?.data) ? payload.data : []));
-        lastPage = Number(payload?.last_page || 1);
-        currentPage += 1;
-    } while (currentPage <= lastPage);
+    const firstPage = await fetchPage(1);
+    if (Array.isArray(firstPage)) {
+        return firstPage;
+    }
 
-    return items;
+    const lastPage = Number(firstPage?.last_page || 1);
+    const otherPages = lastPage > 1
+        ? await Promise.all(Array.from({ length: lastPage - 1 }, (_, index) => fetchPage(index + 2)))
+        : [];
+
+    return [firstPage, ...otherPages].flatMap((payload) => (Array.isArray(payload?.data) ? payload.data : []));
 };
 
 const PipelinePage = () => {
@@ -159,6 +160,7 @@ const PipelinePage = () => {
     const [showDelayedOnly, setShowDelayedOnly] = useState(false);
     const [keepingContraCaseId, setKeepingContraCaseId] = useState(null);
     const [draggedCase, setDraggedCase] = useState(null);
+    const [openingCaseId, setOpeningCaseId] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
     const [contraIndicationPrompt, setContraIndicationPrompt] = useState(null);
     const [contraIndicationReason, setContraIndicationReason] = useState('');
@@ -249,7 +251,12 @@ const PipelinePage = () => {
             return;
         }
 
-        setEditingCase(caseToOpen);
+        // O card tem só os dados resumidos: busca o caso completo para o modal
+        setOpeningCaseId(caseToOpen.id);
+        apiClient.get(`/cases/${caseToOpen.id}`, { headers: { Authorization: `Bearer ${token}` } })
+            .then((response) => setEditingCase(response.data))
+            .catch(() => toast.error('Não foi possível abrir o caso. Tente novamente.'))
+            .finally(() => setOpeningCaseId(null));
     };
     const handleCloseEditModal = () => setEditingCase(null);
     const handleOpenIndicationModal = (caseToIndicate) => setIndicationCase(caseToIndicate);
@@ -408,6 +415,7 @@ const PipelinePage = () => {
 
             const fetchParams = {
                 ...effectiveFilters,
+                view: 'board',
                 sort_by: 'updated_at',
                 sort_order: 'desc',
             };
@@ -930,6 +938,7 @@ const PipelinePage = () => {
                         canKeepContraIndication={pipelineView === 'pre' && !isIndicator}
                         onKeepContraIndication={handleKeepContraIndication}
                         keepingContraCaseId={keepingContraCaseId}
+                        openingCaseId={openingCaseId}
                     />
                 ))}
             </div>

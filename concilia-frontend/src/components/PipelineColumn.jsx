@@ -24,6 +24,7 @@ const PipelineColumn = ({
     canKeepContraIndication = false,
     onKeepContraIndication,
     keepingContraCaseId = null,
+    openingCaseId = null,
 }) => {
     const { setNodeRef } = useDroppable({ id, disabled: !enableDrag });
     const { active, over } = useDndContext();
@@ -61,6 +62,7 @@ const PipelineColumn = ({
                         canKeepContraIndication={canKeepContraIndication}
                         onKeepContraIndication={onKeepContraIndication}
                         isKeepingContraIndication={keepingContraCaseId === legalCase.id}
+                        isOpening={openingCaseId === legalCase.id}
                     />
                 ))
             ) : (
