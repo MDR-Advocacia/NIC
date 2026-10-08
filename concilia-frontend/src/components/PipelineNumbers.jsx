@@ -74,7 +74,8 @@ const PipelineNumbers = ({
             const updatedAt = new Date(legalCase?.updated_at).getTime();
             return Number.isFinite(updatedAt) && Math.ceil(Math.abs(today - updatedAt) / DAY_MS) > 5;
         }).length;
-        const initial = grouped?.initial_analysis || [];
+        // A coluna Revisão Rápida também é Análise Inicial no banco
+        const initial = [...(grouped?.initial_analysis || []), ...(grouped?.quick_review || [])];
 
         return {
             total: allCases.length,

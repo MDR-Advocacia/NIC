@@ -27,6 +27,24 @@ export const getContraRecurrence = (legalCase) => {
 export const isRecurrentInQueue = (legalCase) =>
     Boolean(getContraRecurrence(legalCase)) && legalCase?.status !== 'contra_indicated';
 
+// Fila de revisão rápida: casos que voltaram para a análise inicial e foram
+// contraindicados há pouco tempo. Ajuste aqui o que conta como "recente".
+export const QUICK_REVIEW_WINDOW_DAYS = 90;
+export const QUICK_REVIEW_COLUMN = 'quick_review';
+
+export const isInQuickReview = (legalCase, referenceDate = new Date()) => {
+    if (legalCase?.status !== 'initial_analysis' || Number(legalCase?.contra_indication_count || 0) <= 0) {
+        return false;
+    }
+
+    const lastContraAt = new Date(legalCase?.last_contra_indicated_at);
+    if (Number.isNaN(lastContraAt.getTime())) {
+        return false;
+    }
+
+    return (referenceDate - lastContraAt) / (1000 * 60 * 60 * 24) <= QUICK_REVIEW_WINDOW_DAYS;
+};
+
 export const CONTRA_RECURRENT_FILTER_OPTIONS = [
     { value: '1', label: 'Já contraindicados antes' },
 ];

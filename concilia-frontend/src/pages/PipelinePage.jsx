@@ -17,7 +17,12 @@ import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import SingleSelect from '../components/SingleSelect';
 import PipelineNumbers from '../components/PipelineNumbers';
 import { PROCEDURAL_PHASE_FILTER_OPTIONS, getProceduralPhaseFilterLabel } from '../constants/proceduralPhase';
-import { CONTRA_RECURRENT_FILTER_OPTIONS } from '../utils/contraRecurrence';
+import {
+    CONTRA_RECURRENT_FILTER_OPTIONS,
+    QUICK_REVIEW_COLUMN,
+    QUICK_REVIEW_WINDOW_DAYS,
+    isInQuickReview,
+} from '../utils/contraRecurrence';
 import { 
     DndContext,
     DragOverlay,
@@ -336,15 +341,24 @@ const PipelinePage = () => {
         return () => clearTimeout(timer);
     }, [actionObjectFilter]);
 
-    const groupCasesByStatus = useCallback((cases, statusOrder = LEGAL_CASE_STATUS_ORDER) => {
+    const groupCasesByStatus = useCallback((cases, statusOrder = LEGAL_CASE_STATUS_ORDER, { quickReview = false } = {}) => {
         const initialGroups = statusOrder.reduce((acc, statusKey) => {
             acc[statusKey] = LEGAL_CASE_STATUS_DETAILS[statusKey]?.name || statusKey;
+            // Coluna só de exibição: no banco esses casos continuam em Análise Inicial
+            if (quickReview && statusKey === 'initial_analysis') {
+                acc[QUICK_REVIEW_COLUMN] = 'Revisão Rápida';
+            }
             return acc;
         }, {});
         const grouped = Object.keys(initialGroups).reduce((acc, key) => ({ ...acc, [key]: [] }), {});
+        const now = new Date();
         [...(cases || [])]
             .sort((firstCase, secondCase) => new Date(secondCase.updated_at) - new Date(firstCase.updated_at))
             .forEach(currentCase => {
+            if (quickReview && isInQuickReview(currentCase, now)) {
+                grouped[QUICK_REVIEW_COLUMN].push(currentCase);
+                return;
+            }
             if (grouped[currentCase.status]) {
                 grouped[currentCase.status].push(currentCase);
             }
@@ -446,7 +460,7 @@ const PipelinePage = () => {
 
             const groupedCases = pipelineView === 'post'
                 ? groupCasesByStatus(fetchedCases, POST_AGREEMENT_STATUS_ORDER)
-                : groupCasesByStatus(fetchedCases, LEGAL_CASE_STATUS_ORDER);
+                : groupCasesByStatus(fetchedCases, LEGAL_CASE_STATUS_ORDER, { quickReview: !isIndicator });
             setPipelineData(groupedCases);
             setClients(clientsResponse.data);
             setLawyers(fetchedLawyers);
@@ -496,6 +510,10 @@ const PipelinePage = () => {
         const overContainer = findContainer(overId);
 
         if (!activeContainer || !overContainer || activeContainer === overContainer) return;
+        // A revisão rápida é calculada (não é um status): não recebe cards, e sair dela
+        // para a Análise Inicial não muda nada
+        if (overContainer === QUICK_REVIEW_COLUMN) return;
+        if (activeContainer === QUICK_REVIEW_COLUMN && overContainer === 'initial_analysis') return;
 
         // Move o item visualmente entre colunas durante o arraste
         setPipelineData((prev) => {
@@ -745,6 +763,10 @@ const PipelinePage = () => {
             return;
         }
 
+        if (overContainer === QUICK_REVIEW_COLUMN) {
+            return;
+        }
+
         // 2. Encontra o objeto do caso (Card) na lista atual
         const movedCase = pipelineData.grouped[currentContainerOfItem].find(
             (c) => String(c.id) === String(active.id)
@@ -917,6 +939,7 @@ const PipelinePage = () => {
 
     const postAgreementTooltips = {
         pending_obf: 'Obrigação de Fazer',
+        [QUICK_REVIEW_COLUMN]: `Casos de volta na análise inicial que foram contraindicados nos últimos ${QUICK_REVIEW_WINDOW_DAYS} dias. Se nada mudou no processo, use "Manter contraindicação".`,
     };
 
     const boardContent = (

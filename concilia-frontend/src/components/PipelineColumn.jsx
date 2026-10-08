@@ -76,7 +76,7 @@ const PipelineColumn = ({
     return (
         <div
             ref={enableDrag ? setNodeRef : undefined}
-            className={`${styles.pipelineColumn} ${isDragging ? styles.pipelineColumnDragging : ''} ${isDropTarget ? styles.pipelineColumnDropTarget : ''}`}
+            className={`${styles.pipelineColumn} ${id === 'quick_review' ? styles.pipelineColumnQuickReview : ''} ${isDragging ? styles.pipelineColumnDragging : ''} ${isDropTarget ? styles.pipelineColumnDropTarget : ''}`}
             style={columnStyle}
         >
             <header className={styles.pipelineColumnHeader}>
