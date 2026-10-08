@@ -1550,3 +1550,130 @@ select.filterControl {
     opacity: 1;
     color: var(--accent-color);
 }
+
+/* =====================================================================
+   Atualização visual (padrão "Distribuição diária" do Flow) — 10/2026
+   Só aparência: cartões com cantos maiores e borda fina, rótulos em
+   caixa alta pequena, números grandes tabulares e entrada suave.
+   ===================================================================== */
+
+.kpiSections,
+.dashboardGrid,
+.unfilteredSections {
+    animation: flowFadeUp 0.4s ease-out both;
+}
+
+.dashboardGrid { animation-delay: 0.06s; }
+.unfilteredSections { animation-delay: 0.12s; }
+
+@keyframes flowFadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* KPIs */
+.kpiGrid {
+    gap: 1rem;
+}
+
+.kpiCard {
+    position: relative;
+    padding: 1rem 1.1rem 1.05rem;
+    border: 1px solid var(--border-color-light);
+    border-left: 1px solid var(--border-color-light);
+    border-radius: 18px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.kpiCard::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--accent-primary);
+    opacity: 0.85;
+}
+
+.kpiCard:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+}
+
+.kpiTitle {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.kpiValue {
+    margin-top: 0.35rem;
+    font-size: clamp(1.45rem, 1.2rem + 0.8vw, 1.9rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+.kpiDescription {
+    margin-top: 0.4rem;
+    font-size: 0.78rem;
+}
+
+/* Títulos de seção: caixa alta, peso forte, espaçamento largo */
+.kpiSectionTitle,
+.analyticsSectionTitle,
+.teamPerformanceSectionHeader h3,
+.unfilteredSectionHeader h3,
+.recentCasesTitle,
+.chartCard h3,
+.mainContent > .chartsGrid > .chartCard h3 {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.analyticsCardTitle {
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+/* Cartões */
+.chartCard,
+.unfilteredSections > .statusDistribution,
+.unfilteredSections > .recentCases {
+    border: 1px solid var(--border-color-light);
+    border-radius: 22px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.analyticsCard {
+    border-radius: 22px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.analyticsCard:hover {
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.indicationSection {
+    border-radius: 24px;
+}
+
+.filterGroupCard {
+    border-radius: 18px;
+    box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kpiSections, .dashboardGrid, .unfilteredSections { animation: none; }
+    .kpiCard:hover,
+    .analyticsCard:hover { transform: none; }
+}

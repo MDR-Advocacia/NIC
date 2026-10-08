@@ -1,0 +1,50 @@
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.kpiRow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.chartRow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.1rem;
+    border: 1px solid var(--border-color-light);
+    border-radius: 20px;
+    background: var(--bg-card);
+}
+
+.tableRow {
+    display: flex;
+    gap: 1.25rem;
+    padding: 0.85rem 0;
+    border-top: 1px solid var(--border-color-light);
+}
+
+.block {
+    border-radius: 8px;
+    background: linear-gradient(90deg, var(--surface-card-sunken) 25%, var(--border-color-light) 50%, var(--surface-card-sunken) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block { animation: none; }
+}

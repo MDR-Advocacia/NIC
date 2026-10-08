@@ -11,6 +11,7 @@ import {
     FaChevronDown, FaEyeSlash, FaArchive, FaBalanceScale, FaHistory, FaBan
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
+import PageSkeleton from '../components/PageSkeleton';
 import EditCaseModal from '../components/EditCaseModal';
 import TagMultiSelect from '../components/TagMultiSelect';
 import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
@@ -1287,7 +1288,7 @@ const CaseManagementPage = () => {
             </section>
             
             <section className={styles.tableContainer}>
-                {loading ? <p>Carregando...</p> : error ? <p style={{color:'red'}}>{error}</p> : (
+                {loading ? <PageSkeleton rows={10} label="Carregando casos" /> : error ? <p style={{color:'red'}}>{error}</p> : (
                     <>
                         {/* --- CONTROLES DE PAGINAÇÃO (TOPO) --- */}
                         <div className={styles.paginationTopBar}>

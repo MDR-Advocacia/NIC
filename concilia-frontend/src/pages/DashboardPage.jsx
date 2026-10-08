@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 import CasesTable from '../components/CasesTable';
 import KpiCard from '../components/KpiCard';
+import PageSkeleton from '../components/PageSkeleton';
 import MetricInfoHint from '../components/MetricInfoHint';
 import StatusDistributionChart from '../components/StatusDistributionChartJS';
 import ProcessStageChart from '../components/ProcessStageChart';
@@ -767,7 +768,7 @@ const DashboardPage = () => {
         );
     };
 
-    if (isInitialLoading) return <p>Carregando dashboard...</p>;
+    if (isInitialLoading) return <PageSkeleton variant="dashboard" label="Carregando dashboard" />;
     if (error && !dashboardData) return <p style={{ color: 'red' }}>{error}</p>;
 
     return (

@@ -1019,3 +1019,132 @@
         width: 100%;
     }
 }
+
+/* =====================================================================
+   Atualização visual (padrão "Distribuição diária" do Flow) — 10/2026
+   ===================================================================== */
+
+.kpiGrid,
+.filtersContainer,
+.tableContainer,
+.emptyState {
+    animation: flowFadeUp 0.4s ease-out both;
+}
+
+.filtersContainer { animation-delay: 0.05s; }
+.tableContainer,
+.emptyState { animation-delay: 0.1s; }
+
+@keyframes flowFadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+}
+
+.kpiGrid {
+    gap: 1rem;
+}
+
+.filtersContainer {
+    border-radius: 22px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.newCaseButton,
+.exportButton {
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+/* Tabela */
+.tableContainer {
+    padding: 0.35rem 0.5rem 0.5rem;
+    border-radius: 22px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border-color-light);
+    background: var(--bg-card);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.table td {
+    padding: 0.85rem 1rem;
+}
+
+.table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.table tbody tr:hover {
+    background-color: var(--surface-card-sunken);
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.rowSelected,
+.table tbody tr.rowSelected {
+    background-color: var(--accent-pill-bg, rgba(37, 99, 235, 0.08));
+    box-shadow: inset 3px 0 0 var(--accent-primary);
+}
+
+.caseLink {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.statusTag,
+.priorityTag {
+    border-radius: 999px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+/* Barra de ações em lote (flutuante) */
+.batchActionBar {
+    border: 1px solid var(--border-color-light);
+    border-radius: 20px;
+    background-color: var(--bg-card);
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.22);
+    backdrop-filter: blur(10px);
+    animation: batchBarIn 0.28s cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes batchBarIn {
+    from { opacity: 0; transform: translate(-50%, 24px) scale(0.98); }
+    to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+.batchBtn {
+    border-radius: 12px;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.batchBtn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+}
+
+.paginationBtn {
+    border-radius: 10px;
+}
+
+.emptyState {
+    border-radius: 22px;
+    background: var(--bg-card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kpiGrid, .filtersContainer, .tableContainer, .emptyState { animation: none; }
+    .batchActionBar { animation: none; }
+    .batchBtn:hover:not(:disabled) { transform: none; }
+}
