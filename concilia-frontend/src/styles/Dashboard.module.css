@@ -1560,7 +1560,7 @@ select.filterControl {
 .kpiSections,
 .dashboardGrid,
 .unfilteredSections {
-    animation: flowFadeUp 0.4s ease-out both;
+    animation: flowFadeUp 0.4s ease-out backwards;
 }
 
 .dashboardGrid { animation-delay: 0.06s; }

@@ -1028,7 +1028,7 @@
 .filtersContainer,
 .tableContainer,
 .emptyState {
-    animation: flowFadeUp 0.4s ease-out both;
+    animation: flowFadeUp 0.4s ease-out backwards;
 }
 
 .filtersContainer { animation-delay: 0.05s; }
@@ -1147,4 +1147,9 @@
     .kpiGrid, .filtersContainer, .tableContainer, .emptyState { animation: none; }
     .batchActionBar { animation: none; }
     .batchBtn:hover:not(:disabled) { transform: none; }
+}
+
+/* Os popovers dos filtros (responsável, indicador, etiquetas) ficam acima da tabela */
+.filtersContainer {
+    z-index: 30;
 }
