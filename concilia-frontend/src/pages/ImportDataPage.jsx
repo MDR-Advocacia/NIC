@@ -1232,7 +1232,7 @@ const ImportDataPage = () => {
 
         </article>
 
-        <article className={styles.panelCard}>
+        <article className={`${styles.panelCard} ${styles.exportCard}`}>
           <div className={styles.cardHeader}>
             <div>
               <h2 className={styles.titleWithHint}>
@@ -1246,6 +1246,7 @@ const ImportDataPage = () => {
             <span className={styles.sectionTag}>CSV</span>
           </div>
 
+          <p className={styles.exportCaption}>Processos já cadastrados no NIC, em CSV.</p>
 
           <button
             type="button"
