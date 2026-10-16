@@ -1153,3 +1153,10 @@
 .filtersContainer {
     z-index: 30;
 }
+
+/* Título com (i): o texto explicativo aparece ao passar o mouse */
+.titleWithHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}

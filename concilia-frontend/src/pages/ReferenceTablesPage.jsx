@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { FaSearch, FaPlus, FaEdit, FaCheck, FaTimes, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import apiClient from '../api';
 import styles from '../styles/ReferenceTables.module.css';
+import MetricInfoHint from '../components/MetricInfoHint';
+import PageSkeleton from '../components/PageSkeleton';
 
 const TABS = [
   {
@@ -336,7 +338,7 @@ function ReferenceTable({ tab }) {
             {loading ? (
               <tr>
                 <td colSpan={tab.columns.length + 1} className={styles.loadingCell}>
-                  Carregando...
+                  <PageSkeleton rows={6} label="Carregando registros" />
                 </td>
               </tr>
             ) : paginated.length === 0 ? (
@@ -413,10 +415,10 @@ export default function ReferenceTablesPage() {
   return (
     <div className={styles.pageContainer}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>Tabelas de Referência</h1>
-        <p className={styles.pageSubtitle}>
-          Gerencie os dados de referência utilizados no sistema.
-        </p>
+        <h1 className={`${styles.pageTitle} ${styles.titleWithHint}`}>
+          Tabelas de Referência
+          <MetricInfoHint placement="bottom" text="Gerencie os dados de referência utilizados no sistema." />
+        </h1>
       </div>
 
       <div className={styles.tabBar}>

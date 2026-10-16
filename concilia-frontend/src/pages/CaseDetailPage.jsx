@@ -17,6 +17,8 @@ import { downloadLegalOpinion } from '../utils/legalOpinion';
 import { isIndicatorRole, isManagerRole } from '../constants/access';
 import { useToast } from '../context/ToastContext';
 import FormalizeAgreementModal from '../components/FormalizeAgreementModal';
+import MetricInfoHint from '../components/MetricInfoHint';
+import PageSkeleton from '../components/PageSkeleton';
 import {
     formatLiveloPoints,
     getSettlementBenefitType,
@@ -251,14 +253,14 @@ const CaseDetailPage = () => {
         }
     };
 
-    if (loading) return <p style={{padding:'20px'}}>Carregando detalhes do processo...</p>;
+    if (loading) return <PageSkeleton rows={8} label="Carregando detalhes do processo" />;
     
     if (error) return (
-        <div style={{padding:'20px', color: '#e53e3e'}}>
+        <div style={{padding:'20px', color: 'var(--danger-text)'}}>
             <h3>Ops! Algo deu errado.</h3>
             <p>{error}</p>
             {debugInfo && (
-                <div style={{background: '#fff5f5', padding: '10px', borderRadius: '5px', marginTop: '10px', border: '1px solid #feb2b2'}}>
+                <div style={{background: 'var(--danger-soft)', padding: '10px', borderRadius: '10px', marginTop: '10px', border: '1px solid var(--danger-soft-strong)'}}>
                     <strong>Detalhes técnicos:</strong>
                     <pre style={{whiteSpace: 'pre-wrap', fontSize: '0.85rem'}}>{debugInfo}</pre>
                 </div>
@@ -382,7 +384,7 @@ const CaseDetailPage = () => {
                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                         <h1 className={styles.title}>Processo #{legalCase.case_number || 'S/N'}</h1>
                         {legalCase.internal_number && (
-                            <span style={{background:'#edf2f7', padding:'2px 8px', borderRadius:'4px', fontSize:'0.8rem', color:'#4a5568'}}>
+                            <span className={styles.internalBadge}>
                                 Interno: {legalCase.internal_number}
                             </span>
                         )}
@@ -402,9 +404,9 @@ const CaseDetailPage = () => {
                         <button
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '8px',
-                                padding: '10px 20px', border: 'none', borderRadius: '8px',
-                                background: '#059669', color: '#fff', fontSize: '0.9rem',
-                                fontWeight: 600, cursor: 'pointer'
+                                padding: '10px 20px', border: 'none', borderRadius: '12px', minHeight: '42px',
+                                background: 'var(--success-primary)', color: '#fff', fontSize: '0.9rem',
+                                fontWeight: 700, cursor: 'pointer'
                             }}
                             onClick={() => setShowFormalizeModal(true)}
                         >
@@ -420,7 +422,7 @@ const CaseDetailPage = () => {
 
             {/* PARECER JURÍDICO (GOLPE/SEGURO PRESTAMISTA) */}
             {legalCase.agreement_fraud_insurance && (
-                <div style={{background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8', padding: '1rem', borderRadius: '6px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
+                <div style={{background: 'var(--accent-pill-bg)', border: '1px solid var(--accent-border-soft)', color: 'var(--accent-primary)', padding: '1rem', borderRadius: '14px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
                     <FaFilePdf size={18} />
                     <span style={{flex: 1, minWidth: '240px'}}>
                         <strong>Acordo com matéria de golpe/seguro prestamista.</strong>{' '}
@@ -432,7 +434,7 @@ const CaseDetailPage = () => {
                         <button
                             type="button"
                             onClick={handleDownloadLegalOpinion}
-                            style={{border: '1px solid #1d4ed8', background: '#fff', color: '#1d4ed8', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600}}
+                            style={{border: '1px solid var(--accent-primary)', background: 'var(--bg-card)', color: 'var(--accent-primary)', padding: '6px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700}}
                         >
                             Baixar parecer
                         </button>
@@ -442,7 +444,7 @@ const CaseDetailPage = () => {
 
             {/* ALERTAS VISUAIS */}
             {isAbusiveLawyer && (
-                <div style={{background: '#fff5f5', border: '1px solid #fc8181', color: '#c53030', padding: '1rem', borderRadius: '6px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px'}}>
+                <div style={{background: 'var(--danger-soft)', border: '1px solid var(--danger-soft-strong)', color: 'var(--danger-text)', padding: '1rem', borderRadius: '14px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px'}}>
                     <FaExclamationTriangle size={20} />
                     <div>
                         <strong>Atenção: Litigante Abusivo Identificado</strong>
@@ -488,7 +490,7 @@ const CaseDetailPage = () => {
             )}
 
             {isIndicator && (
-                <div style={{background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', padding: '1rem', borderRadius: '10px', marginBottom: '1.5rem', fontWeight: 600}}>
+                <div style={{background: 'var(--accent-pill-bg)', border: '1px solid var(--accent-border-soft)', color: 'var(--accent-primary)', padding: '1rem', borderRadius: '14px', marginBottom: '1.5rem', fontWeight: 600}}>
                     Este detalhe está disponível em modo somente leitura para acompanhamento das suas indicações.
                 </div>
             )}
@@ -511,7 +513,7 @@ const CaseDetailPage = () => {
                 <div className={styles.leftColumn}>
                     {/* INFO GERAL */}
                     <div className={styles.infoCard}>
-                        <h3><FaGavel style={{marginRight:'8px', color:'#718096'}}/> Dados do Processo</h3>
+                        <h3><FaGavel style={{marginRight:'8px', color:'var(--text-secondary)'}}/> Dados do Processo</h3>
                         <div className={styles.infoGrid}>
                             <div className={styles.infoItem}><label>Banco</label><p>{legalCase.client?.name || 'Não vinculado'}</p></div>
                             <div className={styles.infoItem}>
@@ -521,7 +523,7 @@ const CaseDetailPage = () => {
                                         <select
                                             value={selectedOperatorId}
                                             onChange={(e) => setSelectedOperatorId(e.target.value)}
-                                            style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e0', fontSize: '0.9rem', flex: 1 }}
+                                            style={{ padding: '4px 8px', borderRadius: '10px', border: '1px solid var(--border-color-light)', background: 'var(--bg-input, var(--bg-card))', color: 'var(--text-primary)', fontSize: '0.9rem', flex: 1 }}
                                         >
                                             <option value="">Selecione...</option>
                                             {operators.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
@@ -549,7 +551,7 @@ const CaseDetailPage = () => {
                                         {canChangeResponsible && (
                                             <button
                                                 onClick={handleStartEditResponsible}
-                                                style={{ background: 'none', border: 'none', color: '#4299e1', cursor: 'pointer', padding: '2px', display: 'inline-flex', alignItems: 'center' }}
+                                                style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', padding: '2px', display: 'inline-flex', alignItems: 'center' }}
                                                 title="Alterar responsável"
                                             >
                                                 <FaPencilAlt size={12} />
@@ -568,7 +570,7 @@ const CaseDetailPage = () => {
                             <div className={styles.infoItem}><label>Fase processual</label><p>{legalCase.procedural_phase || 'Não informada'}</p></div>
                         </div>
                         
-                        <div style={{marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0'}}>
+                        <div style={{marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color-light)'}}>
                             <div className={styles.infoGrid}>
                                 <div className={styles.infoItem}><label><FaMapMarkerAlt /> Comarca</label><p>{legalCase.comarca || '-'}</p></div>
                                 <div className={styles.infoItem}><label>Cidade</label><p>{legalCase.city || '-'}</p></div>
@@ -613,7 +615,7 @@ const CaseDetailPage = () => {
                                 contactNumber={conversation.contact_phone}
                             />
                         ) : (
-                            <p style={{color: '#a0aec0', fontStyle: 'italic'}}>Nenhuma conversa vinculada a este caso.</p>
+                            <p style={{color: 'var(--text-secondary)', fontStyle: 'italic'}}>Nenhuma conversa vinculada a este caso.</p>
                         )}
                     </div>
                 </div>
@@ -623,44 +625,56 @@ const CaseDetailPage = () => {
                     <div className={styles.infoCard}>
                         <h3>$ Análise Financeira</h3>
                         <div className={`${styles.valueBlock} ${styles.blueBlock}`}>
-                            <label>Alçada (Original)</label>
+                            <label className={styles.titleWithHint}>
+                                Alçada (Original)
+                                <MetricInfoHint text="Limite aprovado." />
+                            </label>
                             <p>{formatCurrency(legalCase.original_value)}</p>
-                            <span>Limite aprovado</span>
                         </div>
                         
                         {legalCase.updated_condemnation_value && (
-                            <div className={`${styles.valueBlock}`} style={{background: '#fff5f5', borderLeft: '4px solid #fc8181', marginTop:'10px'}}>
-                                <label style={{color:'#c53030'}}>Condenação Atualizada</label>
-                                <p style={{color:'#c53030', fontSize:'1.2rem', fontWeight:'bold'}}>{formatCurrency(legalCase.updated_condemnation_value)}</p>
-                                <span>Risco estimado</span>
+                            <div className={`${styles.valueBlock}`} style={{background: 'var(--danger-soft)', borderLeft: '4px solid var(--danger-soft-strong)', marginTop:'10px'}}>
+                                <label className={styles.titleWithHint} style={{color:'var(--danger-text)'}}>
+                                    Condenação Atualizada
+                                    <MetricInfoHint text="Risco estimado." />
+                                </label>
+                                <p style={{color:'var(--danger-text)', fontSize:'1.2rem', fontWeight:'bold'}}>{formatCurrency(legalCase.updated_condemnation_value)}</p>
                             </div>
                         )}
 
                         <div className={`${styles.valueBlock} ${styles.greenBlock}`} style={{marginTop:'10px'}}>
-                            <label>Proposta Acordo</label>
+                            <label className={styles.titleWithHint}>
+                                Proposta Acordo
+                                <MetricInfoHint text="Valor atual trabalhado." />
+                            </label>
                             <p>{formatCurrency(legalCase.agreement_value)}</p>
-                            <span>Valor atual trabalhado</span>
                         </div>
 
                         <div className={styles.valueBlock} style={{marginTop:'10px'}}>
-                            <label>Data do Fechamento do Acordo</label>
+                            <label className={styles.titleWithHint}>
+                                Data do Fechamento do Acordo
+                                <MetricInfoHint text="Data real considerada pelo dashboard." />
+                            </label>
                             <p>{formatDate(legalCase.agreement_closed_at)}</p>
-                            <span>Data real considerada pelo dashboard</span>
                         </div>
 
                         {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.OUROCAP && (
                             <div className={styles.valueBlock} style={{ background: 'rgba(217, 119, 6, 0.12)', border: '1px solid #d97706', marginTop: '10px' }}>
-                                <label>Ourocap</label>
+                                <label className={styles.titleWithHint}>
+                                    Ourocap
+                                    <MetricInfoHint text="Benefício complementar em dinheiro." />
+                                </label>
                                 <p>{formatCurrency(legalCase.ourocap_value)}</p>
-                                <span>Benefício complementar em dinheiro</span>
                             </div>
                         )}
 
                         {settlementBenefitType === SETTLEMENT_BENEFIT_TYPES.LIVELO && (
                             <div className={styles.valueBlock} style={{ background: 'rgba(37, 99, 235, 0.12)', border: '1px solid #2563eb', marginTop: '10px' }}>
-                                <label>Livelo</label>
+                                <label className={styles.titleWithHint}>
+                                    Livelo
+                                    <MetricInfoHint text="Benefício complementar em pontuação." />
+                                </label>
                                 <p>{formatLiveloPoints(legalCase.livelo_points)} pontos</p>
-                                <span>Benefício complementar em pontuação</span>
                             </div>
                         )}
                     </div>

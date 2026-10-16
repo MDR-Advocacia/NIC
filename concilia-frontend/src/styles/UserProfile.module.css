@@ -319,3 +319,126 @@
         flex-direction: column;
     }
 }
+
+/* =====================================================================
+   Atualização visual (padrão Flow) — 10/2026
+   ===================================================================== */
+
+.titleWithHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.card {
+    border: 1px solid var(--border-color-light);
+    border-radius: 22px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    animation: flowFadeUp 0.35s ease-out backwards;
+}
+
+.card:nth-of-type(2) { animation-delay: 0.05s; }
+.card:nth-of-type(3) { animation-delay: 0.1s; }
+
+@keyframes flowFadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+.header {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.input {
+    min-height: 42px;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--border-color-light);
+    border-radius: 10px;
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
+    transform: none;
+}
+
+.btn {
+    min-height: 42px;
+    border-radius: 12px;
+    font-weight: 700;
+    color: var(--text-on-accent, #ffffff);
+}
+
+.iconButton {
+    border-radius: 10px;
+    transition: transform 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.iconButton:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* No tema escuro --danger-text é claro; o fundo do botão usa a cor primária de perigo */
+.dangerBtn {
+    background: var(--danger-primary);
+}
+
+.info {
+    border-color: var(--warning-soft-strong);
+}
+
+.statusBadge {
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.connectionPanel,
+.instructionsPanel,
+.tokenPanel {
+    border-radius: 16px;
+}
+
+.connectionPanel {
+    background: var(--surface-card-sunken);
+}
+
+.instructionsTitle {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.sectionTitle {
+    font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card {
+        animation: none;
+    }
+    .iconButton:hover:not(:disabled) {
+        transform: none;
+    }
+}

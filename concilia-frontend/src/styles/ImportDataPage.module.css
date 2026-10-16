@@ -567,7 +567,7 @@
 .officeSelect:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px var(--focus-ring, rgba(37, 99, 235, 0.18));
+  box-shadow: var(--focus-ring);
 }
 
 /* Cartões e títulos */

@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import styles from '../styles/UserManagement.module.css';
 import { FaSync, FaSearch, FaShieldAlt, FaExclamationTriangle, FaSlidersH, FaEraser } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
+import MetricInfoHint from '../components/MetricInfoHint';
+import PageSkeleton from '../components/PageSkeleton';
 
 const SystemLogsPage = () => {
     const { token } = useAuth();
@@ -46,19 +48,21 @@ const SystemLogsPage = () => {
 
     const getActionStyle = (action) => {
         const act = action ? action.toLowerCase() : '';
-        if (act.includes('exclu')) return { bg: '#fee2e2', color: '#991b1b' };
-        if (act.includes('cria') || act.includes('novo')) return { bg: '#dcfce7', color: '#166534' };
-        if (act.includes('edi') || act.includes('atualiza')) return { bg: '#fef3c7', color: '#b45309' };
-        if (act.includes('login')) return { bg: '#e0f2fe', color: '#0369a1' };
-        return { bg: '#f1f5f9', color: '#475569' };
+        if (act.includes('exclu')) return { bg: 'var(--danger-soft)', color: 'var(--danger-text)' };
+        if (act.includes('cria') || act.includes('novo')) return { bg: 'var(--success-soft)', color: 'var(--success-text)' };
+        if (act.includes('edi') || act.includes('atualiza')) return { bg: 'var(--warning-soft)', color: 'var(--warning-text)' };
+        if (act.includes('login')) return { bg: 'var(--accent-pill-bg)', color: 'var(--accent-pill-text)' };
+        return { bg: 'var(--neutral-soft)', color: 'var(--text-secondary)' };
     };
 
     return (
         <div className={styles.pageContainer}>
             <header className={styles.header}>
                 <div>
-                    <h1>Auditoria do Sistema</h1>
-                    <p>Rastreabilidade completa de ações e segurança (Dados Reais)</p>
+                    <h1 className={styles.titleWithHint}>
+                        Auditoria do Sistema
+                        <MetricInfoHint placement="bottom" text="Rastreabilidade completa de ações e segurança (Dados Reais)." />
+                    </h1>
                 </div>
                 <div className={styles.headerActions}>
                     <button className={styles.actionButton} onClick={fetchLogs}>
@@ -79,10 +83,13 @@ const SystemLogsPage = () => {
                             <FaSlidersH />
                         </div>
                         <div className={styles.filtersHeading}>
-                            <h3>Filtros da Auditoria</h3>
-                            <p>
-                                Busque rapidamente por usuário, ação ou detalhe técnico para revisar o histórico com mais agilidade.
-                            </p>
+                            <h3 className={styles.titleWithHint}>
+                                Filtros da Auditoria
+                                <MetricInfoHint
+                                    placement="bottom"
+                                    text="Busque rapidamente por usuário, ação ou detalhe técnico para revisar o histórico com mais agilidade."
+                                />
+                            </h3>
                         </div>
                     </div>
                     <span className={styles.filterCount}>
@@ -135,13 +142,13 @@ const SystemLogsPage = () => {
 
             <section className={styles.tableContainer}>
                 {loading ? (
-                    <p style={{padding: '20px', textAlign: 'center'}}>Carregando histórico real...</p>
+                    <PageSkeleton rows={8} label="Carregando histórico real" />
                 ) : error ? (
-                    <div style={{padding: '20px', textAlign: 'center', color: '#ef4444'}}>
+                    <div style={{padding: '20px', textAlign: 'center', color: 'var(--danger-primary)'}}>
                         <FaExclamationTriangle /> {error}
                     </div>
                 ) : logs.length === 0 ? (
-                    <div style={{padding: '40px', textAlign: 'center', color: '#64748b'}}>
+                    <div style={{padding: '40px', textAlign: 'center', color: 'var(--text-secondary)'}}>
                         <p>Nenhum log registrado no banco de dados ainda.</p>
                         <small>Crie um usuário ou faça login para gerar o primeiro registro.</small>
                     </div>

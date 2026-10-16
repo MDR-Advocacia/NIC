@@ -459,3 +459,171 @@
   .footer { flex-direction: column; }
   .saveButton, .cancelButton { width: 100%; justify-content: center; }
 }
+
+/* =====================================================================
+   Atualização visual (padrão Flow) — 10/2026
+   ===================================================================== */
+
+.header h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Título com (i): o texto explicativo aparece ao passar o mouse */
+.titleWithHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* Cartões de seção */
+.section {
+  border: 1px solid var(--border-color-light);
+  border-radius: 22px;
+  background: var(--bg-card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  animation: flowFadeUp 0.35s ease-out backwards;
+}
+
+.section:nth-of-type(2) { animation-delay: 0.04s; }
+.section:nth-of-type(3) { animation-delay: 0.08s; }
+.section:nth-of-type(n + 4) { animation-delay: 0.12s; }
+
+@keyframes flowFadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.sectionHeader {
+  border-bottom: 1px solid var(--border-color-light);
+}
+
+.sectionHeader h2 {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sectionIcon {
+  display: inline-flex;
+  color: var(--accent-primary);
+}
+
+.label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Campos */
+.input,
+.select,
+.textarea,
+.tagInput {
+  border: 1px solid var(--border-color-light);
+  border-radius: 10px;
+}
+
+.input,
+.select,
+.textarea {
+  padding: 0.75rem 0.9rem;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus,
+.tagInput:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: var(--focus-ring);
+}
+
+.errorInput {
+  border-color: var(--danger-primary);
+  background-color: var(--danger-soft);
+}
+
+.errorMessage,
+.required {
+  color: var(--danger-primary);
+}
+
+.errorBanner {
+  border-color: var(--danger-soft-strong);
+  border-radius: 14px;
+  background-color: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+/* Botões (tinham fundos brancos fixos que quebravam o tema escuro) */
+.backButton,
+.cancelButton {
+  min-height: 42px;
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+
+.backButton:hover,
+.cancelButton:hover {
+  background-color: var(--surface-card-sunken);
+}
+
+.saveButton,
+.addButton {
+  min-height: 42px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.iconButton {
+  border-radius: 10px;
+}
+
+/* Prioridade: textos claros fixos não apareciam no tema claro */
+.priorityButton {
+  border: 1px solid var(--border-color-light);
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.priorityButton.selected.alta {
+  background-color: var(--danger-soft);
+  color: var(--danger-text);
+  border-color: var(--danger-primary);
+}
+
+.priorityButton.selected.media {
+  background-color: var(--warning-soft);
+  color: var(--warning-text);
+  border-color: var(--warning-primary);
+}
+
+.priorityButton.selected.baixa {
+  background-color: var(--success-soft);
+  color: var(--success-text);
+  border-color: var(--success-primary);
+}
+
+.dropdownItemNew {
+  background-color: var(--accent-pill-bg, rgba(37, 99, 235, 0.08));
+}
+
+.tagItem {
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+/* Rodapé fixo ao rolar: fundo translúcido do tema */
+.footer {
+  border-radius: 22px;
+  background: var(--surface-card-glass);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section { animation: none; }
+}

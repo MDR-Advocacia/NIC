@@ -11,6 +11,8 @@ import ActionObjectListModal from '../components/ActionObjectListModal';
 import AddEditPlaintiffModal from '../components/AddEditPlaintiffModal';
 import AddEditDefendantModal from '../components/AddEditDefendantModal';
 import SavedCaseTagsPanel from '../components/SavedCaseTagsPanel';
+import MetricInfoHint from '../components/MetricInfoHint';
+import PageSkeleton from '../components/PageSkeleton';
 import { FaExclamationTriangle } from 'react-icons/fa';
 import {
     LIVELO_MIN_POINTS,
@@ -490,8 +492,8 @@ const CaseCreatePage = () => {
     };
 
     if (isLoadingData) {
-        return <div className={styles.container} style={{display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-            <p>Carregando...</p>
+        return <div className={styles.container}>
+            <PageSkeleton rows={8} label="Carregando formulário do novo caso" />
         </div>;
     }
 
@@ -499,8 +501,10 @@ const CaseCreatePage = () => {
         <div className={styles.container}>
             <div className={styles.header}>
                 <div>
-                    <h1>Novo Caso</h1>
-                    <p>Cadastre um novo processo jurídico no sistema.</p>
+                    <h1 className={styles.titleWithHint}>
+                        Novo Caso
+                        <MetricInfoHint placement="bottom" text="Cadastre um novo processo jurídico no sistema." />
+                    </h1>
                 </div>
                 <button type="button" onClick={() => navigate(-1)} className={styles.backButton}>
                     <IconArrowLeft /> Voltar
@@ -784,7 +788,7 @@ const CaseCreatePage = () => {
                                     <option key={option.value || 'none'} value={option.value}>{option.label}</option>
                                 ))}
                             </select>
-                            <span className={styles.errorMessage} style={{ color: '#9ca3af' }}>
+                            <span className={styles.errorMessage} style={{ color: 'var(--text-secondary)' }}>
                                 Opcional. Pode coexistir com a Proposta Inicial (R$).
                             </span>
                         </div>

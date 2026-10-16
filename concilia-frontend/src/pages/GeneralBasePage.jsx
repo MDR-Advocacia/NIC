@@ -9,6 +9,8 @@ import {
 import KpiCard from '../components/KpiCard';
 import EditCaseModal from '../components/EditCaseModal';
 import SingleSelect from '../components/SingleSelect';
+import MetricInfoHint from '../components/MetricInfoHint';
+import PageSkeleton from '../components/PageSkeleton';
 import styles from '../styles/GeneralBase.module.css';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
@@ -284,8 +286,10 @@ const GeneralBasePage = () => {
         <div className={styles.pageContainer}>
             <header className={styles.header}>
                 <div>
-                    <h1><FaDatabase style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />Base Geral</h1>
-                    <p>{currentScopeContent.subtitle}</p>
+                    <h1 className={styles.titleWithHint}>
+                        <FaDatabase style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />Base Geral
+                        <MetricInfoHint placement="bottom" text={currentScopeContent.subtitle} />
+                    </h1>
                 </div>
                 {isAdmin && (
                     <div className={styles.headerActions}>
@@ -315,10 +319,13 @@ const GeneralBasePage = () => {
                             <FaSlidersH />
                         </div>
                         <div className={styles.filtersHeading}>
-                            <h3>Filtros da Base Geral</h3>
-                            <p>
-                                Refine os registros por processo, status, alçada e responsável para navegar pela base com mais contexto.
-                            </p>
+                            <h3 className={styles.titleWithHint}>
+                                Filtros da Base Geral
+                                <MetricInfoHint
+                                    placement="bottom"
+                                    text="Refine os registros por processo, status, alçada e responsável para navegar pela base com mais contexto."
+                                />
+                            </h3>
                         </div>
                     </div>
                     <span className={styles.filterCount}>
@@ -331,6 +338,10 @@ const GeneralBasePage = () => {
                         <span className={styles.filterLabel}>
                             <FaSearch />
                             Buscar caso
+                            <MetricInfoHint
+                                placement="bottom"
+                                text="Use o número do processo ou o nome de alguma parte para localizar mais rápido."
+                            />
                         </span>
                         <input
                             type="text"
@@ -340,9 +351,6 @@ const GeneralBasePage = () => {
                             value={filters.search}
                             onChange={handleFilterChange}
                         />
-                        <span className={styles.filterHelp}>
-                            Use o número do processo ou o nome de alguma parte para localizar mais rápido.
-                        </span>
                     </label>
 
                     <label className={styles.filterField}>
@@ -435,7 +443,7 @@ const GeneralBasePage = () => {
 
             <section className={styles.tableContainer}>
                 {loading ? (
-                    <p>Carregando...</p>
+                    <PageSkeleton rows={8} label="Carregando base geral" />
                 ) : error ? (
                     <p className={styles.errorText}>{error}</p>
                 ) : (

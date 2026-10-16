@@ -10,6 +10,8 @@ import {
 import ConfirmModal from '../components/ConfirmModal';
 import styles from '../styles/Archive.module.css';
 import SingleSelect from '../components/SingleSelect';
+import MetricInfoHint from '../components/MetricInfoHint';
+import PageSkeleton from '../components/PageSkeleton';
 
 const TABS = [
     { key: 'archived', label: 'Arquivados', icon: <FaArchive /> },
@@ -237,8 +239,10 @@ const ArchivePage = () => {
     return (
         <div className={styles.container}>
             <div className={styles.header}>
-                <h1 className={styles.title}><FaArchive /> Arquivados</h1>
-                <p className={styles.subtitle}>Gerencie processos arquivados, archive novos ou compare com dados externos.</p>
+                <h1 className={styles.title}>
+                    <FaArchive /> Arquivados
+                    <MetricInfoHint placement="bottom" text="Gerencie processos arquivados, archive novos ou compare com dados externos." />
+                </h1>
             </div>
 
             {feedback && (
@@ -300,7 +304,7 @@ const ArchivePage = () => {
                     </div>
 
                     {archivedLoading ? (
-                        <div className={styles.loadingState}>Carregando...</div>
+                        <PageSkeleton rows={8} label="Carregando arquivados" />
                     ) : archivedData.length === 0 ? (
                         <div className={styles.emptyState}>
                             <FaArchive />
@@ -423,7 +427,7 @@ const ArchivePage = () => {
                     </div>
 
                     {archivableLoading ? (
-                        <div className={styles.loadingState}>Carregando candidatos...</div>
+                        <PageSkeleton rows={8} label="Carregando candidatos" />
                     ) : filteredCandidates.length === 0 ? (
                         <div className={styles.emptyState}>
                             <FaClipboardList />
@@ -505,8 +509,10 @@ const ArchivePage = () => {
                     <div className={styles.uploadSection}>
                         <div className={styles.uploadCard}>
                             <FaFileExcel className={styles.uploadIcon} />
-                            <h3>Upload de lista de processos</h3>
-                            <p>Envie um arquivo .txt ou .csv com os números de processos (um por linha) para comparar com a base e identificar quais podem ser arquivados.</p>
+                            <h3 className={styles.titleWithHint}>
+                                Upload de lista de processos
+                                <MetricInfoHint placement="bottom" text="Envie um arquivo .txt ou .csv com os números de processos (um por linha) para comparar com a base e identificar quais podem ser arquivados." />
+                            </h3>
                             <div className={styles.uploadActions}>
                                 <label className={styles.fileLabel}>
                                     <input

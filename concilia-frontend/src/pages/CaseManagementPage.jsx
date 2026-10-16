@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import PageSkeleton from '../components/PageSkeleton';
+import MetricInfoHint from '../components/MetricInfoHint';
 import EditCaseModal from '../components/EditCaseModal';
 import TagMultiSelect from '../components/TagMultiSelect';
 import ContraIndicationReasonModal from '../components/ContraIndicationReasonModal';
@@ -994,7 +995,12 @@ const CaseManagementPage = () => {
     return (
         <div className={styles.pageContainer}>
             <header className={styles.header}>
-                <div><h1>Gestão de Casos</h1><p>Gerencie todos os casos direcionados para o escritório</p></div>
+                <div>
+                    <h1 className={styles.titleWithHint}>
+                        Gestão de Casos
+                        <MetricInfoHint placement="bottom" text="Gerencie todos os casos direcionados para o escritório." />
+                    </h1>
+                </div>
                 <div className={styles.headerActions}>
                     <button
                         type="button"
@@ -1035,8 +1041,13 @@ const CaseManagementPage = () => {
                             <FaSlidersH />
                         </div>
                         <div className={styles.filtersHeading}>
-                            <h3>Filtros da Gestão</h3>
-                            <p>Refine a carteira por causa de pedir, status, prioridade, etiqueta, responsável e indicador enquanto a tabela atualiza automaticamente.</p>
+                            <h3 className={styles.titleWithHint}>
+                                Filtros da Gestão
+                                <MetricInfoHint
+                                    placement="bottom"
+                                    text="Refine a carteira por causa de pedir, status, prioridade, etiqueta, responsável e indicador enquanto a tabela atualiza automaticamente."
+                                />
+                            </h3>
                         </div>
                     </div>
                     <span className={styles.filterCount}>

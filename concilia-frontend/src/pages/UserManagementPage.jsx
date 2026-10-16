@@ -11,6 +11,8 @@ import KpiCard from '../components/KpiCard';
 import AddDepartmentModal from '../components/AddDepartmentModal';
 import SingleSelect from '../components/SingleSelect';
 import { useToast } from '../context/ToastContext';
+import MetricInfoHint from '../components/MetricInfoHint';
+import PageSkeleton from '../components/PageSkeleton';
 
 const AREAS_LIST = ["Recuperação de Crédito", "Contencioso Passivo", "Atendente"];
 
@@ -344,7 +346,12 @@ const UserManagementPage = () => {
     return (
         <div className={styles.pageContainer}>
             <header className={styles.header}>
-                <div><h1>Gestão de Usuários</h1><p>Controle de acesso e áreas</p></div>
+                <div>
+                    <h1 className={styles.titleWithHint}>
+                        Gestão de Usuários
+                        <MetricInfoHint placement="bottom" text="Controle de acesso e áreas." />
+                    </h1>
+                </div>
                 <div className={styles.headerActions}>
                     <button className={styles.actionButton} onClick={() => fetchData(pagination.current_page)}><FaSync /> Atualizar</button>
                     {canManage && (
@@ -369,10 +376,13 @@ const UserManagementPage = () => {
                             <FaSlidersH />
                         </div>
                         <div className={styles.filtersHeading}>
-                            <h3>Filtros da Gestão de Usuários</h3>
-                            <p>
-                                Refine a operação por nome, status, função, departamento e área para administrar a equipe com mais clareza.
-                            </p>
+                            <h3 className={styles.titleWithHint}>
+                                Filtros da Gestão de Usuários
+                                <MetricInfoHint
+                                    placement="bottom"
+                                    text="Refine a operação por nome, status, função, departamento e área para administrar a equipe com mais clareza."
+                                />
+                            </h3>
                         </div>
                     </div>
                     <span className={styles.filterCount}>
@@ -491,7 +501,7 @@ const UserManagementPage = () => {
             </section>
 
             <section className={styles.tableContainer}>
-                {loading ? <p style={{padding:'20px'}}>Carregando...</p> : (
+                {loading ? <PageSkeleton rows={8} label="Carregando usuários" /> : (
                     <>
                         <table className={styles.table}>
                             <thead>
@@ -528,7 +538,7 @@ const UserManagementPage = () => {
                                             </div>
                                         </td>
                                         <td><RoleTag role={managedUser.role} /></td>
-                                        <td>{managedUser.area ? <span className={styles.tagArea}>{managedUser.area}</span> : <span style={{color:'#cbd5e1'}}>-</span>}</td>
+                                        <td>{managedUser.area ? <span className={styles.tagArea}>{managedUser.area}</span> : <span style={{color:'var(--text-muted)'}}>-</span>}</td>
                                         <td>{managedUser.department?.name || '-'}</td>
                                         <td><StatusTag status={managedUser.status} /></td>
                                         {canManage && (

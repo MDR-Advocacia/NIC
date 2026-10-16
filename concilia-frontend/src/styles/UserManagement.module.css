@@ -819,3 +819,221 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* =====================================================================
+   Atualização visual (padrão Flow) — 10/2026
+   Compartilhado por UserManagementPage e SystemLogsPage.
+   Sem animação/transform no .pageContainer: ele contém a barra flutuante
+   de ações em lote e os modais (position: fixed).
+   ===================================================================== */
+
+.titleWithHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.header h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.kpiGrid,
+.filtersContainer,
+.tableContainer {
+    animation: flowFadeUp 0.35s ease-out backwards;
+}
+
+.filtersContainer { animation-delay: 0.05s; }
+.tableContainer { animation-delay: 0.1s; }
+
+@keyframes flowFadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+.kpiGrid {
+    gap: 1rem;
+}
+
+/* Painel de filtros: os popovers dos selects abrem por cima da tabela */
+.filtersContainer {
+    z-index: 30;
+    overflow: visible;
+    border: 1px solid var(--border-color-light);
+    border-radius: 22px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.filtersIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+}
+
+.filtersHeading h3 {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.filterLabel {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.filterCount,
+.filterChip,
+.tag,
+.tagArea {
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.filterControl,
+.searchInput,
+.filterSelect {
+    min-height: 42px;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--border-color-light);
+    border-radius: 10px;
+}
+
+.filterControl:focus,
+.searchInput:focus,
+.filterSelect:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
+    transform: none;
+}
+
+/* Botões */
+.actionButton,
+.newUserButton,
+.clearFiltersButton,
+.cancelButton,
+.saveButton {
+    min-height: 42px;
+    border-radius: 12px;
+    font-weight: 700;
+}
+
+.actionIconButton,
+.paginationBtn,
+.closeButton {
+    border-radius: 10px;
+}
+
+.cancelButton:hover {
+    transform: translateY(-1px);
+}
+
+/* Tabela */
+.tableContainer {
+    border: 1px solid var(--border-color-light);
+    border-radius: 22px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.table th {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border-color-light);
+    background: var(--bg-card);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.table td {
+    padding: 0.85rem 1rem;
+}
+
+.table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.table tbody tr:hover {
+    background: var(--surface-card-sunken);
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.rowSelected,
+.table tbody tr.rowSelected {
+    background-color: var(--accent-pill-bg);
+    box-shadow: inset 3px 0 0 var(--accent-primary);
+}
+
+.userAvatar {
+    border-radius: 12px;
+}
+
+/* Barra flutuante de ações em lote */
+.batchActionBar {
+    border-radius: 20px;
+    background-color: var(--bg-card);
+}
+
+.batchBtn {
+    border-radius: 12px;
+}
+
+.batchSelect {
+    border: 1px solid var(--border-color-light);
+    border-radius: 10px;
+}
+
+.batchSelect:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
+}
+
+/* Modais */
+.modalHeader h2 {
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.formGroup label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.formGroup input,
+.formGroup select {
+    min-height: 42px;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--border-color-light);
+    border-radius: 10px;
+}
+
+.formGroup input:focus,
+.formGroup select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kpiGrid,
+    .filtersContainer,
+    .tableContainer {
+        animation: none;
+    }
+}

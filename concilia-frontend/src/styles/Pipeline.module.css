@@ -932,7 +932,7 @@
   border-color: var(--accent-primary);
   border-style: solid;
   background-color: var(--accent-pill-bg, rgba(37, 99, 235, 0.06));
-  box-shadow: 0 0 0 4px var(--focus-ring, rgba(37, 99, 235, 0.2));
+  box-shadow: var(--focus-ring);
 }
 
 .pipelineColumnHeader {
@@ -1471,7 +1471,7 @@
 .textarea:focus {
     outline: none;
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px var(--focus-ring, rgba(37, 99, 235, 0.18));
+    box-shadow: var(--focus-ring);
 }
 
 .priorityButtons {
@@ -1520,4 +1520,11 @@
 @media (prefers-reduced-motion: reduce) {
     .modalOverlay,
     .modalContent { animation: none; }
+}
+
+/* Título com (i): o texto explicativo aparece ao passar o mouse */
+.titleWithHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
 }

@@ -1677,3 +1677,10 @@ select.filterControl {
     .kpiCard:hover,
     .analyticsCard:hover { transform: none; }
 }
+
+/* Título com (i): a explicação aparece ao passar o mouse */
+.titleWithHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}

@@ -559,3 +559,202 @@
         flex-wrap: wrap;
     }
 }
+
+/* =====================================================================
+   Atualização visual (padrão Flow) — 10/2026
+   ===================================================================== */
+
+.header h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.titleWithHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.newCaseButton {
+    min-height: 42px;
+    border-radius: 12px;
+}
+
+.infoBanner {
+    border-radius: 22px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.kpiGrid {
+    gap: 1rem;
+}
+
+/* Painel de filtros: popovers e dica (i) abrem por cima da tabela, sem corte */
+.filtersContainer {
+    z-index: 30;
+    overflow: visible;
+    border-radius: 22px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.filtersIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+}
+
+.filtersHeading h3 {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.filtersTitleBlock {
+    align-items: center;
+}
+
+.filterCount {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.filterLabel {
+    color: var(--text-secondary);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.filterControl {
+    min-height: 42px;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--border-color-light);
+    border-radius: 10px;
+}
+
+.filterControl:focus {
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
+    transform: none;
+}
+
+/* Variáveis inexistentes (--card-bg, --surface-card) deixavam o fundo fixo/transparente */
+.chipsSpoilerToggle {
+    border-color: var(--border-color-light);
+    background: var(--surface-card-elevated);
+    font-weight: 700;
+}
+
+.filterChip {
+    font-weight: 700;
+}
+
+.clearFiltersButton {
+    min-height: 42px;
+    border: 1px solid var(--border-color-light);
+    border-radius: 12px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-weight: 700;
+    transition: border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.clearFiltersButton:hover:not(:disabled) {
+    border-color: var(--accent-primary);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+/* Tabela */
+.kpiGrid,
+.tableContainer {
+    animation: flowFadeUp 0.35s ease-out backwards;
+}
+
+.tableContainer {
+    animation-delay: 0.08s;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.tableContainer > div[aria-busy="true"] {
+    padding: 1rem;
+}
+
+.paginationTopBar {
+    background: var(--bg-card);
+}
+
+.table th {
+    padding: 0.85rem 1rem;
+    background: var(--bg-card);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.table td {
+    padding: 0.85rem 1rem;
+}
+
+.table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.table tbody tr:hover {
+    background-color: var(--surface-card-sunken);
+}
+
+.caseLink,
+.caseLinkButton {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.statusTag {
+    font-weight: 700;
+}
+
+.actionIconButton {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+}
+
+.perPageSelect {
+    border: 1px solid var(--border-color-light);
+    border-radius: 10px;
+}
+
+.perPageSelect:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
+}
+
+.paginationBtn {
+    border: 1px solid var(--border-color-light);
+}
+
+.paginationPageInfo {
+    font-variant-numeric: tabular-nums;
+}
+
+@keyframes flowFadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kpiGrid,
+    .tableContainer {
+        animation: none;
+    }
+
+    .clearFiltersButton:hover:not(:disabled) {
+        transform: none;
+    }
+}

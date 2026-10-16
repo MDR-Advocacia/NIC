@@ -355,3 +355,173 @@
     accent-color: var(--accent-primary, #0d6efd);
     cursor: pointer;
 }
+
+/* =====================================================================
+   Atualização visual (padrão Flow) — 10/2026
+   ===================================================================== */
+
+.pageTitle {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.titleWithHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.tabBar {
+    border-bottom-color: var(--border-color-light);
+}
+
+.tabButton {
+    font-weight: 600;
+}
+
+.tabButtonActive {
+    font-weight: 800;
+}
+
+.searchInput,
+.inlineInput {
+    border: 1px solid var(--border-color-light);
+    border-radius: 10px;
+}
+
+.searchInput {
+    min-height: 42px;
+    background: var(--bg-card);
+}
+
+.searchInput:focus,
+.inlineInput:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
+}
+
+/* Texto branco fixo trocado pela variável de texto sobre destaque */
+.addButton {
+    min-height: 42px;
+    border-radius: 12px;
+    background: var(--accent-gradient, var(--accent-primary));
+    color: var(--text-on-accent);
+    font-weight: 700;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.addButton:hover:not(:disabled) {
+    background: var(--accent-gradient, var(--accent-primary));
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+}
+
+.iconButton {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    color: var(--text-on-accent);
+}
+
+.iconButtonCancel {
+    color: var(--bg-card);
+}
+
+/* --danger-color não existe no tema: a cor ficava fixa */
+.errorMessage {
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--danger-soft-strong);
+    border-radius: 12px;
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    font-weight: 600;
+}
+
+/* Tabela */
+.tableWrapper {
+    border: 1px solid var(--border-color-light);
+    border-radius: 22px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    animation: flowFadeUp 0.35s ease-out backwards;
+}
+
+.table thead th {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border-color-light);
+    background: var(--bg-card);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.table tbody td {
+    padding: 0.75rem 1rem;
+}
+
+.table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.table tbody tr:hover {
+    background: var(--surface-card-sunken);
+}
+
+.editingRow {
+    background: var(--accent-pill-bg, rgba(37, 99, 235, 0.08)) !important;
+    box-shadow: inset 3px 0 0 var(--accent-primary);
+}
+
+/* Esqueleto de carregamento dentro da tabela, sem cartão duplicado */
+.loadingCell {
+    padding: 0.5rem 1rem !important;
+    font-style: normal;
+    text-align: left;
+}
+
+.loadingCell > div > div {
+    padding: 0.5rem 0;
+    border: none;
+    background: transparent;
+}
+
+.paginationInfo {
+    font-variant-numeric: tabular-nums;
+}
+
+.pageNavButton,
+.pageButton {
+    border: 1px solid var(--border-color-light);
+    border-radius: 10px;
+    background: var(--bg-card);
+    font-weight: 700;
+}
+
+.pageButtonActive {
+    border-color: var(--accent-primary);
+    background: var(--accent-primary);
+    color: var(--text-on-accent);
+}
+
+.booleanBadgeTrue,
+.booleanBadgeFalse {
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+@keyframes flowFadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tableWrapper {
+        animation: none;
+    }
+
+    .addButton:hover:not(:disabled) {
+        transform: none;
+    }
+}

@@ -16,6 +16,7 @@ import AgreementFieldsModal from '../components/AgreementFieldsModal';
 import ResponsibleMultiSelect from '../components/ResponsibleMultiSelect';
 import SingleSelect from '../components/SingleSelect';
 import PipelineNumbers from '../components/PipelineNumbers';
+import MetricInfoHint from '../components/MetricInfoHint';
 import { PROCEDURAL_PHASE_FILTER_OPTIONS, getProceduralPhaseFilterLabel } from '../constants/proceduralPhase';
 import {
     CONTRA_RECURRENT_FILTER_OPTIONS,
@@ -1013,12 +1014,15 @@ const PipelinePage = () => {
                             <FaSlidersH />
                         </div>
                         <div>
-                            <h2 className={styles.filterPanelTitle}>{isIndicator ? 'Filtros das Indicações' : 'Filtros do Pipeline'}</h2>
-                            <p className={styles.filterPanelSubtitle}>
-                                {isIndicator
-                                    ? 'Visualize todos os cards do pipeline e indique somente os casos que ainda estão em Análise Inicial.'
-                                    : 'Refine os cards por caso, causa de pedir, cliente, responsável, indicador, prioridade e destaque rapidamente os casos parados.'}
-                            </p>
+                            <h2 className={`${styles.filterPanelTitle} ${styles.titleWithHint}`}>
+                                {isIndicator ? 'Filtros das Indicações' : 'Filtros do Pipeline'}
+                                <MetricInfoHint
+                                    placement="bottom"
+                                    text={isIndicator
+                                        ? 'Visualize todos os cards do pipeline e indique somente os casos que ainda estão em Análise Inicial.'
+                                        : 'Refine os cards por caso, causa de pedir, cliente, responsável, indicador, prioridade e destaque rapidamente os casos parados.'}
+                                />
+                            </h2>
                         </div>
                     </div>
 

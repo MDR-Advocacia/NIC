@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext';
 import apiClient from '../api';
 import styles from '../styles/UserProfile.module.css';
 import { FaComments, FaSave, FaShieldAlt, FaSyncAlt, FaUserCircle } from 'react-icons/fa';
+import MetricInfoHint from '../components/MetricInfoHint';
 
 const getChatwootStatusCopy = (status, user) => {
     if (!status) {
@@ -255,10 +256,13 @@ const UserProfile = () => {
 
                     <form className={styles.tokenPanel} onSubmit={handleConnectChatwoot}>
                         <div>
-                            <div className={styles.instructionsTitle}>{chatwootStatus?.manual_token_label || 'Access token pessoal do Chatwoot'}</div>
-                            <p className={styles.helperText}>
-                                Esse e o token oficial usado pela API do Chatwoot para agir em nome do agente logado.
-                            </p>
+                            <div className={`${styles.instructionsTitle} ${styles.titleWithHint}`}>
+                                {chatwootStatus?.manual_token_label || 'Access token pessoal do Chatwoot'}
+                                <MetricInfoHint
+                                    placement="bottom"
+                                    text="Esse e o token oficial usado pela API do Chatwoot para agir em nome do agente logado."
+                                />
+                            </div>
                         </div>
 
                         <div className={styles.group}>

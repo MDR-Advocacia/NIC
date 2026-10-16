@@ -769,7 +769,7 @@ const DashboardPage = () => {
     };
 
     if (isInitialLoading) return <PageSkeleton variant="dashboard" label="Carregando dashboard" />;
-    if (error && !dashboardData) return <p style={{ color: 'red' }}>{error}</p>;
+    if (error && !dashboardData) return <p style={{ color: 'var(--danger-text)' }}>{error}</p>;
 
     return (
         <div className={styles.dashboardContainer}>
@@ -792,12 +792,15 @@ const DashboardPage = () => {
                                 <FaSlidersH />
                             </div>
                             <div>
-                                <h2 className={styles.filtersTitle}>Filtros do Dashboard</h2>
-                                <p className={styles.filtersSubtitle}>
-                                    {isManager
-                                        ? 'Use um único período para todos os dashboards e refine por cliente, responsáveis, indicadores e status.'
-                                        : 'Use um único período para acompanhar todos os seus indicadores no dashboard.'}
-                                </p>
+                                <h2 className={`${styles.filtersTitle} ${styles.titleWithHint}`}>
+                                    Filtros do Dashboard
+                                    <MetricInfoHint
+                                        placement="bottom"
+                                        text={isManager
+                                            ? 'Use um único período para todos os dashboards e refine por cliente, responsáveis, indicadores e status.'
+                                            : 'Use um único período para acompanhar todos os seus indicadores no dashboard.'}
+                                    />
+                                </h2>
                             </div>
                         </div>
 
@@ -811,10 +814,13 @@ const DashboardPage = () => {
                         <section className={styles.filterGroupCard}>
                             <div className={styles.filterGroupHeader}>
                                 <span className={styles.filterGroupEyebrow}>Período</span>
-                                <h3 className={styles.filterGroupTitle}>Período do dashboard</h3>
-                                <p className={styles.filterGroupSubtitle}>
-                                    Afeta a visão geral, responsáveis, indicadores, performance da equipe, acordos fechados e casos recentes.
-                                </p>
+                                <h3 className={`${styles.filterGroupTitle} ${styles.titleWithHint}`}>
+                                    Período do dashboard
+                                    <MetricInfoHint
+                                        placement="bottom"
+                                        text="Afeta a visão geral, responsáveis, indicadores, performance da equipe, acordos fechados e casos recentes."
+                                    />
+                                </h3>
                             </div>
 
                             <div className={styles.filtersGrid}>
@@ -968,8 +974,12 @@ const DashboardPage = () => {
             <section className={styles.metricExplorerSection}>
                 <div className={styles.metricExplorerHeader}>
                     <div className={styles.metricExplorerHeading}>
-                        <h2 className={styles.metricExplorerTitle}>{metricsViewTitles[selectedMetricsView]}</h2>
-                        <p className={styles.metricExplorerSubtitle}>{metricsViewSubtitles[selectedMetricsView]}</p>
+                        <h2 className={`${styles.metricExplorerTitle} ${styles.titleWithHint}`}>
+                            {metricsViewTitles[selectedMetricsView]}
+                            {metricsViewSubtitles[selectedMetricsView] && (
+                                <MetricInfoHint placement="bottom" text={metricsViewSubtitles[selectedMetricsView]} />
+                            )}
+                        </h2>
                     </div>
 
                     <div className={styles.metricExplorerRange}>
@@ -988,10 +998,10 @@ const DashboardPage = () => {
                 <div className={styles.kpiSections}>
                     <section className={styles.kpiSection}>
                         <div className={styles.kpiSectionHeader}>
-                            <h3 className={styles.kpiSectionTitle}>Visão Geral de Acordos</h3>
-                            <span className={styles.unfilteredInfo} title="Casos, status, acordos e conversão seguem o período único do dashboard.">
-                                <FaInfoCircle />
-                            </span>
+                            <h3 className={`${styles.kpiSectionTitle} ${styles.titleWithHint}`}>
+                                Visão Geral de Acordos
+                                <MetricInfoHint placement="bottom" text="Casos, status, acordos e conversão seguem o período único do dashboard." />
+                            </h3>
                         </div>
                         {renderKpiGrid(dashboardData?.kpis, GENERAL_KPI_ORDER)}
                     </section>
@@ -1000,8 +1010,10 @@ const DashboardPage = () => {
                         <div className={styles.kpiSectionHeader}>
                             <div className={styles.indicationHeaderContent}>
                                 <span className={styles.indicationBadge}>Fluxo dedicado</span>
-                                <h3 className={styles.kpiSectionTitle}>Fluxo de Indicação</h3>
-                                <p className={styles.kpiSectionSubtitle}>Acompanhamento separado dos casos que vieram de indicação.</p>
+                                <h3 className={`${styles.kpiSectionTitle} ${styles.titleWithHint}`}>
+                                    Fluxo de Indicação
+                                    <MetricInfoHint placement="bottom" text="Acompanhamento separado dos casos que vieram de indicação." />
+                                </h3>
                             </div>
 
                             <div className={styles.indicationHighlights}>
@@ -1057,20 +1069,20 @@ const DashboardPage = () => {
                     <section className={styles.analyticsSection}>
                         <div className={styles.analyticsSectionHeader}>
                             <div>
-                                <h3 className={styles.analyticsSectionTitle}>Inteligência de Acordos</h3>
-                                <p className={styles.analyticsSectionSubtitle}>
-                                    Leitura territorial dos acordos fechados e conversão por indicação no mesmo painel.
-                                </p>
+                                <h3 className={`${styles.analyticsSectionTitle} ${styles.titleWithHint}`}>
+                                    Inteligência de Acordos
+                                    <MetricInfoHint placement="bottom" text="Leitura territorial dos acordos fechados e conversão por indicação no mesmo painel." />
+                                </h3>
                             </div>
                         </div>
 
                         <div className={styles.analyticsGrid}>
                             <article className={`${styles.analyticsCard} ${styles.mapCard}`}>
                                 <div className={styles.analyticsCardHeader}>
-                                    <h4 className={styles.analyticsCardTitle}>Mapa do Brasil por Estado</h4>
-                                    <p className={styles.analyticsCardSubtitle}>
-                                        Estados ficam brancos sem acordos e avançam para verde escuro conforme o volume de acordos fechados cresce.
-                                    </p>
+                                    <h4 className={`${styles.analyticsCardTitle} ${styles.titleWithHint}`}>
+                                        Mapa do Brasil por Estado
+                                        <MetricInfoHint placement="bottom" text="Estados ficam brancos sem acordos e avançam para verde escuro conforme o volume de acordos fechados cresce." />
+                                    </h4>
                                 </div>
                                 <BrazilAgreementMap data={agreementsByState} />
                             </article>
@@ -1078,10 +1090,10 @@ const DashboardPage = () => {
                             <div className={styles.analyticsSidebar}>
                                 <article className={`${styles.analyticsCard} ${styles.compactAnalyticsCard}`}>
                                     <div className={styles.analyticsCardHeader}>
-                                        <h4 className={styles.analyticsCardTitle}>Acordos Fechados por Indicador</h4>
-                                        <p className={styles.analyticsCardSubtitle}>
-                                            Ranking em barras dos indicadores com maior volume de acordos convertidos no fluxo de indicação.
-                                        </p>
+                                        <h4 className={`${styles.analyticsCardTitle} ${styles.titleWithHint}`}>
+                                            Acordos Fechados por Indicador
+                                            <MetricInfoHint placement="bottom" text="Ranking em barras dos indicadores com maior volume de acordos convertidos no fluxo de indicação." />
+                                        </h4>
                                     </div>
                                     <AgreementVolumeChart
                                         data={closedDealsByIndicatorChart}
@@ -1094,10 +1106,10 @@ const DashboardPage = () => {
 
                                 <article className={`${styles.analyticsCard} ${styles.compactAnalyticsCard} ${styles.fillAnalyticsCard}`}>
                                     <div className={styles.analyticsCardHeader}>
-                                        <h4 className={styles.analyticsCardTitle}>Quem Mais Indicou e Converteu</h4>
-                                        <p className={styles.analyticsCardSubtitle}>
-                                            Exibição dos 3 principais indicadores, com opção de inverter a leitura para quem menos converteu.
-                                        </p>
+                                        <h4 className={`${styles.analyticsCardTitle} ${styles.titleWithHint}`}>
+                                            Quem Mais Indicou e Converteu
+                                            <MetricInfoHint placement="bottom" text="Exibição dos 3 principais indicadores, com opção de inverter a leitura para quem menos converteu." />
+                                        </h4>
                                     </div>
                                     <TopIndicatorsPanel data={indicatorLeaderboard} />
                                 </article>
@@ -1108,10 +1120,10 @@ const DashboardPage = () => {
                     <section className={styles.macroSection}>
                         <article className={`${styles.analyticsCard} ${styles.macroStandaloneCard}`}>
                             <div className={styles.analyticsCardHeader}>
-                                <h4 className={styles.analyticsCardTitle}>Visão Macro de Acordos</h4>
-                                <p className={styles.analyticsCardSubtitle}>
-                                    Distribuição exclusiva entre alta economia, Livelo, Ourocap e carteira geral.
-                                </p>
+                                <h4 className={`${styles.analyticsCardTitle} ${styles.titleWithHint}`}>
+                                    Visão Macro de Acordos
+                                    <MetricInfoHint placement="bottom" text="Distribuição exclusiva entre alta economia, Livelo, Ourocap e carteira geral." />
+                                </h4>
                             </div>
                             <AgreementMacroPieChart data={agreementMacroDistribution} />
                         </article>
@@ -1121,10 +1133,13 @@ const DashboardPage = () => {
                         <section className={styles.teamPerformanceSection}>
                             <div className={styles.teamPerformanceSectionHeader}>
                                 <div>
-                                    <h3>Performance da Equipe</h3>
-                                    <p>
-                                        Destaque dos advogados com melhor score no período selecionado, mantendo o acesso ao ranking completo.
-                                    </p>
+                                    <h3 className={styles.titleWithHint}>
+                                        Performance da Equipe
+                                        <MetricInfoHint
+                                            placement="bottom"
+                                            text="Destaque dos advogados com melhor score no período selecionado, mantendo o acesso ao ranking completo."
+                                        />
+                                    </h3>
                                 </div>
                                 <span className={styles.teamPerformancePeriodChip}>{teamPerformanceRangeLabel}</span>
                             </div>
@@ -1163,9 +1178,7 @@ const DashboardPage = () => {
                                     Pós-Acordo
                                 </button>
                             </div>
-                            <span className={styles.unfilteredInfo} title="Esta seção exibe o estado atual de todos os casos, sem ser afetada pelo filtro de período.">
-                                <FaInfoCircle />
-                            </span>
+                            <MetricInfoHint placement="bottom" text="Esta seção exibe o estado atual de todos os casos, sem ser afetada pelo filtro de período." />
                         </div>
                         {processStageView === 'pre' && dashboardData && (dashboardData.status_distribution_global || dashboardData.status_distribution) ? (
                             <ProcessStageChart
@@ -1185,16 +1198,14 @@ const DashboardPage = () => {
                     <div className={styles.recentCases}>
                         <div className={styles.recentCasesHeader}>
                             <div className={styles.recentCasesTitleGroup}>
-                                <h3 className={styles.recentCasesTitle}>
-                                    <FaBriefcase color="#A0AEC0" size={18} /> Casos Recentes na Alçada
+                                <h3 className={`${styles.recentCasesTitle} ${styles.titleWithHint}`}>
+                                    <FaBriefcase color="var(--text-secondary)" size={18} /> Casos Recentes na Alçada
+                                    <MetricInfoHint
+                                        placement="bottom"
+                                        text="Casos que entraram na alçada ou tiveram o valor da alçada atualizado mais recentemente. Esta seção não é afetada pelo filtro de período."
+                                    />
                                 </h3>
-                                <p className={styles.recentCasesSubtitle}>
-                                    A lista considera os casos que entraram na alçada ou tiveram o valor da alçada atualizado mais recentemente.
-                                </p>
                             </div>
-                            <span className={styles.unfilteredInfo} title="Esta seção exibe os casos mais recentes, sem ser afetada pelo filtro de período.">
-                                <FaInfoCircle />
-                            </span>
                             <div className={styles.recentCasesHeaderActions}>
                                 <div className={styles.recentCasesPageSize}>
                                     <button
