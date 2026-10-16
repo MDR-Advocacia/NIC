@@ -2,8 +2,9 @@ import React from 'react';
 import { FaInfoCircle } from 'react-icons/fa';
 import styles from '../styles/MetricInfoHint.module.css';
 
-const MetricInfoHint = ({ text, className = '' }) => {
-    const classes = className ? `${styles.wrapper} ${className}` : styles.wrapper;
+// placement="bottom" abre a dica para baixo (útil em títulos no topo da página)
+const MetricInfoHint = ({ text, className = '', placement = 'top' }) => {
+    const classes = [styles.wrapper, placement === 'bottom' ? styles.bottom : '', className].filter(Boolean).join(' ');
 
     return (
         <span className={classes}>

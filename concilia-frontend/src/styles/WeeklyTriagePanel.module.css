@@ -460,3 +460,10 @@
 @media (prefers-reduced-motion: reduce) {
     .panel { animation: none; }
 }
+
+.titleWithHint,
+.footerHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}

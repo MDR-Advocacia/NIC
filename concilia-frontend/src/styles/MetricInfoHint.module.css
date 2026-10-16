@@ -52,3 +52,23 @@
     visibility: visible;
     transform: translate(-50%, 0);
 }
+
+/* Dica abrindo para baixo */
+.bottom .tooltip {
+    top: calc(100% + 0.55rem);
+    bottom: auto;
+    transform: translate(-50%, -6px);
+}
+
+.bottom:hover .tooltip,
+.bottom:focus-within .tooltip {
+    transform: translate(-50%, 0);
+}
+
+/* Dentro de títulos, a dica não herda peso, caixa alta nem espaçamento do título */
+.tooltip {
+    font-weight: 500;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: normal;
+}

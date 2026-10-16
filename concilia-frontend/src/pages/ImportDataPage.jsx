@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import styles from '../styles/ImportDataPage.module.css';
 import WeeklyTriagePanel from '../components/WeeklyTriagePanel';
+import MetricInfoHint from '../components/MetricInfoHint';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 
@@ -1103,8 +1104,10 @@ const ImportDataPage = () => {
     <div className={styles.pageContainer}>
       <header className={styles.header}>
         <div>
-          <h1>Importação de casos</h1>
-          <p>Importador único para os layouts homologados, com atualização automática por número do processo.</p>
+          <h1 className={styles.titleWithHint}>
+            Importação de casos
+            <MetricInfoHint placement="bottom" text="Importador único para os layouts homologados, com atualização automática por número do processo." />
+          </h1>
         </div>
         <button type="button" className={styles.templateButton} onClick={handleDownloadTemplate}>
           <FaDownload />
@@ -1146,8 +1149,13 @@ const ImportDataPage = () => {
         <article className={styles.panelCard}>
           <div className={styles.cardHeader}>
             <div>
-              <h2>Importador de planilhas</h2>
-              <p>CSV, XLSX e XLS de at&eacute; {MAX_IMPORT_FILE_SIZE_LABEL}. A planilha semanal de campanhas pode ser enviada inteira: o NIC filtra o escrit&oacute;rio e faz a triagem depois da importa&ccedil;&atilde;o.</p>
+              <h2 className={styles.titleWithHint}>
+                Importador de planilhas
+                <MetricInfoHint
+                  placement="bottom"
+                  text={`CSV, XLSX e XLS de até ${MAX_IMPORT_FILE_SIZE_LABEL}. O NIC identifica o layout pelos cabeçalhos, ignora linhas vazias e envia em lotes. Processo que já existe é atualizado pelo número; se não existe, é criado. A planilha semanal de campanhas pode ser enviada inteira: o NIC filtra o escritório e faz a triagem depois da importação.`}
+                />
+              </h2>
             </div>
             <span className={styles.clientBadge}>{selectedClientName || 'Cliente não definido'}</span>
           </div>
@@ -1222,28 +1230,22 @@ const ImportDataPage = () => {
           )}
           {uploadProgress && <p className={styles.progressText}>{uploadProgress}</p>}
 
-          <div className={styles.helpBox}>
-            <strong>Fluxo:</strong> selecione uma planilha homologada de at&eacute; {MAX_IMPORT_FILE_SIZE_LABEL}, envie e o sistema identifica o layout pelos cabe&ccedil;alhos. Linhas vazias s&atilde;o desconsideradas automaticamente. O envio &eacute; repartido em lotes menores para respeitar o limite da API. Se o processo j&aacute; existir, ele &eacute; atualizado pelo n&uacute;mero do processo; se n&atilde;o existir, &eacute; criado.
-          </div>
         </article>
 
         <article className={styles.panelCard}>
           <div className={styles.cardHeader}>
             <div>
-              <h2>Exportação Legal One</h2>
-              <p>A exportação usa a base atual de processos já cadastrados no NIC.</p>
+              <h2 className={styles.titleWithHint}>
+                Exportação Legal One
+                <MetricInfoHint
+                  placement="bottom"
+                  text="Gera um CSV com os processos já cadastrados no NIC, para apoio ao fluxo externo do Legal One. Pode servir de base para adaptar o layout do Legal One."
+                />
+              </h2>
             </div>
             <span className={styles.sectionTag}>CSV</span>
           </div>
 
-          <div className={styles.exportInfo}>
-            <p>A planilha é gerada a partir dos processos existentes no NIC para apoio ao fluxo externo do Legal One.</p>
-            <ul className={styles.infoList}>
-              <li>Usa diretamente os processos disponíveis na base atual.</li>
-              <li>Baixa um CSV direto da API atual.</li>
-              <li>Pode ser usado como base para adaptação posterior do layout Legal One.</li>
-            </ul>
-          </div>
 
           <button
             type="button"
@@ -1261,8 +1263,13 @@ const ImportDataPage = () => {
         <section className={styles.summaryCard}>
           <div className={styles.cardHeader}>
             <div>
-              <h2>Importações recentes</h2>
-              <p>Desfazer uma importação remove os processos criados por ela (atualizações em processos que já existiam não são revertidas).</p>
+              <h2 className={styles.titleWithHint}>
+                Importações recentes
+                <MetricInfoHint
+                  placement="bottom"
+                  text="Desfazer uma importação remove os processos criados por ela. Atualizações em processos que já existiam não são revertidas."
+                />
+              </h2>
             </div>
           </div>
 
@@ -1371,8 +1378,13 @@ const ImportDataPage = () => {
       <section className={styles.sanitationCard}>
         <div className={styles.cardHeader}>
           <div>
-            <h2>Tabela de saneamento</h2>
-            <p>Edite as linhas inconsistentes, descarte o que não deve seguir e reenvie o arquivo saneado.</p>
+            <h2 className={styles.titleWithHint}>
+              Tabela de saneamento
+              <MetricInfoHint
+                placement="bottom"
+                text="Quando a importação recusa linhas, elas aparecem aqui: edite as inconsistentes, descarte o que não deve seguir e reenvie."
+              />
+            </h2>
           </div>
           <button
             type="button"

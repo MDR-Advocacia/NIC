@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { getLegalCaseStatusDetails } from '../constants/legalCaseStatus';
 import styles from '../styles/WeeklyTriagePanel.module.css';
+import MetricInfoHint from './MetricInfoHint';
 
 const GROUPS = [
     { key: 'to_proposal', label: 'Proposta enviada para o operador citado', icon: Send, tone: 'success' },
@@ -254,11 +255,13 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
                 <div className={styles.headerIcon}><Sparkles size={20} /></div>
                 <div className={styles.headerText}>
                     <span className={styles.eyebrow}>Passo 3 · Triagem automática</span>
-                    <h2>Distribuir a planilha semanal</h2>
-                    <p>
-                        Pendentes voltam para a Análise Inicial; &ldquo;Em tratamento&rdquo; com nome de operador vai para Proposta Enviada com esse operador;
-                        sem nome, volta para a Análise Inicial e é redistribuído. Casos em negociação ou com acordo nunca são mexidos.
-                    </p>
+                    <h2 className={styles.titleWithHint}>
+                        Distribuir a planilha semanal
+                        <MetricInfoHint
+                            placement="bottom"
+                            text="Pendentes voltam para a Análise Inicial. Em tratamento com nome de operador vai para Proposta Enviada com esse operador; sem nome, volta para a Análise Inicial e é redistribuído. Casos em negociação ou com acordo nunca são mexidos."
+                        />
+                    </h2>
                 </div>
                 {!preview && (
                     <button type="button" className={styles.primaryButton} onClick={() => loadPreview(null)} disabled={isLoading}>
@@ -286,6 +289,10 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
                                 <span className={styles.receiveCount}>
                                     {(selectedOperatorIds || []).length} de {preview.operators.length}
                                 </span>
+                                <MetricInfoHint
+                                    placement="bottom"
+                                    text="Clique no nome para tirar quem está de férias ou ausente; o NIC lembra essa escolha na próxima triagem. Quem está fora não recebe distribuição, mas continua recebendo os processos em que é citado na observação."
+                                />
                             </span>
                             <label className={styles.toggle}>
                                 <input
@@ -297,10 +304,6 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
                                 Redistribuir também os &ldquo;Em tratamento&rdquo; sem nome que já têm responsável
                             </label>
                         </div>
-                        <p className={styles.operatorsHint}>
-                            Clique no nome para tirar quem está de férias ou ausente. O NIC lembra essa escolha na próxima triagem.
-                            Quem está fora não recebe distribuição, mas continua recebendo os processos em que é citado na observação.
-                        </p>
                         <div className={styles.operators}>
                             {preview.operators.map((operator) => {
                                 const isSelected = (selectedOperatorIds || []).includes(operator.id);
@@ -350,7 +353,10 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
                             </span>
                         ) : (
                             <>
-                                <span className={styles.footerHint}>Confira os grupos acima. Tudo fica registrado no histórico de cada caso.</span>
+                                <span className={styles.footerHint}>
+                                    Confira os grupos acima
+                                    <MetricInfoHint text="Tudo o que a triagem fizer fica registrado no histórico de cada caso e no log de auditoria." />
+                                </span>
                                 <button
                                     type="button"
                                     className={styles.primaryButton}
