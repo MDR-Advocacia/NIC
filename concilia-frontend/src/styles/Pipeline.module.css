@@ -1528,3 +1528,43 @@
     align-items: center;
     gap: 0.45rem;
 }
+
+/* Cabeçalho dos filtros harmonizado: sem ícone, título com (i) e contador em pílula na mesma linha */
+.filterPanelHeader {
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.filterPanelMeta {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.filterCountPill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border-color-light);
+  border-radius: 999px;
+  background: var(--surface-card-sunken);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.filterCountPill strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}

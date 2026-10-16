@@ -1160,3 +1160,19 @@
     align-items: center;
     gap: 0.45rem;
 }
+
+/* Cabeçalho dos filtros harmonizado: sem ícone, título com (i) e contador em pílula */
+.filtersHeader {
+  align-items: center;
+}
+
+.filterCount {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border-color-light);
+  border-radius: 999px;
+  background: var(--surface-card-sunken);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}

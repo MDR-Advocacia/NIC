@@ -788,9 +788,6 @@ const DashboardPage = () => {
                 <section className={styles.filters}>
                     <div className={styles.filtersHeader}>
                         <div className={styles.filtersTitleGroup}>
-                            <div className={styles.filtersIconBadge}>
-                                <FaSlidersH />
-                            </div>
                             <div>
                                 <h2 className={`${styles.filtersTitle} ${styles.titleWithHint}`}>
                                     Filtros do Dashboard
@@ -805,8 +802,9 @@ const DashboardPage = () => {
                         </div>
 
                         <div className={styles.filtersCounter}>
-                            <strong>{activeFilterCount}</strong>
-                            <span>{activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}</span>
+                            <span className={styles.filterCountPill}>
+                                <strong>{activeFilterCount}</strong> {activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}
+                            </span>
                         </div>
                     </div>
 

@@ -37,7 +37,6 @@ import styles from '../styles/Pipeline.module.css';
 import { 
     FaExclamationTriangle,
     FaSearch,
-    FaSlidersH,
     FaBuilding,
     FaGavel,
     FaUserTie,
@@ -1010,9 +1009,6 @@ const PipelinePage = () => {
             <section className={styles.filterPanel}>
                 <div className={styles.filterPanelHeader}>
                     <div className={styles.filterPanelTitleGroup}>
-                        <div className={styles.filterPanelIcon}>
-                            <FaSlidersH />
-                        </div>
                         <div>
                             <h2 className={`${styles.filterPanelTitle} ${styles.titleWithHint}`}>
                                 {isIndicator ? 'Filtros das Indicações' : 'Filtros do Pipeline'}
@@ -1027,8 +1023,9 @@ const PipelinePage = () => {
                     </div>
 
                     <div className={styles.filterPanelMeta}>
-                        <strong>{activeFilterCount}</strong>
-                        <span>{activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}</span>
+                        <span className={styles.filterCountPill}>
+                            <strong>{activeFilterCount}</strong> {activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'}
+                        </span>
                         <small><FaBolt /> Atualização automática</small>
                     </div>
                 </div>

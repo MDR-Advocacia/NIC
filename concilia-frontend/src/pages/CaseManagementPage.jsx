@@ -7,7 +7,7 @@ import {
     FaCheckSquare, FaTrashAlt, FaTimes, 
     FaGavel, FaExclamationCircle, FaUserTag,
     FaChevronLeft, FaChevronRight,
-    FaSort, FaSortUp, FaSortDown, FaSlidersH, FaEraser, FaTag, FaFileExport, FaCalendarAlt, FaFilter,
+    FaSort, FaSortUp, FaSortDown, FaEraser, FaTag, FaFileExport, FaCalendarAlt, FaFilter,
     FaChevronDown, FaEyeSlash, FaArchive, FaBalanceScale, FaHistory, FaBan
 } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
@@ -1037,9 +1037,6 @@ const CaseManagementPage = () => {
             <section className={styles.filtersContainer}>
                 <div className={styles.filtersHeader}>
                     <div className={styles.filtersTitleBlock}>
-                        <div className={styles.filtersIcon}>
-                            <FaSlidersH />
-                        </div>
                         <div className={styles.filtersHeading}>
                             <h3 className={styles.titleWithHint}>
                                 Filtros da Gestão
