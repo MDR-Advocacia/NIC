@@ -26,8 +26,34 @@ const statusName = (status) => (status ? getLegalCaseStatusDetails(status).name 
 
 const firstName = (name) => String(name || '').split(' ')[0];
 
-const TriageGroup = ({ group, items }) => {
-    const [open, setOpen] = useState(false);
+// Operadores fora da distribuição (férias, ausência): lembrados para a próxima triagem neste navegador
+const EXCLUDED_OPERATORS_KEY = 'nic.weeklyTriage.excludedOperatorIds';
+
+const readExcludedOperatorIds = () => {
+    try {
+        const stored = JSON.parse(window.localStorage.getItem(EXCLUDED_OPERATORS_KEY) || '[]');
+        return Array.isArray(stored) ? stored.map(Number) : [];
+    } catch {
+        return [];
+    }
+};
+
+const writeExcludedOperatorIds = (ids) => {
+    try {
+        window.localStorage.setItem(EXCLUDED_OPERATORS_KEY, JSON.stringify(ids));
+    } catch {
+        // Sem armazenamento local: a escolha vale só para esta triagem
+    }
+};
+
+const decisionValue = (item) => {
+    if (item.decision === 'proposal' && item.decision_user_id) return `proposal:${item.decision_user_id}`;
+    return item.decision || 'keep';
+};
+
+const TriageGroup = ({ group, items, operators = [], onDecisionChange, decisionsLocked = false }) => {
+    const isDecisionGroup = group.key === 'named_not_operator';
+    const [open, setOpen] = useState(isDecisionGroup);
     const Icon = group.icon;
     const changed = items.filter((item) => item.changes_status || (item.new_user_id && item.new_user_id !== item.current_user_id));
 
@@ -55,6 +81,7 @@ const TriageGroup = ({ group, items }) => {
                                 <th>Processo</th>
                                 <th>Portal</th>
                                 <th>No NIC hoje</th>
+                                {isDecisionGroup && <th>Decisão</th>}
                                 <th>Depois</th>
                                 <th>Motivo</th>
                             </tr>
@@ -68,6 +95,25 @@ const TriageGroup = ({ group, items }) => {
                                         {item.portal_obs && <small className={styles.obs} title={item.portal_obs}>{item.portal_obs}</small>}
                                     </td>
                                     <td>{statusName(item.current_status)}</td>
+                                    {isDecisionGroup && (
+                                        <td>
+                                            <select
+                                                className={styles.decisionSelect}
+                                                value={decisionValue(item)}
+                                                disabled={decisionsLocked}
+                                                onChange={(event) => onDecisionChange?.(item.key, event.target.value)}
+                                                aria-label={`Decisão para ${item.case_number}`}
+                                            >
+                                                <option value="keep">Manter como está</option>
+                                                <option value="initial">Análise Inicial e distribuir</option>
+                                                <optgroup label="Proposta Enviada com…">
+                                                    {operators.map((operator) => (
+                                                        <option key={operator.id} value={`proposal:${operator.id}`}>{operator.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            </select>
+                                        </td>
+                                    )}
                                     <td>
                                         {item.changes_status ? <strong>{statusName(item.new_status)}</strong> : <span className={styles.muted}>sem mudança</span>}
                                         {item.new_user_name && item.new_user_id !== item.current_user_id && (
@@ -95,6 +141,8 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
     const [isApplying, setIsApplying] = useState(false);
     const [applied, setApplied] = useState(null);
     const [error, setError] = useState('');
+    // Decisões do grupo "Para decidir": { [número só com dígitos]: { action, user_id } }
+    const [decisions, setDecisions] = useState({});
 
     const triageRows = useMemo(
         () => rows
@@ -103,33 +151,42 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
         [rows]
     );
 
-    const request = useCallback(async (mode, operatorIds) => {
+    const request = useCallback(async (mode, operatorIds, decisionsToSend) => {
         const response = await apiClient.post('/cases/weekly-triage', {
             mode,
             rows: triageRows,
             ...(operatorIds ? { operator_ids: operatorIds } : {}),
             redistribute_untreated: redistributeUntreated,
+            decisions: decisionsToSend,
             file_name: fileName || null,
         }, { headers: { Authorization: `Bearer ${token}` } });
         return response.data;
     }, [triageRows, redistributeUntreated, fileName, token]);
 
-    const loadPreview = useCallback(async (operatorIds = selectedOperatorIds) => {
+    const loadPreview = useCallback(async (operatorIds = selectedOperatorIds, decisionsToSend = decisions) => {
         if (!triageRows.length) return;
         setIsLoading(true);
         setError('');
         try {
-            const data = await request('preview', operatorIds);
-            setPreview(data);
+            let data = await request('preview', operatorIds, decisionsToSend);
             if (!operatorIds) {
-                setSelectedOperatorIds(data.operators.filter((operator) => operator.selected).map((operator) => operator.id));
+                // Primeira prévia: tira quem ficou fora da distribuição na última triagem (férias etc.)
+                const excluded = readExcludedOperatorIds();
+                const initialIds = data.operators
+                    .map((operator) => operator.id)
+                    .filter((id) => !excluded.includes(id));
+                setSelectedOperatorIds(initialIds);
+                if (initialIds.length !== data.operators.length) {
+                    data = await request('preview', initialIds, decisionsToSend);
+                }
             }
+            setPreview(data);
         } catch (err) {
             setError(err?.response?.data?.message || 'Não foi possível gerar a prévia da triagem.');
         } finally {
             setIsLoading(false);
         }
-    }, [request, selectedOperatorIds, triageRows.length]);
+    }, [request, selectedOperatorIds, decisions, triageRows.length]);
 
     useEffect(() => {
         if (autoStart && !preview && !applied) {
@@ -150,7 +207,15 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
         const current = selectedOperatorIds || [];
         const next = current.includes(operatorId) ? current.filter((id) => id !== operatorId) : [...current, operatorId];
         setSelectedOperatorIds(next);
+        writeExcludedOperatorIds((preview?.operators || []).map((operator) => operator.id).filter((id) => !next.includes(id)));
         loadPreview(next);
+    };
+
+    const handleDecisionChange = (key, value) => {
+        const [action, userId] = value.split(':');
+        const next = { ...decisions, [key]: { action, ...(userId ? { user_id: Number(userId) } : {}) } };
+        setDecisions(next);
+        loadPreview(selectedOperatorIds, next);
     };
 
     const handleApply = async () => {
@@ -160,7 +225,7 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
         setIsApplying(true);
         setError('');
         try {
-            const data = await request('apply', selectedOperatorIds);
+            const data = await request('apply', selectedOperatorIds, decisions);
             setApplied(data.result);
             setPreview(data);
             toast.success(`Triagem aplicada: ${data.result.to_initial} para Análise Inicial, ${data.result.to_proposal} para Proposta Enviada, ${data.result.distributed} distribuídos.`, 8000);
@@ -216,7 +281,12 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
 
                     <div className={styles.operatorsBlock}>
                         <div className={styles.operatorsHeader}>
-                            <span className={styles.blockTitle}><ArrowRightLeft size={14} /> Operadores que entram na distribuição</span>
+                            <span className={styles.blockTitle}>
+                                <ArrowRightLeft size={14} /> Quem recebe processos nesta triagem
+                                <span className={styles.receiveCount}>
+                                    {(selectedOperatorIds || []).length} de {preview.operators.length}
+                                </span>
+                            </span>
                             <label className={styles.toggle}>
                                 <input
                                     type="checkbox"
@@ -227,6 +297,10 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
                                 Redistribuir também os &ldquo;Em tratamento&rdquo; sem nome que já têm responsável
                             </label>
                         </div>
+                        <p className={styles.operatorsHint}>
+                            Clique no nome para tirar quem está de férias ou ausente. O NIC lembra essa escolha na próxima triagem.
+                            Quem está fora não recebe distribuição, mas continua recebendo os processos em que é citado na observação.
+                        </p>
                         <div className={styles.operators}>
                             {preview.operators.map((operator) => {
                                 const isSelected = (selectedOperatorIds || []).includes(operator.id);
@@ -237,12 +311,16 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
                                         className={`${styles.operatorChip} ${isSelected ? styles.operatorChipOn : ''}`}
                                         onClick={() => toggleOperator(operator.id)}
                                         disabled={Boolean(applied) || isLoading}
-                                        title={operator.name}
+                                        title={isSelected ? `${operator.name}: clique para tirar da distribuição` : `${operator.name}: clique para voltar a receber`}
+                                        aria-pressed={isSelected}
                                     >
                                         <span className={styles.operatorAvatar}>{firstName(operator.name).slice(0, 1)}</span>
                                         <span className={styles.operatorName}>{firstName(operator.name)}</span>
+                                        <span className={`${styles.receiveSwitch} ${isSelected ? styles.receiveSwitchOn : ''}`} aria-hidden />
                                         <span className={styles.operatorMeta}>
-                                            {operator.distributed} distrib. · {operator.proposals} propostas
+                                            {isSelected
+                                                ? `${operator.distributed} distrib. · ${operator.proposals} propostas`
+                                                : `fora da distribuição${operator.proposals ? ` · ${operator.proposals} propostas` : ''}`}
                                         </span>
                                     </button>
                                 );
@@ -252,7 +330,14 @@ const WeeklyTriagePanel = ({ rows, fileName, autoStart = false }) => {
 
                     <div className={styles.groups}>
                         {GROUPS.map((group) => (
-                            <TriageGroup key={group.key} group={group} items={itemsByGroup[group.key] || []} />
+                            <TriageGroup
+                                key={group.key}
+                                group={group}
+                                items={itemsByGroup[group.key] || []}
+                                operators={preview.operators}
+                                onDecisionChange={handleDecisionChange}
+                                decisionsLocked={Boolean(applied) || isLoading}
+                            />
                         ))}
                     </div>
 

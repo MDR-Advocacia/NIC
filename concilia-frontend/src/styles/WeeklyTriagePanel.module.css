@@ -174,9 +174,73 @@
     gap: 0.5rem;
 }
 
+.receiveCount {
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--surface-card-sunken);
+    color: var(--text-primary);
+    letter-spacing: 0.02em;
+}
+
+.operatorsHint {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.receiveSwitch {
+    position: relative;
+    grid-row: 1;
+    grid-column: 3;
+    width: 30px;
+    height: 17px;
+    border-radius: 999px;
+    background: var(--border-color-light);
+    transition: background-color 0.15s ease;
+}
+
+.receiveSwitch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+    transition: transform 0.15s ease;
+}
+
+.receiveSwitchOn {
+    background: var(--accent-primary);
+}
+
+.receiveSwitchOn::after {
+    transform: translateX(13px);
+}
+
+.decisionSelect {
+    min-width: 190px;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border-color-light);
+    border-radius: 10px;
+    background: var(--bg-input, var(--bg-card));
+    color: var(--text-primary);
+    font-size: 0.78rem;
+}
+
+.decisionSelect:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--focus-ring, rgba(37, 99, 235, 0.18));
+}
+
 .operatorChip {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto;
     grid-template-rows: auto auto;
     column-gap: 0.55rem;
     align-items: center;
@@ -231,6 +295,7 @@
 }
 
 .operatorMeta {
+    grid-column: 2 / 4;
     color: var(--text-secondary);
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;

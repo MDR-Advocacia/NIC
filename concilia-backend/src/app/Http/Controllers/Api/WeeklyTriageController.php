@@ -50,6 +50,10 @@ class WeeklyTriageController extends Controller
             'operator_ids.*' => 'integer',
             'redistribute_untreated' => 'nullable|boolean',
             'file_name' => 'nullable|string|max:255',
+            // Decisões do grupo "Para decidir", por número do processo (só dígitos)
+            'decisions' => 'nullable|array',
+            'decisions.*.action' => 'required|in:keep,proposal,initial',
+            'decisions.*.user_id' => 'nullable|integer',
         ]);
 
         $operators = User::query()
@@ -67,7 +71,8 @@ class WeeklyTriageController extends Controller
             $validated['rows'],
             $operators,
             $selectedOperatorIds->all(),
-            (bool) ($validated['redistribute_untreated'] ?? true)
+            (bool) ($validated['redistribute_untreated'] ?? true),
+            $validated['decisions'] ?? []
         );
 
         if ($validated['mode'] === 'preview') {
@@ -105,7 +110,7 @@ class WeeklyTriageController extends Controller
     /**
      * Uma entrada por processo da planilha com a ação decidida a partir do estado atual no NIC.
      */
-    private function buildPlan(array $rows, $operators, array $distributionOperatorIds, bool $redistributeUntreated): array
+    private function buildPlan(array $rows, $operators, array $distributionOperatorIds, bool $redistributeUntreated, array $decisions = []): array
     {
         $byDigits = [];
         foreach ($rows as $row) {
@@ -133,6 +138,7 @@ class WeeklyTriageController extends Controller
             $case = $cases->get($digits);
 
             $item = [
+                'key' => $digits,
                 'case_number' => $case?->case_number ?? $row['case_number'],
                 'case_id' => $case?->id,
                 'portal_status' => $row['portal_status'] ?? null,
@@ -196,7 +202,7 @@ class WeeklyTriageController extends Controller
                 }
             } elseif ($otherUser) {
                 $item['group'] = 'named_not_operator';
-                $item['reason'] = "Observação cita {$otherUser->name}, que não é operador: mantido para decisão manual.";
+                $item = $this->applyManualDecision($item, $decisions[$digits] ?? null, $case, $isQueue, $operators, $otherUser);
             } elseif ($isQueue) {
                 $item['group'] = 'untreated_to_initial';
                 $item['new_status'] = LegalCase::STATUS_INITIAL_ANALYSIS;
@@ -211,6 +217,54 @@ class WeeklyTriageController extends Controller
         }
 
         return $this->assignDistribution($plan, $distributionOperatorIds);
+    }
+
+    /**
+     * Decisão escolhida no painel para um caso do grupo "Para decidir". A trava continua valendo:
+     * caso em negociação ou com acordo não muda, qualquer que seja a decisão.
+     */
+    private function applyManualDecision(array $item, ?array $decision, LegalCase $case, bool $isQueue, $operators, User $otherUser): array
+    {
+        $action = $decision['action'] ?? 'keep';
+        $item['decision'] = $action;
+        $item['decision_user_id'] = null;
+        $mentioned = "Observação cita {$otherUser->name}, que não é operador";
+
+        if ($action === 'proposal') {
+            $operator = $operators->firstWhere('id', (int) ($decision['user_id'] ?? 0));
+            if (!$operator) {
+                $item['decision'] = 'keep';
+                $item['reason'] = "{$mentioned}: escolha o operador para a Proposta Enviada.";
+                return $item;
+            }
+
+            $item['decision_user_id'] = $operator->id;
+            if ($isQueue || $case->status === LegalCase::STATUS_PROPOSAL_SENT) {
+                $item['new_status'] = $isQueue ? LegalCase::STATUS_PROPOSAL_SENT : null;
+                $item['new_user_id'] = $operator->id;
+                $item['reason'] = "{$mentioned}; decisão manual: Proposta Enviada com {$operator->name}.";
+            } else {
+                $item['reason'] = "{$mentioned}; decisão manual não aplicada: o caso já está em negociação ou com acordo.";
+            }
+
+            return $item;
+        }
+
+        if ($action === 'initial') {
+            if ($isQueue) {
+                $item['new_status'] = LegalCase::STATUS_INITIAL_ANALYSIS;
+                $item['distribute'] = true;
+                $item['reason'] = "{$mentioned}; decisão manual: Análise Inicial e distribuição.";
+            } else {
+                $item['reason'] = "{$mentioned}; decisão manual não aplicada: o caso já está em negociação ou com acordo.";
+            }
+
+            return $item;
+        }
+
+        $item['reason'] = "{$mentioned}: mantido como está.";
+
+        return $item;
     }
 
     /**
@@ -338,7 +392,7 @@ class WeeklyTriageController extends Controller
             if ($item['distribute'] && $item['new_user_id']) {
                 $distribution[$item['new_user_id']] = ($distribution[$item['new_user_id']] ?? 0) + 1;
             }
-            if ($item['group'] === 'to_proposal' && $item['new_user_id']) {
+            if (($item['group'] === 'to_proposal' || ($item['decision'] ?? null) === 'proposal') && $item['new_user_id']) {
                 $proposalByOperator[$item['new_user_id']] = ($proposalByOperator[$item['new_user_id']] ?? 0) + 1;
             }
         }
