@@ -1,5 +1,6 @@
-# Usar a imagem oficial do PHP 8.2 com FPM
-FROM php:8.2-fpm
+# Imagem oficial do PHP 8.2 com FPM. Fixada na 8.2.35 (ou superior) por causa do
+# PHP2Shell (CVE-2026-109618/109619): versoes ate a 8.2.34 permitem RCE sem autenticacao.
+FROM php:8.2.35-fpm
 
 # Instalar dependências do sistema
 RUN apt-get update && apt-get install -y \
@@ -14,6 +15,9 @@ RUN { \
         echo "upload_max_filesize=12M"; \
         echo "post_max_size=14M"; \
     } > /usr/local/etc/php/conf.d/uploads.ini
+
+# Nao anunciar a versao do PHP nas respostas (X-Powered-By)
+RUN echo "expose_php=Off" > /usr/local/etc/php/conf.d/zz-security.ini
 
 # --- AJUSTE AQUI: Usar /var/www/html que é o padrão do Nginx ---
 WORKDIR /var/www/html
