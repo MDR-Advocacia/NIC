@@ -16,10 +16,12 @@ export const LEGAL_CASE_STATUS_DETAILS = {
   deal_completed: { name: 'Acordo Concluído', color: '#276749', textColor: '#FFFFFF' },
 };
 
+// Status em que o caso não conta como "parado" (selo +5 dias, filtro e contagem de atrasados)
 export const TERMINAL_LEGAL_CASE_STATUSES = [
   'contra_indicated',
   'closed_deal',
   'failed_deal',
+  'deal_completed',
 ];
 
 // Pipeline Pré-Acordo
