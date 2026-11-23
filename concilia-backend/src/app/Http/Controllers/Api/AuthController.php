@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
@@ -122,6 +123,8 @@ class AuthController extends Controller
         }
 
         if (! $user) {
+            $this->logAccess(null, 'Falha de login', "Tentativa com e-mail não cadastrado: {$email}", $request);
+
             return response()->json([
                 'message' => 'Usuario nao encontrado no banco de dados com este e-mail.',
             ], 401);
@@ -130,6 +133,8 @@ class AuthController extends Controller
         $normalizedStatus = Str::lower(trim((string) ($user->status ?? 'ativo')));
 
         if ($normalizedStatus !== 'ativo') {
+            $this->logAccess($user, 'Falha de login', 'Tentativa de entrar com a conta inativa.', $request);
+
             return response()->json([
                 'message' => 'Sua conta esta inativa. Procure um administrador do sistema.',
             ], 403);
@@ -178,6 +183,8 @@ class AuthController extends Controller
         }
 
         if (! $passwordMatches) {
+            $this->logAccess($user, 'Falha de login', 'Senha incorreta.', $request);
+
             return response()->json([
                 'message' => 'A senha esta incorreta.',
                 'debug_email' => $email,
@@ -194,6 +201,8 @@ class AuthController extends Controller
             'last_login_at' => now(),
         ])->save();
 
+        $this->logAccess($user, 'Login', 'Entrou no sistema' . $this->describeClient($request) . '.', $request);
+
         // Mantemos tokens anteriores para nao derrubar sessoes validas
         // abertas no lab, local ou outros dispositivos da equipe.
         return response()->json([
@@ -209,11 +218,63 @@ class AuthController extends Controller
     {
         $token = $request->user()?->currentAccessToken();
 
+        if ($request->user()) {
+            $this->logAccess($request->user(), 'Logout', 'Saiu do sistema.', $request);
+        }
+
         if ($token) {
             $token->delete();
         }
 
         return response()->json(['message' => 'Logout realizado com sucesso.']);
+    }
+
+    /**
+     * Registra entrada, saída e tentativas de acesso na página de Logs.
+     * Falha ao gravar o log nunca impede o login.
+     */
+    private function logAccess(?User $user, string $action, string $details, Request $request): void
+    {
+        try {
+            AuditLog::create([
+                'user_id' => $user?->id,
+                'user_name' => $user?->name ?? 'Desconhecido',
+                'action' => $action,
+                'details' => mb_substr($details, 0, 1000),
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    // Navegador e sistema, em poucas palavras, a partir do User-Agent
+    private function describeClient(Request $request): string
+    {
+        $agent = (string) $request->userAgent();
+        if ($agent === '') {
+            return '';
+        }
+
+        $browser = match (true) {
+            str_contains($agent, 'Edg/') => 'Edge',
+            str_contains($agent, 'OPR/') => 'Opera',
+            str_contains($agent, 'Chrome/') => 'Chrome',
+            str_contains($agent, 'Firefox/') => 'Firefox',
+            str_contains($agent, 'Safari/') => 'Safari',
+            default => null,
+        };
+        $system = match (true) {
+            str_contains($agent, 'Windows') => 'Windows',
+            str_contains($agent, 'Android') => 'Android',
+            str_contains($agent, 'iPhone') || str_contains($agent, 'iPad') => 'iOS',
+            str_contains($agent, 'Mac OS') => 'macOS',
+            str_contains($agent, 'Linux') => 'Linux',
+            default => null,
+        };
+        $parts = array_filter([$browser, $system]);
+
+        return $parts ? ' (' . implode(' no ', $parts) . ')' : '';
     }
 
     /**

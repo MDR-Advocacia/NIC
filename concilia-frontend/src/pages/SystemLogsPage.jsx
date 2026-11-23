@@ -1,11 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import styles from '../styles/UserManagement.module.css';
-import { FaSync, FaSearch, FaShieldAlt, FaExclamationTriangle, FaSlidersH, FaEraser } from 'react-icons/fa';
+import { FaSync, FaSearch, FaShieldAlt, FaExclamationTriangle, FaSlidersH, FaEraser, FaSignInAlt } from 'react-icons/fa';
 import KpiCard from '../components/KpiCard';
 import MetricInfoHint from '../components/MetricInfoHint';
 import PageSkeleton from '../components/PageSkeleton';
+import SingleSelect from '../components/SingleSelect';
+
+const LOG_TYPE_OPTIONS = [
+    { value: 'acessos', label: 'Acessos (entradas, saídas e falhas)' },
+    { value: 'alteracoes', label: 'Alterações (sem acessos e visualizações)' },
+];
+
+const LOG_TYPE_LABELS = Object.fromEntries(LOG_TYPE_OPTIONS.map((option) => [option.value, option.label]));
 
 const SystemLogsPage = () => {
     const { token } = useAuth();
@@ -13,41 +21,53 @@ const SystemLogsPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [logType, setLogType] = useState('');
 
-    const fetchLogs = async () => {
+    // A busca e o tipo vão para o servidor, para achar também registros antigos
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    const fetchLogs = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            // Busca os dados REAIS do backend
             const response = await apiClient.get('/audit-logs', {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                params: {
+                    ...(logType ? { type: logType } : {}),
+                    ...(debouncedSearch ? { search: debouncedSearch } : {}),
+                    limit: 500,
+                },
             });
-            console.log("Logs recebidos:", response.data); // Para debug
-            setLogs(response.data);
+            setLogs(Array.isArray(response.data) ? response.data : []);
         } catch (err) {
             console.error("Erro ao buscar logs:", err);
             setError("Não foi possível carregar o histórico. Verifique sua permissão.");
         } finally {
             setLoading(false);
         }
-    };
+    }, [token, logType, debouncedSearch]);
 
     useEffect(() => {
         fetchLogs();
-    }, []);
+    }, [fetchLogs]);
 
-    const activeFilterChips = search.trim() ? [`Busca: ${search.trim()}`] : [];
+    const activeFilterChips = [
+        search.trim() ? `Busca: ${search.trim()}` : null,
+        logType ? `Tipo: ${LOG_TYPE_LABELS[logType]}` : null,
+    ].filter(Boolean);
     const activeFilterCount = activeFilterChips.length;
 
-    // Filtragem local
-    const filteredLogs = logs.filter(log => 
-        (log.action && log.action.toLowerCase().includes(search.toLowerCase())) ||
-        (log.user_name && log.user_name.toLowerCase().includes(search.toLowerCase())) ||
-        (log.details && log.details.toLowerCase().includes(search.toLowerCase()))
-    );
+    const filteredLogs = logs;
 
     const getActionStyle = (action) => {
         const act = action ? action.toLowerCase() : '';
+        if (act.includes('falha de login')) return { bg: 'var(--danger-soft)', color: 'var(--danger-text)' };
+        if (act === 'logout') return { bg: 'var(--neutral-soft)', color: 'var(--text-secondary)' };
+        if (act === 'login') return { bg: 'var(--success-soft)', color: 'var(--success-text)' };
         if (act.includes('exclu')) return { bg: 'var(--danger-soft)', color: 'var(--danger-text)' };
         if (act.includes('cria') || act.includes('novo')) return { bg: 'var(--success-soft)', color: 'var(--success-text)' };
         if (act.includes('edi') || act.includes('atualiza')) return { bg: 'var(--warning-soft)', color: 'var(--warning-text)' };
@@ -111,6 +131,20 @@ const SystemLogsPage = () => {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </label>
+
+                    <label className={styles.filterField}>
+                        <span className={styles.filterLabel}>
+                            <FaSignInAlt />
+                            Tipo de registro
+                        </span>
+                        <SingleSelect
+                            options={LOG_TYPE_OPTIONS}
+                            value={logType}
+                            onChange={(value) => setLogType(value)}
+                            emptyOptionLabel="Todos os registros"
+                            ariaLabel="Filtro por tipo de registro"
+                        />
+                    </label>
                 </div>
 
                 <div className={styles.filtersFooter}>
@@ -131,7 +165,10 @@ const SystemLogsPage = () => {
                     <button
                         type="button"
                         className={styles.clearFiltersButton}
-                        onClick={() => setSearch('')}
+                        onClick={() => {
+                            setSearch('');
+                            setLogType('');
+                        }}
                         disabled={activeFilterCount === 0}
                     >
                         <FaEraser />

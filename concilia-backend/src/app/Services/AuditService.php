@@ -11,11 +11,12 @@ class AuditService
     public static function log($action, $description, $details = null)
     {
         try {
+            // A tabela não tem coluna "description": o texto vai em "details", junto com o nome do usuário
             AuditLog::create([
                 'user_id' => Auth::check() ? Auth::id() : null,
+                'user_name' => Auth::user()?->name,
                 'action' => $action,
-                'description' => $description,
-                'details' => $details,
+                'details' => $details ?? $description,
                 'ip_address' => Request::ip(),
             ]);
         } catch (\Exception $e) {
