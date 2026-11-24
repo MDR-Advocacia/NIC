@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Auth;
 class AuditLogController extends Controller
 {
     // Ações de acesso ao sistema (gravadas pelo AuthController)
-    public const ACCESS_ACTIONS = ['Login', 'Logout', 'Falha de login'];
+    public const ACCESS_ACTIONS = ['Acesso', 'Login', 'Logout', 'Falha de login'];
 
     // Registro automático a cada abertura do pipeline: muito frequente, polui o histórico
     private const VIEW_ACTIONS = ['view_pipeline'];

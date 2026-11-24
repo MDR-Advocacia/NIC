@@ -31,7 +31,8 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 
-Route::middleware('auth:sanctum')->group(function () {
+// RecordDailyAccess: registra o primeiro acesso do dia de cada usuário na página de Logs
+Route::middleware(['auth:sanctum', \App\Http\Middleware\RecordDailyAccess::class])->group(function () {
     Route::get('/chat/connection', [ChatController::class, 'getConnectionStatus']);
     Route::put('/chat/connection', [ChatController::class, 'updateConnection']);
     Route::delete('/chat/connection', [ChatController::class, 'disconnectConnection']);

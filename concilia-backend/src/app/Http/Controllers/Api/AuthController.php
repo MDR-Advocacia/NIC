@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\UserAgentDescriber;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -248,33 +249,12 @@ class AuthController extends Controller
         }
     }
 
-    // Navegador e sistema, em poucas palavras, a partir do User-Agent
+    // " (Chrome no Windows)" a partir do User-Agent
     private function describeClient(Request $request): string
     {
-        $agent = (string) $request->userAgent();
-        if ($agent === '') {
-            return '';
-        }
+        $client = UserAgentDescriber::describe($request->userAgent());
 
-        $browser = match (true) {
-            str_contains($agent, 'Edg/') => 'Edge',
-            str_contains($agent, 'OPR/') => 'Opera',
-            str_contains($agent, 'Chrome/') => 'Chrome',
-            str_contains($agent, 'Firefox/') => 'Firefox',
-            str_contains($agent, 'Safari/') => 'Safari',
-            default => null,
-        };
-        $system = match (true) {
-            str_contains($agent, 'Windows') => 'Windows',
-            str_contains($agent, 'Android') => 'Android',
-            str_contains($agent, 'iPhone') || str_contains($agent, 'iPad') => 'iOS',
-            str_contains($agent, 'Mac OS') => 'macOS',
-            str_contains($agent, 'Linux') => 'Linux',
-            default => null,
-        };
-        $parts = array_filter([$browser, $system]);
-
-        return $parts ? ' (' . implode(' no ', $parts) . ')' : '';
+        return $client !== '' ? " ({$client})" : '';
     }
 
     /**

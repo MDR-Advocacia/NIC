@@ -9,7 +9,7 @@ import PageSkeleton from '../components/PageSkeleton';
 import SingleSelect from '../components/SingleSelect';
 
 const LOG_TYPE_OPTIONS = [
-    { value: 'acessos', label: 'Acessos (entradas, saídas e falhas)' },
+    { value: 'acessos', label: 'Acessos (uso do dia, logins, saídas e falhas)' },
     { value: 'alteracoes', label: 'Alterações (sem acessos e visualizações)' },
 ];
 
@@ -67,7 +67,7 @@ const SystemLogsPage = () => {
         const act = action ? action.toLowerCase() : '';
         if (act.includes('falha de login')) return { bg: 'var(--danger-soft)', color: 'var(--danger-text)' };
         if (act === 'logout') return { bg: 'var(--neutral-soft)', color: 'var(--text-secondary)' };
-        if (act === 'login') return { bg: 'var(--success-soft)', color: 'var(--success-text)' };
+        if (act === 'login' || act === 'acesso') return { bg: 'var(--success-soft)', color: 'var(--success-text)' };
         if (act.includes('exclu')) return { bg: 'var(--danger-soft)', color: 'var(--danger-text)' };
         if (act.includes('cria') || act.includes('novo')) return { bg: 'var(--success-soft)', color: 'var(--success-text)' };
         if (act.includes('edi') || act.includes('atualiza')) return { bg: 'var(--warning-soft)', color: 'var(--warning-text)' };
