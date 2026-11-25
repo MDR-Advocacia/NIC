@@ -64,6 +64,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\RecordDailyAccess::class
     Route::get('/case-tags', [CaseTagController::class, 'index']);
     Route::delete('/case-tags/{caseTag}', [CaseTagController::class, 'destroy']);
     Route::get('/users/operators', [UserController::class, 'operators']);
+    Route::get('/users/online-status', [UserController::class, 'onlineStatus']);
     Route::get('/users/indicators', [UserController::class, 'indicators']);
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);
     Route::apiResource('users', UserController::class);

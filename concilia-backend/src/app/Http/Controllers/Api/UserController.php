@@ -103,6 +103,35 @@ class UserController extends Controller
         return response()->json($query->paginate(15));
     }
 
+    /**
+     * Quem está online agora (atividade nos últimos 5 minutos). Só administrador.
+     */
+    public function onlineStatus(): JsonResponse
+    {
+        if (auth()->user()?->role !== 'administrador') {
+            return response()->json(['message' => 'Acesso negado.'], 403);
+        }
+
+        $onlineSince = now()->subMinutes(5);
+
+        $users = User::query()
+            ->where('status', 'ativo')
+            ->whereNotNull('last_seen_at')
+            ->get(['id', 'name', 'last_seen_at'])
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'last_seen_at' => $user->last_seen_at?->toIso8601String(),
+                'online' => $user->last_seen_at->gte($onlineSince),
+            ])
+            ->values();
+
+        return response()->json([
+            'online_window_minutes' => 5,
+            'users' => $users,
+        ]);
+    }
+
     public function operators(Request $request): JsonResponse
     {
         $currentUser = auth()->user();

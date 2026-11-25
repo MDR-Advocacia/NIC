@@ -47,7 +47,8 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    protected $hidden = ['password', 'remember_token', 'chatwoot_access_token'];
+    // last_seen_at (online agora) só aparece para administrador, em /users/online-status
+    protected $hidden = ['password', 'remember_token', 'chatwoot_access_token', 'last_seen_at'];
 
     /**
      * The attributes that should be cast.
@@ -58,6 +59,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
 
         'last_login_at' => 'datetime', // NOVO CAST ADICIONADO
+        'last_seen_at' => 'datetime',
         'must_change_password' => 'boolean',
         'chatwoot_user_id' => 'integer',
         'chatwoot_access_token' => 'encrypted',

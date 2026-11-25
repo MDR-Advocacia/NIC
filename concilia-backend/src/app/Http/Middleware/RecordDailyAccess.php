@@ -8,12 +8,14 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Grava um "Acesso" no log na primeira requisição de cada usuário no dia (horário de Brasília).
  * O login fica salvo no navegador por semanas, então só o registro de login não mostra quem usou
  * o NIC no dia; este registro mostra.
+ * Também atualiza users.last_seen_at (no máximo 1x por minuto), base do "online agora".
  */
 class RecordDailyAccess
 {
@@ -25,6 +27,8 @@ class RecordDailyAccess
         if (!$user) {
             return $response;
         }
+
+        $this->touchLastSeen($user, $request);
 
         $today = Carbon::now('America/Sao_Paulo');
         $cacheKey = "daily-access:{$user->id}:{$today->toDateString()}";
@@ -57,5 +61,24 @@ class RecordDailyAccess
         }
 
         return $response;
+    }
+
+    private function touchLastSeen($user, Request $request): void
+    {
+        // O logout zera o last_seen_at para a pessoa aparecer offline na hora
+        if ($request->is('api/logout')) {
+            return;
+        }
+
+        if ($user->last_seen_at && $user->last_seen_at->gt(now()->subMinute())) {
+            return;
+        }
+
+        try {
+            // Direto na tabela: não mexe em updated_at nem dispara eventos do modelo
+            DB::table('users')->where('id', $user->id)->update(['last_seen_at' => now()]);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
     }
 }

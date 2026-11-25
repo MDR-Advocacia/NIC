@@ -41,6 +41,37 @@ const UserManagementPage = () => {
     const toast = useToast();
     const { token, user: loggedInUser } = useAuth();
     const canManage = ['administrador', 'supervisor'].includes(loggedInUser?.role);
+    const isAdmin = loggedInUser?.role === 'administrador';
+
+    // Online agora: atividade nos últimos minutos (só administrador), atualizado a cada minuto
+    const [onlineStatus, setOnlineStatus] = useState({});
+    const fetchOnlineStatus = useCallback(async () => {
+        if (!isAdmin || !token) return;
+        try {
+            const response = await apiClient.get('/users/online-status', { headers: { Authorization: `Bearer ${token}` } });
+            const byId = {};
+            (response.data?.users || []).forEach((item) => { byId[item.id] = item; });
+            setOnlineStatus(byId);
+        } catch {
+            // Sem o status online a página continua funcionando normalmente
+        }
+    }, [isAdmin, token]);
+
+    useEffect(() => {
+        fetchOnlineStatus();
+        const interval = window.setInterval(fetchOnlineStatus, 60000);
+        return () => window.clearInterval(interval);
+    }, [fetchOnlineStatus]);
+
+    const onlineUsers = Object.values(onlineStatus).filter((item) => item.online);
+
+    const describeLastSeen = (userId) => {
+        const status = onlineStatus[userId];
+        if (!status?.last_seen_at) return 'Sem atividade registrada desde a ativação do recurso';
+        if (status.online) return 'Online agora';
+        const lastSeen = new Date(status.last_seen_at);
+        return `Visto por último em ${lastSeen.toLocaleDateString('pt-BR')} às ${lastSeen.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    };
     const canResetPasswords = ['administrador', 'admin'].includes(loggedInUser?.role);
 
     const [users, setUsers] = useState([]);
@@ -365,6 +396,15 @@ const UserManagementPage = () => {
 
             <section className={styles.kpiGrid}>
                 <KpiCard title="Total" value={pagination.total} />
+                {isAdmin && (
+                    <KpiCard
+                        title="Online agora"
+                        value={onlineUsers.length}
+                        infoTooltip={onlineUsers.length
+                            ? `Com atividade nos últimos 5 minutos: ${onlineUsers.map((item) => item.name).join(', ')}.`
+                            : 'Ninguém com atividade nos últimos 5 minutos.'}
+                    />
+                )}
                 <KpiCard title="Selecionados" value={selectedUsers.length} />
                 <KpiCard title="Página" value={`${pagination.current_page}/${pagination.last_page}`} />
             </section>
@@ -533,7 +573,15 @@ const UserManagementPage = () => {
                                         </td>
                                         <td>
                                             <div className={styles.userCell}>
-                                                <div className={styles.userAvatar}>{getInitials(managedUser.name)}</div>
+                                                <div
+                                                    className={styles.userAvatar}
+                                                    title={isAdmin ? describeLastSeen(managedUser.id) : undefined}
+                                                >
+                                                    {getInitials(managedUser.name)}
+                                                    {isAdmin && onlineStatus[managedUser.id]?.online && (
+                                                        <span className={styles.onlineDot} aria-label="Online agora" />
+                                                    )}
+                                                </div>
                                                 <div><div className={styles.userName}>{managedUser.name}</div><div className={styles.userEmail}>{managedUser.email}</div></div>
                                             </div>
                                         </td>

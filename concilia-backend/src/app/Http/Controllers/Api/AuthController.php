@@ -221,6 +221,7 @@ class AuthController extends Controller
 
         if ($request->user()) {
             $this->logAccess($request->user(), 'Logout', 'Saiu do sistema.', $request);
+            $request->user()->forceFill(['last_seen_at' => null])->saveQuietly();
         }
 
         if ($token) {
